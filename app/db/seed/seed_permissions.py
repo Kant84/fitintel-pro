@@ -183,8 +183,7 @@ SYSTEM_PERMISSIONS = [
         "name": "Override access",
         "module": "access",
         "description": "Принудительное открытие турникета",
-    }
-    
+    },
 
     # ==========================================================
     # ПРАВА ДЛЯ УЧЁТНЫХ ДАННЫХ (CREDENTIALS)
