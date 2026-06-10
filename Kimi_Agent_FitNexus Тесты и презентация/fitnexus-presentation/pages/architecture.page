@@ -1,0 +1,295 @@
+pageType: content
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: header-badge
+    elementType: text
+    bounds: [60, 24, 160, 20]
+    content:
+      style: "$badge"
+      align: [left, middle]
+      wrap: false
+      text: FITNEXUS AI
+
+  - elementId: page-title
+    elementType: text
+    bounds: [60, 60, 1000, 45]
+    content:
+      style: "$title"
+      align: [left, middle]
+      wrap: false
+      text: |
+        <p>5 слоёв архитектуры: <span style="color:$primary;">от клиента до инфраструктуры</span></p>
+
+  - elementId: title-accent
+    elementType: shape
+    bounds: [60, 110, 50, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: layer5-bg
+    elementType: shape
+    bounds: [60, 130, 1160, 90]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "#0D948815"
+    border:
+      style: solid
+      width: 1
+      color: "$primary"
+
+  - elementId: layer5-num
+    elementType: text
+    bounds: [75, 140, 35, 30]
+    content:
+      fontSize: 18
+      color: "$primary"
+      fontFamily: "Liter"
+      align: [center, middle]
+      wrap: false
+      text: "5"
+
+  - elementId: layer5-title
+    elementType: text
+    bounds: [115, 138, 220, 30]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: ИНФРАСТРУКТУРА
+
+  - elementId: layer5-desc
+    elementType: text
+    bounds: [115, 170, 1080, 35]
+    content:
+      style: "$bodySmall"
+      align: [left, top]
+      text: |
+        <p>Zabbix (серверы, сети, Docker)  |  Prometheus (метрики API, БД)  |  Grafana (дашборды, алерты)  |  Terraform  |  Ansible  |  GitLab CI/CD</p>
+
+  - elementId: arrow5
+    elementType: icon
+    bounds: [620, 225, 20, 16]
+    iconName: "fas:arrow-down"
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: layer4-bg
+    elementType: shape
+    bounds: [60, 248, 1160, 90]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "#F9731615"
+    border:
+      style: solid
+      width: 1
+      color: "$accent"
+
+  - elementId: layer4-num
+    elementType: text
+    bounds: [75, 258, 35, 30]
+    content:
+      fontSize: 18
+      color: "$accent"
+      fontFamily: "Liter"
+      align: [center, middle]
+      wrap: false
+      text: "4"
+
+  - elementId: layer4-title
+    elementType: text
+    bounds: [115, 256, 220, 30]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: "ДАННЫЕ / КЭШ"
+
+  - elementId: layer4-desc
+    elementType: text
+    bounds: [115, 288, 1080, 35]
+    content:
+      style: "$bodySmall"
+      align: [left, top]
+      text: |
+        <p>PostgreSQL 16 (Master + Replica, hot standby)  |  Redis 7 (кэш, сессии)  |  Celery (фоновые задачи: чеки, рассылки, отчёты)</p>
+
+  - elementId: arrow4
+    elementType: icon
+    bounds: [620, 343, 20, 16]
+    iconName: "fas:arrow-down"
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: layer3-bg
+    elementType: shape
+    bounds: [60, 366, 1160, 90]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "#10B98115"
+    border:
+      style: solid
+      width: 1
+      color: "$success"
+
+  - elementId: layer3-num
+    elementType: text
+    bounds: [75, 376, 35, 30]
+    content:
+      fontSize: 18
+      color: "$success"
+      fontFamily: "Liter"
+      align: [center, middle]
+      wrap: false
+      text: "3"
+
+  - elementId: layer3-title
+    elementType: text
+    bounds: [115, 374, 300, 30]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: ПРИКЛАДНОЙ СЛОЙ (API)
+
+  - elementId: layer3-desc
+    elementType: text
+    bounds: [115, 406, 1080, 35]
+    content:
+      style: "$bodySmall"
+      align: [left, top]
+      text: |
+        <p>FastAPI (Python 3.12) → Core (Auth, RBAC, Audit) | CRM | Finance | Visits | Access Control | Documents | AI Analytics</p>
+
+  - elementId: arrow3
+    elementType: icon
+    bounds: [620, 461, 20, 16]
+    iconName: "fas:arrow-down"
+    fill:
+      type: solid
+      color: "$success"
+
+  - elementId: layer2-bg
+    elementType: shape
+    bounds: [60, 484, 1160, 90]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "#FBBF2415"
+    border:
+      style: solid
+      width: 1
+      color: "$warning"
+
+  - elementId: layer2-num
+    elementType: text
+    bounds: [75, 494, 35, 30]
+    content:
+      fontSize: 18
+      color: "$warning"
+      fontFamily: "Liter"
+      align: [center, middle]
+      wrap: false
+      text: "2"
+
+  - elementId: layer2-title
+    elementType: text
+    bounds: [115, 492, 300, 30]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: "ШЛЮЗ / БАЛАНСИРОВЩИК"
+
+  - elementId: layer2-desc
+    elementType: text
+    bounds: [115, 524, 1080, 35]
+    content:
+      style: "$bodySmall"
+      align: [left, top]
+      text: |
+        <p>Nginx → Reverse Proxy + SSL/TLS 1.3 + ModSecurity WAF + Rate limiting + Фильтрация SQLi/XSS</p>
+
+  - elementId: arrow2
+    elementType: icon
+    bounds: [620, 579, 20, 16]
+    iconName: "fas:arrow-down"
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: layer1-bg
+    elementType: shape
+    bounds: [60, 602, 1160, 70]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "#94A3B815"
+    border:
+      style: solid
+      width: 1
+      color: "$secondary"
+
+  - elementId: layer1-num
+    elementType: text
+    bounds: [75, 612, 35, 30]
+    content:
+      fontSize: 18
+      color: "$secondary"
+      fontFamily: "Liter"
+      align: [center, middle]
+      wrap: false
+      text: "1"
+
+  - elementId: layer1-title
+    elementType: text
+    bounds: [115, 610, 300, 30]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: КЛИЕНТСКИЙ СЛОЙ
+
+  - elementId: layer1-desc
+    elementType: text
+    bounds: [115, 640, 1080, 25]
+    content:
+      style: "$bodySmall"
+      align: [left, middle]
+      text: |
+        <p>Web UI (React 18+)  |  PWA (iOS/Android)  |  Инфотерминалы (KERONG)</p>
+
+  - elementId: bottom-accent
+    elementType: shape
+    bounds: [60, 690, 40, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: page-num
+    elementType: text
+    bounds: [1180, 688, 40, 20]
+    content:
+      style: "$caption"
+      align: [right, middle]
+      wrap: false
+      text: "07"

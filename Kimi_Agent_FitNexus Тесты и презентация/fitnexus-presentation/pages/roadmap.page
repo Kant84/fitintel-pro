@@ -1,0 +1,423 @@
+pageType: content
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: header-badge
+    elementType: text
+    bounds: [60, 24, 160, 20]
+    content:
+      style: "$badge"
+      align: [left, middle]
+      wrap: false
+      text: FITNEXUS AI
+
+  - elementId: page-title
+    elementType: text
+    bounds: [60, 60, 900, 45]
+    content:
+      style: "$title"
+      align: [left, middle]
+      wrap: false
+      text: |
+        <p>20 этапов: <span style="color:$primary;">от Foundation до нативных приложений</span></p>
+
+  - elementId: title-accent
+    elementType: shape
+    bounds: [60, 110, 50, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: timeline-line
+    elementType: shape
+    bounds: [60, 190, 1160, 0]
+    shapeName: straightConnector1
+    border: {style: solid, width: 2, color: "$border"}
+
+  - elementId: dot-e0
+    elementType: shape
+    bounds: [85, 182, 16, 16]
+    shapeName: ellipse
+    fill:
+      type: solid
+      color: "$success"
+
+  - elementId: dot-e6
+    elementType: shape
+    bounds: [545, 182, 16, 16]
+    shapeName: ellipse
+    fill:
+      type: solid
+      color: "$success"
+
+  - elementId: dot-e10
+    elementType: shape
+    bounds: [775, 182, 16, 16]
+    shapeName: ellipse
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: dot-e20
+    elementType: shape
+    bounds: [1155, 182, 16, 16]
+    shapeName: ellipse
+    fill:
+      type: solid
+      color: "$secondary"
+
+  - elementId: label-e0
+    elementType: text
+    bounds: [60, 155, 80, 22]
+    content:
+      fontSize: 12
+      color: "$success"
+      fontFamily: "Liter"
+      align: [center, middle]
+      wrap: false
+      text: E0 START
+
+  - elementId: label-e6
+    elementType: text
+    bounds: [505, 155, 100, 22]
+    content:
+      fontSize: 12
+      color: "$success"
+      fontFamily: "Liter"
+      align: [center, middle]
+      wrap: false
+      text: E6 DONE
+
+  - elementId: label-e10
+    elementType: text
+    bounds: [745, 155, 80, 22]
+    content:
+      fontSize: 12
+      color: "$warning"
+      fontFamily: "Liter"
+      align: [center, middle]
+      wrap: false
+      text: E10 NOW
+
+  - elementId: label-e20
+    elementType: text
+    bounds: [1130, 155, 90, 22]
+    content:
+      fontSize: 12
+      color: "$secondary"
+      fontFamily: "Liter"
+      align: [center, middle]
+      wrap: false
+      text: E20 FINAL
+
+  - elementId: done-bg
+    elementType: shape
+    bounds: [60, 220, 500, 170]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "#10B98110"
+    border:
+      style: solid
+      width: 1
+      color: "$success"
+
+  - elementId: done-accent
+    elementType: shape
+    bounds: [60, 220, 500, 4]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$success"
+
+  - elementId: done-title
+    elementType: text
+    bounds: [80, 236, 300, 28]
+    content:
+      fontSize: 18
+      color: "$success"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: "✓ E0–E6 РЕАЛИЗОВАНО"
+
+  - elementId: done-body
+    elementType: text
+    bounds: [80, 270, 460, 105]
+    content:
+      style: "$bodySmall"
+      fontSize: 14
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>Foundation → Infrastructure → Core Platform → CRM → Access Control → Visits → Finance</p>
+        <p style="margin-top:6px"><strong>Результат:</strong> 100+ API, 25+ таблиц, 7 ролей</p>
+
+  - elementId: current-bg
+    elementType: shape
+    bounds: [580, 220, 330, 170]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "#FBBF2410"
+    border:
+      style: solid
+      width: 1
+      color: "$warning"
+
+  - elementId: current-accent
+    elementType: shape
+    bounds: [580, 220, 330, 4]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: current-title
+    elementType: text
+    bounds: [600, 236, 280, 28]
+    content:
+      fontSize: 18
+      color: "$warning"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: "⚙ E7–E10 В РАБОТЕ"
+
+  - elementId: current-body
+    elementType: text
+    bounds: [600, 270, 290, 105]
+    content:
+      style: "$bodySmall"
+      fontSize: 14
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>IaC (Terraform + Ansible)</p>
+        <p>Monitoring (Zabbix + Prometheus)</p>
+        <p>Security & Compliance (152-ФЗ)</p>
+        <p>High Availability (репликация)</p>
+
+  - elementId: planned-bg
+    elementType: shape
+    bounds: [930, 220, 290, 170]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: planned-accent
+    elementType: shape
+    bounds: [930, 220, 290, 4]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$secondary"
+
+  - elementId: planned-title
+    elementType: text
+    bounds: [950, 236, 250, 28]
+    content:
+      fontSize: 18
+      color: "$secondary"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: "○ E11–E20 ПЛАН"
+
+  - elementId: planned-body
+    elementType: text
+    bounds: [950, 270, 250, 105]
+    content:
+      style: "$bodySmall"
+      fontSize: 14
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>Documents → 1C → Admin Panel</p>
+        <p>Client Cabinet PWA</p>
+        <p>Loyalty → AI → Native Apps</p>
+
+  - elementId: priority-title
+    elementType: text
+    bounds: [60, 415, 400, 30]
+    content:
+      style: "$sectionTitle"
+      fontSize: 20
+      align: [left, middle]
+      wrap: false
+      text: |
+        <p><span style="color:$primary;">Рекомендуемый порядок</span></p>
+
+  - elementId: priority-line
+    elementType: shape
+    bounds: [60, 450, 1160, 0]
+    shapeName: straightConnector1
+    border: {style: solid, width: 1, color: "$border"}
+
+  - elementId: p1-bg
+    elementType: shape
+    bounds: [60, 470, 360, 180]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$primary"
+
+  - elementId: p1-num
+    elementType: text
+    bounds: [80, 480, 50, 40]
+    content:
+      fontSize: 28
+      color: "$primary"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: "1"
+
+  - elementId: p1-title
+    elementType: text
+    bounds: [130, 482, 270, 30]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: "Ближайшие 3 месяца"
+
+  - elementId: p1-body
+    elementType: text
+    bounds: [80, 525, 320, 110]
+    content:
+      style: "$bodySmall"
+      fontSize: 14
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>Закрыть E7–E10 (инфраструктура)</p>
+        <p>Admin Panel + Client Cabinet</p>
+        <p>Пилот в 1 клубе на 1 месяц</p>
+        <p>Dokumenty PDF + ЭЦП</p>
+
+  - elementId: p2-bg
+    elementType: shape
+    bounds: [440, 470, 360, 180]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$accent"
+
+  - elementId: p2-num
+    elementType: text
+    bounds: [460, 480, 50, 40]
+    content:
+      fontSize: 28
+      color: "$accent"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: "2"
+
+  - elementId: p2-title
+    elementType: text
+    bounds: [510, 482, 270, 30]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: "Следующие 3 месяца"
+
+  - elementId: p2-body
+    elementType: text
+    bounds: [460, 525, 320, 110]
+    content:
+      style: "$bodySmall"
+      fontSize: 14
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>1C-интеграция</p>
+        <p>Рекуррентные платежи</p>
+        <p>Онлайн-запись (виджет)</p>
+        <p>Реферальная программа</p>
+
+  - elementId: p3-bg
+    elementType: shape
+    bounds: [820, 470, 400, 180]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$secondary"
+
+  - elementId: p3-num
+    elementType: text
+    bounds: [840, 480, 50, 40]
+    content:
+      fontSize: 28
+      color: "$secondary"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: "3"
+
+  - elementId: p3-title
+    elementType: text
+    bounds: [890, 482, 310, 30]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: "Через 6–12 месяцев"
+
+  - elementId: p3-body
+    elementType: text
+    bounds: [840, 525, 360, 110]
+    content:
+      style: "$bodySmall"
+      fontSize: 14
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>AI Analytics (накопление данных)</p>
+        <p>Corporate Sales, Loyalty</p>
+        <p>Seasonal Campaigns</p>
+        <p>Native iOS/Android (опционально)</p>
+
+  - elementId: bottom-accent
+    elementType: shape
+    bounds: [60, 690, 40, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: page-num
+    elementType: text
+    bounds: [1180, 688, 40, 20]
+    content:
+      style: "$caption"
+      align: [right, middle]
+      wrap: false
+      text: "18"

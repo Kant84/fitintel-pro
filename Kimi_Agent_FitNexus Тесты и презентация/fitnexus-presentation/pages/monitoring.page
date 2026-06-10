@@ -1,0 +1,361 @@
+pageType: content
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: header-badge
+    elementType: text
+    bounds: [60, 24, 160, 20]
+    content:
+      style: "$badge"
+      align: [left, middle]
+      wrap: false
+      text: FITNEXUS AI
+
+  - elementId: page-title
+    elementType: text
+    bounds: [60, 60, 1060, 45]
+    content:
+      style: "$title"
+      align: [left, middle]
+      wrap: false
+      text: |
+        <p>Zabbix + Prometheus + Grafana: <span style="color:$primary;">двухуровневый мониторинг</span></p>
+
+  - elementId: title-accent
+    elementType: shape
+    bounds: [60, 110, 50, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: zabbix-bg
+    elementType: shape
+    bounds: [60, 135, 560, 270]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$primary"
+
+  - elementId: zabbix-icon
+    elementType: icon
+    bounds: [80, 155, 36, 36]
+    iconName: "fas:server"
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: zabbix-title
+    elementType: text
+    bounds: [128, 155, 400, 32]
+    content:
+      style: "$sectionTitle"
+      align: [left, middle]
+      wrap: false
+      text: |
+        <p>Zabbix — <span style="color:$primary;">Инфраструктура</span></p>
+
+  - elementId: zabbix-body
+    elementType: text
+    bounds: [80, 200, 520, 200]
+    content:
+      style: "$body"
+      fontSize: 15
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p><strong>Метрики каждую минуту:</strong></p>
+        <p>CPU, RAM, Disk, Load, Network</p>
+        <p>Docker-контейнеры, перезапуски</p>
+        <p>Nginx (active connections, 5xx)</p>
+        <p>SSL-сертификаты (срок действия)</p>
+        <p>СКУД-устройства (KERONG)</p>
+        <p style="margin-top:8px"><strong>Алерты:</strong> Telegram + Email → SMS через 15 мин</p>
+
+  - elementId: prom-bg
+    elementType: shape
+    bounds: [640, 135, 580, 270]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$accent"
+
+  - elementId: prom-icon
+    elementType: icon
+    bounds: [660, 155, 36, 36]
+    iconName: "fas:chart-area"
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: prom-title
+    elementType: text
+    bounds: [708, 155, 400, 32]
+    content:
+      style: "$sectionTitle"
+      align: [left, middle]
+      wrap: false
+      text: |
+        <p>Prometheus — <span style="color:$accent;">Приложение</span></p>
+
+  - elementId: prom-body
+    elementType: text
+    bounds: [660, 200, 540, 200]
+    content:
+      style: "$body"
+      fontSize: 15
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p><strong>Бизнес-метрики:</strong></p>
+        <p>fitnexus_api_requests_total (RPS)</p>
+        <p>fitnexus_api_request_duration (p50/p95/p99)</p>
+        <p>fitnexus_active_users</p>
+        <p>fitnexus_payments_total</p>
+        <p>fitnexus_visit_duration_seconds</p>
+        <p style="margin-top:8px"><strong>Алерты:</strong> latency p95 > 200мс, 5xx > 0.1%</p>
+
+  - elementId: grafana-bg
+    elementType: shape
+    bounds: [60, 425, 1160, 230]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$success"
+
+  - elementId: grafana-icon
+    elementType: icon
+    bounds: [80, 445, 36, 36]
+    iconName: "fas:chart-pie"
+    fill:
+      type: solid
+      color: "$success"
+
+  - elementId: grafana-title
+    elementType: text
+    bounds: [128, 445, 400, 32]
+    content:
+      style: "$sectionTitle"
+      align: [left, middle]
+      wrap: false
+      text: |
+        <p>Grafana — <span style="color:$success;">5 дашбордов</span></p>
+
+  - elementId: dash1-bg
+    elementType: shape
+    bounds: [80, 495, 210, 70]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$background"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: dash1-icon
+    elementType: icon
+    bounds: [95, 510, 24, 24]
+    iconName: "fas:microchip"
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: dash1-text
+    elementType: text
+    bounds: [128, 495, 150, 70]
+    content:
+      fontSize: 14
+      color: "$text"
+      fontFamily: "QuattrocentoSans"
+      lineHeight: 1.4
+      align: [left, middle]
+      text: |
+        <p><strong>Infrastructure</strong></p>
+        <p><span style="font-size:12px; color:$secondary;">CPU/RAM/Disk</span></p>
+
+  - elementId: dash2-bg
+    elementType: shape
+    bounds: [305, 495, 210, 70]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$background"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: dash2-icon
+    elementType: icon
+    bounds: [320, 510, 24, 24]
+    iconName: "fas:gauge-high"
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: dash2-text
+    elementType: text
+    bounds: [353, 495, 150, 70]
+    content:
+      fontSize: 14
+      color: "$text"
+      fontFamily: "QuattrocentoSans"
+      lineHeight: 1.4
+      align: [left, middle]
+      text: |
+        <p><strong>API Performance</strong></p>
+        <p><span style="font-size:12px; color:$secondary;">RPS, Latency</span></p>
+
+  - elementId: dash3-bg
+    elementType: shape
+    bounds: [530, 495, 210, 70]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$background"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: dash3-icon
+    elementType: icon
+    bounds: [545, 510, 24, 24]
+    iconName: "fas:coins"
+    fill:
+      type: solid
+      color: "$success"
+
+  - elementId: dash3-text
+    elementType: text
+    bounds: [578, 495, 150, 70]
+    content:
+      fontSize: 14
+      color: "$text"
+      fontFamily: "QuattrocentoSans"
+      lineHeight: 1.4
+      align: [left, middle]
+      text: |
+        <p><strong>Business</strong></p>
+        <p><span style="font-size:12px; color:$secondary;">Revenue, Visits</span></p>
+
+  - elementId: dash4-bg
+    elementType: shape
+    bounds: [755, 495, 210, 70]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$background"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: dash4-icon
+    elementType: icon
+    bounds: [770, 510, 24, 24]
+    iconName: "fas:database"
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: dash4-text
+    elementType: text
+    bounds: [803, 495, 150, 70]
+    content:
+      fontSize: 14
+      color: "$text"
+      fontFamily: "QuattrocentoSans"
+      lineHeight: 1.4
+      align: [left, middle]
+      text: |
+        <p><strong>Database</strong></p>
+        <p><span style="font-size:12px; color:$secondary;">Connections, WAL</span></p>
+
+  - elementId: dash5-bg
+    elementType: shape
+    bounds: [980, 495, 210, 70]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$background"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: dash5-icon
+    elementType: icon
+    bounds: [995, 510, 24, 24]
+    iconName: "fas:lock"
+    fill:
+      type: solid
+      color: "$secondary"
+
+  - elementId: dash5-text
+    elementType: text
+    bounds: [1028, 495, 150, 70]
+    content:
+      fontSize: 14
+      color: "$text"
+      fontFamily: "QuattrocentoSans"
+      lineHeight: 1.4
+      align: [left, middle]
+      text: |
+        <p><strong>Security</strong></p>
+        <p><span style="font-size:12px; color:$secondary;">Failed logins</span></p>
+
+  - elementId: dash6-bg
+    elementType: shape
+    bounds: [80, 575, 1110, 60]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$background"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: dash6-text
+    elementType: text
+    bounds: [100, 575, 1070, 60]
+    content:
+      fontSize: 15
+      color: "$text"
+      fontFamily: "QuattrocentoSans"
+      lineHeight: 1.5
+      align: [left, middle]
+      text: |
+        <p><strong style="color:$primary;">Alertmanager:</strong> API latency p95 > 200мс (5мин)  |  5xx > 0.1% (2мин)  |  PostgreSQL primary down  |  Платежи не поступают 30 мин</p>
+
+  - elementId: bottom-accent
+    elementType: shape
+    bounds: [60, 690, 40, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: page-num
+    elementType: text
+    bounds: [1180, 688, 40, 20]
+    content:
+      style: "$caption"
+      align: [right, middle]
+      wrap: false
+      text: "15"

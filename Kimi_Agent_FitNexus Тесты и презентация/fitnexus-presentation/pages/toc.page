@@ -1,0 +1,341 @@
+pageType: table_of_contents
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: header-badge
+    elementType: text
+    bounds: [60, 24, 160, 20]
+    content:
+      style: "$badge"
+      align: [left, middle]
+      wrap: false
+      text: FITNEXUS AI
+
+  - elementId: toc-title
+    elementType: text
+    bounds: [60, 60, 400, 50]
+    content:
+      style: "$title"
+      align: [left, middle]
+      wrap: false
+      text: Содержание
+
+  - elementId: accent-bar
+    elementType: shape
+    bounds: [60, 115, 60, 4]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: card-bg-1
+    elementType: shape
+    bounds: [60, 150, 360, 220]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: card-num-1
+    elementType: text
+    bounds: [85, 170, 60, 40]
+    content:
+      fontSize: 32
+      color: "$primary"
+      fontFamily: "Liter"
+      align: [left, top]
+      wrap: false
+      text: "01"
+
+  - elementId: card-icon-1
+    elementType: icon
+    bounds: [340, 170, 40, 40]
+    iconName: "fas:info-circle"
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: card-title-1
+    elementType: text
+    bounds: [85, 220, 310, 30]
+    content:
+      style: "$sectionTitle"
+      align: [left, middle]
+      wrap: false
+      text: Общие сведения
+
+  - elementId: card-desc-1
+    elementType: text
+    bounds: [85, 260, 310, 80]
+    content:
+      style: "$bodySmall"
+      align: [left, top]
+      text: |
+        <p>Проект, текущий статус реализации E0–E6 и ключевые цели платформы</p>
+
+  - elementId: card-bg-2
+    elementType: shape
+    bounds: [460, 150, 360, 220]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: card-num-2
+    elementType: text
+    bounds: [485, 170, 60, 40]
+    content:
+      fontSize: 32
+      color: "$primary"
+      fontFamily: "Liter"
+      align: [left, top]
+      wrap: false
+      text: "02"
+
+  - elementId: card-icon-2
+    elementType: icon
+    bounds: [740, 170, 40, 40]
+    iconName: "fas:layer-group"
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: card-title-2
+    elementType: text
+    bounds: [485, 220, 310, 30]
+    content:
+      style: "$sectionTitle"
+      align: [left, middle]
+      wrap: false
+      text: Архитектура и стек
+
+  - elementId: card-desc-2
+    elementType: text
+    bounds: [485, 260, 310, 80]
+    content:
+      style: "$bodySmall"
+      align: [left, top]
+      text: |
+        <p>Технологический стек, 5-слойная архитектура и структура проекта</p>
+
+  - elementId: card-bg-3
+    elementType: shape
+    bounds: [860, 150, 360, 220]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: card-num-3
+    elementType: text
+    bounds: [885, 170, 60, 40]
+    content:
+      fontSize: 32
+      color: "$primary"
+      fontFamily: "Liter"
+      align: [left, top]
+      wrap: false
+      text: "03"
+
+  - elementId: card-icon-3
+    elementType: icon
+    bounds: [1140, 170, 40, 40]
+    iconName: "fas:cubes"
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: card-title-3
+    elementType: text
+    bounds: [885, 220, 310, 30]
+    content:
+      style: "$sectionTitle"
+      align: [left, middle]
+      wrap: false
+      text: Модули платформы
+
+  - elementId: card-desc-3
+    elementType: text
+    bounds: [885, 260, 310, 80]
+    content:
+      style: "$bodySmall"
+      align: [left, top]
+      text: |
+        <p>Реализованные и запланированные бизнес-модули CRM, Finance, Access Control</p>
+
+  - elementId: card-bg-4
+    elementType: shape
+    bounds: [60, 410, 360, 220]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: card-num-4
+    elementType: text
+    bounds: [85, 430, 60, 40]
+    content:
+      fontSize: 32
+      color: "$primary"
+      fontFamily: "Liter"
+      align: [left, top]
+      wrap: false
+      text: "04"
+
+  - elementId: card-icon-4
+    elementType: icon
+    bounds: [340, 430, 40, 40]
+    iconName: "fas:server"
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: card-title-4
+    elementType: text
+    bounds: [85, 480, 310, 30]
+    content:
+      style: "$sectionTitle"
+      align: [left, middle]
+      wrap: false
+      text: Инфраструктура
+
+  - elementId: card-desc-4
+    elementType: text
+    bounds: [85, 520, 310, 80]
+    content:
+      style: "$bodySmall"
+      align: [left, top]
+      text: |
+        <p>Terraform, Ansible, CI/CD — инфраструктура как код</p>
+
+  - elementId: card-bg-5
+    elementType: shape
+    bounds: [460, 410, 360, 220]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: card-num-5
+    elementType: text
+    bounds: [485, 430, 60, 40]
+    content:
+      fontSize: 32
+      color: "$primary"
+      fontFamily: "Liter"
+      align: [left, top]
+      wrap: false
+      text: "05"
+
+  - elementId: card-icon-5
+    elementType: icon
+    bounds: [740, 430, 40, 40]
+    iconName: "fas:shield-halved"
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: card-title-5
+    elementType: text
+    bounds: [485, 480, 330, 30]
+    content:
+      style: "$sectionTitle"
+      align: [left, middle]
+      wrap: false
+      text: Мониторинг и безопасность
+
+  - elementId: card-desc-5
+    elementType: text
+    bounds: [485, 520, 310, 80]
+    content:
+      style: "$bodySmall"
+      align: [left, top]
+      text: |
+        <p>Zabbix + Prometheus + Grafana, 152-ФЗ, PCI DSS</p>
+
+  - elementId: card-bg-6
+    elementType: shape
+    bounds: [860, 410, 360, 220]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: card-num-6
+    elementType: text
+    bounds: [885, 430, 60, 40]
+    content:
+      fontSize: 32
+      color: "$primary"
+      fontFamily: "Liter"
+      align: [left, top]
+      wrap: false
+      text: "06"
+
+  - elementId: card-icon-6
+    elementType: icon
+    bounds: [1140, 430, 40, 40]
+    iconName: "fas:road"
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: card-title-6
+    elementType: text
+    bounds: [885, 480, 310, 30]
+    content:
+      style: "$sectionTitle"
+      align: [left, middle]
+      wrap: false
+      text: План действий
+
+  - elementId: card-desc-6
+    elementType: text
+    bounds: [885, 520, 310, 80]
+    content:
+      style: "$bodySmall"
+      align: [left, top]
+      text: |
+        <p>20 этапов разработки, команда, бюджет и стратегия запуска</p>
+
+  - elementId: bottom-accent
+    elementType: shape
+    bounds: [60, 690, 40, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: page-num
+    elementType: text
+    bounds: [1180, 688, 40, 20]
+    content:
+      style: "$caption"
+      align: [right, middle]
+      wrap: false
+      text: "02"

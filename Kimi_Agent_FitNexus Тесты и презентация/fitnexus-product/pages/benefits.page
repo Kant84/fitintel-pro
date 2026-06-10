@@ -1,0 +1,317 @@
+pageType: content
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: header-badge
+    elementType: text
+    bounds: [60, 24, 160, 20]
+    content:
+      style: "$badge"
+      align: [left, middle]
+      wrap: false
+      text: FIXINTEL PRO
+
+  - elementId: page-title
+    elementType: text
+    bounds: [60, 60, 900, 45]
+    content:
+      style: "$title"
+      align: [left, middle]
+      wrap: false
+      text: |
+        <p>Что получает <span style="color:$primary;">владелец клуба</span></p>
+
+  - elementId: title-accent
+    elementType: shape
+    bounds: [60, 110, 50, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: row1-bg1
+    elementType: shape
+    bounds: [60, 140, 373, 180]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$primary"
+
+  - elementId: row1-icon1
+    elementType: icon
+    bounds: [80, 160, 36, 36]
+    iconName: "fas:clock"
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: row1-title1
+    elementType: text
+    bounds: [126, 160, 290, 30]
+    content:
+      fontSize: 18
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Экономия времени
+
+  - elementId: row1-body1
+    elementType: text
+    bounds: [80, 205, 333, 95]
+    content:
+      style: "$bodySmall"
+      fontSize: 15
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p><strong style="color:$primary;">30+ часов/неделю</strong></p>
+        <p>Администратор занимается продажами, а не журналами</p>
+
+  - elementId: row1-bg2
+    elementType: shape
+    bounds: [453, 140, 374, 180]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$accent"
+
+  - elementId: row1-icon2
+    elementType: icon
+    bounds: [473, 160, 36, 36]
+    iconName: "fas:shield-halved"
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: row1-title2
+    elementType: text
+    bounds: [519, 160, 290, 30]
+    content:
+      fontSize: 18
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Контроль доступа
+
+  - elementId: row1-body2
+    elementType: text
+    bounds: [473, 205, 334, 95]
+    content:
+      style: "$bodySmall"
+      fontSize: 15
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p><strong style="color:$accent;">-90% серых проходов</strong></p>
+        <p>Автоматическая блокировка просроченных абонементов</p>
+
+  - elementId: row1-bg3
+    elementType: shape
+    bounds: [847, 140, 373, 180]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$success"
+
+  - elementId: row1-icon3
+    elementType: icon
+    bounds: [867, 160, 36, 36]
+    iconName: "fas:coins"
+    fill:
+      type: solid
+      color: "$success"
+
+  - elementId: row1-title3
+    elementType: text
+    bounds: [913, 160, 290, 30]
+    content:
+      fontSize: 18
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Прозрачная касса
+
+  - elementId: row1-body3
+    elementType: text
+    bounds: [867, 205, 333, 95]
+    content:
+      style: "$bodySmall"
+      fontSize: 15
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p><strong style="color:$success;">Контроль каждой копейки</strong></p>
+        <p>Z-отчёты, чеки ОФД, защита от кассовых разрывов</p>
+
+  - elementId: row2-bg1
+    elementType: shape
+    bounds: [60, 340, 373, 180]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$warning"
+
+  - elementId: row2-icon1
+    elementType: icon
+    bounds: [80, 360, 36, 36]
+    iconName: "fas:chart-pie"
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: row2-title1
+    elementType: text
+    bounds: [126, 360, 290, 30]
+    content:
+      fontSize: 18
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Данные для решений
+
+  - elementId: row2-body1
+    elementType: text
+    bounds: [80, 405, 333, 95]
+    content:
+      style: "$bodySmall"
+      fontSize: 15
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p><strong style="color:$warning;">Кто уходит, когда пик</strong></p>
+        <p>Решения на цифрах, а не на интуиции</p>
+
+  - elementId: row2-bg2
+    elementType: shape
+    bounds: [453, 340, 374, 180]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$primary"
+
+  - elementId: row2-icon2
+    elementType: icon
+    bounds: [473, 360, 36, 36]
+    iconName: "fas:expand"
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: row2-title2
+    elementType: text
+    bounds: [519, 360, 290, 30]
+    content:
+      fontSize: 18
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Масштабирование
+
+  - elementId: row2-body2
+    elementType: text
+    bounds: [473, 405, 334, 95]
+    content:
+      style: "$bodySmall"
+      fontSize: 15
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p><strong style="color:$primary;">От 1 до 100+ клубов</strong></p>
+        <p>Единая база, франчайзинг, корпоративный доступ</p>
+
+  - elementId: row2-bg3
+    elementType: shape
+    bounds: [847, 340, 373, 180]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$secondary"
+
+  - elementId: row2-icon3
+    elementType: icon
+    bounds: [867, 360, 36, 36]
+    iconName: "fas:file-shield"
+    fill:
+      type: solid
+      color: "$secondary"
+
+  - elementId: row2-title3
+    elementType: text
+    bounds: [913, 360, 290, 30]
+    content:
+      fontSize: 18
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Соответствие 152-ФЗ
+
+  - elementId: row2-body3
+    elementType: text
+    bounds: [867, 405, 333, 95]
+    content:
+      style: "$bodySmall"
+      fontSize: 15
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p><strong style="color:$secondary;">Защита данных клиентов</strong></p>
+        <p>Шифрование AES-256, TLS 1.3, аудит-логи</p>
+
+  - elementId: bottom-cta
+    elementType: text
+    bounds: [60, 555, 1160, 70]
+    content:
+      style: "$body"
+      fontSize: 20
+      color: "$primary"
+      align: [center, middle]
+      text: |
+        <p><strong>Средний рост выручки после внедрения — 15-20% за первый квартал</strong></p>
+
+  - elementId: bottom-accent
+    elementType: shape
+    bounds: [60, 690, 40, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: page-num
+    elementType: text
+    bounds: [1180, 688, 40, 20]
+    content:
+      style: "$caption"
+      align: [right, middle]
+      wrap: false
+      text: "09"
