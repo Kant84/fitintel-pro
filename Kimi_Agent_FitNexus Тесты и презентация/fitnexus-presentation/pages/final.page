@@ -1,0 +1,97 @@
+pageType: final
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: bg-img
+    elementType: image
+    bounds: [0, 0, 1280, 720]
+    src: "/mnt/agents/output/fitnexus-presentation/images/2_Futuristic_Gym_Featuring_Neon_Lights.png"
+    fit: {mode: cover}
+
+  - elementId: bg-mask
+    elementType: shape
+    bounds: [0, 0, 1280, 720]
+    shapeName: rect
+    fill:
+      type: gradient
+      gradientType: linear
+      angle: 90
+      stops:
+        - {position: 0, color: "#0B122020"}
+        - {position: 0.35, color: "#0B1220A0"}
+        - {position: 0.7, color: "#0B1220E0"}
+        - {position: 1, color: "#0B1220F5"}
+
+  - elementId: badge
+    elementType: text
+    bounds: [440, 180, 400, 24]
+    content:
+      style: "$badge"
+      align: [center, middle]
+      wrap: false
+      text: |
+        <p><span style="background-color:$primary; color:$white; font-size:12px;">  ГОТОВ К ЗАПУСКУ ПЕРВОГО КЛИЕНТА  </span></p>
+
+  - elementId: main-title
+    elementType: text
+    bounds: [140, 230, 1000, 70]
+    content:
+      style: "$heroTitle"
+      align: [center, middle]
+      wrap: false
+      text: |
+        <p><span style="font-size:52px;">FitNexus AI</span></p>
+
+  - elementId: divider-line
+    elementType: shape
+    bounds: [540, 320, 200, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: final-subtitle
+    elementType: text
+    bounds: [190, 345, 900, 80]
+    content:
+      style: "$subtitle"
+      fontSize: 20
+      align: [center, middle]
+      text: |
+        <p>Технически грамотная платформа с правильным стеком,</p>
+        <p>модульной архитектурой и осознанным подходом к безопасности</p>
+
+  - elementId: final-body
+    elementType: text
+    bounds: [240, 445, 800, 80]
+    content:
+      style: "$body"
+      fontSize: 18
+      align: [center, middle]
+      text: |
+        <p><strong style="color:$primary;">60% готовности</strong> — осталось: инфраструктурная автоматизация,</p>
+        <p>мониторинг, Admin Panel и Client Cabinet PWA</p>
+
+  - elementId: meta
+    elementType: text
+    bounds: [340, 560, 600, 30]
+    content:
+      style: "$caption"
+      align: [center, middle]
+      wrap: false
+      text: |
+        <p>FitNexus AI v2.0  |  29 мая 2026  |  Andrey Sanakin (FixIntel)</p>
+
+  - elementId: bottom-bar
+    elementType: shape
+    bounds: [0, 710, 1280, 10]
+    shapeName: rect
+    fill:
+      type: gradient
+      gradientType: linear
+      angle: 0
+      stops:
+        - {position: 0, color: "$primary"}
+        - {position: 0.5, color: "$accent"}
+        - {position: 1, color: "$primary"}

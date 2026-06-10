@@ -1,0 +1,74 @@
+pageType: chapter
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: bg-img
+    elementType: image
+    bounds: [0, 0, 1280, 720]
+    src: "/mnt/agents/output/fitnexus-presentation/images/4_Data_Visualization_Dashboard_Interface.png"
+    fit: {mode: cover}
+
+  - elementId: bg-mask
+    elementType: shape
+    bounds: [0, 0, 1280, 720]
+    shapeName: rect
+    fill:
+      type: gradient
+      gradientType: linear
+      angle: 0
+      stops:
+        - {position: 0, color: "#0B1220F0"}
+        - {position: 0.55, color: "#0B1220C0"}
+        - {position: 1, color: "#0B122040"}
+
+  - elementId: chapter-num
+    elementType: text
+    bounds: [60, 220, 200, 80]
+    content:
+      style: "$chapterNum"
+      align: [left, middle]
+      wrap: false
+      text: "05"
+
+  - elementId: divider
+    elementType: shape
+    bounds: [60, 310, 80, 4]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: chapter-title
+    elementType: text
+    bounds: [60, 330, 700, 50]
+    content:
+      fontSize: 36
+      color: "$white"
+      fontFamily: "Liter"
+      lineHeight: 1.2
+      align: [left, middle]
+      wrap: false
+      text: Мониторинг и безопасность
+
+  - elementId: chapter-subtitle
+    elementType: text
+    bounds: [60, 390, 700, 30]
+    content:
+      style: "$subtitle"
+      align: [left, middle]
+      text: |
+        <p>Zabbix + Prometheus + Grafana, 152-ФЗ, защита данных</p>
+
+  - elementId: bottom-bar
+    elementType: shape
+    bounds: [0, 710, 1280, 10]
+    shapeName: rect
+    fill:
+      type: gradient
+      gradientType: linear
+      angle: 0
+      stops:
+        - {position: 0, color: "$primary"}
+        - {position: 0.5, color: "$accent"}
+        - {position: 1, color: "$primary"}
