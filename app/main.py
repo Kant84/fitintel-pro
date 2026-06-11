@@ -70,6 +70,12 @@ from app.api.v1.online_training import router as online_training_router
 
 from app.api.v1.hardware import router as hardware_router
 
+from app.api.v1.chat import router as chat_router
+
+from app.api.v1.telegram import router as telegram_router
+
+from app.api.v1.yookassa import router as yookassa_router
+
 
 # создаём приложение FastAPI
 app = FastAPI(
@@ -148,6 +154,15 @@ app.include_router(gamification_router, prefix=settings.API_V1_PREFIX)
 app.include_router(online_training_router, prefix=settings.API_V1_PREFIX)
 
 app.include_router(hardware_router, prefix=settings.API_V1_PREFIX)
+
+# MAX Messenger
+app.include_router(chat_router, prefix=settings.API_V1_PREFIX)
+
+# Telegram Bot
+app.include_router(telegram_router, prefix=settings.API_V1_PREFIX)
+
+# YooKassa
+app.include_router(yookassa_router, prefix=settings.API_V1_PREFIX)
 
 # временная отладка маршрутов — только после создания app
 for route in app.routes:
