@@ -68,6 +68,8 @@ from app.api.v1.gamification import router as gamification_router
 
 from app.api.v1.online_training import router as online_training_router
 
+from app.api.v1.hardware import router as hardware_router
+
 
 # создаём приложение FastAPI
 app = FastAPI(
@@ -144,6 +146,8 @@ app.include_router(marketing_router, prefix=settings.API_V1_PREFIX)
 app.include_router(gamification_router, prefix=settings.API_V1_PREFIX)
 
 app.include_router(online_training_router, prefix=settings.API_V1_PREFIX)
+
+app.include_router(hardware_router, prefix=settings.API_V1_PREFIX)
 
 # временная отладка маршрутов — только после создания app
 for route in app.routes:
