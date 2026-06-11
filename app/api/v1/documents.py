@@ -4,74 +4,104 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 from app.api.dependencies import require_permission
 from app.db.session import get_db
+from app.services.document_service import DocumentService
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
 
+def get_service(db: Session = Depends(get_db)) -> DocumentService:
+    return DocumentService(db)
+
+
+# ============================================================
+# ШАБЛОНЫ
+# ============================================================
+
 @router.get("/templates")
 def list_templates(
     current_user=Depends(require_permission("documents.read")),
-    db: Session = Depends(get_db),
+    service: DocumentService = Depends(get_service),
 ):
     """Шаблоны документов"""
-    return {
-        "items": [
-            {"id": "contract_standard", "name": "Договор оказания услуг (стандартный)", "type": "contract"},
-            {"id": "contract_vip", "name": "Договор VIP", "type": "contract"},
-            {"id": "consent_personal", "name": "Согласие на обработку ПДн", "type": "consent"},
-            {"id": "medical_clearance", "name": "Медицинская справка", "type": "medical"},
-            {"id": "cancel_request", "name": "Заявление на расторжение", "type": "request"},
-        ]
-    }
+    return {"items": service.list_templates()}
 
+
+# ============================================================
+# CRUD
+# ============================================================
 
 @router.get("/client/{client_id}")
 def client_documents(
     client_id: UUID,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=200),
     current_user=Depends(require_permission("documents.read")),
-    db: Session = Depends(get_db),
+    service: DocumentService = Depends(get_service),
 ):
     """Документы клиента"""
-    from app.models.client import Client
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Клиент не найден")
-    return {
-        "client_id": str(client_id),
-        "documents": [
-            {"type": "contract", "status": "signed", "signed_at": "2026-04-01"},
-            {"type": "consent", "status": "signed", "signed_at": "2026-04-01"},
-        ]
-    }
+    return service.list_client_documents(client_id, offset, limit)
 
+
+@router.get("/")
+def list_all_documents(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=200),
+    doc_type: str | None = None,
+    status: str | None = None,
+    current_user=Depends(require_permission("documents.read")),
+    service: DocumentService = Depends(get_service),
+):
+    """Все документы"""
+    return service.list_all_documents(offset, limit, doc_type, status)
+
+
+# ============================================================
+# ГЕНЕРАЦИЯ И СКАЧИВАНИЕ
+# ============================================================
 
 @router.post("/generate", status_code=status.HTTP_201_CREATED)
 def generate_document(
     payload: dict,
     current_user=Depends(require_permission("documents.create")),
-    db: Session = Depends(get_db),
+    service: DocumentService = Depends(get_service),
 ):
-    """Сгенерировать документ из шаблона"""
-    import uuid
-    from app.db.base import utc_now
-    doc_id = uuid.uuid4()
-    return {
-        "id": str(doc_id),
-        "template_id": payload.get("template_id"),
-        "client_id": payload.get("client_id"),
-        "status": "generated",
-        "download_url": f"/api/v1/documents/{doc_id}/download",
-        "created_at": utc_now().isoformat(),
-    }
+    """Сгенерировать PDF документ из шаблона"""
+    from uuid import UUID as UUIDType
+    template_id = payload.get("template_id")
+    client_id = UUIDType(payload.get("client_id"))
+    extra = payload.get("extra_data", {})
+    return service.generate_pdf(template_id, client_id, current_user.id, extra)
 
 
 @router.get("/{doc_id}/download")
 def download_document(
     doc_id: UUID,
     current_user=Depends(require_permission("documents.read")),
+    service: DocumentService = Depends(get_service),
 ):
-    """Скачать документ (PDF)"""
-    from fastapi.responses import PlainTextResponse
-    return PlainTextResponse(f"PDF document {doc_id} placeholder")
+    """Скачать PDF документ"""
+    return service.download_pdf(doc_id)
 
-from fastapi import HTTPException
+
+@router.get("/{doc_id}/preview")
+def preview_document(
+    doc_id: UUID,
+    current_user=Depends(require_permission("documents.read")),
+    service: DocumentService = Depends(get_service),
+):
+    """Просмотр PDF (inline)"""
+    return service.preview_pdf(doc_id)
+
+
+# ============================================================
+# ПОДПИСЬ
+# ============================================================
+
+@router.post("/{doc_id}/sign")
+def sign_document(
+    doc_id: UUID,
+    current_user=Depends(require_permission("documents.update")),
+    service: DocumentService = Depends(get_service),
+):
+    """Подписать документ электронно"""
+    return service.sign_document(doc_id, current_user.id)
