@@ -54,6 +54,28 @@ from app.api.v1.cash_desk import router as cash_desk_router
 
 from app.api.v1.sales import router as sales_router
 
+from app.api.v1.devices import router as devices_router
+
+from app.api.v1.analytics import router as analytics_router
+
+from app.api.v1.selfservice import router as selfservice_router
+
+from app.api.v1.documents import router as documents_router
+
+from app.api.v1.marketing import router as marketing_router
+
+from app.api.v1.gamification import router as gamification_router
+
+from app.api.v1.online_training import router as online_training_router
+
+from app.api.v1.hardware import router as hardware_router
+
+from app.api.v1.chat import router as chat_router
+
+from app.api.v1.telegram import router as telegram_router
+
+from app.api.v1.yookassa import router as yookassa_router
+
 
 # создаём приложение FastAPI
 app = FastAPI(
@@ -116,6 +138,31 @@ app.include_router(receipts_router, prefix=settings.API_V1_PREFIX)
 app.include_router(cash_desk_router, prefix=settings.API_V1_PREFIX)
 
 app.include_router(sales_router, prefix=settings.API_V1_PREFIX)
+
+app.include_router(devices_router, prefix=settings.API_V1_PREFIX)
+
+app.include_router(analytics_router, prefix=settings.API_V1_PREFIX)
+
+app.include_router(selfservice_router, prefix=settings.API_V1_PREFIX)
+
+app.include_router(documents_router, prefix=settings.API_V1_PREFIX)
+
+app.include_router(marketing_router, prefix=settings.API_V1_PREFIX)
+
+app.include_router(gamification_router, prefix=settings.API_V1_PREFIX)
+
+app.include_router(online_training_router, prefix=settings.API_V1_PREFIX)
+
+app.include_router(hardware_router, prefix=settings.API_V1_PREFIX)
+
+# MAX Messenger
+app.include_router(chat_router, prefix=settings.API_V1_PREFIX)
+
+# Telegram Bot
+app.include_router(telegram_router, prefix=settings.API_V1_PREFIX)
+
+# YooKassa
+app.include_router(yookassa_router, prefix=settings.API_V1_PREFIX)
 
 # временная отладка маршрутов — только после создания app
 for route in app.routes:

@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>FitIntel Pro - Техническая документация</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&display=swap" rel="stylesheet">
+<style>
+body { margin: 0; padding: 0; font-family: 'Noto Serif', Georgia, serif; font-size: 11pt; line-height: 1.6; color: #333; text-align: justify; text-align-last: left; string-set: doctitle ""; }
+@page { size: A4; margin: 2.5cm 2cm; @top-center { content: string(doctitle); font-size: 9pt; color: #666; } @bottom-center { content: counter(page); font-size: 9pt; } }
+@page :first { margin: 0; @top-center { content: none; } @bottom-center { content: none; } }
+@page cover { @top-center { content: none; } @bottom-center { content: none; } }
+@page toc { @top-center { content: none; } @bottom-center { content: none; } }
+
+.cover { page: cover; width: 210mm; height: 297mm; margin: 0; position: relative; overflow: hidden; page-break-after: always; background: linear-gradient(135deg, #1a2a3a 0%, #2d4a5e 50%, #1a2a3a 100%); }
+.cover-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; width: 80%; color: white; }
+.cover-title { font-size: 32pt; font-weight: 700; margin-bottom: 0.5cm; letter-spacing: 2px; }
+.cover-subtitle { font-size: 14pt; color: #a0c4d0; margin-bottom: 2cm; }
+.cover-meta { font-size: 11pt; color: #c0d4e0; line-height: 2; }
+.cover-badge { display: inline-block; padding: 8px 24px; border: 2px solid rgba(255,255,255,0.3); border-radius: 2px; margin-top: 1cm; font-size: 10pt; letter-spacing: 1px; }
+
+.toc-page { page: toc; page-break-after: always; }
+.toc { list-style: none; padding: 0; margin: 0; }
+.toc li { margin: 0.3em 0; }
+.toc a { text-decoration: none; color: #333; display: block; }
+.toc a::after { content: leader('.') target-counter(attr(href url), page); }
+.toc .toc-h1 { font-weight: bold; margin-top: 0.8em; }
+.toc .toc-h2 { padding-left: 1.5em; }
+.toc .toc-h3 { padding-left: 3em; font-size: 10pt; color: #555; }
+
+h1 { string-set: doctitle content(); font-size: 20pt; color: #1a2a3a; border-bottom: 2px solid #2d4a5e; padding-bottom: 0.3em; margin-top: 1.5em; page-break-after: avoid; }
+h2 { font-size: 14pt; color: #2d4a5e; margin-top: 1.2em; page-break-after: avoid; }
+h3 { font-size: 12pt; color: #444; margin-top: 1em; page-break-after: avoid; }
+
+pre, table, figure, img, svg, blockquote { max-width: 100%; box-sizing: border-box; }
+pre { background: #f5f5f5; padding: 0.8em; border: 1px solid #ddd; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; font-size: 9pt; line-height: 1.4; }
+code { font-family: 'Courier New', monospace; font-size: 9pt; background: #f5f5f5; padding: 1px 4px; word-break: break-word; }
+pre code { background: none; padding: 0; }
+
+figure { page-break-inside: avoid; margin: 1em 0; text-align: center; }
+figcaption::before { content: attr(data-label) ": "; font-weight: bold; }
+
+table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 10pt; page-break-inside: avoid; }
+thead { display: table-header-group; }
+th, td { padding: 6px 8px; text-align: left; }
+thead tr { border-top: 2px solid #333; border-bottom: 1px solid #333; }
+tbody tr { border-bottom: 1px solid #ddd; }
+tbody tr:last-child { border-bottom: 2px solid #333; }
+th { font-weight: bold; background: #f9f9f9; }
+tr { page-break-inside: avoid; }
+caption { caption-side: top; text-align: left; font-weight: bold; margin-bottom: 0.5em; }
+caption::before { content: attr(data-label) ": "; }
+
+.note { border-left: 3px solid #2d4a5e; padding-left: 1em; margin: 1em 0; background: #f8f9fa; padding: 0.8em; }
+.warning { border-left: 3px solid #c00; padding-left: 1em; margin: 1em 0; background: #fff5f5; padding: 0.8em; }
+.api-endpoint { background: #f8f9fa; padding: 0.6em; margin: 0.3em 0; border-left: 3px solid #2d4a5e; }
+.api-method { display: inline-block; padding: 2px 8px; font-weight: bold; font-size: 9pt; color: white; background: #2d4a5e; margin-right: 0.5em; }
+.api-method.post { background: #28a745; }
+.api-method.get { background: #007bff; }
+.api-method.patch { background: #ffc107; color: #333; }
+.api-method.delete { background: #dc3545; }
+
+.endpoint-table td:first-child { font-weight: bold; white-space: nowrap; }
+.endpoint-table td:nth-child(2) { font-family: monospace; font-size: 9pt; }
+
+a { color: #2d4a5e; word-break: break-all; }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-content">
+    <div class="cover-badge">TECHNICAL DOCUMENTATION v1.0</div>
+    <h1 class="cover-title" style="border:none;color:white;margin-top:1cm;">FitIntel Pro</h1>
+    <p class="cover-subtitle">ERP/CRM система управления фитнес-клубом<br>ERP/CRM System for Fitness Club Management</p>
+    <div class="cover-meta">
+      <p>ООО &laquo;FixIntel&raquo;</p>
+      <p>Россия, г. Москва</p>
+      <p>Июнь 2026</p>
+      <p>Python 3.12 + FastAPI + PostgreSQL + React</p>
+    </div>
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc-page">
+  <h1 style="border-bottom:2px solid #2d4a5e;">Оглавление</h1>
+  <ul class="toc">
+    <li class="toc-h1"><a href="#sec1">1. Общее описание системы</a></li>
+    <li class="toc-h2"><a href="#sec1-1">1.1. Назначение и область применения</a></li>
+    <li class="toc-h2"><a href="#sec1-2">1.2. Технологический стек</a></li>
+    <li class="toc-h2"><a href="#sec1-3">1.3. Общая архитектура</a></li>
+    <li class="toc-h1"><a href="#sec2">2. Модули системы</a></li>
+    <li class="toc-h2"><a href="#sec2-1">2.1. Core (Auth, Users, RBAC)</a></li>
+    <li class="toc-h2"><a href="#sec2-2">2.2. CRM (Clients, Tariffs, Subscriptions)</a></li>
+    <li class="toc-h2"><a href="#sec2-3">2.3. Access Control (Credentials, Access, Lockers)</a></li>
+    <li class="toc-h2"><a href="#sec2-4">2.4. Visits</a></li>
+    <li class="toc-h2"><a href="#sec2-5">2.5. Finance (Wallet, Payments, Receipts, CashDesk, Sales)</a></li>
+    <li class="toc-h2"><a href="#sec2-6">2.6. Hardware Abstraction Layer</a></li>
+    <li class="toc-h2"><a href="#sec2-7">2.7. Analytics, Documents, Marketing, Gamification</a></li>
+    <li class="toc-h1"><a href="#sec3">3. API Reference</a></li>
+    <li class="toc-h2"><a href="#sec3-1">3.1. Auth API</a></li>
+    <li class="toc-h2"><a href="#sec3-2">3.2. Users API</a></li>
+    <li class="toc-h2"><a href="#sec3-3">3.3. CRM API</a></li>
+    <li class="toc-h2"><a href="#sec3-4">3.4. Finance API</a></li>
+    <li class="toc-h2"><a href="#sec3-5">3.5. Access Control API</a></li>
+    <li class="toc-h2"><a href="#sec3-6">3.6. Hardware API</a></li>
+    <li class="toc-h1"><a href="#sec4">4. Модели данных</a></li>
+    <li class="toc-h2"><a href="#sec4-1">4.1. ER-диаграмма</a></li>
+    <li class="toc-h2"><a href="#sec4-2">4.2. Описание таблиц</a></li>
+    <li class="toc-h1"><a href="#sec5">5. RBAC система</a></li>
+    <li class="toc-h2"><a href="#sec5-1">5.1. Роли</a></li>
+    <li class="toc-h2"><a href="#sec5-2">5.2. Разрешения</a></li>
+    <li class="toc-h1"><a href="#sec6">6. Hardware Abstraction Layer</a></li>
+    <li class="toc-h2"><a href="#sec6-1">6.1. Архитектура HAL</a></li>
+    <li class="toc-h2"><a href="#sec6-2">6.2. Подключение нового устройства</a></li>
+    <li class="toc-h1"><a href="#sec7">7. Frontend</a></li>
+    <li class="toc-h2"><a href="#sec7-1">7.1. Админ-панель</a></li>
+    <li class="toc-h2"><a href="#sec7-2">7.2. Личный кабинет клиента</a></li>
+    <li class="toc-h1"><a href="#sec8">8. Инфраструктура и деплой</a></li>
+    <li class="toc-h2"><a href="#sec8-1">8.1. Docker</a></li>
+    <li class="toc-h2"><a href="#sec8-2">8.2. CI/CD</a></li>
+    <li class="toc-h2"><a href="#sec8-3">8.3. Terraform (Yandex Cloud)</a></li>
+    <li class="toc-h2"><a href="#sec8-4">8.4. Мониторинг</a></li>
+    <li class="toc-h1"><a href="#sec9">9. Безопасность</a></li>
+    <li class="toc-h2"><a href="#sec9-1">9.1. Аутентификация и авторизация</a></li>
+    <li class="toc-h2"><a href="#sec9-2">9.2. Шифрование</a></li>
+    <li class="toc-h1"><a href="#sec10">10. Конфигурация</a></li>
+  </ul>
+</div>
+
+<!-- SECTION 1 -->
+<h1 id="sec1">1. Общее описание системы</h1>
+
+<h2 id="sec1-1">1.1. Назначение и область применения</h2>
+
+<p>FitIntel Pro (кодовое название проекта &mdash; FitNexus AI) представляет собой ERP/CRM-систему, разработанную специально для управления фитнес-клубами. Система обеспечивает полный цикл управления: от регистрации клиентов и продажи абонементов до контроля доступа на турникеты и аналитики посещаемости.</p>
+
+<table>
+<caption data-label="Таблица 1">Ключевые характеристики системы</caption>
+<thead><tr><th>Параметр</th><th>Значение</th></tr></thead>
+<tbody>
+<tr><td>Версия</td><td>1.0</td></tr>
+<tr><td>Язык разработки</td><td>Python 3.12</td></tr>
+<tr><td>Веб-фреймворк</td><td>FastAPI 0.110+</td></tr>
+<tr><td>База данных</td><td>PostgreSQL 16</td></tr>
+<tr><td>Кэш / Брокер</td><td>Redis 7</td></tr>
+<tr><td>ORM</td><td>SQLAlchemy 2.0</td></tr>
+<tr><td>Миграции</td><td>Alembic</td></tr>
+<tr><td>API эндпоинтов</td><td>168</td></tr>
+<tr><td>SQLAlchemy моделей</td><td>26</td></tr>
+<tr><td>Фронтенд</td><td>React 18 + TypeScript + Tailwind CSS</td></tr>
+<tr><td>СКУД-драйверов</td><td>7 (ЭРА, X1, Kerong + Generic)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec1-2">1.2. Технологический стек</h2>
+
+<h3>Backend</h3>
+<table>
+<caption data-label="Таблица 2">Компоненты бэкенда</caption>
+<thead><tr><th>Компонент</th><th>Версия</th><th>Назначение</th></tr></thead>
+<tbody>
+<tr><td>FastAPI</td><td>0.110+</td><td>ASGI веб-фреймворк, OpenAPI/Swagger</td></tr>
+<tr><td>Uvicorn</td><td>0.29+</td><td>ASGI сервер</td></tr>
+<tr><td>SQLAlchemy</td><td>2.0+</td><td>ORM, модели, миграции</td></tr>
+<tr><td>Psycopg</td><td>3.1+</td><td>PostgreSQL драйвер</td></tr>
+<tr><td>Pydantic v2</td><td>2.6+</td><td>Валидация, сериализация, настройки</td></tr>
+<tr><td>PyJWT</td><td>2.8+</td><td>JWT токены аутентификации</td></tr>
+<tr><td>Passlib + Bcrypt</td><td>1.7+</td><td>Хеширование паролей</td></tr>
+<tr><td>Celery</td><td>5.3+</td><td>Асинхронные задачи</td></tr>
+<tr><td>Redis-py</td><td>5.0+</td><td>Кэш, сессии, брокер Celery</td></tr>
+<tr><td>Alembic</td><td>1.13+</td><td>Миграции БД</td></tr>
+</tbody>
+</table>
+
+<h3>Frontend</h3>
+<table>
+<caption data-label="Таблица 3">Компоненты фронтенда</caption>
+<thead><tr><th>Компонент</th><th>Версия</th><th>Назначение</th></tr></thead>
+<tbody>
+<tr><td>React</td><td>18</td><td>UI фреймворк</td></tr>
+<tr><td>TypeScript</td><td>5.4+</td><td>Типизация</td></tr>
+<tr><td>Vite</td><td>5+</td><td>Сборщик</td></tr>
+<tr><td>Tailwind CSS</td><td>3.4</td><td>Стилизация</td></tr>
+<tr><td>React Router DOM</td><td>6</td><td>Маршрутизация</td></tr>
+<tr><td>Axios</td><td>1.6+</td><td>HTTP клиент</td></tr>
+<tr><td>Zustand</td><td>4</td><td>Управление состоянием</td></tr>
+<tr><td>Lucide React</td><td>latest</td><td>Иконки</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec1-3">1.3. Общая архитектура</h2>
+
+<p>Система построена по принципу модульной многоуровневой архитектуры (Layered Architecture) с разделением ответственности (SoC):</p>
+
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│                      PRESENTATION LAYER                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │  Admin Panel │  │Client Cabinet│  │   Swagger Docs   │  │
+│  │  (React)     │  │   (React)    │  │   (FastAPI)      │  │
+│  └──────────────┘  └──────────────┘  └──────────────────┘  │
+├─────────────────────────────────────────────────────────────┤
+│                       API LAYER (FastAPI)                    │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────────┐ │
+│  │  Routers │ │Schemas   │ │Middleware│ │  Dependencies  │ │
+│  │  (API)   │ │(Pydantic)│ │ (Auth)   │ │   (RBAC)       │ │
+│  └──────────┘ └──────────┘ └──────────┘ └────────────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│                      SERVICE LAYER                           │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────────┐ │
+│  │  Services│ │  HAL     │ │  Tasks   │ │  Notifications │ │
+│  │(Business)│ │(Drivers) │ │ (Celery) │ │  (Email/SMS)   │ │
+│  └──────────┘ └──────────┘ └──────────┘ └────────────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│                     DATA LAYER                               │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────────┐ │
+│  │Repository│ │  Models  │ │ Alembic  │ │   PostgreSQL   │ │
+│  │ (CRUD)   │ │(SQLAlch.)│ │(Migrations)│ │     16        │ │
+│  └──────────┘ └──────────┘ └──────────┘ └────────────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│                   INFRASTRUCTURE                             │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────────┐ │
+│  │  Redis   │ │  Docker  │ │Nginx+SSL │ │  Prometheus    │ │
+│  │ (Cache)  │ │(Compose) │ │(Reverse) │ │  Grafana       │ │
+│  └──────────┘ └──────────┘ └──────────┘ └────────────────┘ │
+└─────────────────────────────────────────────────────────────┘</code></pre>
+
+<p>Поток запроса: <strong>Client → Nginx → FastAPI Router → Service → Repository → PostgreSQL</strong>. Ответ идёт в обратном порядке.</p>
+
+<!-- SECTION 2 -->
+<h1 id="sec2">2. Модули системы</h1>
+
+<h2 id="sec2-1">2.1. Core (Auth, Users, RBAC)</h2>
+
+<p>Базовый модуль, обеспечивающий аутентификацию, управление пользователями и контроль доступа на уровне API.</p>
+
+<h3>Auth</h3>
+<ul>
+<li>JWT-аутентификация с access token (Bearer)</li>
+<li>Двойная система логина: JSON API + OAuth2 (для Swagger)</li>
+<li>Токен expires через 30 минут (настраивается)</li>
+<li>Регистрация новых пользователей через Users API (требует право <code>users.create</code>)</li>
+</ul>
+
+<h3>Users</h3>
+<ul>
+<li>CRUD пользователей с фильтрацией и пагинацией</li>
+<li>Управление ролями пользователя (assign/revoke)</li>
+<li>Смена пароля, сброс пароля администратором</li>
+<li>Деактивация аккаунта</li>
+</ul>
+
+<h3>RBAC</h3>
+<ul>
+<li>9 системных ролей: owner, admin, manager, trainer, cashier, accountant, support, client, device</li>
+<li>51 разрешение (permission) с точечной нотацией: <code>module.action</code></li>
+<li>Матрица ролей и разрешений (/rbac/roles-matrix)</li>
+<li>Динамическая проверка прав на эндпоинтах</li>
+</ul>
+
+<h2 id="sec2-2">2.2. CRM (Clients, Tariffs, Subscriptions)</h2>
+
+<h3>Clients</h3>
+<ul>
+<li>Регистрация клиентов с валидацией телефона и email</li>
+<li>Статусы: ACTIVE, BLOCKED, FROZEN</li>
+<li>Категории: standard, vip, corporate, child, pensioner</li>
+<li>Timeline история событий клиента</li>
+<li>Поиск по ФИО, телефону, email</li>
+</ul>
+
+<h3>Tariffs</h3>
+<ul>
+<li>Тарифные планы с периодом (month, quarter, half_year, year)</li>
+<li>Типы: visits (количество визитов) и period (безлимит по времени)</li>
+<li>Валюта, цена, архивация</li>
+</ul>
+
+<h3>Subscriptions</h3>
+<ul>
+<li>Продажа абонементов по тарифам</li>
+<li>Статусы: ACTIVE, FROZEN, EXPIRED, CANCELLED, PENDING</li>
+<li>Жизненный цикл: freeze, unfreeze, renew, cancel</li>
+<li>История изменений (subscription_events)</li>
+<li>Автоматическая проверка срока действия</li>
+</ul>
+
+<h2 id="sec2-3">2.3. Access Control</h2>
+
+<h3>Credentials (QR/RFID)</h3>
+<ul>
+<li>Генерация QR-кодов для клиентов</li>
+<li>Создание RFID-меток</li>
+<li>Блокировка/разблокировка ключей</li>
+<li>Автоматическая регенерация QR при потере</li>
+</ul>
+
+<h3>Access</h3>
+<ul>
+<li>Проверка доступа по QR/RFID</li>
+<li>Принудительный доступ (override)</li>
+<li>Кэширование прав доступа в Redis</li>
+<li>Логирование всех попыток прохода</li>
+</ul>
+
+<h3>Lockers</h3>
+<ul>
+<li>Управление шкафчиками через HAL</li>
+<li>Освобождение шкафчика (release)</li>
+<li>Проверка статуса (занят/свободен)</li>
+</ul>
+
+<h2 id="sec2-4">2.4. Visits</h2>
+<ul>
+<li>Фиксация входа (entry) и выхода (exit)</li>
+<li>Ручная фиксация посещения (manual)</li>
+<li>Автоматическое завершение (complete) по таймауту</li>
+<li>Статистика: today, week, month</li>
+<li>Среднее время посещения</li>
+<li>Список клиентов в зале (active)</li>
+</ul>
+
+<h2 id="sec2-5">2.5. Finance</h2>
+
+<h3>Wallet</h3>
+<ul>
+<li>Личный кошелёк клиента</li>
+<li>Пополнение (deposit)</li>
+<li>Заморозка средств (frozen_balance)</li>
+<li>История транзакций</li>
+</ul>
+
+<h3>Payments</h3>
+<ul>
+<li>Создание платежей</li>
+<li>Статусы: PENDING, COMPLETED, FAILED, REFUNDED</li>
+<li>Возврат (refund)</li>
+<li>Онлайн-оплата</li>
+<li>Webhooks от платёжных систем</li>
+</ul>
+
+<h3>Receipts</h3>
+<ul>
+<li>Фискальные чеки</li>
+<li>Отправка по email</li>
+<li>Генерация PDF</li>
+<li>Повторная отправка в ОФД</li>
+</ul>
+
+<h3>Cash Desk</h3>
+<ul>
+<li>Открытие/закрытие смены</li>
+<li>Кассовые операции (приход/расход)</li>
+<li>Сверка кассы (verify)</li>
+<li>Отчёт по смене</li>
+</ul>
+
+<h3>Sales</h3>
+<ul>
+<li>Продажа абонементов</li>
+<li>Продажа разовых услуг</li>
+<li>Пакетные продажи</li>
+</ul>
+
+<h2 id="sec2-6">2.6. Hardware Abstraction Layer</h2>
+
+<p>HAL обеспечивает универсальный интерфейс для работы с ЛЮБЫМИ СКУД-устройствами. Архитектура основана на паттерне Strategy + Registry.</p>
+
+<pre><code>BaseDeviceDriver (ABC)
+  ├── EraDriver        → ЭРА (TCP бинарный протокол)
+  ├── X1Driver         → X1 (HTTP REST API + WebSocket)
+  ├── KerongDriver     → Kerong (Modbus RTU over TCP)
+  ├── GenericModbusDriver → Любой Modbus TCP/RTU
+  ├── GenericHttpDriver   → Любой HTTP API
+  └── GenericMqttDriver   → Любой MQTT</code></pre>
+
+<p>Добавление нового устройства происходит через YAML-конфиг <code>config/devices.yaml</code> без изменения кода приложения.</p>
+
+<h2 id="sec2-7">2.7. Дополнительные модули</h2>
+
+<table>
+<caption data-label="Таблица 4">Дополнительные модули</caption>
+<thead><tr><th>Модуль</th><th>Описание</th><th>Статус</th></tr></thead>
+<tbody>
+<tr><td>Analytics</td><td>Дашборд, аналитика посещений, финансовый анализ, retention</td><td>Реализован</td></tr>
+<tr><td>Documents</td><td>Шаблоны договоров, генерация документов, скачивание PDF</td><td>Реализован</td></tr>
+<tr><td>Marketing</td><td>Маркетинговые кампании, сегменты клиентов, SMS-рассылка</td><td>Реализован</td></tr>
+<tr><td>Gamification</td><td>Уровни клиентов, достижения, баллы</td><td>Реализован</td></tr>
+<tr><td>Online Training</td><td>Онлайн-тренировки, сессии</td><td>Заглушка</td></tr>
+<tr><td>Devices</td><td>Управление устройствами (ping, статус)</td><td>Реализован</td></tr>
+</tbody>
+</table>
+
+<!-- SECTION 3 -->
+<h1 id="sec3">3. API Reference</h1>
+
+<h2 id="sec3-1">3.1. Auth API</h2>
+
+<table class="endpoint-table">
+<caption data-label="Таблица 5">Auth Endpoints</caption>
+<thead><tr><th>Метод</th><th>Endpoint</th><th>Описание</th></tr></thead>
+<tbody>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/auth/login</td><td>JWT логин (JSON: login + password)</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/auth/token</td><td>OAuth2 логин (form: username + password)</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/auth/me</td><td>Текущий пользователь</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/auth/token-check</td><td>Проверка токена</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/auth/permissions/users-read-single</td><td>Проверка права users.read</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/auth/permissions/users-create-and-read</td><td>Проверка прав users.read + create</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/auth/roles/admin-or-owner</td><td>Проверка роли admin/owner</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec3-2">3.2. Users API</h2>
+
+<table class="endpoint-table">
+<caption data-label="Таблица 6">Users Endpoints (14)</caption>
+<thead><tr><th>Метод</th><th>Endpoint</th><th>Описание</th></tr></thead>
+<tbody>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/users/me</td><td>Свой профиль</td></tr>
+<tr><td><span class="api-method patch">PATCH</span></td><td>/api/v1/users/me/update</td><td>Обновить профиль</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/users/me/change-password</td><td>Сменить пароль</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/users/</td><td>Список (offset, limit, search)</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/users/{user_id}</td><td>Пользователь по UUID</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/users/</td><td>Создать пользователя</td></tr>
+<tr><td><span class="api-method patch">PATCH</span></td><td>/api/v1/users/{user_id}</td><td>Обновить пользователя</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/users/{user_id}/deactivate</td><td>Деактивировать</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/users/{user_id}/reset-password</td><td>Сбросить пароль</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/users/{user_id}/roles/assign</td><td>Назначить роль</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/users/{user_id}/roles/revoke</td><td>Снять роль</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/users/{user_id}/roles</td><td>Роли пользователя</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/users/{user_id}/permissions</td><td>Права пользователя</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec3-3">3.3. CRM API</h2>
+
+<table class="endpoint-table">
+<caption data-label="Таблица 7">CRM Endpoints</caption>
+<thead><tr><th>Метод</th><th>Endpoint</th><th>Описание</th></tr></thead>
+<tbody>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/clients/</td><td>Список клиентов</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/clients/{client_id}</td><td>Клиент по UUID</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/clients/</td><td>Создать клиента</td></tr>
+<tr><td><span class="api-method patch">PATCH</span></td><td>/api/v1/clients/{client_id}</td><td>Обновить клиента</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/clients/{client_id}/timeline</td><td>История клиента</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/tariffs/</td><td>Список тарифов</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/tariffs/</td><td>Создать тариф</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/subscriptions/</td><td>Список абонементов</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/subscriptions/</td><td>Создать абонемент</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/subscriptions/{id}/freeze</td><td>Заморозить</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/subscriptions/{id}/unfreeze</td><td>Разморозить</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/subscriptions/{id}/renew</td><td>Продлить</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/subscriptions/{id}/cancel</td><td>Отменить</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/subscriptions/{id}/history</td><td>История изменений</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec3-4">3.4. Finance API</h2>
+
+<table class="endpoint-table">
+<caption data-label="Таблица 8">Finance Endpoints</caption>
+<thead><tr><th>Метод</th><th>Endpoint</th><th>Описание</th></tr></thead>
+<tbody>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/wallet/me</td><td>Мой кошелёк</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/wallet/me/balance</td><td>Баланс</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/wallet/me/transactions</td><td>Транзакции</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/wallet/client/{id}/deposit</td><td>Пополнение</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/payments/me</td><td>Мои платежи</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/payments/</td><td>Создать платёж</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/payments/{id}/complete</td><td>Завершить</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/payments/{id}/refund</td><td>Возврат</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/receipts/{receipt_id}</td><td>Чек</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/receipts/{id}/pdf</td><td>PDF чека</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/cash-desk/open</td><td>Открыть смену</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/cash-desk/close</td><td>Закрыть смену</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/cash-desk/current</td><td>Текущая смена</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/sales/subscription</td><td>Продажа абонемента</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/sales/service</td><td>Продажа услуги</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec3-5">3.5. Access Control API</h2>
+
+<table class="endpoint-table">
+<caption data-label="Таблица 9">Access Control Endpoints</caption>
+<thead><tr><th>Метод</th><th>Endpoint</th><th>Описание</th></tr></thead>
+<tbody>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/access/check</td><td>Проверить доступ по credential</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/access/grant</td><td>Предоставить доступ</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/access/exit</td><td>Фиксация выхода</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/access/override</td><td>Принудительный доступ</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/credentials/qr</td><td>Создать QR-код</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/credentials/qr/client/{id}</td><td>Получить QR клиента</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/credentials/qr/client/{id}/regenerate</td><td>Перегенерировать QR</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/credentials/rfid</td><td>Создать RFID</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/credentials/{id}/block</td><td>Заблокировать ключ</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/credentials/{id}/unblock</td><td>Разблокировать ключ</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/lockers/release</td><td>Освободить шкафчик</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/lockers/status/{id}</td><td>Статус шкафчика</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec3-6">3.6. Hardware API</h2>
+
+<table class="endpoint-table">
+<caption data-label="Таблица 10">Hardware Endpoints</caption>
+<thead><tr><th>Метод</th><th>Endpoint</th><th>Описание</th></tr></thead>
+<tbody>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/hardware/devices</td><td>Список устройств</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/hardware/devices/{id}</td><td>Инфо об устройстве</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/hardware/devices/{id}/open</td><td>Открыть</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/hardware/devices/{id}/close</td><td>Закрыть</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/hardware/devices/{id}/ping</td><td>Ping</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/hardware/devices/{id}/info</td><td>Подробная инфо</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/hardware/devices/{dev}/lockers/{id}/release</td><td>Открыть шкафчик</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/hardware/devices/{dev}/lockers/{id}/status</td><td>Статус шкафчика</td></tr>
+<tr><td><span class="api-method get">GET</span></td><td>/api/v1/hardware/drivers</td><td>Список драйверов</td></tr>
+<tr><td><span class="api-method post">POST</span></td><td>/api/v1/hardware/devices</td><td>Добавить устройство</td></tr>
+<tr><td><span class="api-method delete">DELETE</span></td><td>/api/v1/hardware/devices/{id}</td><td>Удалить устройство</td></tr>
+</tbody>
+</table>
+
+<!-- SECTION 4 -->
+<h1 id="sec4">4. Модели данных</h1>
+
+<h2 id="sec4-1">4.1. ER-диаграмма (основные сущности)</h2>
+
+<pre><code>┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│    users     │     │    roles     │     │ permissions  │
+├──────────────┤     ├──────────────┤     ├──────────────┤
+│ id (PK)      │◄────┤ id (PK)      │     │ id (PK)      │
+│ username     │     │ code         │     │ code         │
+│ email        │     │ name         │     │ name         │
+│ password_hash│     │ is_system    │     │ module       │
+│ is_active    │     └──────────────┘     └──────────────┘
+└──────────────┘            │                    │
+       │                    │                    │
+       │              ┌──────┴──────┐      ┌──────┴──────┐
+       │              │ user_roles  │      │role_permiss.│
+       │              ├─────────────┤      ├─────────────┤
+       │              │user_id (FK) │      │role_id (FK) │
+       │              │role_id (FK) │      │perm_id (FK) │
+       │              └─────────────┘      └─────────────┘
+       │
+       ▼
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   clients    │◄────│subscriptions │◄────│   tariffs    │
+├──────────────┤     ├──────────────┤     ├──────────────┤
+│ id (PK)      │     │ id (PK)      │     │ id (PK)      │
+│ first_name   │     │ client_id(FK)│     │ name         │
+│ last_name    │     │ tariff_id(FK)│     │ period_type  │
+│ phone        │     │ status       │     │ price        │
+│ status       │     │ start_date   │     │ visits_count │
+└──────────────┘     │ end_date     │     └──────────────┘
+       │             └──────────────┘
+       │                      │
+       ▼                      ▼
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   visits     │     │credentials   │     │    wallet    │
+├──────────────┤     ├──────────────┤     ├──────────────┤
+│ id (PK)      │     │ id (PK)      │     │ id (PK)      │
+│ client_id(FK)│     │ client_id(FK)│     │ client_id(FK)│
+│ entry_time   │     │ type (qr/rfi)│     │ balance      │
+│ exit_time    │     │ code         │     │ currency     │
+│ status       │     │ is_active    │     └──────────────┘
+└──────────────┘     └──────────────┘
+
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   payments   │     │   receipts   │     │ cash_desk_   │
+├──────────────┤     ├──────────────┤     │   sessions   │
+│ id (PK)      │     │ id (PK)      │     ├──────────────┤
+│ client_id(FK)│◄────│ payment_id(FK)     │ id (PK)      │
+│ amount       │     │ receipt_num  │     │ cashier_id   │
+│ status       │     │ fiscal_data  │     │ opened_at    │
+│ method       │     │ sent_to_ofd  │     │ closed_at    │
+└──────────────┘     └──────────────┘     │ total_amount │
+                                           └──────────────┘</code></pre>
+
+<h2 id="sec4-2">4.2. Описание таблиц</h2>
+
+<table>
+<caption data-label="Таблица 11">Основные таблицы базы данных</caption>
+<thead><tr><th>Таблица</th><th>Назначение</th><th>Ключевые поля</th></tr></thead>
+<tbody>
+<tr><td>users</td><td>Пользователи системы</td><td>id, username, email, password_hash, is_active</td></tr>
+<tr><td>roles</td><td>Роли (RBAC)</td><td>id, code, name, is_system</td></tr>
+<tr><td>permissions</td><td>Разрешения (RBAC)</td><td>id, code, name, module</td></tr>
+<tr><td>user_roles</td><td>Связь пользователей и ролей</td><td>user_id, role_id</td></tr>
+<tr><td>role_permissions</td><td>Связь ролей и разрешений</td><td>role_id, permission_id</td></tr>
+<tr><td>clients</td><td>Клиенты фитнес-клуба</td><td>id, first_name, last_name, phone, email, status</td></tr>
+<tr><td>tariffs</td><td>Тарифные планы</td><td>id, name, period_type, price, visits_count</td></tr>
+<tr><td>subscriptions</td><td>Абонементы клиентов</td><td>id, client_id, tariff_id, status, start_date, end_date</td></tr>
+<tr><td>subscription_events</td><td>История событий абонемента</td><td>id, subscription_id, event_type, created_at</td></tr>
+<tr><td>visits</td><td>Посещения</td><td>id, client_id, entry_time, exit_time, duration_minutes, status</td></tr>
+<tr><td>credentials</td><td>QR/RFID ключи доступа</td><td>id, client_id, type, code, is_active</td></tr>
+<tr><td>access_logs</td><td>Логи доступа</td><td>id, credential_id, device_id, result, timestamp</td></tr>
+<tr><td>wallets</td><td>Кошельки клиентов</td><td>id, client_id, balance, frozen_balance, currency</td></tr>
+<tr><td>wallet_transactions</td><td>Транзакции кошелька</td><td>id, wallet_id, type, amount, description</td></tr>
+<tr><td>payments</td><td>Платежи</td><td>id, client_id, amount, status, method, receipt_id</td></tr>
+<tr><td>receipts</td><td>Фискальные чеки</td><td>id, payment_id, receipt_number, fiscal_data, sent_to_ofd</td></tr>
+<tr><td>cash_desk_sessions</td><td>Кассовые смены</td><td>id, cashier_id, opened_at, closed_at, status</td></tr>
+<tr><td>cash_operations</td><td>Кассовые операции</td><td>id, session_id, type, amount, description</td></tr>
+<tr><td>devices</td><td>СКУД-устройства</td><td>id, name, vendor, model, device_type, ip, status</td></tr>
+<tr><td>audit_logs</td><td>Аудит действий</td><td>id, user_id, action, entity_type, entity_id, timestamp</td></tr>
+</tbody>
+</table>
+
+<!-- SECTION 5 -->
+<h1 id="sec5">5. RBAC система</h1>
+
+<h2 id="sec5-1">5.1. Роли</h2>
+
+<table>
+<caption data-label="Таблица 12">Системные роли</caption>
+<thead><tr><th>Роль</th><th>Код</th><th>Описание</th></tr></thead>
+<tbody>
+<tr><td>Владелец</td><td>owner</td><td>Полный доступ ко всем функциям</td></tr>
+<tr><td>Администратор</td><td>admin</td><td>Управление пользователями, настройки</td></tr>
+<tr><td>Менеджер</td><td>manager</td><td>CRM, финансы, отчёты</td></tr>
+<tr><td>Тренер</td><td>trainer</td><td>Клиенты, посещения, график</td></tr>
+<tr><td>Кассир</td><td>cashier</td><td>Продажи, касса, чеки</td></tr>
+<tr><td>Бухгалтер</td><td>accountant</td><td>Финансы, отчёты, сверка</td></tr>
+<tr><td>Поддержка</td><td>support</td><td>Просмотр данных, базовые операции</td></tr>
+<tr><td>Клиент</td><td>client</td><td>Личный кабинет (self-service)</td></tr>
+<tr><td>Устройство</td><td>device</td><td>API-ключ для СКУД-устройств</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec5-2">5.2. Разрешения</h2>
+
+<p>51 разрешение с точечной нотацией <code>module.action</code>. Примеры:</p>
+
+<table>
+<caption data-label="Таблица 13">Примеры разрешений</caption>
+<thead><tr><th>Разрешение</th><th>Описание</th></tr></thead>
+<tbody>
+<tr><td>users.read</td><td>Просмотр пользователей</td></tr>
+<tr><td>users.create</td><td>Создание пользователей</td></tr>
+<tr><td>users.update</td><td>Редактирование пользователей</td></tr>
+<tr><td>users.delete</td><td>Удаление пользователей</td></tr>
+<tr><td>clients.read</td><td>Просмотр клиентов</td></tr>
+<tr><td>clients.create</td><td>Создание клиентов</td></tr>
+<tr><td>subscriptions.manage</td><td>Управление абонементами</td></tr>
+<tr><td>payments.read</td><td>Просмотр платежей</td></tr>
+<tr><td>payments.create</td><td>Создание платежей</td></tr>
+<tr><td>devices.read</td><td>Просмотр устройств</td></tr>
+<tr><td>devices.update</td><td>Управление устройствами</td></tr>
+<tr><td>analytics.read</td><td>Просмотр аналитики</td></tr>
+<tr><td>cash_desk.open</td><td>Открытие кассовой смены</td></tr>
+<tr><td>cash_desk.close</td><td>Закрытие кассовой смены</td></tr>
+</tbody>
+</table>
+
+<div class="note">
+Проверка прав на эндпоинтах выполняется через зависимости FastAPI: <code>Depends(require_permission("users.read"))</code>. Пользователи с ролями owner и admin имеют доступ ко всем эндпоинтам автоматически.
+</div>
+
+<!-- SECTION 6 -->
+<h1 id="sec6">6. Hardware Abstraction Layer</h1>
+
+<h2 id="sec6-1">6.1. Архитектура HAL</h2>
+
+<p>HAL реализован по паттерну <strong>Strategy + Registry</strong>. Базовый класс <code>BaseDeviceDriver</code> определяет интерфейс, который должны реализовать все драйверы. Registry автоматически обнаруживает и регистрирует драйверы из папки <code>app/hardware/drivers/</code>.</p>
+
+<pre><code>┌────────────────────────────────────────────────────────────┐
+│                    DeviceManager                           │
+│  (центральный менеджер, singleton)                        │
+├────────────────────────────────────────────────────────────┤
+│                    DriverRegistry                          │
+│  (автообнаружение + фабрика драйверов)                    │
+├──────────┬──────────┬──────────┬──────────┬──────────────┤
+│EraDriver │X1Driver  │Kerong   │Generic   │Generic      │
+│          │          │Driver   │Modbus    │Http/Mqtt    │
+│TCP       │HTTP+WS   │Modbus   │Driver    │Driver       │
+│бинарный  │REST API  │RTU/TCP  │TCP/RTU   │REST/MQTT    │
+└──────────┴──────────┴──────────┴──────────┴──────────────┘</code></pre>
+
+<h3>Интерфейс BaseDeviceDriver</h3>
+
+<table>
+<caption data-label="Таблица 14">Методы BaseDeviceDriver</caption>
+<thead><tr><th>Метод</th><th>Назначение</th></tr></thead>
+<tbody>
+<tr><td>connect()</td><td>Подключиться к устройству</td></tr>
+<tr><td>disconnect()</td><td>Отключиться</td></tr>
+<tr><td>ping()</td><td>Проверка связи</td></tr>
+<tr><td>open(credential, **kwargs)</td><td>Открыть проход</td></tr>
+<tr><td>close(**kwargs)</td><td>Закрыть/блокировать</td></tr>
+<tr><td>release_locker(locker_id)</td><td>Открыть шкафчик</td></tr>
+<tr><td>get_locker_status(locker_id)</td><td>Статус шкафчика</td></tr>
+<tr><td>get_device_info()</td><td>Информация об устройстве</td></tr>
+<tr><td>sync_credentials(credentials)</td><td>Синхронизация ключей</td></tr>
+<tr><td>start_event_listener()</td><td>Прослушка событий</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec6-2">6.2. Подключение нового устройства</h2>
+
+<h3>Способ 1: YAML-конфиг (без кода)</h3>
+
+<p>Отредактируй <code>config/devices.yaml</code>:</p>
+
+<pre><code>- device_id: "my_turnstile_01"
+  name: "Турникет — Новый"
+  vendor: "Generic"
+  model: "HTTP-API"
+  device_type: "turnstile"
+  protocol: "http_api"
+  host: "192.168.1.200"
+  port: 80
+  endpoints:
+    open:  {method: "POST", path: "/api/open"}
+    close: {method: "POST", path: "/api/close"}
+    status:{method: "GET",  path: "/api/status"}</code></pre>
+
+<h3>Способ 2: Новый драйвер (для сложных протоколов)</h3>
+
+<pre><code>from app.hardware.base import BaseDeviceDriver, register_driver, AccessResult
+
+@register_driver
+class MyDeviceDriver(BaseDeviceDriver):
+    VENDOR = "MyCompany"
+    MODELS = ["MODEL-A"]
+    
+    async def connect(self) -&gt; bool: ...
+    async def open(self, credential=None, **kwargs) -&gt; AccessResult: ...
+    async def close(self, **kwargs) -&gt; bool: ...</code></pre>
+
+<!-- SECTION 7 -->
+<h1 id="sec7">7. Frontend</h1>
+
+<h2 id="sec7-1">7.1. Админ-панель</h2>
+
+<table>
+<caption data-label="Таблица 15">Страницы админ-панели</caption>
+<thead><tr><th>Страница</th><th>Путь</th><th>Функционал</th></tr></thead>
+<tbody>
+<tr><td>Дашборд</td><td>/</td><td>KPI-карточки, быстрые действия, статус системы</td></tr>
+<tr><td>Клиенты</td><td>/clients</td><td>Список, поиск, создание (dialog)</td></tr>
+<tr><td>Абонементы</td><td>/subscriptions</td><td>Карточки, freeze/unfreeze/renew/cancel</td></tr>
+<tr><td>Посещения</td><td>/visits</td><td>Вход/выход, активные в зале, статистика</td></tr>
+<tr><td>Финансы</td><td>/finance</td><td>Кошелёк, платежи, чеки (табы)</td></tr>
+<tr><td>Доступ</td><td>/access</td><td>Проверка QR/RFID, управление ключами</td></tr>
+<tr><td>Устройства</td><td>/devices</td><td>Статус online/offline, heartbeat</td></tr>
+<tr><td>Аналитика</td><td>/analytics</td><td>График посещений по дням</td></tr>
+<tr><td>Настройки</td><td>/settings</td><td>Профиль, роли, права, системная инфо</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec7-2">7.2. Личный кабинет клиента</h2>
+
+<table>
+<caption data-label="Таблица 16">Страницы клиентского кабинета</caption>
+<thead><tr><th>Страница</th><th>Путь</th><th>Функционал</th></tr></thead>
+<tbody>
+<tr><td>Профиль</td><td>/cabinet</td><td>Данные клиента, баланс, кол-во абонементов</td></tr>
+<tr><td>Абонементы</td><td>/cabinet/subscriptions</td><td>Список со статусами и датами</td></tr>
+<tr><td>Посещения</td><td>/cabinet/visits</td><td>История с длительностью</td></tr>
+<tr><td>Кошелёк</td><td>/cabinet/wallet</td><td>Баланс, история транзакций</td></tr>
+</tbody>
+</table>
+
+<!-- SECTION 8 -->
+<h1 id="sec8">8. Инфраструктура и деплой</h1>
+
+<h2 id="sec8-1">8.1. Docker</h2>
+
+<table>
+<caption data-label="Таблица 17">Docker-конфигурация</caption>
+<thead><tr><th>Файл</th><th>Назначение</th></tr></thead>
+<tbody>
+<tr><td>Dockerfile</td><td>Production образ Python + FastAPI</td></tr>
+<tr><td>docker-compose.yml</td><td>Dev: PostgreSQL + Redis</td></tr>
+<tr><td>deploy/docker-compose.dev.yml</td><td>Полный dev stack (API + DB + Redis)</td></tr>
+<tr><td>deploy/docker-compose.prod.yml</td><td>Production: API + DB + Redis + Nginx + Celery</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec8-2">8.2. CI/CD</h2>
+
+<p>GitLab CI pipeline (.gitlab-ci.yml):</p>
+<pre><code>lint → test → build → deploy</code></pre>
+
+<h2 id="sec8-3">8.3. Terraform (Yandex Cloud)</h2>
+
+<table>
+<caption data-label="Таблица 18">Terraform модули</caption>
+<thead><tr><th>Модуль</th><th>Ресурсы</th></tr></thead>
+<tbody>
+<tr><td>network</td><td>VPC, подсети, security groups</td></tr>
+<tr><td>compute</td><td>Виртуальные машины (API, DB, Redis)</td></tr>
+<tr><td>alb</td><td>Application Load Balancer</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec8-4">8.4. Мониторинг</h2>
+
+<table>
+<caption data-label="Таблица 19">Компоненты мониторинга</caption>
+<thead><tr><th>Компонент</th><th>Назначение</th></tr></thead>
+<tbody>
+<tr><td>Prometheus</td><td>Сбор метрик</td></tr>
+<tr><td>Grafana</td><td>Визуализация дашбордов</td></tr>
+<tr><td>Zabbix</td><td>Мониторинг инфраструктуры</td></tr>
+<tr><td>Alertmanager</td><td>Уведомления о проблемах</td></tr>
+</tbody>
+</table>
+
+<!-- SECTION 9 -->
+<h1 id="sec9">9. Безопасность</h1>
+
+<h2 id="sec9-1">9.1. Аутентификация и авторизация</h2>
+
+<ul>
+<li><strong>JWT</strong> — Bearer токены с TTL 30 минут</li>
+<li><strong>OAuth2</strong> — для Swagger UI (flow: password)</li>
+<li><strong>RBAC</strong> — 9 ролей, 51 разрешение</li>
+<li><strong>Защита эндпоинтов</strong> — через FastAPI Depends</li>
+<li><strong>Админ/владелец</strong> — полный доступ ко всем API</li>
+</ul>
+
+<h2 id="sec9-2">9.2. Шифрование</h2>
+
+<ul>
+<li><strong>Пароли</strong> — Bcrypt (passlib), 12 rounds</li>
+<li><strong>JWT</strong> — HS256, секрет из переменной окружения SECRET_KEY</li>
+<li><strong>PostgreSQL</strong> — SSL в production</li>
+<li><strong>Nginx</strong> — TLS 1.2/1.3, rate limiting</li>
+</ul>
+
+<!-- SECTION 10 -->
+<h1 id="sec10">10. Конфигурация</h1>
+
+<p>Система использует переменные окружения (.env) + Pydantic Settings:</p>
+
+<table>
+<caption data-label="Таблица 20">Переменные окружения</caption>
+<thead><tr><th>Переменная</th><th>Описание</th><th>Пример</th></tr></thead>
+<tbody>
+<tr><td>APP_ENV</td><td>Среда (dev/prod)</td><td>dev</td></tr>
+<tr><td>APP_DEBUG</td><td>Режим отладки</td><td>false</td></tr>
+<tr><td>SECRET_KEY</td><td>JWT секрет</td><td>random_string_32+</td></tr>
+<tr><td>DATABASE_URL</td><td>PostgreSQL DSN</td><td>postgresql+psycopg://...</td></tr>
+<tr><td>REDIS_HOST</td><td>Redis сервер</td><td>localhost</td></tr>
+<tr><td>REDIS_PORT</td><td>Redis порт</td><td>6379</td></tr>
+<tr><td>ACCESS_TOKEN_EXPIRE_MINUTES</td><td>TTL токена</td><td>30</td></tr>
+<tr><td>DOCS_ENABLED</td><td>Swagger/ReDoc</td><td>true</td></tr>
+<tr><td>SENTRY_DSN</td><td>Мониторинг ошибок</td><td>https://...</td></tr>
+</tbody>
+</table>
+
+<div class="note">
+Файл <code>.env.example</code> содержит все переменные с примерами значений. Для production скопируйте в <code>.env</code> и заполните реальными значениями.
+</div>
+
+</body>
+</html>

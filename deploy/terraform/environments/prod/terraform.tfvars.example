@@ -1,0 +1,5 @@
+# Скопируйте в terraform.tfvars и заполните свои значения
+
+folder_id = "b1gxxxxxxxxxxxxx"  # ID каталога в Yandex Cloud
+zone      = "ru-central1-a"
+domain    = "fitintel.ru"

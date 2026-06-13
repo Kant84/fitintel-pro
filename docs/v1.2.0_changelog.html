@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="UTF-8"><style>
+body{font-family:Arial,sans-serif;max-width:900px;margin:40px auto;padding:20px;color:#333;line-height:1.6}
+h1{color:#e53935;border-bottom:3px solid #e53935;padding-bottom:10px}
+h2{color:#0f3460;border-left:4px solid #e53935;padding-left:12px;margin-top:30px}
+.tag{display:inline-block;background:#e3f2fd;color:#1565c0;padding:2px 10px;border-radius:3px;font-size:10pt;margin:2px}
+.new{background:#e8f5e9;color:#2e7d32}
+.stat{display:inline-block;padding:4px 12px;background:#f5f5f5;border-radius:4px;margin:4px;font-size:10pt}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:10pt}
+thead{border-top:2px solid #333;border-bottom:1px solid #333}
+tbody{border-bottom:2px solid #333}
+th,td{padding:8px 12px;text-align:left}
+th{background:#f5f5f5}
+</style></head>
+<body>
+
+<h1>FitIntel Pro v1.2.0 — Changelog</h1>
+
+<div style="background:#e8f5e9;border-left:4px solid #4caf50;padding:12px 16px;margin:20px 0">
+<strong>14 файлов добавлено</strong> — 2050 строк кода — feature/v1.2.0
+</div>
+
+<h2>MAX Messenger</h2>
+<p>Полноценный мессенджер для коммуникации тренеров и клиентов.</p>
+<table>
+<tr><th>Фича</th><th>Описание</th></tr>
+<tr><td>Личные чаты</td><td>1-on-1 между любыми пользователями</td></tr>
+<tr><td>Групповые чаты</td><td>С админом, описанием, аватаром</td></tr>
+<tr><td>WebSocket</td><td>Real-time сообщения</td></tr>
+<tr><td>Редактирование</td><td>Изменение отправленных сообщений</td></tr>
+<tr><td>Удаление</td><td>Мягкое удаление</td></tr>
+<tr><td>Ответы</td><td>Reply на конкретное сообщение</td></tr>
+<tr><td>Вложения</td><td>Файлы, изображения</td></tr>
+<tr><td>Прочтения</td><td>Счётчик непрочитанных</td></tr>
+<tr><td>Системные сообщения</td><td>Уведомления о создании чата</td></tr>
+</table>
+
+<h2>Telegram Bot</h2>
+<table>
+<tr><th>Команда</th><th>Функция</th></tr>
+<tr><td>/start, /help</td><td>Справка и welcome</td></tr>
+<tr><td>/balance</td><td>Баланс кошелька</td></tr>
+<tr><td>/qrcode</td><td>QR-пропуск</td></tr>
+<tr><td>/subscriptions</td><td>Активные абонементы</td></tr>
+<tr><td>/visits</td><td>История посещений</td></tr>
+<tr><td>/freeze</td><td>Инфо о заморозке</td></tr>
+</table>
+<p><strong>Авто-уведомления:</strong> вход в клуб, выход, истечение абонемента, оплата</p>
+
+<h2>YooKassa — Онлайн-оплата</h2>
+<table>
+<tr><th>Метод</th><th>Описание</th></tr>
+<tr><td>POST /yookassa/payments</td><td>Создать платёж</td></tr>
+<tr><td>GET /yookassa/payments/{id}</td><td>Проверить статус</td></tr>
+<tr><td>POST /yookassa/payments/{id}/cancel</td><td>Отменить</td></tr>
+<tr><td>POST /yookassa/refunds</td><td>Возврат</td></tr>
+<tr><td>POST /yookassa/webhook</td><td>Обработка webhook</td></tr>
+</table>
+
+<h2>54-ФЗ Фискализация</h2>
+<table>
+<tr><th>Провайдер</th><th>Статус</th></tr>
+<tr><td>Атол Онлайн</td><td><span class="tag new">Готов</span></td></tr>
+<tr><td>Эвотор</td><td><span class="tag new">Готов</span></td></tr>
+<tr><td>Универсальный ОФД</td><td><span class="tag new">Готов</span></td></tr>
+<tr><td>Мок-режим</td><td><span class="tag new">Готов</span> (без реальных ключей)</td></tr>
+</table>
+
+<h2>Seeder</h2>
+<p><strong>9 ролей</strong> | <strong>51 право</strong> | <strong>10 тарифов</strong> | <strong>5 клиентов</strong> | <strong>5 устройств СКУД</strong></p>
+<p>Команда: <code>python -m app.db.seed.full_seeder</code></p>
+
+<h2>Pytest</h2>
+<table>
+<tr><th>Файл</th><th>Тесты</th></tr>
+<tr><td>test_auth.py</td><td>Регистрация, логин, JWT, токен</td></tr>
+<tr><td>test_clients.py</td><td>CRUD клиентов, валидация, авторизация</td></tr>
+</table>
+
+<h2>Итоговая статистика v1.2.0</h2>
+<div>
+<span class="stat">191+ endpoint</span>
+<span class="stat">30,000+ LOC</span>
+<span class="stat">32 модели</span>
+<span class="stat">6 hardware драйверов</span>
+<span class="stat">9 ролей RBAC</span>
+<span class="stat">51 право</span>
+<span class="stat">MAX Messenger</span>
+<span class="stat">Telegram Bot</span>
+<span class="stat">YooKassa</span>
+<span class="stat">54-ФЗ</span>
+</div>
+
+</body>
+</html>
