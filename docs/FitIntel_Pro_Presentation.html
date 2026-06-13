@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FitIntel Pro — Презентация</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; color: #fff; overflow-x: hidden; }
+
+.slide {
+  width: 100vw;
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 60px 80px;
+  page-break-after: always;
+}
+
+/* SLIDE 1 — COVER */
+.s1 { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
+.s1::before {
+  content: '';
+  position: absolute;
+  top: -200px; right: -200px;
+  width: 600px; height: 600px;
+  border: 2px solid rgba(255,255,255,0.08);
+  border-radius: 50%;
+}
+.s1::after {
+  content: '';
+  position: absolute;
+  bottom: -100px; left: -100px;
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(229,57,53,0.2), transparent 70%);
+}
+.s1-content { position: relative; z-index: 1; text-align: center; }
+.s1-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #e53935, #c62828);
+  color: white;
+  padding: 10px 30px;
+  border-radius: 30px;
+  font-size: 12pt;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 40px;
+}
+.s1 h1 { font-size: 56pt; font-weight: 800; letter-spacing: 4px; margin-bottom: 20px; text-transform: uppercase; }
+.s1 h2 { font-size: 20pt; font-weight: 300; color: rgba(255,255,255,0.7); margin-bottom: 60px; }
+.s1-stats { display: flex; gap: 60px; justify-content: center; }
+.s1-stat { text-align: center; }
+.s1-stat-num { font-size: 36pt; font-weight: 800; color: #e53935; }
+.s1-stat-label { font-size: 10pt; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 2px; }
+
+/* SLIDE 2 — PROBLEM */
+.s2 { background: #0a0a0a; }
+.s2 h2 { font-size: 36pt; font-weight: 800; margin-bottom: 50px; color: #e53935; }
+.s2-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; width: 100%; max-width: 1000px; }
+.s2-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 30px; }
+.s2-card h3 { font-size: 14pt; color: #e53935; margin-bottom: 12px; }
+.s2-card p { font-size: 12pt; color: rgba(255,255,255,0.7); line-height: 1.6; }
+
+/* SLIDE 3 — SOLUTION */
+.s3 { background: linear-gradient(180deg, #0f3460 0%, #1a1a2e 100%); }
+.s3 h2 { font-size: 36pt; font-weight: 800; margin-bottom: 20px; }
+.s3-sub { font-size: 14pt; color: rgba(255,255,255,0.6); margin-bottom: 50px; }
+.s3-features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; width: 100%; max-width: 1100px; }
+.s3-feat { background: rgba(255,255,255,0.08); border-radius: 12px; padding: 30px; text-align: center; border-top: 3px solid #e53935; }
+.s3-feat-icon { font-size: 32pt; margin-bottom: 15px; }
+.s3-feat h4 { font-size: 13pt; margin-bottom: 10px; }
+.s3-feat p { font-size: 10pt; color: rgba(255,255,255,0.6); line-height: 1.5; }
+
+/* SLIDE 4 — FEATURES */
+.s4 { background: #111; }
+.s4 h2 { font-size: 32pt; font-weight: 800; margin-bottom: 40px; color: #e53935; }
+.s4-table { width: 100%; max-width: 1000px; border-collapse: collapse; }
+.s4-table th { background: #e53935; color: white; padding: 14px 20px; text-align: left; font-size: 11pt; }
+.s4-table td { padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 11pt; color: rgba(255,255,255,0.8); }
+.s4-table tr:hover td { background: rgba(255,255,255,0.03); }
+.s4-tag { display: inline-block; background: rgba(229,57,53,0.2); color: #e53935; padding: 2px 10px; border-radius: 10px; font-size: 9pt; }
+
+/* SLIDE 5 — TECHNOLOGY */
+.s5 { background: linear-gradient(135deg, #1a1a2e, #0f3460); }
+.s5 h2 { font-size: 32pt; font-weight: 800; margin-bottom: 40px; }
+.s5-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 25px; width: 100%; max-width: 1000px; }
+.s5-tech { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 25px; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
+.s5-tech-name { font-size: 14pt; font-weight: 700; color: #e53935; margin-bottom: 5px; }
+.s5-tech-role { font-size: 10pt; color: rgba(255,255,255,0.6); }
+
+/* SLIDE 6 — HARDWARE */
+.s6 { background: #0a0a0a; }
+.s6 h2 { font-size: 32pt; font-weight: 800; margin-bottom: 15px; }
+.s6-sub { font-size: 13pt; color: rgba(255,255,255,0.5); margin-bottom: 40px; }
+.s6-hw { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; width: 100%; max-width: 1000px; }
+.s6-item { background: rgba(255,255,255,0.05); border-left: 4px solid #e53935; padding: 20px 25px; border-radius: 0 8px 8px 0; }
+.s6-item h4 { font-size: 13pt; margin-bottom: 8px; }
+.s6-item p { font-size: 10pt; color: rgba(255,255,255,0.5); }
+
+/* SLIDE 7 — STATS */
+.s7 { background: linear-gradient(180deg, #0f3460, #1a1a2e); }
+.s7 h2 { font-size: 32pt; font-weight: 800; margin-bottom: 40px; }
+.s7-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 30px; width: 100%; max-width: 1100px; }
+.s7-card { background: rgba(255,255,255,0.08); border-radius: 16px; padding: 35px; text-align: center; }
+.s7-num { font-size: 42pt; font-weight: 800; color: #e53935; line-height: 1; }
+.s7-label { font-size: 11pt; color: rgba(255,255,255,0.6); margin-top: 10px; }
+
+/* SLIDE 8 — ROADMAP */
+.s8 { background: #111; }
+.s8 h2 { font-size: 32pt; font-weight: 800; margin-bottom: 40px; color: #e53935; }
+.s8-road { display: flex; gap: 30px; width: 100%; max-width: 1100px; justify-content: center; }
+.s8-phase { flex: 1; background: rgba(255,255,255,0.05); border-radius: 12px; padding: 30px; border-top: 3px solid; }
+.s8-phase.p1 { border-color: #4caf50; }
+.s8-phase.p2 { border-color: #ff9800; }
+.s8-phase.p3 { border-color: #e53935; }
+.s8-phase h4 { font-size: 12pt; margin-bottom: 5px; }
+.s8-phase .date { font-size: 10pt; color: rgba(255,255,255,0.5); margin-bottom: 15px; }
+.s8-phase ul { list-style: none; }
+.s8-phase li { font-size: 10pt; color: rgba(255,255,255,0.7); padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+/* SLIDE 9 — CONTACT */
+.s9 { background: linear-gradient(135deg, #1a1a2e, #16213e); position: relative; }
+.s9::before {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 200px;
+  background: linear-gradient(to top, rgba(229,57,53,0.15), transparent);
+}
+.s9-content { position: relative; z-index: 1; text-align: center; }
+.s9 h2 { font-size: 42pt; font-weight: 800; margin-bottom: 20px; }
+.s9 p { font-size: 14pt; color: rgba(255,255,255,0.6); margin-bottom: 40px; }
+.s9-btn {
+  display: inline-block;
+  background: linear-gradient(135deg, #e53935, #c62828);
+  color: white;
+  padding: 18px 50px;
+  border-radius: 40px;
+  font-size: 14pt;
+  font-weight: 600;
+  text-decoration: none;
+  margin-bottom: 50px;
+}
+.s9-links { display: flex; gap: 40px; justify-content: center; }
+.s9-links a { color: rgba(255,255,255,0.5); text-decoration: none; font-size: 11pt; }
+.s9-links a:hover { color: #e53935; }
+
+@media print {
+  .slide { page-break-after: always; min-height: 100vh; }
+}
+</style>
+</head>
+<body>
+
+<!-- SLIDE 1: COVER -->
+<div class="slide s1">
+  <div class="s1-content">
+    <div class="s1-badge">Production Ready v1.1.0</div>
+    <h1>FitIntel Pro</h1>
+    <h2>ERP/CRM система управления фитнес-клубом</h2>
+    <div class="s1-stats">
+      <div class="s1-stat"><div class="s1-stat-num">191</div><div class="s1-stat-label">API endpoints</div></div>
+      <div class="s1-stat"><div class="s1-stat-num">28K+</div><div class="s1-stat-label">Строк кода</div></div>
+      <div class="s1-stat"><div class="s1-stat-num">6</div><div class="s1-stat-label">Драйверов СКУД</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 2: PROBLEM -->
+<div class="slide s2">
+  <h2>Проблемы фитнес-индустрии</h2>
+  <div class="s2-grid">
+    <div class="s2-card">
+      <h3>Фрагментированные данные</h3>
+      <p>Клиенты, абонементы, платежи и посещения хранятся в разных системах. Нет единого источника правды.</p>
+    </div>
+    <div class="s2-card">
+      <h3>Ручные процессы</h3>
+      <p>Регистрация, продажа, контроль доступа — всё делается вручную. Очереди, ошибки, утечки доходов.</p>
+    </div>
+    <div class="s2-card">
+      <h3>Отсутствие аналитики</h3>
+      <p>Неизвестно, кто из клиентов уходит, какие тарифы работают, какая загрузка зала в пиковые часы.</p>
+    </div>
+    <div class="s2-card">
+      <h3>Старый софт</h3>
+      <p>Существующие решения — дорогие, закрытые, без интеграции с современным оборудованием СКУД.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 3: SOLUTION -->
+<div class="slide s3">
+  <h2>Решение: FitIntel Pro</h2>
+  <p class="s3-sub">Всё-в-одном платформа для автоматизации фитнес-клуба</p>
+  <div class="s3-features">
+    <div class="s3-feat">
+      <div class="s3-feat-icon">👥</div>
+      <h4>CRM</h4>
+      <p>База клиентов, сегментация, история взаимодействия, автоматические напоминания</p>
+    </div>
+    <div class="s3-feat">
+      <div class="s3-feat-icon">💳</div>
+      <h4>ERP</h4>
+      <p>Абонементы, платежи, касса, фискальные чеки, бухгалтерская отчётность</p>
+    </div>
+    <div class="s3-feat">
+      <div class="s3-feat-icon">🚪</div>
+      <h4>СКУД</h4>
+      <p>QR/RFID пропуска, турникеты, шкафчики — универсальная интеграция с любым оборудованием</p>
+    </div>
+    <div class="s3-feat">
+      <div class="s3-feat-icon">📊</div>
+      <h4>Аналитика</h4>
+      <p>Дашборды, retention, прогнозирование оттока, загрузка зала в реальном времени</p>
+    </div>
+    <div class="s3-feat">
+      <div class="s3-feat-icon">📱</div>
+      <h4>Self-Service</h4>
+      <p>Личный кабинет клиента, онлайн-оплата, заморозка абонемента, видео-тренировки</p>
+    </div>
+    <div class="s3-feat">
+      <div class="s3-feat-icon">🎯</div>
+      <h4>Маркетинг</h4>
+      <p>SMS/email рассылки, сегменты клиентов, геймификация, программы лояльности</p>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 4: FEATURES -->
+<div class="slide s4">
+  <h2>Функциональные модули</h2>
+  <table class="s4-table">
+    <tr><th>Модуль</th><th>Возможности</th><th>Статус</th></tr>
+    <tr><td>Клиентская база</td><td>CRUD, сегментация, timeline, документы</td><td><span class="s4-tag">Готово</span></td></tr>
+    <tr><td>Абонементы</td><td>Тарифы, продажа, freeze/renew/cancel</td><td><span class="s4-tag">Готово</span></td></tr>
+    <tr><td>Посещения</td><td>Entry/exit, статистика, ручной ввод</td><td><span class="s4-tag">Готово</span></td></tr>
+    <tr><td>СКУД / Доступ</td><td>QR/RFID, проверка прав, override</td><td><span class="s4-tag">Готово</span></td></tr>
+    <tr><td>Платежи</td><td>Оплата, возвраты, онлайн, webhooks</td><td><span class="s4-tag">Готово</span></td></tr>
+    <tr><td>Касса</td><td>Смены, операции, сверка, Z-отчёт</td><td><span class="s4-tag">Готово</span></td></tr>
+    <tr><td>PDF Документы</td><td>Договоры, согласия ПДн, чеки</td><td><span class="s4-tag">Готово</span></td></tr>
+    <tr><td>SMS / Email</td><td>Рассылки через SMSC.ru, SMTP</td><td><span class="s4-tag">Готово</span></td></tr>
+    <tr><td>Геймификация</td><td>XP, 50 уровней, достижения, leaderboard</td><td><span class="s4-tag">Готово</span></td></tr>
+    <tr><td>Online Training</td><td>Live/recorded, каталог, рейтинги</td><td><span class="s4-tag">Готово</span></td></tr>
+  </table>
+</div>
+
+<!-- SLIDE 5: TECH -->
+<div class="slide s5">
+  <h2>Технологический стек</h2>
+  <div class="s5-grid">
+    <div class="s5-tech"><div class="s5-tech-name">FastAPI</div><div class="s5-tech-role">Backend API</div></div>
+    <div class="s5-tech"><div class="s5-tech-name">PostgreSQL 16</div><div class="s5-tech-role">Database</div></div>
+    <div class="s5-tech"><div class="s5-tech-name">SQLAlchemy 2.0</div><div class="s5-tech-role">ORM</div></div>
+    <div class="s5-tech"><div class="s5-tech-name">React 18</div><div class="s5-tech-role">Frontend</div></div>
+    <div class="s5-tech"><div class="s5-tech-name">Redis 7</div><div class="s5-tech-role">Cache / Broker</div></div>
+    <div class="s5-tech"><div class="s5-tech-name">Celery</div><div class="s5-tech-role">Async Tasks</div></div>
+    <div class="s5-tech"><div class="s5-tech-name">Docker</div><div class="s5-tech-role">Containerization</div></div>
+    <div class="s5-tech"><div class="s5-tech-name">Prometheus</div><div class="s5-tech-role">Monitoring</div></div>
+  </div>
+</div>
+
+<!-- SLIDE 6: HARDWARE -->
+<div class="slide s6">
+  <h2>Универсальный слой СКУД</h2>
+  <p class="s6-sub">Работает с ЛЮБЫМ оборудованием — ЭРА, X1, Kerong, и любыми Modbus/HTTP/MQTT устройствами</p>
+  <div class="s6-hw">
+    <div class="s6-item"><h4>ЭРА</h4><p>T-1000, T-2000, C-100, C-200, C-PRO, T-UNI</p></div>
+    <div class="s6-item"><h4>X1</h4><p>X1-LITE, X1-PRO, X1-MAX, X1-NET, X1-WIFI</p></div>
+    <div class="s6-item"><h4>Kerong</h4><p>KR-S50, KR-S100, KR-S200, KR-M16, KR-M24, KR-M40, KR-PRO</p></div>
+    <div class="s6-item"><h4>Modbus TCP/RTU</h4><p>Любые Modbus-устройства с настраиваемой картой регистров</p></div>
+    <div class="s6-item"><h4>HTTP REST</h4><p>Любые HTTP API устройства с настраиваемыми endpoints</p></div>
+    <div class="s6-item"><h4>MQTT</h4><p>IoT устройства через MQTT брокер с настраиваемыми topics</p></div>
+  </div>
+</div>
+
+<!-- SLIDE 7: STATS -->
+<div class="slide s7">
+  <h2>Масштаб проекта</h2>
+  <div class="s7-grid">
+    <div class="s7-card"><div class="s7-num">191</div><div class="s7-label">API эндпоинтов</div></div>
+    <div class="s7-card"><div class="s7-num">28,434</div><div class="s7-label">Строк Python кода</div></div>
+    <div class="s7-card"><div class="s7-num">28</div><div class="s7-label">SQLAlchemy моделей</div></div>
+    <div class="s7-card"><div class="s7-num">121</div><div class="s7-label">Pydantic схем</div></div>
+    <div class="s7-card"><div class="s7-num">22</div><div class="s7-label">Репозитория</div></div>
+    <div class="s7-card"><div class="s7-num">28</div><div class="s7-label">Сервисов</div></div>
+    <div class="s7-card"><div class="s7-num">6</div><div class="s7-label">Hardware драйверов</div></div>
+    <div class="s7-card"><div class="s7-num">9</div><div class="s7-label">Ролей RBAC</div></div>
+  </div>
+</div>
+
+<!-- SLIDE 8: ROADMAP -->
+<div class="slide s8">
+  <h2>Дорожная карта</h2>
+  <div class="s8-road">
+    <div class="s8-phase p1">
+      <h4>✅ Готово (v1.1.0)</h4>
+      <div class="date">Июнь 2026</div>
+      <ul>
+        <li>Весь core функционал</li>
+        <li>СКУД (6 драйверов)</li>
+        <li>PDF документы</li>
+        <li>SMS/Email маркетинг</li>
+        <li>Геймификация</li>
+        <li>Online training</li>
+      </ul>
+    </div>
+    <div class="s8-phase p2">
+      <h4>🔄 Q3 2026</h4>
+      <div class="date">Июль-Сентябрь</div>
+      <ul>
+        <li>Мобильное приложение</li>
+        <li>Интеграция 1С</li>
+        <li>Фискальные регистраторы</li>
+        <li>YooKassa / СБОЛ</li>
+        <li>AI-рекомендации</li>
+      </ul>
+    </div>
+    <div class="s8-phase p3">
+      <h4>📅 Q4 2026</h4>
+      <div class="date">Октябрь-Декабрь</div>
+      <ul>
+        <li>Сеть клубов</li>
+        <li>Franchise модуль</li>
+        <li>White-label</li>
+        <li>Marketplace интеграций</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 9: CONTACT -->
+<div class="slide s9">
+  <div class="s9-content">
+    <h2>FitIntel Pro</h2>
+    <p>Готов к внедрению. Полный цикл автоматизации фитнес-клуба.</p>
+    <div class="s9-btn">Начать использование</div>
+    <div class="s9-links">
+      <a href="https://github.com/Kant84/fitintel-pro">GitHub</a>
+      <a href="#">Documentation</a>
+      <a href="#">Demo</a>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

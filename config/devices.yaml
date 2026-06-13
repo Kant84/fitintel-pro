@@ -1,0 +1,146 @@
+# FitIntel Pro — Конфигурация СКУД-устройств
+# Добавляй новые устройства сюда без изменения кода!
+
+# ═══════════════════════════════════════════════
+# Примеры подключения разных типов устройств
+# ═══════════════════════════════════════════════
+
+devices:
+  # ── Турникет ЭРА (TCP бинарный протокол) ──
+  - device_id: "turnstile_main_entrance"
+    name: "Турникет — Главный вход"
+    vendor: "ЭРА"
+    model: "T-UNI"
+    device_type: "turnstile"
+    protocol: "tcp"
+    host: "192.168.1.101"
+    port: 5000
+    auth: {}
+    options:
+      direction: "bidirectional"
+      passage_width_mm: 550
+      emergency_mode: true
+
+  # ── Контроллер X1 (HTTP REST API) ──
+  - device_id: "controller_back_exit"
+    name: "Контроллер — Задний выход"
+    vendor: "X1"
+    model: "X1-PRO"
+    device_type: "controller"
+    protocol: "http_api"
+    host: "192.168.1.102"
+    port: 8080
+    auth:
+      api_key: "x1_api_key_here"
+    options:
+      relay_count: 2
+      reader_count: 2
+
+  # ── Шкафчики Kerong (Modbus RTU over TCP) ──
+  - device_id: "lockers_room_a"
+    name: "Шкафчики — Раздевалка А"
+    vendor: "Kerong"
+    model: "KR-M24"
+    device_type: "locker"
+    protocol: "modbus_tcp"
+    host: "192.168.1.103"
+    port: 502
+    slave_id: 1
+    locker_count: 24
+    options:
+      rows: 3
+      columns: 8
+
+  # ── Шлагбаум на парковку (Generic Modbus TCP) ──
+  - device_id: "barrier_parking"
+    name: "Шлагбаум — Парковка"
+    vendor: "Generic"
+    model: "MODBUS-TCP"
+    device_type: "barrier"
+    protocol: "modbus_tcp"
+    host: "192.168.1.104"
+    port: 502
+    slave_id: 2
+    register_map:
+      open:
+        type: "coil"
+        address: 0
+      close:
+        type: "coil"
+        address: 1
+      status:
+        type: "holding"
+        address: 0
+      entry_sensor:
+        type: "discrete"
+        address: 0
+
+  # ── Электрозамок VIP (Generic HTTP API) ──
+  - device_id: "vip_room_lock"
+    name: "Замок — VIP комната"
+    vendor: "Generic"
+    model: "HTTP-API"
+    device_type: "electric_lock"
+    protocol: "http_api"
+    host: "192.168.1.105"
+    port: 80
+    base_url: "http://192.168.1.105"
+    auth:
+      login: "admin"
+      password: "admin"
+    endpoints:
+      open:
+        method: "POST"
+        path: "/api/relay/1/open"
+      close:
+        method: "POST"
+        path: "/api/relay/1/close"
+      status:
+        method: "GET"
+        path: "/api/status"
+      info:
+        method: "GET"
+        path: "/api/info"
+
+  # ── IoT турникет через MQTT ──
+  - device_id: "mqtt_turnstile_01"
+    name: "IoT Турникет — Фитнес зона"
+    vendor: "Generic"
+    model: "MQTT"
+    device_type: "turnstile"
+    protocol: "mqtt"
+    broker_host: "192.168.1.10"
+    broker_port: 1883
+    auth:
+      username: "fitintel"
+      password: "mqtt_password"
+    client_id: "turnstile_zone_a"
+    topics:
+      command_open: "club/turnstile/01/cmd/open"
+      command_close: "club/turnstile/01/cmd/close"
+      events: "club/turnstile/01/events"
+      status: "club/turnstile/01/status"
+      heartbeat: "club/turnstile/01/heartbeat"
+
+  # ═══════════════════════════════════════════════
+  # КАК ДОБАВИТЬ НОВОЕ УСТРОЙСТВО:
+  #
+  # 1. Знаешь vendor + model (уже есть драйвер):
+  #    Укажи vendor и model — драйвер подберётся автоматически
+  #
+  # 2. Неизвестное устройство, но есть HTTP API:
+  #    vendor: "Generic", model: "HTTP-API"
+  #    Настрой endpoints (open/close/status/info)
+  #
+  # 3. Устройство на Modbus TCP/RTU:
+  #    vendor: "Generic", model: "MODBUS-TCP"
+  #    Настрой register_map (адреса регистров)
+  #
+  # 4. IoT устройство на MQTT:
+  #    vendor: "Generic", model: "MQTT"
+  #    Настрой broker_host и topics
+  #
+  # 5. Нужен специфичный драйвер:
+  #    Создай файл в app/hardware/drivers/mydevice.py
+  #    Унаследуй от BaseDeviceDriver, используй @register_driver
+  # ═══════════════════════════════════════════════
