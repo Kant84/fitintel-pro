@@ -1,126 +1,84 @@
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import List, Optional
-from datetime import datetime
+from typing import Optional
 
 from app.db.session import get_db
-from app.services.face_id_service import FaceIDService
-from app.core.security import require_role
+from app.services.license_service import LicenseService
+from app.core.security import get_current_user
 
-router = APIRouter(prefix="/api/v1/face-id", tags=["Face ID"])
+router = APIRouter(prefix="/api/v1/license", tags=["License"])
 
-class FaceRecognitionRequest(BaseModel):
-    face_encoding: List[float]
-    terminal_id: str
-    terminal_location: Optional[str] = None
+def require_role(allowed_roles: list):
+    def role_checker(current_user = Depends(get_current_user)):
+        if current_user.role not in allowed_roles:
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+        return current_user
+    return role_checker
 
-class FaceRecognitionResponse(BaseModel):
-    access_granted: bool
-    reason: str
-    user_id: Optional[int] = None
-    user_name: Optional[str] = None
-    user_type: Optional[str] = None
+class LicenseVerifyRequest(BaseModel):
+    license_key: str
+    device_id: str
 
-class FaceRegisterRequest(BaseModel):
-    user_id: int
-    user_type: str
-    face_encoding: List[float]
-    photo_path: Optional[str] = None
-    quality_score: Optional[float] = None
+class LicenseCreateRequest(BaseModel):
+    owner_name: str
+    owner_email: str
+    license_type: str = "standard"
+    months: int = 12
+    max_users: int = 100
+    max_clients: int = 1000
+    max_terminals: int = 5
 
-class ShiftCreateRequest(BaseModel):
-    employee_id: int
-    shift_start: datetime
-    shift_end: datetime
-    location: Optional[str] = None
-    notes: Optional[str] = None
+class LicenseRevokeRequest(BaseModel):
+    license_key: str
 
-@router.post("/verify", response_model=FaceRecognitionResponse)
-async def verify_face(request: FaceRecognitionRequest, db: Session = Depends(get_db)):
-    """Терминал отправляет вектор лица и получает решение о доступе"""
-    service = FaceIDService(db)
-    granted, reason, info = service.recognize_and_grant_access(
-        request.face_encoding, request.terminal_id, request.terminal_location
+@router.post("/verify")
+async def verify_license(request: LicenseVerifyRequest, db: Session = Depends(get_db)):
+    service = LicenseService(db)
+    valid, message, info = service.verify_license(request.license_key, request.device_id)
+    return {"valid": valid, "message": message, "info": info}
+
+@router.get("/limits")
+async def check_limits(license_key: str, db: Session = Depends(get_db),
+                       current_user = Depends(require_role(["admin"]))):
+    service = LicenseService(db)
+    return service.check_system_limits(license_key)
+
+@router.post("/generate")
+async def generate_license(request: LicenseCreateRequest, db: Session = Depends(get_db),
+                           current_user = Depends(require_role(["admin"]))):
+    service = LicenseService(db)
+    key = service.generate_license(
+        owner_name=request.owner_name, owner_email=request.owner_email,
+        license_type=request.license_type, months=request.months,
+        max_users=request.max_users, max_clients=request.max_clients,
+        max_terminals=request.max_terminals
     )
-    return FaceRecognitionResponse(
-        access_granted=granted, reason=reason,
-        user_id=info.get("user_id"), user_name=info.get("name"), user_type=info.get("type")
-    )
+    return {"license_key": key, "expires_in_months": request.months}
 
-@router.post("/register")
-async def register_face(request: FaceRegisterRequest, db: Session = Depends(get_db),
-                        current_user = Depends(require_role(["admin", "manager"]))):
-    """Регистрация нового биометрического шаблона"""
-    service = FaceIDService(db)
-    template = service.register_face(
-        request.user_id, request.user_type, request.face_encoding,
-        request.photo_path, request.quality_score
-    )
-    return {"id": template.id, "is_primary": template.is_primary, "status": "created"}
+@router.post("/revoke")
+async def revoke_license(request: LicenseRevokeRequest, db: Session = Depends(get_db),
+                         current_user = Depends(require_role(["admin"]))):
+    service = LicenseService(db)
+    success = service.revoke_license(request.license_key)
+    if not success:
+        raise HTTPException(status_code=404, detail="Лицензия не найдена")
+    return {"status": "revoked", "license_key": request.license_key}
 
-@router.get("/logs")
-async def get_logs(terminal_id: Optional[str] = None, limit: int = 100,
-                   db: Session = Depends(get_db),
-                   current_user = Depends(require_role(["admin", "manager"]))):
-    """Логи распознавания лиц"""
-    from app.models.face_id import FaceRecognitionLog
-    query = db.query(FaceRecognitionLog)
-    if terminal_id:
-        query = query.filter(FaceRecognitionLog.terminal_id == terminal_id)
-    logs = query.order_by(FaceRecognitionLog.created_at.desc()).limit(limit).all()
-    return logs
+@router.post("/deactivate-device")
+async def deactivate_device(license_key: str, device_id: str, db: Session = Depends(get_db),
+                            current_user = Depends(require_role(["admin"]))):
+    service = LicenseService(db)
+    success = service.deactivate_device(license_key, device_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Активация не найдена")
+    return {"status": "deactivated", "device_id": device_id}
 
-@router.post("/shifts")
-async def create_shift(request: ShiftCreateRequest, db: Session = Depends(get_db),
-                       current_user = Depends(require_role(["admin", "manager"]))):
-    """Создание смены сотрудника"""
-    from app.models.face_id import EmployeeShift
-    shift = EmployeeShift(
-        employee_id=request.employee_id, shift_start=request.shift_start,
-        shift_end=request.shift_end, location=request.location, notes=request.notes,
-        status="scheduled", created_by=current_user.id
-    )
-    db.add(shift)
-    db.commit()
-    db.refresh(shift)
-    return {"id": shift.id, "status": "scheduled"}
-
-@router.patch("/shifts/{shift_id}/start")
-async def start_shift(shift_id: int, db: Session = Depends(get_db),
-                      current_user = Depends(require_role(["admin", "manager", "employee"]))):
-    """Начало смены (сотрудник отмечается)"""
-    from app.models.face_id import EmployeeShift
-    shift = db.query(EmployeeShift).filter(EmployeeShift.id == shift_id).first()
-    if not shift:
-        raise HTTPException(status_code=404, detail="Смена не найдена")
-    shift.status = "active"
-    shift.actual_start = datetime.utcnow()
-    db.commit()
-    return {"id": shift.id, "status": "active"}
-
-@router.patch("/shifts/{shift_id}/end")
-async def end_shift(shift_id: int, db: Session = Depends(get_db),
-                    current_user = Depends(require_role(["admin", "manager", "employee"]))):
-    """Окончание смены"""
-    from app.models.face_id import EmployeeShift
-    shift = db.query(EmployeeShift).filter(EmployeeShift.id == shift_id).first()
-    if not shift:
-        raise HTTPException(status_code=404, detail="Смена не найдена")
-    shift.status = "completed"
-    shift.actual_end = datetime.utcnow()
-    db.commit()
-    return {"id": shift.id, "status": "completed"}
-
-@router.get("/shifts/active")
-async def get_active_shifts(db: Session = Depends(get_db),
-                            current_user = Depends(require_role(["admin", "manager"]))):
-    """Список активных смен"""
-    from app.models.face_id import EmployeeShift
-    now = datetime.utcnow()
-    shifts = db.query(EmployeeShift).filter(
-        EmployeeShift.status == "active",
-        EmployeeShift.shift_start <= now,
-        EmployeeShift.shift_end >= now
-    ).all()
-    return shifts
+@router.get("/{license_key}/activations")
+async def get_activations(license_key: str, db: Session = Depends(get_db),
+                          current_user = Depends(require_role(["admin"]))):
+    from app.models.face_id import License
+    license = db.query(License).filter(License.license_key == license_key).first()
+    if not license:
+        raise HTTPException(status_code=404, detail="Лицензия не найдена")
+    return license.activations
