@@ -1,0 +1,5 @@
+# FitIntel Pro Desktop Dependencies
+PyQt6>=6.6.0
+requests>=2.31.0
+opencv-python>=4.8.0  # для Face ID (веб-камера)
+PyInstaller>=6.0     # для сборки .exe
