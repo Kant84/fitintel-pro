@@ -1,0 +1,339 @@
+pageType: content
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: header-badge
+    elementType: text
+    bounds: [60, 24, 160, 20]
+    content:
+      style: "$badge"
+      align: [left, middle]
+      wrap: false
+      text: FITNEXUS AI
+
+  - elementId: page-title
+    elementType: text
+    bounds: [60, 60, 1100, 45]
+    content:
+      style: "$title"
+      align: [left, middle]
+      wrap: false
+      text: |
+        <p>Terraform + Ansible + GitLab CI/CD: <span style="color:$primary;">полная автоматизация</span></p>
+
+  - elementId: title-accent
+    elementType: shape
+    bounds: [60, 110, 50, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: tf-bg
+    elementType: shape
+    bounds: [60, 135, 560, 255]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$primary"
+
+  - elementId: tf-accent
+    elementType: shape
+    bounds: [60, 135, 4, 255]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: tf-icon
+    elementType: icon
+    bounds: [82, 155, 32, 32]
+    iconName: "fas:cloud"
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: tf-title
+    elementType: text
+    bounds: [124, 152, 300, 35]
+    content:
+      style: "$sectionTitle"
+      align: [left, middle]
+      wrap: false
+      text: Terraform (IaC)
+
+  - elementId: tf-body
+    elementType: text
+    bounds: [82, 200, 520, 182]
+    content:
+      style: "$body"
+      fontSize: 16
+      lineHeight: 1.55
+      align: [left, top]
+      text: |
+        <p><span style="color:$primary;">•</span> VPC, подсети, NAT — Yandex Cloud</p>
+        <p><span style="color:$primary;">•</span> Compute Cloud VMs, ALB балансировщик</p>
+        <p><span style="color:$primary;">•</span> DNS-записи, IAM-роли, сервисные аккаунты</p>
+        <p><span style="color:$primary;">•</span> S3 state с блокировкой и версионированием</p>
+        <p><span style="color:$primary;">•</span> Только через CI/CD — запрет ручных правок</p>
+        <p><span style="color:$primary;">•</span> Модули: stage/prod переменные окружения</p>
+
+  - elementId: ansible-bg
+    elementType: shape
+    bounds: [640, 135, 580, 255]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$accent"
+
+  - elementId: ansible-accent
+    elementType: shape
+    bounds: [640, 135, 4, 255]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: ansible-icon
+    elementType: icon
+    bounds: [662, 155, 32, 32]
+    iconName: "fas:gears"
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: ansible-title
+    elementType: text
+    bounds: [704, 152, 300, 35]
+    content:
+      style: "$sectionTitle"
+      align: [left, middle]
+      wrap: false
+      text: Ansible
+
+  - elementId: ansible-body
+    elementType: text
+    bounds: [662, 200, 540, 182]
+    content:
+      style: "$body"
+      fontSize: 16
+      lineHeight: 1.55
+      align: [left, top]
+      text: |
+        <p><span style="color:$accent;">•</span> Идемпотентные playbooks</p>
+        <p><span style="color:$accent;">•</span> OS hardening, Docker CE, Nginx</p>
+        <p><span style="color:$accent;">•</span> Firewall: только необходимые порты</p>
+        <p><span style="color:$accent;">•</span> ansible-vault для секретов</p>
+        <p><span style="color:$accent;">•</span> Динамический inventory из Terraform</p>
+        <p><span style="color:$accent;">•</span> Теги для выборочного выполнения</p>
+
+  - elementId: cicd-bg
+    elementType: shape
+    bounds: [60, 415, 1160, 240]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$success"
+
+  - elementId: cicd-accent
+    elementType: shape
+    bounds: [60, 415, 1160, 4]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$success"
+
+  - elementId: cicd-icon
+    elementType: icon
+    bounds: [82, 435, 32, 32]
+    iconName: "fas:code-branch"
+    fill:
+      type: solid
+      color: "$success"
+
+  - elementId: cicd-title
+    elementType: text
+    bounds: [124, 432, 400, 35]
+    content:
+      style: "$sectionTitle"
+      align: [left, middle]
+      wrap: false
+      text: GitLab CI/CD Pipeline
+
+  - elementId: stage1-bg
+    elementType: shape
+    bounds: [82, 485, 200, 60]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$background"
+    border:
+      style: solid
+      width: 1
+      color: "$primary"
+
+  - elementId: stage1-text
+    elementType: text
+    bounds: [82, 485, 200, 60]
+    content:
+      fontSize: 15
+      color: "$text"
+      fontFamily: "Liter"
+      align: [center, middle]
+      text: |
+        <p><strong>TEST</strong></p>
+        <p><span style="font-size:12px; color:$secondary;">pytest, flake8, mypy</span></p>
+
+  - elementId: arrow1
+    elementType: shape
+    bounds: [292, 508, 30, 0]
+    shapeName: straightConnector1
+    arrow: [null, "arrow"]
+    border: {style: solid, width: 2, color: "$primary"}
+
+  - elementId: stage2-bg
+    elementType: shape
+    bounds: [332, 485, 200, 60]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$background"
+    border:
+      style: solid
+      width: 1
+      color: "$primary"
+
+  - elementId: stage2-text
+    elementType: text
+    bounds: [332, 485, 200, 60]
+    content:
+      fontSize: 15
+      color: "$text"
+      fontFamily: "Liter"
+      align: [center, middle]
+      text: |
+        <p><strong>BUILD</strong></p>
+        <p><span style="font-size:12px; color:$secondary;">Docker images → Registry</span></p>
+
+  - elementId: arrow2
+    elementType: shape
+    bounds: [542, 508, 30, 0]
+    shapeName: straightConnector1
+    arrow: [null, "arrow"]
+    border: {style: solid, width: 2, color: "$primary"}
+
+  - elementId: stage3-bg
+    elementType: shape
+    bounds: [582, 485, 200, 60]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$background"
+    border:
+      style: solid
+      width: 1
+      color: "$accent"
+
+  - elementId: stage3-text
+    elementType: text
+    bounds: [582, 485, 200, 60]
+    content:
+      fontSize: 15
+      color: "$text"
+      fontFamily: "Liter"
+      align: [center, middle]
+      text: |
+        <p><strong>SECURITY</strong></p>
+        <p><span style="font-size:12px; color:$secondary;">Trivy, Bandit SAST</span></p>
+
+  - elementId: arrow3
+    elementType: shape
+    bounds: [792, 508, 30, 0]
+    shapeName: straightConnector1
+    arrow: [null, "arrow"]
+    border: {style: solid, width: 2, color: "$accent"}
+
+  - elementId: stage4-bg
+    elementType: shape
+    bounds: [832, 485, 180, 60]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$background"
+    border:
+      style: solid
+      width: 1
+      color: "$success"
+
+  - elementId: stage4-text
+    elementType: text
+    bounds: [832, 485, 180, 60]
+    content:
+      fontSize: 15
+      color: "$text"
+      fontFamily: "Liter"
+      align: [center, middle]
+      text: |
+        <p><strong>STAGING</strong></p>
+        <p><span style="font-size:12px; color:$secondary;">Auto-deploy</span></p>
+
+  - elementId: arrow4
+    elementType: shape
+    bounds: [1022, 508, 30, 0]
+    shapeName: straightConnector1
+    arrow: [null, "arrow"]
+    border: {style: solid, width: 2, color: "$success"}
+
+  - elementId: stage5-bg
+    elementType: shape
+    bounds: [1062, 485, 140, 60]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$background"
+    border:
+      style: solid
+      width: 1
+      color: "$warning"
+
+  - elementId: stage5-text
+    elementType: text
+    bounds: [1062, 485, 140, 60]
+    content:
+      fontSize: 15
+      color: "$text"
+      fontFamily: "Liter"
+      align: [center, middle]
+      text: |
+        <p><strong>PROD</strong></p>
+        <p><span style="font-size:12px; color:$secondary;">Manual</span></p>
+
+  - elementId: bottom-accent
+    elementType: shape
+    bounds: [60, 690, 40, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: page-num
+    elementType: text
+    bounds: [1180, 688, 40, 20]
+    content:
+      style: "$caption"
+      align: [right, middle]
+      wrap: false
+      text: "12"

@@ -1,0 +1,367 @@
+pageType: content
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: header-badge
+    elementType: text
+    bounds: [60, 24, 160, 20]
+    content:
+      style: "$badge"
+      align: [left, middle]
+      wrap: false
+      text: FITNEXUS AI
+
+  - elementId: page-title
+    elementType: text
+    bounds: [60, 60, 1100, 45]
+    content:
+      style: "$title"
+      align: [left, middle]
+      wrap: false
+      text: |
+        <p>10+ модулей в плане: <span style="color:$warning;">рекурренты, лояльность, ИИ-аналитика</span></p>
+
+  - elementId: title-accent
+    elementType: shape
+    bounds: [60, 110, 50, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: col1-bg
+    elementType: shape
+    bounds: [60, 135, 270, 265]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: col1-icon
+    elementType: icon
+    bounds: [80, 155, 24, 24]
+    iconName: "fas:rotate"
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: col1-title
+    elementType: text
+    bounds: [112, 152, 200, 28]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Recurring Payments
+
+  - elementId: col1-body
+    elementType: text
+    bounds: [80, 190, 230, 190]
+    content:
+      style: "$bodySmall"
+      fontSize: 14
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>Подписки с гибким графиком</p>
+        <p>Еженедельно/ежемесячно</p>
+        <p>Уведомление за 3 дня</p>
+        <p>3 попытки при неудаче</p>
+        <p>Пауза: 7/14/30 дней</p>
+
+  - elementId: col2-bg
+    elementType: shape
+    bounds: [350, 135, 270, 265]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: col2-icon
+    elementType: icon
+    bounds: [370, 155, 24, 24]
+    iconName: "fas:calendar-check"
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: col2-title
+    elementType: text
+    bounds: [402, 152, 200, 28]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Online Booking
+
+  - elementId: col2-body
+    elementType: text
+    bounds: [370, 190, 230, 190]
+    content:
+      style: "$bodySmall"
+      fontSize: 14
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>Виджет онлайн-записи</p>
+        <p>Выбор тренера и времени</p>
+        <p>Яндекс.Карты / 2ГИС</p>
+        <p>Свободные места в RT</p>
+        <p>Подтверждение в 1 клик</p>
+
+  - elementId: col3-bg
+    elementType: shape
+    bounds: [640, 135, 270, 265]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: col3-icon
+    elementType: icon
+    bounds: [660, 155, 24, 24]
+    iconName: "fas:gift"
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: col3-title
+    elementType: text
+    bounds: [692, 152, 200, 28]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Loyalty & Gamification
+
+  - elementId: col3-body
+    elementType: text
+    bounds: [660, 190, 230, 190]
+    content:
+      style: "$bodySmall"
+      fontSize: 14
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>Уровни Bronze→Platinum</p>
+        <p>Бейджи за достижения</p>
+        <p>TP-баллы за посещения</p>
+        <p>Скидки на день рождения</p>
+        <p>Непрерывность = бонусы</p>
+
+  - elementId: col4-bg
+    elementType: shape
+    bounds: [930, 135, 290, 265]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: col4-icon
+    elementType: icon
+    bounds: [950, 155, 24, 24]
+    iconName: "fas:brain"
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: col4-title
+    elementType: text
+    bounds: [982, 152, 220, 28]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: AI Analytics
+
+  - elementId: col4-body
+    elementType: text
+    bounds: [950, 190, 250, 190]
+    content:
+      style: "$bodySmall"
+      fontSize: 14
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>Прогноз оттока (churn)</p>
+        <p>Сегментация клиентов</p>
+        <p>Персональные рекомендации</p>
+        <p>Heatmap посещаемости</p>
+        <p>Аномалии операций</p>
+
+  - elementId: row2-col1-bg
+    elementType: shape
+    bounds: [60, 420, 373, 230]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: row2-col1-icon
+    elementType: icon
+    bounds: [80, 440, 24, 24]
+    iconName: "fas:building"
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: row2-col1-title
+    elementType: text
+    bounds: [112, 437, 300, 28]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Corporate Sales
+
+  - elementId: row2-col1-body
+    elementType: text
+    bounds: [80, 475, 333, 155]
+    content:
+      style: "$bodySmall"
+      fontSize: 14
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>Корпоративные абонементы (от 10 сотрудников)</p>
+        <p>HR-менеджер распределяет лимиты</p>
+        <p>ROI wellness-программ</p>
+        <p>Единый счёт для бухгалтерии</p>
+
+  - elementId: row2-col2-bg
+    elementType: shape
+    bounds: [453, 420, 374, 230]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: row2-col2-icon
+    elementType: icon
+    bounds: [473, 440, 24, 24]
+    iconName: "fas:user-plus"
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: row2-col2-title
+    elementType: text
+    bounds: [505, 437, 300, 28]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Buddy Referrals
+
+  - elementId: row2-col2-body
+    elementType: text
+    bounds: [473, 475, 334, 155]
+    content:
+      style: "$bodySmall"
+      fontSize: 14
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>Реферальные ссылки для каждого клиента</p>
+        <p>Бонусы: деньги, дни, тренировки</p>
+        <p>Статистика: конверсия, ROI</p>
+        <p>Push: «Друг подписался → +7 дней»</p>
+
+  - elementId: row2-col3-bg
+    elementType: shape
+    bounds: [847, 420, 373, 230]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: row2-col3-icon
+    elementType: icon
+    bounds: [867, 440, 24, 24]
+    iconName: "fas:leaf"
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: row2-col3-title
+    elementType: text
+    bounds: [899, 437, 300, 28]
+    content:
+      fontSize: 16
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Seasonal Campaigns
+
+  - elementId: row2-col3-body
+    elementType: text
+    bounds: [867, 475, 333, 155]
+    content:
+      style: "$bodySmall"
+      fontSize: 14
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>Январь: «Новое тело»</p>
+        <p>Лето: «Летний марафон»</p>
+        <p>Осень: «Вернись в форму»</p>
+        <p>Авто-акции + рассылка сегментам</p>
+
+  - elementId: bottom-accent
+    elementType: shape
+    bounds: [60, 690, 40, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: page-num
+    elementType: text
+    bounds: [1180, 688, 40, 20]
+    content:
+      style: "$caption"
+      align: [right, middle]
+      wrap: false
+      text: "10"

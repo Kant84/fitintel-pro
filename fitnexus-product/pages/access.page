@@ -1,0 +1,148 @@
+pageType: content
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: header-badge
+    elementType: text
+    bounds: [60, 24, 160, 20]
+    content:
+      style: "$badge"
+      align: [left, middle]
+      wrap: false
+      text: FIXINTEL PRO
+
+  - elementId: page-title
+    elementType: text
+    bounds: [60, 60, 900, 45]
+    content:
+      style: "$title"
+      align: [left, middle]
+      wrap: false
+      text: |
+        <p>Access Control — <span style="color:$accent;">контроль без человека</span></p>
+
+  - elementId: title-accent
+    elementType: shape
+    bounds: [60, 110, 50, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: left-col
+    elementType: text
+    bounds: [60, 135, 560, 290]
+    content:
+      style: "$body"
+      fontSize: 17
+      lineHeight: 1.6
+      align: [left, top]
+      text: |
+        <p><strong style="color:$accent;">QR-коды и RFID-браслеты</strong></p>
+        <p>Клиент показывает QR на входе — турникет открывается за 0.5 сек</p>
+        <p style="margin-top:10px"><strong style="color:$accent;">Интеграция KERONG</strong></p>
+        <p>Турникеты, шкафчики, замки — всё из одной системы</p>
+        <p style="margin-top:10px"><strong style="color:$accent;">Два режима замков</strong></p>
+        <p>OFFLINE — работает без интернета | ONLINE — полный контроль</p>
+        <p style="margin-top:10px"><strong style="color:$accent;">Офлайн-кэш — 24 часа</strong></p>
+        <p>Даже без интернета система помнит всех клиентов</p>
+
+  - elementId: right-bg
+    elementType: shape
+    bounds: [640, 135, 580, 280]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: right-title
+    elementType: text
+    bounds: [664, 155, 400, 30]
+    content:
+      style: "$sectionTitle"
+      fontSize: 20
+      align: [left, middle]
+      wrap: false
+      text: Возможности СКУД
+
+  - elementId: right-body
+    elementType: text
+    bounds: [664, 195, 532, 200]
+    content:
+      style: "$body"
+      fontSize: 16
+      lineHeight: 1.6
+      align: [left, top]
+      text: |
+        <p><span style="color:$accent;">✓</span> Журнал всех проходов — кто, когда, куда</p>
+        <p><span style="color:$accent;">✓</span> VIP-привилегии — отдельные зоны и шкафы</p>
+        <p><span style="color:$accent;">✓</span> Инфотерминалы — подсказка номера шкафа</p>
+        <p><span style="color:$accent;">✓</span> Автоблокировка при просроченном абонементе</p>
+        <p><span style="color:$accent;">✓</span> Арендные шкафы с привязкой к карте</p>
+        <p><span style="color:$accent;">✓</span> Синхронизация с 1С и внешними СКУД</p>
+
+  - elementId: stat-bg
+    elementType: shape
+    bounds: [60, 430, 1160, 220]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "#F9731610"
+    border:
+      style: solid
+      width: 1
+      color: "$accent"
+
+  - elementId: stat-icon
+    elementType: icon
+    bounds: [100, 470, 48, 48]
+    iconName: "fas:shield-halved"
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: stat-title
+    elementType: text
+    bounds: [170, 465, 600, 35]
+    content:
+      fontSize: 24
+      color: "$accent"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Безопасность на первом месте
+
+  - elementId: stat-body
+    elementType: text
+    bounds: [170, 510, 1000, 120]
+    content:
+      style: "$body"
+      fontSize: 17
+      lineHeight: 1.6
+      align: [left, top]
+      text: |
+        <p><span style="color:$accent;">•</span> Каждый проход записывается — полная прозрачность</p>
+        <p><span style="color:$accent;">•</span> При просрочке абонемента доступ блокируется автоматически</p>
+        <p><span style="color:$accent;">•</span> Офлайн-режим: даже при обрыве связи клуб работает</p>
+
+  - elementId: bottom-accent
+    elementType: shape
+    bounds: [60, 690, 40, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: page-num
+    elementType: text
+    bounds: [1180, 688, 40, 20]
+    content:
+      style: "$caption"
+      align: [right, middle]
+      wrap: false
+      text: "06"
