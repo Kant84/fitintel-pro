@@ -5,4 +5,8 @@ from .subscriptions_tab import SubscriptionsTab
 from .visits_tab import VisitsTab
 from .face_id_tab import FaceIDTab
 from .license_tab import LicenseTab
+from .cash_desk_tab import CashDeskTab
+from .access_tab import AccessTab
+from .analytics_tab import AnalyticsTab
+from .users_tab import UsersTab
 from .settings_tab import SettingsTab

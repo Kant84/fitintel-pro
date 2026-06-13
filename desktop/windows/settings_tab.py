@@ -1,91 +1,89 @@
-"""FitIntel Pro — Settings Tab"""
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
-    QMessageBox, QFormLayout, QGroupBox, QSpinBox, QCheckBox
-)
+"""Settings Tab"""
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit, QFormLayout, QComboBox, QSpinBox, QMessageBox
 from PyQt6.QtCore import Qt
-from api import ApiClient
+from api.client import ApiClient
 
 
 class SettingsTab(QWidget):
-    def __init__(self, api: ApiClient):
+    def __init__(self, api, user):
         super().__init__()
         self.api = api
+        self.user = user
         self._build_ui()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(20)
+        layout.setSpacing(16)
+        title = QLabel("Settings")
+        title.setStyleSheet("color: #e2e8f0; font-size: 22px; font-weight: bold;")
+        layout.addWidget(title)
 
-        header = QLabel("⚙️ Настройки системы")
-        header.setStyleSheet("font-size: 18px; font-weight: 700; color: #0f172a;")
-        layout.addWidget(header)
-
-        # Connection group
-        conn_group = QGroupBox("🔗 Подключение к серверу")
-        conn_group.setStyleSheet("QGroupBox { font-weight: 600; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 12px; padding-top: 12px; } QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 4px; }")
-        conn_layout = QFormLayout(conn_group)
-        conn_layout.setSpacing(12)
-
-        self.edit_url = QLineEdit("http://localhost:8001/api/v1")
-        self.edit_url.setStyleSheet("padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;")
-        conn_layout.addRow("API URL:", self.edit_url)
-
-        btn_test = QPushButton("🔄 Проверить соединение")
-        btn_test.setStyleSheet(self._btn_secondary())
+        conn = QWidget()
+        conn.setStyleSheet("QWidget { background-color: #1e293b; border-radius: 10px; border: 1px solid #334155; padding: 16px; }")
+        cl = QFormLayout(conn)
+        cl.setSpacing(12)
+        lbl_conn = QLabel("API Connection")
+        lbl_conn.setStyleSheet("color: #38bdf8; font-size: 16px; font-weight: bold;")
+        cl.addRow(lbl_conn)
+        self.txt_api_url = QLineEdit()
+        self.txt_api_url.setText("http://localhost:8001/api/v1")
+        self.txt_api_url.setStyleSheet("QLineEdit { background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; padding: 8px; color: #e2e8f0; } QLineEdit:focus { border-color: #38bdf8; }")
+        cl.addRow("API Base URL", self.txt_api_url)
+        self.txt_timeout = QSpinBox()
+        self.txt_timeout.setRange(1, 60)
+        self.txt_timeout.setValue(10)
+        self.txt_timeout.setStyleSheet("QSpinBox { background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; padding: 6px; color: #e2e8f0; }")
+        cl.addRow("Timeout (sec)", self.txt_timeout)
+        btn_test = QPushButton("Test Connection")
+        btn_test.setStyleSheet("QPushButton { background-color: #38bdf8; color: #0f172a; border: none; border-radius: 6px; padding: 8px 16px; font-weight: bold; } QPushButton:hover { background-color: #7dd3fc; }")
         btn_test.clicked.connect(self._test_connection)
-        conn_layout.addRow(btn_test)
+        cl.addRow(btn_test)
+        self.lbl_conn_status = QLabel("Not tested")
+        self.lbl_conn_status.setStyleSheet("color: #94a3b8; font-size: 13px;")
+        cl.addRow(self.lbl_conn_status)
+        layout.addWidget(conn)
 
-        layout.addWidget(conn_group)
+        face = QWidget()
+        face.setStyleSheet("QWidget { background-color: #1e293b; border-radius: 10px; border: 1px solid #334155; padding: 16px; }")
+        fl = QFormLayout(face)
+        fl.setSpacing(12)
+        lbl_face = QLabel("Face ID")
+        lbl_face.setStyleSheet("color: #38bdf8; font-size: 16px; font-weight: bold;")
+        fl.addRow(lbl_face)
+        self.txt_face_thresh = QComboBox()
+        self.txt_face_thresh.addItems(["0.6 (Strict)", "0.5 (Normal)", "0.4 (Loose)"])
+        self.txt_face_thresh.setStyleSheet("QComboBox { background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; padding: 6px; color: #e2e8f0; }")
+        fl.addRow("Default threshold", self.txt_face_thresh)
+        self.txt_terminal_id = QLineEdit()
+        self.txt_terminal_id.setText("desktop-001")
+        self.txt_terminal_id.setStyleSheet("QLineEdit { background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; padding: 8px; color: #e2e8f0; }")
+        fl.addRow("Terminal ID", self.txt_terminal_id)
+        layout.addWidget(face)
 
-        # Face ID group
-        face_group = QGroupBox("🎭 Face ID")
-        face_group.setStyleSheet("QGroupBox { font-weight: 600; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 12px; padding-top: 12px; } QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 4px; }")
-        face_layout = QFormLayout(face_group)
-
-        self.spin_threshold = QSpinBox()
-        self.spin_threshold.setRange(1, 99)
-        self.spin_threshold.setValue(60)
-        self.spin_threshold.setSuffix(" %")
-        face_layout.addRow("Порог совпадения:", self.spin_threshold)
-
-        self.chk_save_photos = QCheckBox("Сохранять фото при распознавании")
-        self.chk_save_photos.setChecked(True)
-        face_layout.addRow(self.chk_save_photos)
-
-        layout.addWidget(face_group)
-
-        # License group
-        lic_group = QGroupBox("🔐 Лицензия")
-        lic_group.setStyleSheet("QGroupBox { font-weight: 600; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 12px; padding-top: 12px; } QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 4px; }")
-        lic_layout = QFormLayout(lic_group)
-
-        self.lbl_license_info = QLabel("Лицензия не проверена")
-        self.lbl_license_info.setStyleSheet("color: #64748b; font-size: 12px;")
-        lic_layout.addRow("Статус:", self.lbl_license_info)
-
-        layout.addWidget(lic_group)
-
+        btn_save = QPushButton("Save Settings")
+        btn_save.setStyleSheet("QPushButton { background-color: #10b981; color: #0f172a; border: none; border-radius: 6px; padding: 10px 24px; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #34d399; }")
+        btn_save.clicked.connect(lambda: QMessageBox.information(self, "Settings", "Settings saved (in-memory only)"))
+        layout.addWidget(btn_save)
         layout.addStretch()
 
-        # Save button
-        btn_save = QPushButton("💾 Сохранить настройки")
-        btn_save.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 10px 24px; font-weight: 600; } QPushButton:hover { background: #059669; }")
-        btn_save.clicked.connect(self._save)
-        layout.addWidget(btn_save, alignment=Qt.AlignmentFlag.AlignCenter)
-
-    def _btn_secondary(self) -> str:
-        return "QPushButton { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; } QPushButton:hover { background: #e2e8f0; }"
+        version = QLabel("FitIntel Pro Desktop v1.3.0 | Build 2026.06.14")
+        version.setStyleSheet("color: #475569; font-size: 11px;")
+        version.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(version)
 
     def _test_connection(self):
+        url = self.txt_api_url.text().strip()
         try:
-            self.api.health()
-            QMessageBox.information(self, "Соединение", "✅ Сервер доступен!")
+            import requests
+            resp = requests.get(url.replace("/api/v1", "") + "/api/v1/health/", timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                self.lbl_conn_status.setText("Connected | Status: " + data.get("status", "?").upper() + " | DB: " + data.get("database", "?"))
+                self.lbl_conn_status.setStyleSheet("color: #10b981; font-size: 13px; font-weight: bold;")
+            else:
+                self.lbl_conn_status.setText("Error: HTTP " + str(resp.status_code))
+                self.lbl_conn_status.setStyleSheet("color: #f87171; font-size: 13px;")
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"❌ Не удалось подключиться:
-{e}")
-
-    def _save(self):
-        QMessageBox.information(self, "Сохранено", "Настройки сохранены (в памяти).
-Для постоянного хранения добавьте JSON-конфиг.")
+            self.lbl_conn_status.setText("Failed: " + str(e)[:80])
+            self.lbl_conn_status.setStyleSheet("color: #f87171; font-size: 13px;")

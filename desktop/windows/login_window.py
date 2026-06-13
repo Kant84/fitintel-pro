@@ -1,231 +1,163 @@
-"""FitIntel Pro — Login Window"""
-import sys
-from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QMessageBox, QFrame, QSizePolicy, QSpacerItem, QCheckBox
-)
-from PyQt6.QtCore import Qt, pyqtSignal, QThread
-from PyQt6.QtGui import QFont, QPixmap, QIcon
-from api import ApiClient
+"""Login Window"""
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
+from api.client import ApiClient
 
 
-class LoginWorker(QThread):
-    finished = pyqtSignal(dict)
-    error = pyqtSignal(str)
-
-    def __init__(self, api: ApiClient, username: str, password: str):
+class LoginWindow(QDialog):
+    def __init__(self, api: ApiClient):
         super().__init__()
         self.api = api
-        self.username = username
-        self.password = password
-
-    def run(self):
-        try:
-            result = self.api.login(self.username, self.password)
-            self.finished.emit(result)
-        except Exception as e:
-            self.error.emit(str(e))
-
-
-class LoginWindow(QWidget):
-    login_success = pyqtSignal(dict, str)  # user_data, token
-
-    def __init__(self):
-        super().__init__()
-        self.api = ApiClient()
-        self.setWindowTitle("FitIntel Pro — Авторизация")
-        self.setFixedSize(480, 560)
-        self.setStyleSheet(self._stylesheet())
+        self.user_info = None
+        self.token = None
+        self.setWindowTitle("FitIntel Pro - v1.3.0")
+        self.setFixedSize(500, 650)
+        self.setStyleSheet("""
+            QDialog { background-color: #0f172a; }
+            QLabel { color: #e2e8f0; font-family: 'Segoe UI', Arial; }
+            QLabel#title { font-size: 28px; font-weight: bold; color: #38bdf8; }
+            QLabel#subtitle { font-size: 14px; color: #94a3b8; }
+            QLineEdit {
+                background-color: #1e293b; border: 2px solid #334155;
+                border-radius: 8px; padding: 12px 16px;
+                color: #f1f5f9; font-size: 14px;
+            }
+            QLineEdit:focus { border-color: #38bdf8; }
+            QPushButton#login_btn {
+                background-color: #38bdf8; color: #0f172a;
+                border: none; border-radius: 8px; padding: 14px;
+                font-size: 16px; font-weight: bold;
+            }
+            QPushButton#login_btn:hover { background-color: #7dd3fc; }
+            QPushButton#login_btn:pressed { background-color: #0ea5e9; }
+            QPushButton#test_btn {
+                background-color: transparent; color: #64748b;
+                border: 1px solid #334155; border-radius: 6px;
+                padding: 8px; font-size: 12px;
+            }
+            QPushButton#test_btn:hover { color: #94a3b8; border-color: #475569; }
+            QLabel#status {
+                font-size: 13px; padding: 8px; border-radius: 6px;
+            }
+        """)
         self._build_ui()
         self._center()
 
-    def _stylesheet(self) -> str:
-        return """
-        QWidget {
-            background-color: #f8fafc;
-            font-family: "Segoe UI", "Helvetica Neue", sans-serif;
-            color: #1e293b;
-        }
-        QFrame#card {
-            background-color: #ffffff;
-            border-radius: 16px;
-            border: 1px solid #e2e8f0;
-        }
-        QLabel#title {
-            font-size: 24px;
-            font-weight: 700;
-            color: #0f172a;
-        }
-        QLabel#subtitle {
-            font-size: 13px;
-            color: #64748b;
-        }
-        QLabel#label {
-            font-size: 13px;
-            font-weight: 600;
-            color: #334155;
-            margin-bottom: 4px;
-        }
-        QLineEdit {
-            padding: 10px 14px;
-            border: 1px solid #cbd5e1;
-            border-radius: 8px;
-            font-size: 14px;
-            background: #ffffff;
-        }
-        QLineEdit:focus {
-            border: 1px solid #10b981;
-        }
-        QPushButton#primary {
-            background-color: #10b981;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 12px 24px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        QPushButton#primary:hover {
-            background-color: #059669;
-        }
-        QPushButton#primary:pressed {
-            background-color: #047857;
-        }
-        QPushButton#primary:disabled {
-            background-color: #94a3b8;
-        }
-        QCheckBox {
-            font-size: 12px;
-            color: #64748b;
-        }
-        QCheckBox::indicator {
-            width: 18px;
-            height: 18px;
-            border-radius: 4px;
-            border: 1px solid #cbd5e1;
-        }
-        QCheckBox::indicator:checked {
-            background-color: #10b981;
-            border: 1px solid #10b981;
-        }
-        """
+    def _center(self):
+        screen = self.screen().geometry()
+        self.move((screen.width() - self.width()) // 2, (screen.height() - self.height()) // 2)
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 40, 40, 40)
-        layout.setSpacing(0)
+        layout.setSpacing(12)
 
-        # Logo / Title
-        self.title_lbl = QLabel("FitIntel Pro")
-        self.title_lbl.setObjectName("title")
-        self.title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.title_lbl)
+        title = QLabel("FitIntel Pro")
+        title.setObjectName("title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setFont(QFont("Segoe UI", 28, QFont.Weight.Bold))
+        layout.addWidget(title)
 
-        self.sub_lbl = QLabel("Вход в систему управления фитнес-клубом")
-        self.sub_lbl.setObjectName("subtitle")
-        self.sub_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.sub_lbl)
-        layout.addSpacing(32)
+        subtitle = QLabel("CRM + Face ID Терминал v1.3.0")
+        subtitle.setObjectName("subtitle")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle)
 
-        # Card
-        card = QFrame()
-        card.setObjectName("card")
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(24, 24, 24, 24)
-        card_layout.setSpacing(16)
+        layout.addSpacing(10)
 
-        # Login
-        lbl_login = QLabel("Логин")
-        lbl_login.setObjectName("label")
-        card_layout.addWidget(lbl_login)
-
-        self.edit_login = QLineEdit()
-        self.edit_login.setPlaceholderText("admin")
-        card_layout.addWidget(self.edit_login)
-
-        # Password
-        lbl_pass = QLabel("Пароль")
-        lbl_pass.setObjectName("label")
-        card_layout.addWidget(lbl_pass)
-
-        self.edit_pass = QLineEdit()
-        self.edit_pass.setEchoMode(QLineEdit.EchoMode.Password)
-        self.edit_pass.setPlaceholderText("••••••")
-        card_layout.addWidget(self.edit_pass)
-
-        # Remember me
-        self.chk_remember = QCheckBox("Запомнить меня")
-        card_layout.addWidget(self.chk_remember)
-
-        # Button
-        card_layout.addSpacing(8)
-        self.btn_login = QPushButton("Войти")
-        self.btn_login.setObjectName("primary")
-        self.btn_login.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_login.clicked.connect(self._on_login)
-        card_layout.addWidget(self.btn_login)
-
-        # Status
-        self.lbl_status = QLabel("")
+        self.lbl_status = QLabel("Проверка сервера...")
+        self.lbl_status.setObjectName("status")
         self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_status.setStyleSheet("color: #ef4444; font-size: 12px;")
-        card_layout.addWidget(self.lbl_status)
+        layout.addWidget(self.lbl_status)
 
-        layout.addWidget(card)
-        layout.addStretch()
+        layout.addSpacing(10)
 
-        # Footer
-        footer = QLabel("© 2026 ИП Санакин А.В. | FitIntel Pro v1.3.0")
-        footer.setStyleSheet("font-size: 11px; color: #94a3b8;")
-        footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(footer)
+        lbl_user = QLabel("Логин")
+        lbl_user.setStyleSheet("font-size: 13px; color: #94a3b8;")
+        layout.addWidget(lbl_user)
+        self.txt_user = QLineEdit()
+        self.txt_user.setPlaceholderText("admin")
+        self.txt_user.setText("admin")
+        self.txt_user.returnPressed.connect(self._do_login)
+        layout.addWidget(self.txt_user)
 
-    def _center(self):
-        screen = QApplication.primaryScreen().geometry()
-        x = (screen.width() - self.width()) // 2
-        y = (screen.height() - self.height()) // 2
-        self.move(x, y)
+        layout.addSpacing(8)
 
-    def _on_login(self):
-        username = self.edit_login.text().strip()
-        password = self.edit_pass.text().strip()
+        lbl_pass = QLabel("Пароль")
+        lbl_pass.setStyleSheet("font-size: 13px; color: #94a3b8;")
+        layout.addWidget(lbl_pass)
+        self.txt_pass = QLineEdit()
+        self.txt_pass.setPlaceholderText("пароль")
+        self.txt_pass.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_pass.setText("gfhjkmas")
+        self.txt_pass.returnPressed.connect(self._do_login)
+        layout.addWidget(self.txt_pass)
 
+        layout.addSpacing(16)
+
+        self.btn_login = QPushButton("Войти")
+        self.btn_login.setObjectName("login_btn")
+        self.btn_login.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_login.clicked.connect(self._do_login)
+        layout.addWidget(self.btn_login)
+
+        layout.addSpacing(8)
+
+        self.btn_test = QPushButton("Проверить подключение")
+        self.btn_test.setObjectName("test_btn")
+        self.btn_test.clicked.connect(self._test_connection)
+        layout.addWidget(self.btn_test)
+
+        version = QLabel("Сборка 2026.06.14 | FitIntel Systems")
+        version.setStyleSheet("color: #475569; font-size: 11px; margin-top: 12px;")
+        version.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(version)
+
+        self._test_connection()
+
+    def _test_connection(self):
+        self.lbl_status.setText("Проверка сервера...")
+        self.lbl_status.setStyleSheet("font-size: 13px; padding: 8px; border-radius: 6px; background-color: #1e293b; color: #94a3b8;")
+        try:
+            result = self.api.health()
+            status = result.get("status", "unknown")
+            module = result.get("module", "")
+            db = result.get("database", "")
+            msg = "Сервер: " + status.upper() + " | " + module + " | БД: " + db
+            self.lbl_status.setText(msg)
+            self.lbl_status.setStyleSheet("font-size: 13px; padding: 8px; border-radius: 6px; background-color: #064e3b; color: #6ee7b7;")
+        except Exception as e:
+            msg = "Сервер недоступен: " + str(e)[:60]
+            self.lbl_status.setText(msg)
+            self.lbl_status.setStyleSheet("font-size: 13px; padding: 8px; border-radius: 6px; background-color: #450a0a; color: #fca5a5;")
+
+    def _do_login(self):
+        username = self.txt_user.text().strip()
+        password = self.txt_pass.text().strip()
         if not username or not password:
-            self.lbl_status.setText("Введите логин и пароль")
+            QMessageBox.warning(self, "Ошибка", "Введите логин и пароль")
             return
-
         self.btn_login.setEnabled(False)
         self.btn_login.setText("Вход...")
-        self.lbl_status.setText("")
-
-        self.worker = LoginWorker(self.api, username, password)
-        self.worker.finished.connect(self._on_success)
-        self.worker.error.connect(self._on_error)
-        self.worker.start()
-
-    def _on_success(self, result: dict):
-        token = result.get("access_token")
-        if not token:
-            self._on_error("Нет токена в ответе сервера")
-            return
-
-        self.api.set_token(token)
         try:
-            user = self.api.me()
+            result = self.api.login(username, password)
+            token = result.get("access_token")
+            if not token:
+                QMessageBox.critical(self, "Ошибка", "Токен не получен")
+                return
+            self.api.set_token(token)
+            self.user_info = self.api.me()
+            self.token = token
+            self.accept()
         except Exception as e:
-            self._on_error(f"Не удалось получить данные пользователя: {e}")
-            return
-
-        self.login_success.emit(user, token)
-        self.close()
-
-    def _on_error(self, msg: str):
-        self.btn_login.setEnabled(True)
-        self.btn_login.setText("Войти")
-        self.lbl_status.setText(f"Ошибка: {msg}")
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
-            self._on_login()
-        else:
-            super().keyPressEvent(event)
+            err = str(e)
+            if "401" in err or "403" in err:
+                QMessageBox.critical(self, "Ошибка", "Неверный логин или пароль")
+            elif "Connection" in err:
+                QMessageBox.critical(self, "Ошибка", "Не удалось подключиться к серверу.\nУбедитесь, что бэкенд запущен:\nuvicorn app.main:app --reload --port 8001")
+            else:
+                QMessageBox.critical(self, "Ошибка", "Ошибка входа: " + err[:200])
+        finally:
+            self.btn_login.setEnabled(True)
+            self.btn_login.setText("Войти")

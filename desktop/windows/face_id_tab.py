@@ -1,171 +1,115 @@
-"""FitIntel Pro — Face ID Tab"""
+"""Face ID Tab"""
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox, QComboBox, QInputDialog
+from PyQt6.QtCore import Qt
+from api.client import ApiClient
 import random
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget,
-    QTableWidgetItem, QHeaderView, QMessageBox, QTextEdit, QComboBox, QLineEdit
-)
-from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
-from PyQt6.QtGui import QImage, QPixmap
-from api import ApiClient
-
-
-class VerifyFaceWorker(QThread):
-    finished = pyqtSignal(dict)
-    error = pyqtSignal(str)
-
-    def __init__(self, api: ApiClient, face_encoding: list, terminal_id: str):
-        super().__init__()
-        self.api = api
-        self.face_encoding = face_encoding
-        self.terminal_id = terminal_id
-
-    def run(self):
-        try:
-            result = self.api.verify_face(self.face_encoding, self.terminal_id)
-            self.finished.emit(result)
-        except Exception as e:
-            self.error.emit(str(e))
-
-
-class LoadLogsWorker(QThread):
-    finished = pyqtSignal(list)
-    error = pyqtSignal(str)
-
-    def __init__(self, api: ApiClient):
-        super().__init__()
-        self.api = api
-
-    def run(self):
-        try:
-            data = self.api.get_face_logs()
-            self.finished.emit(data)
-        except Exception as e:
-            self.error.emit(str(e))
 
 
 class FaceIDTab(QWidget):
-    def __init__(self, api: ApiClient):
+    def __init__(self, api, user):
         super().__init__()
         self.api = api
+        self.user = user
         self._build_ui()
-        self.refresh_logs()
+        self.refresh()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
-
-        # Header
-        header = QLabel("🎭 Face ID — Распознавание лиц")
-        header.setStyleSheet("font-size: 18px; font-weight: 700; color: #0f172a;")
-        layout.addWidget(header)
-
-        # Terminal selector
-        term_layout = QHBoxLayout()
-        term_layout.addWidget(QLabel("Терминал:"))
-        self.combo_terminal = QComboBox()
-        self.combo_terminal.addItems(["desktop-001", "reception-01", "gate-01", "gate-02"])
-        self.combo_terminal.setStyleSheet("padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px;")
-        term_layout.addWidget(self.combo_terminal)
-        term_layout.addStretch()
-        layout.addLayout(term_layout)
-
-        # Simulation buttons (until real camera connected)
-        btn_layout = QHBoxLayout()
-
-        btn_sim_grant = QPushButton("✅ Симуляция: Разрешить доступ")
-        btn_sim_grant.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 12px 24px; font-weight: 600; } QPushButton:hover { background: #059669; }")
-        btn_sim_grant.clicked.connect(lambda: self._simulate_verify(True))
-        btn_layout.addWidget(btn_sim_grant)
-
-        btn_sim_deny = QPushButton("❌ Симуляция: Запретить доступ")
-        btn_sim_deny.setStyleSheet("QPushButton { background: #ef4444; color: white; border: none; border-radius: 6px; padding: 12px 24px; font-weight: 600; } QPushButton:hover { background: #dc2626; }")
-        btn_sim_deny.clicked.connect(lambda: self._simulate_verify(False))
-        btn_layout.addWidget(btn_sim_deny)
-
-        btn_layout.addStretch()
-        layout.addLayout(btn_layout)
-
-        # Result display
-        self.lbl_result = QLabel("Нажмите кнопку для симуляции распознавания")
-        self.lbl_result.setStyleSheet("padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; color: #475569;")
+        title = QLabel("Face ID Control")
+        title.setStyleSheet("color: #e2e8f0; font-size: 22px; font-weight: bold;")
+        layout.addWidget(title)
+        actions = QHBoxLayout()
+        actions.setSpacing(12)
+        btn_verify = QPushButton("Verify Face")
+        btn_verify.setStyleSheet("QPushButton { background-color: #10b981; color: #0f172a; border: none; border-radius: 6px; padding: 10px 20px; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #34d399; }")
+        btn_verify.clicked.connect(self._verify)
+        actions.addWidget(btn_verify)
+        btn_register = QPushButton("Register Face")
+        btn_register.setStyleSheet("QPushButton { background-color: #38bdf8; color: #0f172a; border: none; border-radius: 6px; padding: 10px 20px; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #7dd3fc; }")
+        btn_register.clicked.connect(self._register)
+        actions.addWidget(btn_register)
+        actions.addStretch()
+        btn_refresh = QPushButton("Refresh")
+        btn_refresh.setStyleSheet("QPushButton { background-color: #475569; color: #e2e8f0; border: none; border-radius: 6px; padding: 8px 16px; } QPushButton:hover { background-color: #64748b; }")
+        btn_refresh.clicked.connect(self.refresh)
+        actions.addWidget(btn_refresh)
+        layout.addLayout(actions)
+        settings = QHBoxLayout()
+        settings.setSpacing(12)
+        lbl_thresh = QLabel("Threshold:")
+        lbl_thresh.setStyleSheet("color: #94a3b8; font-size: 13px;")
+        settings.addWidget(lbl_thresh)
+        self.cmb_threshold = QComboBox()
+        self.cmb_threshold.addItems(["0.6 (Strict)", "0.5 (Normal)", "0.4 (Loose)"])
+        self.cmb_threshold.setStyleSheet("QComboBox { background-color: #1e293b; border: 1px solid #475569; border-radius: 6px; padding: 6px; color: #e2e8f0; }")
+        settings.addWidget(self.cmb_threshold)
+        lbl_term = QLabel("Terminal:")
+        lbl_term.setStyleSheet("color: #94a3b8; font-size: 13px;")
+        settings.addWidget(lbl_term)
+        self.txt_terminal = QLineEdit("desktop-001")
+        self.txt_terminal.setStyleSheet("QLineEdit { background-color: #1e293b; border: 1px solid #475569; border-radius: 6px; padding: 6px; color: #e2e8f0; }")
+        settings.addWidget(self.txt_terminal)
+        settings.addStretch()
+        layout.addLayout(settings)
+        self.lbl_result = QLabel("Ready")
+        self.lbl_result.setStyleSheet("color: #38bdf8; font-size: 16px; font-weight: bold; padding: 16px; background-color: #1e293b; border-radius: 8px; border: 1px solid #334155;")
         self.lbl_result.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_result.setMinimumHeight(80)
         layout.addWidget(self.lbl_result)
-
-        # Logs
-        logs_header = QHBoxLayout()
-        logs_header.addWidget(QLabel("📋 Журнал распознавания"))
-        logs_header.addStretch()
-        btn_refresh = QPushButton("🔄 Обновить")
-        btn_refresh.setStyleSheet(self._btn_secondary())
-        btn_refresh.clicked.connect(self.refresh_logs)
-        logs_header.addWidget(btn_refresh)
-        layout.addLayout(logs_header)
-
+        sec = QLabel("Recognition Logs")
+        sec.setStyleSheet("color: #e2e8f0; font-size: 16px; font-weight: bold;")
+        layout.addWidget(sec)
         self.table = QTableWidget()
-        self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels(["Время", "Терминал", "Пользователь", "Тип", "Результат", "Причина"])
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Time", "Client", "Action", "Confidence", "Status"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table.setStyleSheet("""
-            QTableWidget { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; gridline-color: #f1f5f9; }
-            QHeaderView::section { background: #f8fafc; padding: 10px; font-weight: 600; border: none; border-bottom: 1px solid #e2e8f0; }
-        """)
+        self.table.setStyleSheet("QTableWidget { background-color: #1e293b; border: 1px solid #334155; border-radius: 8px; color: #e2e8f0; gridline-color: #334155; } QHeaderView::section { background-color: #0f172a; color: #94a3b8; padding: 8px; border: none; font-weight: bold; } QTableWidget::item { padding: 6px; } QTableWidget::item:selected { background-color: #38bdf8; color: #0f172a; }")
         layout.addWidget(self.table)
+        self.lbl_status = QLabel("")
+        self.lbl_status.setStyleSheet("color: #64748b; font-size: 12px;")
+        layout.addWidget(self.lbl_status)
 
-    def _btn_secondary(self) -> str:
-        return "QPushButton { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; } QPushButton:hover { background: #e2e8f0; }"
+    def refresh(self):
+        try:
+            logs = self.api.get_face_logs()
+            if isinstance(logs, list):
+                self.table.setRowCount(len(logs))
+                for i, row in enumerate(logs):
+                    if not isinstance(row, dict): continue
+                    self.table.setItem(i, 0, QTableWidgetItem(str(row.get("timestamp", "-"))[:16]))
+                    self.table.setItem(i, 1, QTableWidgetItem(str(row.get("client_name", row.get("client_id", "-")))))
+                    self.table.setItem(i, 2, QTableWidgetItem(str(row.get("action", "-"))))
+                    self.table.setItem(i, 3, QTableWidgetItem(str(row.get("confidence", "-"))))
+                    self.table.setItem(i, 4, QTableWidgetItem(str(row.get("status", "-"))))
+            else: self.table.setRowCount(0)
+        except Exception as e: self.lbl_status.setText("Logs error: " + str(e)[:80])
 
-    def _simulate_verify(self, granted: bool):
-        """Симуляция вектора лица (128 значений) для тестирования API"""
-        face_encoding = [random.random() for _ in range(128)]
-        terminal_id = self.combo_terminal.currentText()
+    def _verify(self):
+        try:
+            face_encoding = [random.random() for _ in range(128)]
+            terminal_id = self.txt_terminal.text().strip() or "desktop-001"
+            result = self.api.verify_face(face_encoding, terminal_id)
+            success = result.get("success", False)
+            client = result.get("client_name", "Unknown")
+            if success:
+                self.lbl_result.setText("ACCESS GRANTED | Client: " + client)
+                self.lbl_result.setStyleSheet("color: #10b981; font-size: 16px; font-weight: bold; padding: 16px; background-color: #064e3b; border-radius: 8px; border: 1px solid #10b981;")
+            else:
+                self.lbl_result.setText("ACCESS DENIED | " + result.get("reason", "Face not recognized"))
+                self.lbl_result.setStyleSheet("color: #f87171; font-size: 16px; font-weight: bold; padding: 16px; background-color: #450a0a; border-radius: 8px; border: 1px solid #f87171;")
+            self.refresh()
+        except Exception as e:
+            self.lbl_result.setText("ERROR: " + str(e)[:100])
+            self.lbl_result.setStyleSheet("color: #f87171; font-size: 16px; font-weight: bold; padding: 16px; background-color: #450a0a; border-radius: 8px; border: 1px solid #f87171;")
 
-        self.lbl_result.setText(f"⏳ Отправка запроса на терминал {terminal_id}...")
-
-        self.worker = VerifyFaceWorker(self.api, face_encoding, terminal_id)
-        self.worker.finished.connect(lambda r: self._on_verify_result(r, granted))
-        self.worker.error.connect(self._on_verify_error)
-        self.worker.start()
-
-    def _on_verify_result(self, result: dict, simulated_granted: bool):
-        access = result.get("access_granted", False)
-        reason = result.get("reason", "—")
-        user = result.get("user_name", "Неизвестный")
-        user_type = result.get("user_type", "—")
-
-        if access:
-            self.lbl_result.setStyleSheet("padding: 20px; background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; font-size: 16px; color: #065f46; font-weight: 600;")
-            self.lbl_result.setText(f"✅ ДОСТУП РАЗРЕШЁН
-
-Пользователь: {user}
-Тип: {user_type}
-Причина: {reason}")
-        else:
-            self.lbl_result.setStyleSheet("padding: 20px; background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; font-size: 16px; color: #991b1b; font-weight: 600;")
-            self.lbl_result.setText(f"❌ ДОСТУП ЗАПРЕЩЁН
-
-Причина: {reason}")
-
-        self.refresh_logs()
-
-    def _on_verify_error(self, msg: str):
-        self.lbl_result.setStyleSheet("padding: 20px; background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; font-size: 14px; color: #991b1b;")
-        self.lbl_result.setText(f"❌ Ошибка API: {msg}")
-
-    def refresh_logs(self):
-        self.worker_logs = LoadLogsWorker(self.api)
-        self.worker_logs.finished.connect(self._on_logs_loaded)
-        self.worker_logs.error.connect(lambda _: None)
-        self.worker_logs.start()
-
-    def _on_logs_loaded(self, data: list):
-        self.table.setRowCount(len(data))
-        for i, row in enumerate(data):
-            self.table.setItem(i, 0, QTableWidgetItem(str(row.get("created_at", "—"))[:16]))
-            self.table.setItem(i, 1, QTableWidgetItem(row.get("terminal_id", "—")))
-            self.table.setItem(i, 2, QTableWidgetItem(str(row.get("user_id", "—"))))
-            self.table.setItem(i, 3, QTableWidgetItem(row.get("user_type", "—")))
-            status = "✅ Разрешён" if row.get("status") == "granted" else "❌ Запрещён"
-            self.table.setItem(i, 4, QTableWidgetItem(status))
-            self.table.setItem(i, 5, QTableWidgetItem(row.get("reason", "—")))
+    def _register(self):
+        client_id, ok = QInputDialog.getText(self, "Register Face", "Enter client ID:")
+        if ok and client_id:
+            try:
+                face_encoding = [random.random() for _ in range(128)]
+                result = self.api.register_face({"client_id": client_id, "face_encoding": face_encoding, "terminal_id": self.txt_terminal.text().strip() or "desktop-001"})
+                QMessageBox.information(self, "Success", "Face registered for: " + str(result.get("client_name", client_id)))
+                self.refresh()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", str(e)[:200])
