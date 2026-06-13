@@ -1,145 +1,105 @@
-"""FitIntel Pro — License Tab"""
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
-    QMessageBox, QFrame, QTextEdit, QFormLayout, QSpinBox
-)
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from api import ApiClient
-
-
-class VerifyLicenseWorker(QThread):
-    finished = pyqtSignal(dict)
-    error = pyqtSignal(str)
-
-    def __init__(self, api: ApiClient, license_key: str, device_id: str):
-        super().__init__()
-        self.api = api
-        self.license_key = license_key
-        self.device_id = device_id
-
-    def run(self):
-        try:
-            result = self.api.verify_license(self.license_key, self.device_id)
-            self.finished.emit(result)
-        except Exception as e:
-            self.error.emit(str(e))
+"""License Tab"""
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit, QTextEdit, QMessageBox
+from PyQt6.QtCore import Qt
+from api.client import ApiClient
 
 
 class LicenseTab(QWidget):
-    def __init__(self, api: ApiClient):
+    def __init__(self, api, user):
         super().__init__()
         self.api = api
+        self.user = user
         self._build_ui()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(20)
+        layout.setSpacing(16)
+        title = QLabel("License Management")
+        title.setStyleSheet("color: #e2e8f0; font-size: 22px; font-weight: bold;")
+        layout.addWidget(title)
 
-        header = QLabel("🔐 Лицензирование системы")
-        header.setStyleSheet("font-size: 18px; font-weight: 700; color: #0f172a;")
-        layout.addWidget(header)
+        check_frame = QWidget()
+        check_frame.setStyleSheet("QWidget { background-color: #1e293b; border-radius: 10px; border: 1px solid #334155; padding: 16px; }")
+        cl = QVBoxLayout(check_frame)
+        cl.setSpacing(12)
+        lbl_check = QLabel("Check License")
+        lbl_check.setStyleSheet("color: #38bdf8; font-size: 16px; font-weight: bold;")
+        cl.addWidget(lbl_check)
+        row1 = QHBoxLayout()
+        row1.setSpacing(12)
+        lbl_key = QLabel("License Key:")
+        lbl_key.setStyleSheet("color: #94a3b8; font-size: 13px;")
+        row1.addWidget(lbl_key)
+        self.txt_key = QLineEdit()
+        self.txt_key.setPlaceholderText("FITINTEL-XXXX-XXXX-XXXX")
+        self.txt_key.setStyleSheet("QLineEdit { background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; padding: 8px; color: #e2e8f0; font-size: 13px; } QLineEdit:focus { border-color: #38bdf8; }")
+        row1.addWidget(self.txt_key, 1)
+        lbl_dev = QLabel("Device ID:")
+        lbl_dev.setStyleSheet("color: #94a3b8; font-size: 13px;")
+        row1.addWidget(lbl_dev)
+        self.txt_device = QLineEdit()
+        self.txt_device.setPlaceholderText("DESKTOP-001")
+        self.txt_device.setStyleSheet("QLineEdit { background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; padding: 8px; color: #e2e8f0; font-size: 13px; } QLineEdit:focus { border-color: #38bdf8; }")
+        row1.addWidget(self.txt_device, 1)
+        cl.addLayout(row1)
+        btn_check = QPushButton("Verify License")
+        btn_check.setStyleSheet("QPushButton { background-color: #38bdf8; color: #0f172a; border: none; border-radius: 6px; padding: 10px 24px; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #7dd3fc; }")
+        btn_check.clicked.connect(self._verify)
+        cl.addWidget(btn_check)
+        self.lbl_result = QLabel("Enter license key and device ID to verify")
+        self.lbl_result.setStyleSheet("color: #94a3b8; font-size: 13px; padding: 8px;")
+        self.lbl_result.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cl.addWidget(self.lbl_result)
+        layout.addWidget(check_frame)
 
-        # Status card
-        self.card_status = QFrame()
-        self.card_status.setStyleSheet("background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;")
-        card_layout = QVBoxLayout(self.card_status)
-        self.lbl_status = QLabel("⏳ Проверьте лицензию")
-        self.lbl_status.setStyleSheet("font-size: 14px; color: #475569;")
-        card_layout.addWidget(self.lbl_status)
-        layout.addWidget(self.card_status)
+        limits_frame = QWidget()
+        limits_frame.setStyleSheet("QWidget { background-color: #1e293b; border-radius: 10px; border: 1px solid #334155; padding: 16px; }")
+        ll = QVBoxLayout(limits_frame)
+        lbl_limits = QLabel("License Limits")
+        lbl_limits.setStyleSheet("color: #38bdf8; font-size: 16px; font-weight: bold;")
+        ll.addWidget(lbl_limits)
+        self.txt_limits = QTextEdit()
+        self.txt_limits.setReadOnly(True)
+        self.txt_limits.setMaximumHeight(120)
+        self.txt_limits.setStyleSheet("QTextEdit { background-color: #0f172a; border: 1px solid #475569; border-radius: 6px; padding: 8px; color: #e2e8f0; font-size: 13px; }")
+        self.txt_limits.setText("Click 'Verify License' to see limits")
+        ll.addWidget(self.txt_limits)
+        layout.addWidget(limits_frame)
 
-        # Form
-        form = QFormLayout()
-        form.setSpacing(12)
-
-        self.edit_key = QLineEdit()
-        self.edit_key.setPlaceholderText("XXXX-XXXX-XXXX-XXXX")
-        self.edit_key.setStyleSheet("padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-family: monospace;")
-        form.addRow("Лицензионный ключ:", self.edit_key)
-
-        self.edit_device = QLineEdit()
-        self.edit_device.setText("desktop-001")
-        self.edit_device.setStyleSheet("padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px;")
-        form.addRow("ID устройства:", self.edit_device)
-
-        layout.addLayout(form)
-
-        # Buttons
-        btn_layout = QHBoxLayout()
-        btn_verify = QPushButton("✅ Проверить лицензию")
-        btn_verify.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 10px 24px; font-weight: 600; } QPushButton:hover { background: #059669; }")
-        btn_verify.clicked.connect(self._verify)
-        btn_layout.addWidget(btn_verify)
-
-        btn_limits = QPushButton("📊 Проверить лимиты")
-        btn_limits.setStyleSheet("QPushButton { background: #3b82f6; color: white; border: none; border-radius: 6px; padding: 10px 24px; font-weight: 600; } QPushButton:hover { background: #2563eb; }")
-        btn_limits.clicked.connect(self._check_limits)
-        btn_layout.addWidget(btn_limits)
-
-        btn_layout.addStretch()
-        layout.addLayout(btn_layout)
-
-        # Info area
-        self.info_area = QTextEdit()
-        self.info_area.setReadOnly(True)
-        self.info_area.setPlaceholderText("Информация о лицензии появится здесь...")
-        self.info_area.setStyleSheet("background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px;")
-        self.info_area.setMaximumHeight(200)
-        layout.addWidget(self.info_area)
-
+        btn_refresh = QPushButton("Refresh Status")
+        btn_refresh.setStyleSheet("QPushButton { background-color: #475569; color: #e2e8f0; border: none; border-radius: 6px; padding: 8px 16px; } QPushButton:hover { background-color: #64748b; }")
+        btn_refresh.clicked.connect(self._check_limits)
+        layout.addWidget(btn_refresh)
         layout.addStretch()
 
-        # Footer
-        footer = QLabel("© 2026 ИП Санакин А.В. | Лицензирование через API v1.3.0")
-        footer.setStyleSheet("font-size: 11px; color: #94a3b8;")
-        footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(footer)
-
     def _verify(self):
-        key = self.edit_key.text().strip()
-        device = self.edit_device.text().strip()
-
-        if not key or not device:
-            QMessageBox.warning(self, "Ошибка", "Введите ключ и ID устройства")
-            return
-
-        self.lbl_status.setText("⏳ Проверка лицензии...")
-        self.worker = VerifyLicenseWorker(self.api, key, device)
-        self.worker.finished.connect(self._on_verify_success)
-        self.worker.error.connect(self._on_verify_error)
-        self.worker.start()
-
-    def _on_verify_success(self, result: dict):
-        valid = result.get("valid", False)
-        message = result.get("message", "—")
-        info = result.get("info", {})
-
-        if valid:
-            self.card_status.setStyleSheet("background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 16px;")
-            self.lbl_status.setStyleSheet("font-size: 14px; color: #065f46; font-weight: 600;")
-            self.lbl_status.setText(f"✅ Лицензия ВАЛИДНА
-{message}")
-        else:
-            self.card_status.setStyleSheet("background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; padding: 16px;")
-            self.lbl_status.setStyleSheet("font-size: 14px; color: #991b1b; font-weight: 600;")
-            self.lbl_status.setText(f"❌ Лицензия НЕВАЛИДНА
-{message}")
-
-        self.info_area.setText(str(info))
-
-    def _on_verify_error(self, msg: str):
-        self.card_status.setStyleSheet("background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; padding: 16px;")
-        self.lbl_status.setStyleSheet("font-size: 14px; color: #991b1b;")
-        self.lbl_status.setText(f"❌ Ошибка: {msg}")
+        key = self.txt_key.text().strip()
+        device = self.txt_device.text().strip()
+        if not key or not device: QMessageBox.warning(self, "Error", "Enter license key and device ID"); return
+        try:
+            result = self.api.verify_license(key, device)
+            valid = result.get("valid", False)
+            if valid:
+                self.lbl_result.setText("VALID | Type: " + str(result.get("type", "-")) + " | Expires: " + str(result.get("expires_at", "-")))
+                self.lbl_result.setStyleSheet("color: #10b981; font-size: 14px; font-weight: bold; padding: 8px; background-color: #064e3b; border-radius: 6px;")
+            else:
+                self.lbl_result.setText("INVALID | " + result.get("reason", "Invalid license"))
+                self.lbl_result.setStyleSheet("color: #f87171; font-size: 14px; font-weight: bold; padding: 8px; background-color: #450a0a; border-radius: 6px;")
+            self._show_limits(result)
+        except Exception as e:
+            self.lbl_result.setText("ERROR: " + str(e)[:100])
+            self.lbl_result.setStyleSheet("color: #f87171; font-size: 14px; font-weight: bold; padding: 8px; background-color: #450a0a; border-radius: 6px;")
 
     def _check_limits(self):
-        key = self.edit_key.text().strip()
-        if not key:
-            QMessageBox.warning(self, "Ошибка", "Введите лицензионный ключ")
-            return
+        key = self.txt_key.text().strip()
+        if not key: QMessageBox.warning(self, "Error", "Enter license key first"); return
         try:
             result = self.api.get_license_limits(key)
-            self.info_area.setText(str(result))
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка", str(e))
+            self._show_limits(result)
+        except Exception as e: self.txt_limits.setText("Error: " + str(e)[:200])
+
+    def _show_limits(self, data):
+        if not isinstance(data, dict): self.txt_limits.setText("No limit data"); return
+        lines = [k + ": " + str(v) for k, v in data.items()]
+        self.txt_limits.setText("\n".join(lines) if lines else "No limits configured")

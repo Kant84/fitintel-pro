@@ -1,185 +1,134 @@
-"""FitIntel Pro — Main Window"""
-import sys
-from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QTabWidget, QStatusBar, QMessageBox,
-    QMenuBar, QMenu, QFrame, QSizePolicy
-)
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont, QIcon, QAction
+"""Main Window"""
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QLabel, QPushButton, QStatusBar, QMessageBox
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QFont
 
-from api import ApiClient
-from windows.clients_tab import ClientsTab
-from windows.subscriptions_tab import SubscriptionsTab
-from windows.visits_tab import VisitsTab
-from windows.face_id_tab import FaceIDTab
-from windows.license_tab import LicenseTab
-from windows.settings_tab import SettingsTab
+from api.client import ApiClient
+from .clients_tab import ClientsTab
+from .subscriptions_tab import SubscriptionsTab
+from .visits_tab import VisitsTab
+from .face_id_tab import FaceIDTab
+from .license_tab import LicenseTab
+from .settings_tab import SettingsTab
+from .cash_desk_tab import CashDeskTab
+from .access_tab import AccessTab
+from .analytics_tab import AnalyticsTab
+from .users_tab import UsersTab
 
 
 class MainWindow(QMainWindow):
-    logout_requested = pyqtSignal()
-
-    def __init__(self, api: ApiClient, user_data: dict, token: str):
+    def __init__(self, api: ApiClient, user: dict, token: str):
         super().__init__()
         self.api = api
-        self.user = user_data
+        self.user = user
         self.token = token
-        self.setWindowTitle("FitIntel Pro — Система управления")
-        self.setMinimumSize(1280, 800)
-        self.setStyleSheet(self._stylesheet())
+        self.roles = user.get("roles", [])
+        self.permissions = user.get("permissions", [])
         self._build_ui()
-        self._start_health_check()
 
-    def _stylesheet(self) -> str:
-        return """
-        QMainWindow {
-            background-color: #f1f5f9;
-        }
-        QTabWidget::pane {
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            background: #ffffff;
-            top: -1px;
-        }
-        QTabBar::tab {
-            background: #e2e8f0;
-            color: #475569;
-            padding: 10px 20px;
-            margin-right: 4px;
-            border-top-left-radius: 8px;
-            border-top-right-radius: 8px;
-            font-weight: 600;
-            font-size: 13px;
-        }
-        QTabBar::tab:selected {
-            background: #ffffff;
-            color: #0f172a;
-            border-bottom: 2px solid #10b981;
-        }
-        QTabBar::tab:hover:!selected {
-            background: #cbd5e1;
-        }
-        QLabel#header-title {
-            font-size: 20px;
-            font-weight: 700;
-            color: #0f172a;
-        }
-        QLabel#header-user {
-            font-size: 12px;
-            color: #64748b;
-        }
-        QPushButton#logout {
-            background: transparent;
-            color: #ef4444;
-            border: 1px solid #ef4444;
-            border-radius: 6px;
-            padding: 6px 14px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        QPushButton#logout:hover {
-            background: #ef4444;
-            color: white;
-        }
-        QStatusBar {
-            background: #ffffff;
-            color: #64748b;
-            font-size: 12px;
-            border-top: 1px solid #e2e8f0;
-        }
-        """
+    def _has_permission(self, perm: str) -> bool:
+        return perm in self.permissions or "admin" in self.roles
+
+    def _is_admin(self) -> bool:
+        return "admin" in self.roles or "superadmin" in self.roles
 
     def _build_ui(self):
-        # Central widget
+        self.setWindowTitle("FitIntel Pro v1.3.0 - Администратор")
+        self.setMinimumSize(1400, 900)
+        self.setStyleSheet("""
+            QMainWindow { background-color: #0f172a; }
+            QWidget#header { background-color: #1e293b; border-bottom: 2px solid #38bdf8; }
+            QLabel#header_title { color: #38bdf8; font-weight: bold; }
+            QLabel#header_ver { color: #64748b; font-size: 12px; }
+            QLabel#header_user { color: #94a3b8; font-size: 13px; }
+            QPushButton#header_logout { background-color: transparent; color: #f87171; border: 1px solid #f87171; border-radius: 6px; padding: 6px 16px; font-size: 12px; }
+            QPushButton#header_logout:hover { background-color: #f87171; color: #0f172a; }
+            QTabWidget::pane { border: none; background-color: #0f172a; }
+            QTabBar::tab { background-color: #1e293b; color: #94a3b8; padding: 10px 20px; border-top-left-radius: 6px; border-top-right-radius: 6px; margin-right: 2px; font-size: 13px; }
+            QTabBar::tab:selected { background-color: #38bdf8; color: #0f172a; font-weight: bold; }
+            QTabBar::tab:hover:!selected { background-color: #334155; color: #e2e8f0; }
+            QStatusBar { background-color: #1e293b; color: #94a3b8; font-size: 12px; }
+        """)
+
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Header
-        header = QFrame()
-        header.setStyleSheet("background: #ffffff; border-bottom: 1px solid #e2e8f0;")
-        header.setFixedHeight(64)
-        h_layout = QHBoxLayout(header)
-        h_layout.setContentsMargins(24, 0, 24, 0)
+        header = QWidget()
+        header.setObjectName("header")
+        header.setFixedHeight(56)
+        hlayout = QHBoxLayout(header)
+        hlayout.setContentsMargins(20, 0, 20, 0)
 
         title = QLabel("FitIntel Pro")
-        title.setObjectName("header-title")
-        h_layout.addWidget(title)
-        h_layout.addStretch()
+        title.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        title.setObjectName("header_title")
+        hlayout.addWidget(title)
 
-        user_info = QLabel(f"{self.user.get('full_name', self.user.get('username', 'Админ'))} | {self.user.get('role', 'admin')}")
-        user_info.setObjectName("header-user")
-        h_layout.addWidget(user_info)
-        h_layout.addSpacing(16)
+        ver = QLabel("v1.3.0")
+        ver.setObjectName("header_ver")
+        hlayout.addWidget(ver)
+        hlayout.addStretch()
+
+        role_text = ", ".join(self.roles) if self.roles else "пользователь"
+        user_label = QLabel("Пользователь: " + str(self.user.get("username", "-")) + "  |  Роль: " + role_text)
+        user_label.setObjectName("header_user")
+        hlayout.addWidget(user_label)
 
         btn_logout = QPushButton("Выход")
-        btn_logout.setObjectName("logout")
+        btn_logout.setObjectName("header_logout")
         btn_logout.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_logout.clicked.connect(self._on_logout)
-        h_layout.addWidget(btn_logout)
+        btn_logout.clicked.connect(self._logout)
+        hlayout.addWidget(btn_logout)
 
         layout.addWidget(header)
 
-        # Tabs
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
-        self.tabs.setTabPosition(QTabWidget.TabPosition.North)
+        layout.addWidget(self.tabs, 1)
 
-        self.tabs.addTab(ClientsTab(self.api), "👥 Клиенты")
-        self.tabs.addTab(SubscriptionsTab(self.api), "📋 Абонементы")
-        self.tabs.addTab(VisitsTab(self.api), "🚪 Входы/Выходы")
-        self.tabs.addTab(FaceIDTab(self.api), "🎭 Face ID")
-        self.tabs.addTab(LicenseTab(self.api), "🔐 Лицензия")
-        self.tabs.addTab(SettingsTab(self.api), "⚙️ Настройки")
+        # All users see Dashboard
+        self.tabs.addTab(AnalyticsTab(self.api, self.user), "Дашборд")
 
-        layout.addWidget(self.tabs)
+        # Admin/Manager tabs
+        if self._is_admin() or self._has_permission("clients.read"):
+            self.tabs.addTab(ClientsTab(self.api, self.user), "Клиенты")
+        if self._is_admin() or self._has_permission("subscriptions.read"):
+            self.tabs.addTab(SubscriptionsTab(self.api, self.user), "Абонементы")
+        if self._is_admin() or self._has_permission("visits.read"):
+            self.tabs.addTab(VisitsTab(self.api, self.user), "Посещения")
+        if self._is_admin() or self._has_permission("cash.read"):
+            self.tabs.addTab(CashDeskTab(self.api, self.user), "Касса")
+        if self._is_admin() or self._has_permission("access.read"):
+            self.tabs.addTab(AccessTab(self.api, self.user), "СКУД")
+        if self._is_admin() or self._has_permission("face_id.read"):
+            self.tabs.addTab(FaceIDTab(self.api, self.user), "Face ID")
 
-        # Status bar
+        # Admin only
+        if self._is_admin():
+            self.tabs.addTab(UsersTab(self.api, self.user), "Пользователи")
+            self.tabs.addTab(LicenseTab(self.api, self.user), "Лицензия")
+            self.tabs.addTab(SettingsTab(self.api, self.user), "Настройки")
+
         self.status = QStatusBar()
-        self.status.showMessage("✅ Сервер подключён")
         self.setStatusBar(self.status)
+        self.status.showMessage("Ready")
 
-        # Menu
-        menubar = self.menuBar()
-        file_menu = menubar.addMenu("Файл")
-        act_refresh = QAction("🔄 Обновить", self)
-        act_refresh.setShortcut("F5")
-        act_refresh.triggered.connect(self._refresh_current)
-        file_menu.addAction(act_refresh)
-
-        file_menu.addSeparator()
-        act_exit = QAction("❌ Выход", self)
-        act_exit.setShortcut("Ctrl+Q")
-        act_exit.triggered.connect(self.close)
-        file_menu.addAction(act_exit)
-
-    def _start_health_check(self):
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self._check_health)
-        self.timer.start(10000)  # каждые 10 сек
+        self.timer.timeout.connect(self._check_server)
+        self.timer.start(30000)
 
-    def _check_health(self):
-        try:
-            self.api.health()
-            self.status.showMessage("✅ Сервер подключён | FitIntel Pro v1.3.0")
-        except Exception:
-            self.status.showMessage("❌ Сервер недоступен — проверьте бэкенд localhost:8001")
-
-    def _refresh_current(self):
-        idx = self.tabs.currentIndex()
-        widget = self.tabs.widget(idx)
-        if hasattr(widget, "refresh"):
-            widget.refresh()
-
-    def _on_logout(self):
-        reply = QMessageBox.question(
-            self, "Выход", "Вы уверены, что хотите выйти?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+    def _logout(self):
+        reply = QMessageBox.question(self, "Confirm", "Logout?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
             self.api.clear_token()
-            self.logout_requested.emit()
             self.close()
+
+    def _check_server(self):
+        try:
+            result = self.api.health()
+            self.status.showMessage("Сервер: " + result.get("status", "?").upper() + " | localhost:8001 | " + str(self.user.get("username", "-"))[:20], 30000)
+        except Exception:
+            self.status.showMessage("Сервер: НЕДОСТУПЕН", 30000)
