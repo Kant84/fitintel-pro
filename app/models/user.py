@@ -55,6 +55,12 @@ class User(TimestampedUUIDMixin, Base):
         nullable=False,
     )
 
+    is_fired: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
@@ -82,6 +88,19 @@ class User(TimestampedUUIDMixin, Base):
         back_populates="user",
         cascade="all, delete-orphan",
         foreign_keys="UserRole.user_id",
+    )
+
+    # Face ID + License (v1.3.0)
+    face_templates: Mapped[list["FaceTemplate"]] = relationship(
+        "FaceTemplate",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    shifts: Mapped[list["EmployeeShift"]] = relationship(
+        "EmployeeShift",
+        back_populates="employee",
+        foreign_keys="EmployeeShift.employee_id",
     )
     
     @property
