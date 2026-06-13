@@ -76,6 +76,10 @@ from app.api.v1.telegram import router as telegram_router
 
 from app.api.v1.yookassa import router as yookassa_router
 
+# === FACE ID + LICENSE (v1.3.0) ===
+from app.routers.face_id import router as face_id_router
+from app.routers.license import router as license_router
+
 
 # создаём приложение FastAPI
 app = FastAPI(
@@ -164,9 +168,16 @@ app.include_router(telegram_router, prefix=settings.API_V1_PREFIX)
 # YooKassa
 app.include_router(yookassa_router, prefix=settings.API_V1_PREFIX)
 
-# временная отладка маршрутов — только после создания app
+# === FACE ID + LICENSE (v1.3.0) ===
+app.include_router(face_id_router, prefix=settings.API_V1_PREFIX)
+app.include_router(license_router, prefix=settings.API_V1_PREFIX)
+
+# отладка маршрутов — только после создания app
 for route in app.routes:
-    print(route.path, route.methods)
+    if hasattr(route, 'methods'):
+        print(route.path, route.methods)
+    else:
+        print(route.path, {'WEBSOCKET'})
 
 
 # корневой тестовый маршрут
