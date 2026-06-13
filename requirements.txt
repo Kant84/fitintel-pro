@@ -20,3 +20,5 @@ asyncio-mqtt>=0.16.0
 reportlab>=4.0.0
 prometheus-client>=0.20.0
 sentry-sdk[fastapi]>=1.40.0
+
+pyyaml>=6.0
