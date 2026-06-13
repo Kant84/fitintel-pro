@@ -1,0 +1,97 @@
+pageType: final
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: bg-img
+    elementType: image
+    bounds: [0, 0, 1280, 720]
+    src: "/mnt/agents/output/fitnexus-presentation/images/2_Futuristic_Gym_Featuring_Neon_Lights.png"
+    fit: {mode: cover}
+
+  - elementId: bg-mask
+    elementType: shape
+    bounds: [0, 0, 1280, 720]
+    shapeName: rect
+    fill:
+      type: gradient
+      gradientType: linear
+      angle: 90
+      stops:
+        - {position: 0, color: "#0B122020"}
+        - {position: 0.35, color: "#0B1220A0"}
+        - {position: 0.7, color: "#0B1220E0"}
+        - {position: 1, color: "#0B1220F5"}
+
+  - elementId: badge
+    elementType: text
+    bounds: [390, 160, 500, 24]
+    content:
+      style: "$badge"
+      align: [center, middle]
+      wrap: false
+      text: |
+        <p><span style="background-color:$primary; color:$white; font-size:12px;">  ГОТОВЫ АВТОМАТИЗИРОВАТЬ ВАШ КЛУБ?  </span></p>
+
+  - elementId: main-title
+    elementType: text
+    bounds: [140, 210, 1000, 70]
+    content:
+      style: "$heroTitle"
+      align: [center, middle]
+      wrap: false
+      text: |
+        <p><span style="font-size:48px;">FitIntel Pro</span></p>
+
+  - elementId: subtitle
+    elementType: text
+    bounds: [190, 290, 900, 35]
+    content:
+      style: "$subtitle"
+      fontSize: 20
+      align: [center, middle]
+      text: |
+        <p>От рутины к росту</p>
+
+  - elementId: divider-line
+    elementType: shape
+    bounds: [540, 345, 200, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: features
+    elementType: text
+    bounds: [240, 375, 800, 80]
+    content:
+      style: "$body"
+      fontSize: 18
+      align: [center, top]
+      text: |
+        <p>Демо за <strong style="color:$primary;">15 минут</strong>  |  Пилотный запуск за <strong style="color:$primary;">1 день</strong></p>
+        <p>Поддержка <strong style="color:$primary;">24/7</strong></p>
+
+  - elementId: contact
+    elementType: text
+    bounds: [290, 480, 700, 30]
+    content:
+      style: "$caption"
+      fontSize: 16
+      align: [center, middle]
+      wrap: false
+      text: |
+        <p>FixIntel  |  demo@fixintel.ru  |  +7 (XXX) XXX-XX-XX</p>
+
+  - elementId: bottom-bar
+    elementType: shape
+    bounds: [0, 710, 1280, 10]
+    shapeName: rect
+    fill:
+      type: gradient
+      gradientType: linear
+      angle: 0
+      stops:
+        - {position: 0, color: "$primary"}
+        - {position: 0.5, color: "$accent"}
+        - {position: 1, color: "$primary"}

@@ -1,0 +1,252 @@
+pageType: content
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: header-badge
+    elementType: text
+    bounds: [60, 24, 160, 20]
+    content:
+      style: "$badge"
+      align: [left, middle]
+      wrap: false
+      text: FIXINTEL PRO
+
+  - elementId: page-title
+    elementType: text
+    bounds: [60, 60, 1000, 45]
+    content:
+      style: "$title"
+      align: [left, middle]
+      wrap: false
+      text: |
+        <p><span style="color:$primary;">4 модуля</span>, которые работают уже сегодня</p>
+
+  - elementId: title-accent
+    elementType: shape
+    bounds: [60, 110, 50, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: mod1-bg
+    elementType: shape
+    bounds: [60, 140, 560, 240]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$primary"
+
+  - elementId: mod1-accent
+    elementType: shape
+    bounds: [60, 140, 4, 240]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: mod1-icon
+    elementType: icon
+    bounds: [84, 160, 40, 40]
+    iconName: "fas:users"
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: mod1-title
+    elementType: text
+    bounds: [136, 160, 300, 35]
+    content:
+      style: "$sectionTitle"
+      fontSize: 22
+      color: "$primary"
+      align: [left, middle]
+      wrap: false
+      text: CRM
+
+  - elementId: mod1-body
+    elementType: text
+    bounds: [84, 210, 516, 150]
+    content:
+      style: "$body"
+      fontSize: 16
+      lineHeight: 1.55
+      align: [left, top]
+      text: |
+        <p>Клиенты, абонементы, продажи. Карточка с полной историей. Timeline событий. Группы и сегментация. Автоматические уведомления.</p>
+        <p style="margin-top:8px"><span style="color:$success;"><strong>Статус: готово к внедрению</strong></span></p>
+
+  - elementId: mod2-bg
+    elementType: shape
+    bounds: [640, 140, 580, 240]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$accent"
+
+  - elementId: mod2-accent
+    elementType: shape
+    bounds: [640, 140, 4, 240]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: mod2-icon
+    elementType: icon
+    bounds: [664, 160, 40, 40]
+    iconName: "fas:key"
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: mod2-title
+    elementType: text
+    bounds: [716, 160, 300, 35]
+    content:
+      style: "$sectionTitle"
+      fontSize: 22
+      color: "$accent"
+      align: [left, middle]
+      wrap: false
+      text: Access Control
+
+  - elementId: mod2-body
+    elementType: text
+    bounds: [664, 210, 536, 150]
+    content:
+      style: "$body"
+      fontSize: 16
+      lineHeight: 1.55
+      align: [left, top]
+      text: |
+        <p>QR/RFID, турникеты, шкафчики. Интеграция KERONG. Офлайн-режим. Журнал всех проходов. Автоблокировка при просрочке.</p>
+        <p style="margin-top:8px"><span style="color:$success;"><strong>Статус: готово к внедрению</strong></span></p>
+
+  - elementId: mod3-bg
+    elementType: shape
+    bounds: [60, 400, 560, 240]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$success"
+
+  - elementId: mod3-accent
+    elementType: shape
+    bounds: [60, 400, 4, 240]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$success"
+
+  - elementId: mod3-icon
+    elementType: icon
+    bounds: [84, 420, 40, 40]
+    iconName: "fas:wallet"
+    fill:
+      type: solid
+      color: "$success"
+
+  - elementId: mod3-title
+    elementType: text
+    bounds: [136, 420, 300, 35]
+    content:
+      style: "$sectionTitle"
+      fontSize: 22
+      color: "$success"
+      align: [left, middle]
+      wrap: false
+      text: Finance
+
+  - elementId: mod3-body
+    elementType: text
+    bounds: [84, 470, 516, 150]
+    content:
+      style: "$body"
+      fontSize: 16
+      lineHeight: 1.55
+      align: [left, top]
+      text: |
+        <p>Касса, платежи, чеки ОФД. 11 платёжных систем. Кассовые смены, Z-отчёты. Комплексные продажи. Бухгалтерия для налоговой.</p>
+        <p style="margin-top:8px"><span style="color:$success;"><strong>Статус: готово к внедрению</strong></span></p>
+
+  - elementId: mod4-bg
+    elementType: shape
+    bounds: [640, 400, 580, 240]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$warning"
+
+  - elementId: mod4-accent
+    elementType: shape
+    bounds: [640, 400, 4, 240]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: mod4-icon
+    elementType: icon
+    bounds: [664, 420, 40, 40]
+    iconName: "fas:door-open"
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: mod4-title
+    elementType: text
+    bounds: [716, 420, 300, 35]
+    content:
+      style: "$sectionTitle"
+      fontSize: 22
+      color: "$warning"
+      align: [left, middle]
+      wrap: false
+      text: Visits
+
+  - elementId: mod4-body
+    elementType: text
+    bounds: [664, 470, 536, 150]
+    content:
+      style: "$body"
+      fontSize: 16
+      lineHeight: 1.55
+      align: [left, top]
+      text: |
+        <p>Вход/выход за 0.5 сек. Активные посещения в RT. Статистика по часам и дням. Кто приходит, кто перестал. API для Face ID.</p>
+        <p style="margin-top:8px"><span style="color:$success;"><strong>Статус: готово к внедрению</strong></span></p>
+
+  - elementId: bottom-accent
+    elementType: shape
+    bounds: [60, 690, 40, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: page-num
+    elementType: text
+    bounds: [1180, 688, 40, 20]
+    content:
+      style: "$caption"
+      align: [right, middle]
+      wrap: false
+      text: "04"

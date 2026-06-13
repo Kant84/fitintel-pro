@@ -1,0 +1,257 @@
+pageType: content
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: header-badge
+    elementType: text
+    bounds: [60, 24, 160, 20]
+    content:
+      style: "$badge"
+      align: [left, middle]
+      wrap: false
+      text: FITNEXUS AI
+
+  - elementId: page-title
+    elementType: text
+    bounds: [60, 60, 1060, 45]
+    content:
+      style: "$title"
+      align: [left, middle]
+      wrap: false
+      text: |
+        <p>Автоустановка агентов: <span style="color:$primary;">новый сервер = мониторинг за 5 минут</span></p>
+
+  - elementId: title-accent
+    elementType: shape
+    bounds: [60, 110, 50, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: agent1-bg
+    elementType: shape
+    bounds: [60, 135, 560, 125]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$primary"
+
+  - elementId: agent1-icon
+    elementType: icon
+    bounds: [80, 155, 36, 36]
+    iconName: "fas:server"
+    fill:
+      type: solid
+      color: "$primary"
+
+  - elementId: agent1-title
+    elementType: text
+    bounds: [130, 150, 300, 28]
+    content:
+      fontSize: 18
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Zabbix Agent 2
+
+  - elementId: agent1-body
+    elementType: text
+    bounds: [130, 180, 475, 65]
+    content:
+      style: "$bodySmall"
+      fontSize: 15
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>Автоустановка через Ansible → авто-регистрация через API</p>
+        <p>Шаблоны: Linux, Docker, PostgreSQL, Nginx | PSK/TLS шифрование</p>
+
+  - elementId: agent2-bg
+    elementType: shape
+    bounds: [640, 135, 580, 125]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$accent"
+
+  - elementId: agent2-icon
+    elementType: icon
+    bounds: [660, 155, 36, 36]
+    iconName: "fas:chart-line"
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: agent2-title
+    elementType: text
+    bounds: [710, 150, 350, 28]
+    content:
+      fontSize: 18
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: Prometheus Node Exporter
+
+  - elementId: agent2-body
+    elementType: text
+    bounds: [710, 180, 490, 65]
+    content:
+      style: "$bodySmall"
+      fontSize: 15
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>CPU, RAM, диск, сеть, systemd-сервисы</p>
+        <p>File-based service discovery — авто-добавление хостов</p>
+
+  - elementId: agent3-bg
+    elementType: shape
+    bounds: [60, 280, 560, 125]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$success"
+
+  - elementId: agent3-icon
+    elementType: icon
+    bounds: [80, 300, 36, 36]
+    iconName: "fab:docker"
+    fill:
+      type: solid
+      color: "$success"
+
+  - elementId: agent3-title
+    elementType: text
+    bounds: [130, 295, 300, 28]
+    content:
+      fontSize: 18
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: "cAdvisor (Docker)"
+
+  - elementId: agent3-body
+    elementType: text
+    bounds: [130, 325, 475, 65]
+    content:
+      style: "$bodySmall"
+      fontSize: 15
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>Метрики контейнеров: CPU, память, сеть, I/O</p>
+        <p>Прямая интеграция с Prometheus</p>
+
+  - elementId: agent4-bg
+    elementType: shape
+    bounds: [640, 280, 580, 125]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$warning"
+
+  - elementId: agent4-icon
+    elementType: icon
+    bounds: [660, 300, 36, 36]
+    iconName: "fas:database"
+    fill:
+      type: solid
+      color: "$warning"
+
+  - elementId: agent4-title
+    elementType: text
+    bounds: [710, 295, 350, 28]
+    content:
+      fontSize: 18
+      color: "$text"
+      fontFamily: "Liter"
+      align: [left, middle]
+      wrap: false
+      text: PostgreSQL Exporter
+
+  - elementId: agent4-body
+    elementType: text
+    bounds: [710, 325, 490, 65]
+    content:
+      style: "$bodySmall"
+      fontSize: 15
+      lineHeight: 1.5
+      align: [left, top]
+      text: |
+        <p>Коннекты, медленные запросы, размер таблиц</p>
+        <p>Статус репликации, WAL-архивирование</p>
+
+  - elementId: flow-bg
+    elementType: shape
+    bounds: [60, 430, 1160, 220]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$surface"
+    border:
+      style: solid
+      width: 1
+      color: "$border"
+
+  - elementId: flow-title
+    elementType: text
+    bounds: [82, 445, 500, 30]
+    content:
+      style: "$sectionTitle"
+      fontSize: 20
+      align: [left, middle]
+      wrap: false
+      text: |
+        <p><span style="color:$primary;">Terraform</span> → <span style="color:$accent;">Ansible</span> → <span style="color:$success;">Автоагенты</span> → <span style="color:$warning;">Grafana</span></p>
+
+  - elementId: flow-desc
+    elementType: text
+    bounds: [82, 485, 1116, 145]
+    content:
+      style: "$body"
+      fontSize: 16
+      lineHeight: 1.6
+      align: [left, top]
+      text: |
+        <p><strong style="color:$primary;">1. Terraform</strong> создаёт VM в Yandex Cloud → выводит IP и параметры</p>
+        <p><strong style="color:$accent;">2. Ansible</strong> подхватывает через динамический inventory → устанавливает Docker, Nginx, агенты</p>
+        <p><strong style="color:$success;">3. Zabbix Agent 2</strong> авто-регистрируется через API → привязывает шаблоны</p>
+        <p><strong style="color:$warning;">4. Grafana</strong> подхватывает метрики → дашборды готовы к использованию</p>
+
+  - elementId: bottom-accent
+    elementType: shape
+    bounds: [60, 690, 40, 3]
+    shapeName: rect
+    fill:
+      type: solid
+      color: "$accent"
+
+  - elementId: page-num
+    elementType: text
+    bounds: [1180, 688, 40, 20]
+    content:
+      style: "$caption"
+      align: [right, middle]
+      wrap: false
+      text: "13"

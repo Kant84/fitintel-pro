@@ -1,0 +1,58 @@
+# =============================================================================
+# Ansible Inventory для Yandex Cloud
+# Динамический inventory — заполняется из Terraform output
+# Или используйте плагин yandex_cloud_vm
+# =============================================================================
+
+all:
+  children:
+    # API серверы
+    api:
+      hosts:
+        api-1:
+          ansible_host: 10.0.2.101
+        api-2:
+          ansible_host: 10.0.2.102
+    
+    # База данных
+    db_master:
+      hosts:
+        db-master:
+          ansible_host: 10.0.3.101
+    
+    db_replica:
+      hosts:
+        db-replica:
+          ansible_host: 10.0.3.102
+    
+    databases:
+      children:
+        db_master:
+        db_replica:
+    
+    # Мониторинг
+    monitoring:
+      hosts:
+        monitoring:
+          ansible_host: 10.0.4.101
+      vars:
+        grafana_admin_password: "{{ vault_grafana_password }}"
+    
+    # Все серверы
+    servers:
+      children:
+        api:
+        databases:
+        monitoring:
+      vars:
+        ansible_ssh_common_args: "-o ProxyCommand='ssh -W %h:%p -q ubuntu@{{ bastion_host }}'"
+
+  vars:
+    # Настройте bastion host (monitoring VM с NAT)
+    bastion_host: "YOUR_MONITORING_EXTERNAL_IP"
+    ansible_user: ubuntu
+    ansible_python_interpreter: /usr/bin/python3
+    
+    # Проект
+    project_name: fitintel
+    environment: prod
