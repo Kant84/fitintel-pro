@@ -6,7 +6,6 @@ from app.models.face_id import FaceTemplate, FaceRecognitionLog, EmployeeShift
 from app.models.user import User
 from app.models.client import Client
 from app.models.subscription import Subscription
-from app.models.visit import SingleTraining
 
 class FaceIDService:
     def __init__(self, db: Session):
@@ -84,15 +83,17 @@ class FaceIDService:
         ).first()
         if active_sub:
             return True, f"Абонемент активен до {active_sub.end_date}"
-        active_training = self.db.query(SingleTraining).filter(
-            SingleTraining.client_id == client.id,
-            SingleTraining.is_paid == True,
-            SingleTraining.is_used == False,
-            SingleTraining.valid_until >= now
+        # Разовые тренировки через Visit
+        from app.models.visit import Visit
+        single_visit = self.db.query(Visit).filter(
+            Visit.client_id == client.id,
+            Visit.status == "scheduled",
+            Visit.visit_type == "single_training",
+            Visit.start_time <= now,
+            Visit.end_time >= now
         ).first()
-        if active_training:
-            active_training.is_used = True
-            active_training.used_at = now
+        if single_visit:
+            single_visit.status = "completed"
             self.db.commit()
             return True, "Разовая тренировка активирована"
         return False, "Нет активного абонемента или оплаченной тренировки"
@@ -113,8 +114,7 @@ class FaceIDService:
         self.db.commit()
 
     def register_face(self, user_id: int, user_type: str, face_encoding: list,
-                      photo_path: str = None, quality_score: float = None) -> FaceTemplate:
-        # Деактивируем старые primary если новый primary
+                      photo_path: str = None, quality_score: float = None):
         existing = self.db.query(FaceTemplate).filter(
             FaceTemplate.user_id == user_id, FaceTemplate.is_active == True
         ).all()
