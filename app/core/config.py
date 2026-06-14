@@ -32,6 +32,11 @@ class Settings(BaseSettings):
         description="Имя приложения, отображается в документации и логах.",
     )
 
+    APP_VERSION: str = Field(
+        default="1.3.1",
+        description="Версия приложения.",
+    )
+
     APP_ENV: Literal["dev", "test", "prod"] = Field(
         default="dev",
         description="Текущая среда запуска приложения.",
@@ -229,6 +234,16 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str | None = Field(
         default=None,
         description="Токен Telegram бота для уведомлений",
+    )
+
+    # MAX Messenger для push-уведомлений
+    MAX_BOT_TOKEN: str | None = Field(
+        default=None,
+        description="Токен MAX Messenger бота",
+    )
+    MAX_API_URL: str = Field(
+        default="https://api.max.ru",
+        description="Базовый URL MAX Messenger API",
     )
 
     # SMS провайдер

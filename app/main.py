@@ -39,10 +39,15 @@ from app.api.v1.hardware import router as hardware_router
 from app.api.v1.chat import router as chat_router
 from app.api.v1.telegram import router as telegram_router
 from app.api.v1.yookassa import router as yookassa_router
+from app.api.v1.client_verification import router as verify_router
+from app.api.v1.setup import router as setup_router
 
-# Face ID + License (v1.3.0)
+# Face ID + License (v1.3.1)
 from app.routers.face_id import router as face_id_router
 from app.routers.license import router as license_router
+
+# Setup Wizard + License Guard (v1.3.1)
+from app.middleware.license_middleware import LicenseMiddleware
 
 # === APP ===
 app = FastAPI(
@@ -62,6 +67,10 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+# === LICENSE MIDDLEWARE (blocks API without valid license) ===
+# Excluded: setup, license, docs, health endpoints
+app.add_middleware(LicenseMiddleware)
 
 # === ROUTES ===
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
@@ -99,12 +108,17 @@ app.include_router(telegram_router, prefix=settings.API_V1_PREFIX)
 app.include_router(yookassa_router, prefix=settings.API_V1_PREFIX)
 app.include_router(face_id_router, prefix=settings.API_V1_PREFIX)
 app.include_router(license_router, prefix=settings.API_V1_PREFIX)
+app.include_router(verify_router, prefix=settings.API_V1_PREFIX)
+app.include_router(setup_router, prefix=settings.API_V1_PREFIX)
 
 # === ROOT ===
 @app.get("/")
 async def root() -> dict[str, str]:
     return {
         "app_name": settings.APP_NAME,
+        "version": settings.APP_VERSION,
         "environment": settings.APP_ENV,
         "api_prefix": settings.API_V1_PREFIX,
+        "license_required": True,
+        "setup_url": f"{settings.API_V1_PREFIX}/setup",
     }
