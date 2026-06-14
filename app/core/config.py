@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # ==========================================================
 
     APP_NAME: str = Field(
-        default="FitNexus AI",
+        default="FitIntel Pro",
         description="Имя приложения, отображается в документации и логах.",
     )
 
