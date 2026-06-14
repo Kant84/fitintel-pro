@@ -24,6 +24,7 @@ class LicenseMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Any) -> Any:
         path = request.url.path
+        print(f"[LICENSE] path={path}, excluded={LicenseState.is_path_excluded(path)}, licensed={LicenseState.is_licensed()}")
 
         # Allow excluded paths without license
         if LicenseState.is_path_excluded(path):

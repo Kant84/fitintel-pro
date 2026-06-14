@@ -33,7 +33,7 @@
 ### Шаг 1. Виртуальное окружение
 
 ```powershell
-cd "C:\Users\PC\Desktop\2026\FitNexus AI\FitNexus AI\desktop"
+cd "C:\Users\PC\Desktop\2026\FitIntel Pro\FitIntel Pro\desktop"
 python -m venv .venv-desktop
 .venv-desktop\Scripts\activate
 ```

@@ -26,7 +26,7 @@ def health_check(db: Session = Depends(get_db)):
     # возвращаем технический ответ
     return {
         "status": "ok",
-        "app": "FitNexus AI",
+        "app": "FitIntel Pro",
         "module": "crm",
         "database": "ok",
     }

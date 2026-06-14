@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import require_permission
 from app.core.config import settings
-from app.core.license_guard import LicenseState
+from app.core.license_guard import LicenseState, LICENSE_STATE_PATH
 from app.db.session import get_db
 from app.services.license_service import LicenseService
 
@@ -78,13 +78,11 @@ class LicenseCheckLimitsResponse(BaseModel):
 @router.get("/license/status", response_model=LicenseStatusResponse)
 async def get_license_status() -> dict[str, Any]:
     """Check current license status (no auth required — needed for initial setup)."""
+    is_licensed = LicenseState.is_licensed()
     key = LicenseState.get_license_key()
-    if not key:
+    if not is_licensed or not key:
         return {"is_licensed": False}
 
-    # Read from state file
-    if not LicenseState.is_licensed():
-        return {"is_licensed": False, "license_key": key[:8] + "..."}
 
     try:
         state = ast.literal_eval(LICENSE_STATE_PATH.read_text())
@@ -162,8 +160,9 @@ async def get_license_limits(
     _: Any = Depends(require_permission("settings.read")),
 ) -> dict[str, Any]:
     """Get current usage vs license limits."""
+    is_licensed = LicenseState.is_licensed()
     key = LicenseState.get_license_key()
-    if not key:
+    if not is_licensed or not key:
         raise HTTPException(status_code=403, detail="No active license")
     service = LicenseService(db)
     return service.check_system_limits(key)
