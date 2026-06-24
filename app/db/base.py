@@ -1,58 +1,43 @@
 # app\db\base.py
 
-
-
-# импорт функции получения текущего времени с часовым поясом UTC
 from datetime import datetime, timezone
-
-# импорт функции создания декларативных ORM-моделей
-from sqlalchemy.orm import DeclarativeBase
-
-# импорт средств описания колонок
-from sqlalchemy.orm import Mapped, mapped_column
-
-# импорт базовых SQL-типов
-from sqlalchemy import DateTime
-
-# импорт типа UUID из PostgreSQL
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session
+from sqlalchemy import DateTime, create_engine
 from sqlalchemy.dialects.postgresql import UUID
-
-# импорт модуля uuid для генерации уникальных идентификаторов
 import uuid
 
-
-# функция, которая возвращает текущее время в UTC
 def utc_now() -> datetime:
-    # возвращаем текущие дату и время в часовом поясе UTC
     return datetime.now(timezone.utc)
 
-
-# общий базовый класс для всех ORM-моделей проекта
 class Base(DeclarativeBase):
-    # здесь пока ничего не добавляем, но именно от этого класса будут наследоваться все модели
     pass
 
-
-# общий mixin для служебных полей, которые нужны почти всем таблицам
 class TimestampedUUIDMixin:
-    # первичный ключ типа UUID
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),              # PostgreSQL UUID
-        primary_key=True,                # первичный ключ
-        default=uuid.uuid4,              # по умолчанию генерируем новый UUID
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
     )
-
-    # дата и время создания записи
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),         # храним дату и время с часовым поясом
-        default=utc_now,                 # по умолчанию ставим текущее UTC-время
-        nullable=False,                  # поле обязательно
+        DateTime(timezone=True),
+        default=utc_now,
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
     )
 
-    # дата и время последнего обновления записи
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),         # храним дату и время с часовым поясом
-        default=utc_now,                 # первоначально тоже текущее время
-        onupdate=utc_now,                # при обновлении автоматически меняется
-        nullable=False,                  # поле обязательно
-    )
+# Настройки БД (раскомментируйте и настройте под вашу БД)
+DATABASE_URL = "postgresql+psycopg://postgres:FitNexus_Postgres_2026!@127.0.0.1:5432/fitnexus"
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

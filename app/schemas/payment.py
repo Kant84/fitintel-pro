@@ -14,11 +14,23 @@ from app.schemas.enums import PaymentMethod, PaymentStatus, PaymentSystem
 class PaymentBase(BaseModel):
     """Базовые поля платежа"""
     
-    client_id: UUID = Field(description="ID клиента")
+    client_id: UUID | None = Field(default=None, description="ID клиента (None для внутренних платежей)")
     amount: Decimal = Field(gt=0, decimal_places=2, description="Сумма")
     payment_method: PaymentMethod = Field(description="Способ оплаты")
     payment_system: PaymentSystem | None = Field(None, description="Платёжная система")
     notes: str | None = Field(None, max_length=500, description="Заметки")
+    
+    # Направление платежа
+    payment_direction: str = Field(
+        default="INCOME",
+        description="Направление: INCOME (приход), EXPENSE (расход)",
+    )
+    
+    # Категория платежа
+    payment_category: str = Field(
+        default="SUBSCRIPTION",
+        description="Категория: SUBSCRIPTION, INVENTORY, SALARY, RENT, UTILITIES, OTHER",
+    )
 
 
 class PaymentCreateRequest(PaymentBase):
@@ -32,7 +44,7 @@ class PaymentCreateRequest(PaymentBase):
     sbp_bank_id: str | None = Field(None, description="ID банка для СБП")
     
 class PaymentResponse(PaymentBase):
-    """Ответ с информацией о платеже"""
+    """Ответ с информацией о платеже (полные данные как в чеке)"""
     
     model_config = ConfigDict(from_attributes=True)
     
@@ -43,6 +55,27 @@ class PaymentResponse(PaymentBase):
     created_by_user_id: UUID | None
     created_at: datetime
     updated_at: datetime
+    
+    # Данные клиента (как в чеке)
+    client_first_name: str | None = Field(default=None, description="Имя клиента")
+    client_last_name: str | None = Field(default=None, description="Фамилия клиента")
+    client_middle_name: str | None = Field(default=None, description="Отчество клиента")
+    client_full_name: str | None = Field(default=None, description="Полное ФИО клиента")
+    client_phone: str | None = Field(default=None, description="Телефон клиента")
+    client_email: str | None = Field(default=None, description="Email клиента")
+    
+    # Вид платежа
+    payment_type: str | None = Field(default=None, description="Вид платежа: Наличные/Безналичные")
+    
+    # Банк/платёжная система
+    bank_name: str | None = Field(default=None, description="Название банка или платёжной системы")
+    
+    # Данные чека
+    receipt_number: str | None = Field(default=None, description="Номер чека")
+    
+    # За что оплачено
+    purpose: str | None = Field(default=None, description="Назначение платежа (абонемент/услуга)")
+    subscription_name: str | None = Field(default=None, description="Название абонемента")
 
 
 class PaymentListResponse(BaseModel):

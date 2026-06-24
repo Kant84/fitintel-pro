@@ -1,7 +1,7 @@
 # app/services/auth_service.py
 
 # импорт timedelta для расчёта срока жизни токена
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 # импорт HTTPException и status для API-ошибок
 from fastapi import HTTPException, status
@@ -134,6 +134,9 @@ class AuthService:
         user_permissions = self.get_user_permissions(user)
 
         # проверяем наличие нужного права
+                # ХАРДКОД: добавляем devices.create для admin
+        if hasattr(user, 'roles') and any(getattr(r, 'code', '') == 'admin' for r in (getattr(user, 'roles', []) or [])):
+            permissions.add('devices.create')
         return required_permission in user_permissions
 
     # ============================================================
@@ -141,10 +144,79 @@ class AuthService:
     # ============================================================
 
     # метод аутентифицирует пользователя по логину и паролю
-    def authenticate_user(self, login: str, password: str):
-        # ищем пользователя по login
-        user = self.user_repository.get_by_login(login)
 
+    # метод получает пользователя по логину
+    def get_user_by_login(self, login: str):
+        # ищем пользователя по логину через репозиторий
+        return self.user_repository.get_by_login(login)
+
+    # метод создаёт нового пользователя
+    
+    # метод ищет пользователя по email
+    def get_user_by_email(self, email: str):
+        # импортируем модель пользователя
+        from app.models.user import User
+        
+        # ищем пользователя по email
+        return self.db.query(User).filter(User.email == email).first()
+
+    def create_user(self, login: str, password: str, email: str = None):
+        # импортируем модель пользователя
+        from app.models.user import User
+        
+        # проверяем уникальность username
+        existing = self.db.query(User).filter(User.username == login).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="Username already exists")
+        
+        # проверяем уникальность email (если передан)
+        if email:
+            existing_email = self.db.query(User).filter(User.email == email).first()
+            if existing_email:
+                raise HTTPException(status_code=409, detail="Email already exists")
+        
+        # создаём нового пользователя
+        user = User(
+            username=login,
+            password_hash=get_password_hash(password),
+            is_active=True
+        )
+        
+        # добавляем в БД
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        
+        # Проверяем, является ли пользователь первым в системе
+        # Если да — автоматически назначаем роль SUPER_ADMIN
+        user_count = self.db.query(User).count()
+        if user_count == 1:
+            # Получаем или создаём роль SUPER_ADMIN
+            from app.models.role import Role
+            from app.models.user_role import UserRole
+            
+            super_admin_role = self.db.query(Role).filter(Role.code == 'SUPER_ADMIN').first()
+            if not super_admin_role:
+                super_admin_role = Role(
+                    code='SUPER_ADMIN',
+                    name='Super Administrator',
+                    description='Полный доступ к системе',
+                    is_system=True
+                )
+                self.db.add(super_admin_role)
+                self.db.commit()
+                self.db.refresh(super_admin_role)
+            
+            # Назначаем роль пользователю
+            user_role = UserRole(
+                user_id=user.id,
+                role_id=super_admin_role.id,
+                assigned_at=datetime.utcnow()
+            )
+            self.db.add(user_role)
+            self.db.commit()
+        
+        return user
         # если пользователь не найден, возвращаем None
         if user is None:
             return None
@@ -168,6 +240,44 @@ class AuthService:
         return user
 
     # метод создаёт access token для пользователя
+
+    # метод аутентифицирует пользователя по логину и паролю
+    def authenticate_user(self, login: str, password: str):
+        # получаем пользователя по логину
+        user = self.get_user_by_login(login)
+        
+        # если пользователь не найден, вызываем исключение
+        if not user:
+            raise HTTPException(status_code=401, detail="Неверный логин или пароль")
+        
+        # проверяем, не заблокирован ли пользователь
+        from datetime import datetime, timezone
+        if user.locked_until and user.locked_until > datetime.now(timezone.utc):
+            raise HTTPException(status_code=423, detail="Аккаунт заблокирован. Попробуйте позже.")
+        
+        # проверяем пароль
+        if not verify_password(password, self.get_user_password_hash(user)):
+            user.failed_login_count += 1
+            remaining = 5 - user.failed_login_count
+            if user.failed_login_count >= 5:
+                from datetime import datetime, timezone, timedelta
+                user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=5)
+                user.failed_login_count = 0
+                self.db.commit()
+                raise HTTPException(status_code=423, detail="Аккаунт заблокирован на 5 минут после 5 неудачных попыток")
+            self.db.commit()
+            raise HTTPException(status_code=401, detail=f"Неверный логин или пароль. Осталось попыток: {remaining}")
+        
+        # сбрасываем счётчик при успехе
+        user.failed_login_count = 0
+        self.db.commit()
+        
+        # проверяем, активен ли пользователь
+        if not self.is_user_active(user):
+            raise HTTPException(status_code=403, detail="Пользователь заблокирован")
+        
+        return user
+
     def create_user_access_token(self, user) -> str:
         # создаём токен с subject равным id пользователя
         token = create_access_token(

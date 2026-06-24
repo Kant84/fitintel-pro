@@ -25,12 +25,13 @@ LICENSE_KEY_FILE = Path(__file__).parents[1] / ".license_key"
 
 # Endpoints excluded from license check
 EXCLUDED_PATHS = {
+    "/",
     "/api/v1/setup",
     "/api/v1/license",
     "/docs",
     "/redoc",
     "/openapi.json",
-    "/",
+
     "/health",
     "/api/v1/health",
 }
@@ -95,7 +96,7 @@ class LicenseState:
     def is_path_excluded(path: str) -> bool:
         """Check if path is excluded from license check."""
         for excluded in EXCLUDED_PATHS:
-            if path.startswith(excluded):
+            if path == excluded or path.startswith(excluded + "/"):
                 return True
         return False
 

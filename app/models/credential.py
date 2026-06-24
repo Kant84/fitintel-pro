@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from sqlalchemy import String, ForeignKey, Date, DateTime, Text
+from sqlalchemy import String, ForeignKey, Date, DateTime, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampedUUIDMixin
 
@@ -115,6 +115,21 @@ class Credential(TimestampedUUIDMixin, Base):
     )
     
     # ==========================================================
+    # ДЛЯ FACE ID
+    # ==========================================================
+    
+    # Уверенность распознавания (0.0 - 1.0)
+    face_confidence: Mapped[float | None] = mapped_column(
+        nullable=True,
+    )
+    
+    # Шаблон лица (base64 или ссылка на хранилище)
+    face_template: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    # ==========================================================
     # ДОПОЛНИТЕЛЬНО
     # ==========================================================
     
@@ -125,6 +140,13 @@ class Credential(TimestampedUUIDMixin, Base):
         default=datetime.now,
     )
     
+    # Дополнительные параметры (JSON: MIFARE, конфиг устройства)
+    config: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+    )
+
     # Заметки
     notes: Mapped[str | None] = mapped_column(
         Text,

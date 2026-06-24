@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import AdminLayout from '@/layouts/AdminLayout';
@@ -41,38 +41,36 @@ export default function App() {
   }, [isAuthenticated]);
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
 
-        {/* Admin routes */}
-        <Route path="/" element={<AuthGuard requireAdmin><AdminLayout /></AuthGuard>}>
-          <Route index element={<DashboardPage />} />
-          <Route path="clients" element={<ClientsPage />} />
-          <Route path="subscriptions" element={<SubscriptionsPage />} />
-          <Route path="visits" element={<VisitsPage />} />
-          <Route path="finance" element={<FinancePage />} />
-          <Route path="access" element={<AccessPage />} />
-          <Route path="devices" element={<DevicesPage />} />
-          <Route path="analytics" element={<AnalyticsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="receipts" element={<FinancePage />} />
-          <Route path="cashdesk" element={<FinancePage />} />
-          <Route path="rbac" element={<SettingsPage />} />
-          <Route path="documents" element={<SettingsPage />} />
-          <Route path="marketing" element={<SettingsPage />} />
-        </Route>
+      {/* Admin routes */}
+      <Route path="/" element={<AuthGuard requireAdmin><AdminLayout /></AuthGuard>}>
+        <Route index element={<DashboardPage />} />
+        <Route path="clients" element={<ClientsPage />} />
+        <Route path="subscriptions" element={<SubscriptionsPage />} />
+        <Route path="visits" element={<VisitsPage />} />
+        <Route path="finance" element={<FinancePage />} />
+        <Route path="access" element={<AccessPage />} />
+        <Route path="devices" element={<DevicesPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="receipts" element={<FinancePage />} />
+        <Route path="cashdesk" element={<FinancePage />} />
+        <Route path="rbac" element={<SettingsPage />} />
+        <Route path="documents" element={<SettingsPage />} />
+        <Route path="marketing" element={<SettingsPage />} />
+      </Route>
 
-        {/* Client cabinet */}
-        <Route path="/cabinet" element={<AuthGuard><ClientLayout /></AuthGuard>}>
-          <Route index element={<ProfilePage />} />
-          <Route path="subscriptions" element={<ClientSubscriptionsPage />} />
-          <Route path="visits" element={<ClientVisitsPage />} />
-          <Route path="wallet" element={<ClientWalletPage />} />
-        </Route>
+      {/* Client cabinet */}
+      <Route path="/cabinet" element={<AuthGuard><ClientLayout /></AuthGuard>}>
+        <Route index element={<ProfilePage />} />
+        <Route path="subscriptions" element={<ClientSubscriptionsPage />} />
+        <Route path="visits" element={<ClientVisitsPage />} />
+        <Route path="wallet" element={<ClientWalletPage />} />
+      </Route>
 
-        <Route path="*" element={<RedirectByRole />} />
-      </Routes>
-    </BrowserRouter>
+      <Route path="*" element={<RedirectByRole />} />
+    </Routes>
   );
 }

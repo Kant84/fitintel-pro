@@ -67,17 +67,78 @@ class PaymentService:
         return f"PAY-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
     
     def _build_response(self, payment: Payment) -> dict:
-        """Построить ответ платежа"""
+        """Построить ответ платежа (полные данные как в чеке)"""
+        # Получаем данные клиента (раздельные поля ФИО)
+        client_first_name = None
+        client_last_name = None
+        client_middle_name = None
+        client_full_name = None
+        client_phone = None
+        client_email = None
+        if payment.client:
+            client_first_name = payment.client.first_name
+            client_last_name = payment.client.last_name
+            client_middle_name = payment.client.middle_name
+            parts = [p for p in [client_last_name, client_first_name, client_middle_name] if p]
+            client_full_name = " ".join(parts)
+            client_phone = payment.client.phone
+            client_email = payment.client.email
+        
+        # Получаем номер чека
+        receipt_number = None
+        if payment.receipt:
+            receipt_number = payment.receipt.receipt_number
+        
+        # Получаем название абонемента (если есть)
+        subscription_name = None
+        purpose = payment.notes
+        if hasattr(payment, 'subscription') and payment.subscription:
+            subscription_name = payment.subscription.name
+            purpose = f"Оплата абонемента: {payment.subscription.name}"
+        
+        # Вид платежа (Наличные/Безналичные)
+        payment_type = "Наличные"
+        if payment.payment_method in ["CARD", "SBP", "ONLINE", "TRANSFER"]:
+            payment_type = "Безналичные"
+        
+        # Название банка/платёжной системы (для безналичных)
+        bank_name = payment.payment_system
+        if not bank_name:
+            if payment.payment_method == "SBP":
+                bank_name = "Система быстрых платежей (СБП)"
+            elif payment.payment_method == "CARD":
+                bank_name = "Банковская карта (не указан банк)"
+            elif payment.payment_method == "CASH":
+                bank_name = None  # Для наличных банк не нужен
+            else:
+                bank_name = "Не указан"
+        
         return {
             "id": payment.id,
             "client_id": payment.client_id,
+            # Данные клиента (как в чеке)
+            "client_first_name": client_first_name,
+            "client_last_name": client_last_name,
+            "client_middle_name": client_middle_name,
+            "client_full_name": client_full_name,
+            "client_phone": client_phone,
+            "client_email": client_email,
+            # Данные платежа
             "amount": payment.amount,
             "currency": payment.currency,
             "payment_method": payment.payment_method,
+            "payment_type": payment_type,
+            "bank_name": bank_name,
+            "payment_direction": payment.payment_direction,
+            "payment_category": payment.payment_category,
             "status": payment.status,
             "external_payment_id": payment.external_payment_id,
-            "payment_system": payment.payment_system,
             "paid_at": payment.paid_at,
+            # Данные чека
+            "receipt_number": receipt_number,
+            "purpose": purpose,
+            "subscription_name": subscription_name,
+            # Служебные
             "created_by_user_id": payment.created_by_user_id,
             "notes": payment.notes,
             "created_at": payment.created_at,
@@ -97,6 +158,8 @@ class PaymentService:
         notes: str | None = None,
         return_url: str | None = None,
         webhook_url: str | None = None,
+        payment_direction: str = "INCOME",
+        payment_category: str = "SUBSCRIPTION",
         actor_user_id: str | None = None,
     ) -> Payment:
         """
@@ -115,7 +178,10 @@ class PaymentService:
         Returns:
             Созданный платёж
         """
-        client = self._get_client(client_id)
+        # Проверяем клиента только если указан
+        client = None
+        if client_id:
+            client = self._get_client(client_id)
         
         if amount <= 0:
             raise HTTPException(
@@ -138,24 +204,29 @@ class PaymentService:
             payment_method=payment_method.value,
             status=PaymentStatus.PENDING.value,
             payment_system=payment_system.value if payment_system else None,
+            payment_direction=payment_direction,
+            payment_category=payment_category,
             notes=notes,
             created_by_user_id=actor_user_id,
         )
         
         created_payment = self.repository.add(payment)
         
+        client_info = client.email if client else "внутренний платёж"
         self.audit.log(
             action="payment.created",
             status="success",
             actor_user_id=actor_user_id,
             entity_type="payment",
             entity_id=created_payment.id,
-            message=f"Payment created for client {client.email}: {amount} RUB",
+            message=f"Payment created for {client_info}: {amount} RUB",
             after_data={
                 "client_id": client_id,
                 "amount": str(amount),
                 "payment_method": payment_method.value,
                 "payment_system": payment_system.value if payment_system else None,
+                "payment_direction": payment_direction,
+                "payment_category": payment_category,
             },
         )
         
@@ -347,6 +418,22 @@ class PaymentService:
             payment.status = PaymentStatus.REFUNDED.value
             payment.notes = f"{payment.notes or ''}\nЧастичный возврат: {refund_amount} RUB".strip()
         
+        self.db.commit()
+        
+        # Создаём чек возврата (после commit, ID сгенерирован)
+        from app.models.receipt import Receipt
+        import uuid
+        receipt = Receipt(
+            payment_id=refund_payment.id,
+            receipt_number=f"REF-{uuid.uuid4().hex[:8].upper()}",
+            receipt_type="REFUND",
+            fiscal_sign=None,
+            fiscal_document_number=None,
+            fiscal_document_date=None,
+            ofd_url=None,
+            qr_code=None,
+        )
+        self.db.add(receipt)
         self.db.commit()
         
         self.audit.log(

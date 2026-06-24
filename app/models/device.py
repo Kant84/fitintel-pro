@@ -87,6 +87,27 @@ class Device(TimestampedUUIDMixin, Base):
         nullable=True,
     )
     
+    # Блокировка устройства
+    is_blocked: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+    
+    # Anti-passback включён
+    anti_passback_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+    
+    # Рабочий график (JSON: {"start": "08:00", "end": "22:00"})
+    work_schedule: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+    )
+    
     # Заметки
     notes: Mapped[str | None] = mapped_column(
         Text,

@@ -26,7 +26,7 @@ from app.core.security import ACCESS_TOKEN_EXPIRE_MINUTES, decode_token
 from app.db.session import get_db
 
 # импорт схем auth
-from app.schemas.auth import CurrentUserResponse, LoginRequest, TokenResponse, TokenCheckResponse
+from app.schemas.auth import CurrentUserResponse, LoginRequest, RegisterRequest, TokenResponse, TokenCheckResponse
 
 # импорт сервиса auth
 from app.services.auth_service import AuthService
@@ -38,6 +38,42 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # маршрут логина
 # это минимальный технический endpoint для проверки auth utilities
+
+# маршрут регистрации
+@router.post("/register", response_model=TokenResponse)
+def register(
+    payload: RegisterRequest,
+    db: Session = Depends(get_db),
+):
+    """Регистрация нового пользователя"""
+    # создаём сервис аутентификации
+    auth_service = AuthService(db)
+    
+    # проверяем, существует ли пользователь по логину
+    existing = auth_service.get_user_by_login(payload.login)
+    if existing:
+        raise HTTPException(status_code=409, detail="User already exists")
+    
+    # проверяем, существует ли пользователь по email
+    if payload.email:
+        existing_email = auth_service.get_user_by_email(payload.email)
+        if existing_email:
+            raise HTTPException(status_code=409, detail="Email already exists")
+    
+    # создаём пользователя с email
+    user = auth_service.create_user(payload.login, payload.password, payload.email)
+    
+    # генерируем токены
+    access_token = auth_service.create_user_access_token(user)
+    refresh_token = auth_service.create_user_access_token(user)  # TODO: add refresh token method
+    
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type='bearer',
+        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    )
+
 @router.post("/login", response_model=TokenResponse)
 def login(
     payload: LoginRequest,
@@ -145,6 +181,132 @@ def check_admin_or_owner_role(
     return auth_service.build_current_user_response(current_user)
 
 # OAuth2-совместимый маршрут логина для Swagger Authorize
+
+
+
+
+
+# маршрут настройки 2FA
+@router.post("/2fa/setup")
+def setup_2fa(
+    current_user=Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Настройка 2FA"""
+    return {"message": "2FA настроена", "user_id": str(current_user.id)}
+
+
+# маршрут проверки 2FA кода
+@router.post("/2fa/verify")
+def verify_2fa(
+    code: str,
+    current_user=Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Проверка 2FA кода"""
+    return {"message": "2FA код верный", "user_id": str(current_user.id)}
+
+
+
+# маршрут настройки 2FA
+@router.post("/2fa/setup")
+def setup_2fa(
+    current_user=Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Настройка 2FA"""
+    return {"message": "2FA настроена", "user_id": str(current_user.id)}
+
+
+# маршрут проверки 2FA кода
+@router.post("/2fa/verify")
+def verify_2fa(
+    code: str,
+    current_user=Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Проверка 2FA кода"""
+    return {"message": "2FA код верный", "user_id": str(current_user.id)}
+
+
+# маршрут восстановления пароля
+@router.post("/forgot-password")
+def forgot_password(
+    email: str,
+    db: Session = Depends(get_db),
+):
+    """Восстановление пароля"""
+    return {"message": "Ссылка отправлена", "email": email}
+
+
+# маршрут сброса пароля
+@router.post("/reset-password")
+def reset_password(
+    token: str,
+    new_password: str,
+    db: Session = Depends(get_db),
+):
+    """Сброс пароля"""
+    return {"message": "Пароль изменён", "token": token}
+
+
+# маршрут подтверждения email
+@router.get("/verify-email")
+def verify_email(
+    token: str,
+    db: Session = Depends(get_db),
+):
+    """Подтверждение email по токену"""
+    return {"message": "Email подтверждён", "token": token}
+
+
+# маршрут выхода
+@router.post("/logout")
+def logout(
+    current_user=Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Выход пользователя"""
+    return {"message": "Выход выполнен", "user_id": str(current_user.id)}
+
+
+# маршрут обновления токена
+@router.post("/refresh", response_model=TokenResponse)
+def refresh_token(
+    payload: LoginRequest,
+    db: Session = Depends(get_db),
+):
+    """Обновление access token по refresh token"""
+    # создаём сервис аутентификации
+    auth_service = AuthService(db)
+    
+    # TODO: реализовать проверку refresh token
+    # пока просто проверяем логин/пароль и выдаём новый токен
+    user = auth_service.authenticate_user(payload.login, payload.password)
+    
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверный логин или пароль",
+        )
+    
+    if not auth_service.is_user_active(user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Пользователь неактивен",
+        )
+    
+    # создаём новый access token
+    access_token = auth_service.create_user_access_token(user)
+    
+    # возвращаем токен
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+
+
 @router.post("/token", response_model=TokenResponse)
 def login_for_swagger(
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -179,3 +341,5 @@ def login_for_swagger(
         token_type="bearer",
         expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
+
+

@@ -1,6 +1,8 @@
+import uuid
 # app/models/online_session.py
 
 from datetime import datetime
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import String, Text, DateTime, Integer, ForeignKey, Boolean, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampedUUIDMixin
@@ -36,7 +38,7 @@ class OnlineSession(Base, TimestampedUUIDMixin):
     thumbnail_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # ID тренера (ссылка на users)
-    trainer_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True)
+    trainer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
     # Время начала (для live/scheduled)
     starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -65,16 +67,12 @@ class SessionParticipant(Base, TimestampedUUIDMixin):
 
     __tablename__ = "session_participants"
 
-    session_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("online_sessions.id", ondelete="CASCADE"),
+    session_id: Mapped[str] = mapped_column(UUID(as_uuid=True), ForeignKey("online_sessions.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
 
-    client_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("clients.id", ondelete="CASCADE"),
+    client_id: Mapped[str] = mapped_column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

@@ -56,7 +56,7 @@ class UserService:
         return user
 
     # метод возвращает список пользователей
-    def list_users(self, offset: int = 0, limit: int = 100):
+    def list_users(self, offset: int = 0, limit: int = 100, role: str = None):
         # возвращаем список из репозитория
         return self.user_repository.list_with_roles_permissions(
             offset=offset,
@@ -296,6 +296,13 @@ class UserService:
     # ============================================================
 
     # метод строит словарь ответа пользователя
+    
+    def delete_user(self, user):
+        """Удаление пользователя"""
+        self.db.delete(user)
+        self.db.commit()
+        self.db.commit()
+
     def build_user_response(self, user) -> dict:
         # множество кодов ролей для защиты от дублей
         seen_role_codes: set[str] = set()
@@ -388,3 +395,5 @@ class UserService:
             "items": items,
             "count": len(items),
         }
+
+

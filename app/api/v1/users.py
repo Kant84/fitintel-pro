@@ -168,6 +168,9 @@ def list_users(
     # Максимальное количество записей.
     limit: int = Query(default=100, ge=1, le=200),
 
+    # Фильтрация по роли.
+    role: str | None = Query(default=None),
+
     # Требуем право на чтение пользователей.
     current_user=Depends(require_permission("users.read")),
 
@@ -178,7 +181,7 @@ def list_users(
     user_service = UserService(db)
 
     # Получаем список пользователей.
-    users = user_service.list_users(offset=offset, limit=limit)
+    users = user_service.list_users(offset=offset, limit=limit, role=role)
 
     # Возвращаем готовый ответ.
     return user_service.build_user_list_response(users)
@@ -424,6 +427,23 @@ def revoke_role(
 # ============================================================
 # Получить список ролей конкретного пользователя
 # ============================================================
+
+# маршрут удаления пользователя
+@router.delete("/{user_id}")
+def delete_user(
+    user_id: UUID,
+    current_user=Depends(require_permission("users.delete")),
+    db: Session = Depends(get_db),
+):
+    """Удаление пользователя"""
+    user_service = UserService(db)
+    user = user_service.get_user_by_id(str(user_id))
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    user_service.delete_user(user)
+    return {"message": "Пользователь удалён"}
+
+
 @router.get("/{user_id}/roles", response_model=UserRolesRead)
 def get_user_roles(
     # UUID пользователя из URL.

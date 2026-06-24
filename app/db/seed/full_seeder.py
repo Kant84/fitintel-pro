@@ -259,7 +259,7 @@ def seed_all():
         admin = User(
             id=admin_id,
             username="admin",
-            email="admin@fitintel.pro",
+            email="sanakinandrej4@gmail.com",
             hashed_password=pwd_context.hash("admin123"),
             first_name="Администратор",
             last_name="Системы",

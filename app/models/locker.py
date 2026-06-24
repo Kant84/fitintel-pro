@@ -1,71 +1,27 @@
 # app/models/locker.py
-
-from __future__ import annotations
-
+from uuid import uuid4
+from datetime import datetime, timezone
 from sqlalchemy import String, Boolean
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.db.base import Base, TimestampedUUIDMixin
+from app.db.base import Base
 
 
-class Locker(TimestampedUUIDMixin, Base):
-    """
-    Модель шкафчика в раздевалке.
-    
-    Поддерживает два типа замков:
-    - OFFLINE: закрывается любым браслетом, инфотерминал только подсказывает номер
-    - ONLINE: закрывается только при наличии привилегии, блокирует выход
-    """
-    
+class Locker(Base):
+    """Модель шкафчика (E11)"""
+
     __tablename__ = "lockers"
 
-    # Номер шкафчика (A12, 101, и т.д.)
-    number: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-        unique=True,
-        index=True,
-    )
-    
-    # Зона: мужская, женская, VIP
-    zone: Mapped[str | None] = mapped_column(
-        String(100),
-        nullable=True,
-    )
-    
-    # Тип замка: OFFLINE, ONLINE
-    lock_type: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-        default="OFFLINE",
-        index=True,
-    )
-    
-    # Статус: FREE, OCCUPIED, BROKEN, MAINTENANCE
-    status: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-        default="FREE",
-        index=True,
-    )
-    
-    # ID устройства замка (для ONLINE)
-    device_id: Mapped[str | None] = mapped_column(
-        String(255),
-        nullable=True,
-    )
-    
-    # Требуется ли привилегия (VIP/арендный шкаф)
-    requires_privilege: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        default=False,
-    )
-    
-    # Заметки
-    notes: Mapped[str | None] = mapped_column(
-        String(500),
-        nullable=True,
-    )
-    
-    # Связь с сессиями
-    sessions = relationship("LockerSession", back_populates="locker")
+    id: Mapped[str] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    number: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
+    zone: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    lock_type: Mapped[str] = mapped_column(String(50), nullable=False, default="OFFLINE")
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="FREE")
+    device_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    requires_privilege: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Отношения
+    sessions: Mapped[list["LockerSession"]] = relationship("LockerSession", back_populates="locker", cascade="all, delete-orphan")

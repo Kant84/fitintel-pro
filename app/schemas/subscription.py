@@ -4,7 +4,7 @@
 from uuid import UUID
 
 # импорт date и datetime
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 # импорт Decimal
 from decimal import Decimal
@@ -189,6 +189,23 @@ class SubscriptionCreateRequest(BaseModel):
         default=None,
         description="Комментарий к созданию абонемента",
         examples=["Первичная продажа"],
+    )
+    
+    # Переопределение временных ограничений (опционально)
+    time_restriction_type: str | None = Field(
+        default=None,
+        description="Переопределить тип ограничения: FULLDAY, DAYTIME, NIGHTTIME (если не указано — берётся из тарифа)",
+        examples=["DAYTIME"],
+    )
+    allowed_start_time: time | None = Field(
+        default=None,
+        description="Переопределить время начала доступа (если не указано — берётся из тарифа)",
+        examples=["10:00:00"],
+    )
+    allowed_end_time: time | None = Field(
+        default=None,
+        description="Переопределить время окончания доступа (если не указано — берётся из тарифа)",
+        examples=["18:00:00"],
     )
 
 

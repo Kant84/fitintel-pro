@@ -104,6 +104,11 @@ def create_tariff(
         visit_limit=payload.visit_limit,
         is_unlimited=payload.is_unlimited,
         is_active=payload.is_active,
+        promo_code=payload.promo_code,
+        discount_percent=payload.discount_percent,
+        time_restriction_type=payload.time_restriction_type,
+        allowed_start_time=payload.allowed_start_time,
+        allowed_end_time=payload.allowed_end_time,
         actor_user_id=current_user.id,
     )
 
@@ -139,3 +144,23 @@ def update_tariff(
 
     # возвращаем ответ
     return tariff_service.build_tariff_response(tariff)
+
+
+# ============================================================
+# Удаление тарифа
+# ============================================================
+@router.delete("/{tariff_id}")
+def delete_tariff(
+    tariff_id: UUID,
+    current_user=Depends(require_permission("tariffs.delete")),
+    db: Session = Depends(get_db),
+):
+    """Удаление тарифа"""
+    tariff_service = TariffService(db)
+    tariff = tariff_service.get_tariff_by_id(str(tariff_id))
+    if not tariff:
+        raise HTTPException(status_code=404, detail="Тариф не найден")
+    tariff_service.delete_tariff(tariff)
+    return {"message": "Тариф удалён"}
+
+

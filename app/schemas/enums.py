@@ -1,296 +1,343 @@
 # app/schemas/enums.py
-
 from enum import Enum
-
-
 class UserStatus(str, Enum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
     BLOCKED = "BLOCKED"
-
-
 class ClientStatus(str, Enum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
     BLOCKED = "BLOCKED"
-
-
 # пол клиента
 class GenderEnum(str, Enum):
-    МУЖСКОЙ = "МУЖСКОЙ"
-    ЖЕНСКИЙ = "ЖЕНСКИЙ"
+    MALE = "MALE"
+    МУЖСКОЙ = "MALE"
+    FEMALE = "FEMALE"
+    ЖЕНСКИЙ = "FEMALE"
     НЕ_УКАЗАН = "НЕ_УКАЗАН"
-
-
 # категория клиента
 class ClientCategoryEnum(str, Enum):
-    ВЗРОСЛЫЙ = "ВЗРОСЛЫЙ"
-    РЕБЁНОК = "РЕБЁНОК"
+    ADULT = "ADULT"
+    ВЗРОСЛЫЙ = "ADULT"
+    CHILD = "CHILD"
+    РЕБЁНОК = "CHILD"
     ПЕНСИОНЕР = "ПЕНСИОНЕР"
     ИНВАЛИД = "ИНВАЛИД"
     КОРПОРАТИВНЫЙ = "КОРПОРАТИВНЫЙ"
     VIP = "VIP"
+    STAFF = "STAFF"
+    СОТРУДНИК = "STAFF"
     НЕ_УКАЗАНА = "НЕ_УКАЗАНА"
-
-
 class SubscriptionStatus(str, Enum):
     ACTIVE = "ACTIVE"
     EXPIRED = "EXPIRED"
     FROZEN = "FROZEN"
     CANCELLED = "CANCELLED"
-
-
+class SubscriptionStatusEnum(str, Enum):
+    ACTIVE = "ACTIVE"
+    EXPIRED = "EXPIRED"
+    FROZEN = "FROZEN"
+    CANCELLED = "CANCELLED"
+    PENDING = "PENDING"
+class FreezeReason(str, Enum):
+    MEDICAL = "MEDICAL"
+    TRAVEL = "TRAVEL"
+    PERSONAL = "PERSONAL"
+    OTHER = "OTHER"
+class CancellationReason(str, Enum):
+    USER_REQUEST = "USER_REQUEST"
+    EXPIRED = "EXPIRED"
+    ADMIN_DECISION = "ADMIN_DECISION"
+    OTHER = "OTHER"
 class PaymentStatus(str, Enum):
     PENDING = "PENDING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     REFUNDED = "REFUNDED"
-
-
 class VisitStatus(str, Enum):
+    ENTERED = "ENTERED"
+    EXITED = "EXITED"
     ACTIVE = "ACTIVE"
     COMPLETED = "COMPLETED"
-    CANCELLED = "CANCELLED"
-    
+class AccessMethod(str, Enum):
+    FACE_ID = "FACE_ID"
+    QR_CODE = "QR_CODE"
+    QR = "QR"
+    NFC = "NFC"
+    MANUAL = "MANUAL"
+    CARD = "CARD"
+    BIOMETRIC = "BIOMETRIC"
+    OVERRIDE = "OVERRIDE"
+    OTHER = "OTHER"
+class AccessDecision(str, Enum):
+    ALLOWED = "ALLOWED"
+    DENIED = "DENIED"
+    PENDING = "PENDING"
+    ERROR = "ERROR"
+    REQUIRES_CONFIRMATION = "REQUIRES_CONFIRMATION"
+class LockType(str, Enum):
+    MANUAL = "MANUAL"
+    AUTO = "AUTO"
+    SCHEDULED = "SCHEDULED"
+    EMERGENCY = "EMERGENCY"
+    REMOTE = "REMOTE"
+    BIOMETRIC = "BIOMETRIC"
+    OTHER = "OTHER"
+class LockerStatus(str, Enum):
+    AVAILABLE = "AVAILABLE"
+    OCCUPIED = "OCCUPIED"
+    RESERVED = "RESERVED"
+    OUT_OF_ORDER = "OUT_OF_ORDER"
+    MAINTENANCE = "MAINTENANCE"
+    CLEANING = "CLEANING"
+    OTHER = "OTHER"
+class LockerSessionStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    EXPIRED = "EXPIRED"
+    CLOSED = "CLOSED"
+    FORCED_CLOSED = "FORCED_CLOSED"
+    EXTENDED = "EXTENDED"
+    OTHER = "OTHER"
+class LockerPrivilegeType(str, Enum):
+    STANDARD = "STANDARD"
+    VIP = "VIP"
+    PREMIUM = "PREMIUM"
+    BASIC = "BASIC"
+    TEMPORARY = "TEMPORARY"
+    PERMANENT = "PERMANENT"
+    OTHER = "OTHER"
+class CredentialType(str, Enum):
+    CARD = "CARD"
+    KEY_FOB = "KEY_FOB"
+    BIOMETRIC = "BIOMETRIC"
+    QR_CODE = "QR_CODE"
+    NFC = "NFC"
+    MOBILE_APP = "MOBILE_APP"
+    PIN_CODE = "PIN_CODE"
+    FACE_ID = "FACE_ID"
+    FINGERPRINT = "FINGERPRINT"
+    OTHER = "OTHER"
+class CredentialStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    EXPIRED = "EXPIRED"
+    REVOKED = "REVOKED"
+    LOST = "LOST"
+    STOLEN = "STOLEN"
+    DAMAGED = "DAMAGED"
+    PENDING = "PENDING"
+    BLOCKED = "BLOCKED"
+    OTHER = "OTHER"
+class TransactionType(str, Enum):
+    DEPOSIT = "DEPOSIT"
+    WITHDRAWAL = "WITHDRAWAL"
+    TRANSFER = "TRANSFER"
+    PAYMENT = "PAYMENT"
+    REFUND = "REFUND"
+    BONUS = "BONUS"
+    PENALTY = "PENALTY"
+    ADJUSTMENT = "ADJUSTMENT"
+    SUBSCRIPTION = "SUBSCRIPTION"
+    OTHER = "OTHER"
+class ReceiptType(str, Enum):
+    SALE = "SALE"
+    RETURN = "RETURN"
+    CORRECTION = "CORRECTION"
+    ADVANCE = "ADVANCE"
+    CREDIT = "CREDIT"
+    PREPAYMENT = "PREPAYMENT"
+    OTHER = "OTHER"
+class CashOperationType(str, Enum):
+    INCOME = "INCOME"
+    EXPENSE = "EXPENSE"
+    DEPOSIT = "DEPOSIT"
+    WITHDRAWAL = "WITHDRAWAL"
+    TRANSFER = "TRANSFER"
+    REFUND = "REFUND"
+    ADJUSTMENT = "ADJUSTMENT"
+    Z_REPORT = "Z_REPORT"
+    X_REPORT = "X_REPORT"
+    OPEN_SHIFT = "OPEN_SHIFT"
+    CLOSE_SHIFT = "CLOSE_SHIFT"
+    OTHER = "OTHER"
+class TariffType(str, Enum):
+    MONTHLY = "MONTHLY"
+    QUARTERLY = "QUARTERLY"
+    YEARLY = "YEARLY"
+    SINGLE = "SINGLE"
+    GROUP = "GROUP"
+    PERSONAL = "PERSONAL"
+class TariffStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    ARCHIVED = "ARCHIVED"
+class RoleCode(str, Enum):
+    ADMIN = "ADMIN"
+    MANAGER = "MANAGER"
+    TRAINER = "TRAINER"
+    RECEPTIONIST = "RECEPTIONIST"
+    ACCOUNTANT = "ACCOUNTANT"
+    CLIENT = "CLIENT"
+class PermissionCode(str, Enum):
+    USERS_READ = "users.read"
+    USERS_CREATE = "users.create"
+    USERS_UPDATE = "users.update"
+    USERS_DELETE = "users.delete"
+    CLIENTS_READ = "clients.read"
+    CLIENTS_CREATE = "clients.create"
+    CLIENTS_UPDATE = "clients.update"
+    CLIENTS_DELETE = "clients.delete"
+    TARIFFS_READ = "tariffs.read"
+    TARIFFS_CREATE = "tariffs.create"
+    TARIFFS_UPDATE = "tariffs.update"
+    TARIFFS_DELETE = "tariffs.delete"
+    SUBSCRIPTIONS_READ = "subscriptions.read"
+    SUBSCRIPTIONS_CREATE = "subscriptions.create"
+    SUBSCRIPTIONS_UPDATE = "subscriptions.update"
+    SUBSCRIPTIONS_DELETE = "subscriptions.delete"
+    VISITS_READ = "visits.read"
+    VISITS_CREATE = "visits.create"
+    VISITS_UPDATE = "visits.update"
+    VISITS_DELETE = "visits.delete"
+    REPORTS_READ = "reports.read"
+    REPORTS_CREATE = "reports.create"
+    SETTINGS_READ = "settings.read"
+    SETTINGS_UPDATE = "settings.update"
+    DEVICES_READ = "devices.read"
+    DEVICES_CREATE = "devices.create"
+    DEVICES_UPDATE = "devices.update"
+    DEVICES_DELETE = "devices.delete"
+    LOCKERS_READ = "lockers.read"
+    LOCKERS_CREATE = "lockers.create"
+    LOCKERS_UPDATE = "lockers.update"
+    LOCKERS_DELETE = "lockers.delete"
+    FACE_ID_READ = "face-id.read"
+    FACE_ID_CREATE = "face-id.create"
+    FACE_ID_UPDATE = "face-id.update"
+    FACE_ID_DELETE = "face-id.delete"
+    PAYMENTS_READ = "payments.read"
+    PAYMENTS_CREATE = "payments.create"
+    PAYMENTS_UPDATE = "payments.update"
+    PAYMENTS_DELETE = "payments.delete"
+    NOTIFICATIONS_READ = "notifications.read"
+    NOTIFICATIONS_CREATE = "notifications.create"
+    NOTIFICATIONS_UPDATE = "notifications.update"
+    NOTIFICATIONS_DELETE = "notifications.delete"
+    ANALYTICS_READ = "analytics.read"
+    ANALYTICS_CREATE = "analytics.create"
+    ANALYTICS_UPDATE = "analytics.update"
+    ANALYTICS_DELETE = "analytics.delete"
+    BACKUP_READ = "backup.read"
+    BACKUP_CREATE = "backup.create"
+    BACKUP_UPDATE = "backup.update"
+    BACKUP_DELETE = "backup.delete"
+    INTEGRATIONS_READ = "integrations.read"
+    INTEGRATIONS_CREATE = "integrations.create"
+    INTEGRATIONS_UPDATE = "integrations.update"
+    INTEGRATIONS_DELETE = "integrations.delete"
+    LICENSE_READ = "license.read"
+    LICENSE_CREATE = "license.create"
+    LICENSE_UPDATE = "license.update"
+    LICENSE_DELETE = "license.delete"
+    SETUP_READ = "setup.read"
+    SETUP_CREATE = "setup.create"
+    SETUP_UPDATE = "setup.update"
+    SETUP_DELETE = "setup.delete"
+    FISCAL_READ = "fiscal.read"
+    FISCAL_CREATE = "fiscal.create"
+    FISCAL_UPDATE = "fiscal.update"
+    FISCAL_DELETE = "fiscal.delete"
+    ACCOUNTING_READ = "accounting.read"
+    ACCOUNTING_CREATE = "accounting.create"
+    ACCOUNTING_UPDATE = "accounting.update"
+    ACCOUNTING_DELETE = "accounting.delete"
 class CurrencyCodeEnum(str, Enum):
-    """Коды валют"""
     RUB = "RUB"
     USD = "USD"
-    EUR = "EUR"  
-# Алиасы для обратной совместимости
-SubscriptionStatusEnum = SubscriptionStatus
-PaymentStatusEnum = PaymentStatus
-VisitStatusEnum = VisitStatus 
-
-
-
-# ============================================================
-# ПРИЧИНЫ ЗАМОРОЗКИ АБОНЕМЕНТА
-# ============================================================
-
-class FreezeReason(str, Enum):
-    """Причины заморозки абонемента"""
-    VACATION = "VACATION"               # Отпуск
-    ILLNESS = "ILLNESS"                 # Болезнь
-    INJURY = "INJURY"                   # Травма
-    BUSINESS_TRIP = "BUSINESS_TRIP"     # Командировка
-    OTHER = "OTHER"                     # Другое
-
-
-# ============================================================
-# ПРИЧИНЫ ОТМЕНЫ АБОНЕМЕНТА
-# ============================================================
-
-class CancellationReason(str, Enum):
-    """Причины отмены абонемента"""
-    EXPIRED = "EXPIRED"                     # Истёк срок
-    USER_REQUEST = "USER_REQUEST"           # Запрос пользователя
-    NON_PAYMENT = "NON_PAYMENT"             # Неоплата
-    POLICY_VIOLATION = "POLICY_VIOLATION"   # Нарушение правил
-    OTHER = "OTHER"                         # Другое
-    
-
-# ============================================================
-# СТАТУСЫ ПОСЕЩЕНИЙ
-# ============================================================
-
-class VisitStatus(str, Enum):
-    """Статусы посещения"""
-    ACTIVE = "ACTIVE"           # Клиент внутри клуба (есть вход, нет выхода)
-    COMPLETED = "COMPLETED"     # Посещение завершено (есть вход и выход)
-    CANCELLED = "CANCELLED"     # Отменено (ручная отмена)
-
-
-class AccessMethod(str, Enum):
-    """Способы доступа"""
-    QR = "QR"                   # QR-код
-    RFID = "RFID"               # RFID-метка/браслет
-    MANUAL = "MANUAL"           # Ручной ввод менеджером
-    OVERRIDE = "OVERRIDE"       # Принудительное открытие
-
-
-class AccessDecision(str, Enum):
-    """Решение о доступе"""
-    ALLOW = "ALLOW"             # Доступ разрешён
-    DENY = "DENY"               # Доступ запрещён  
-    
-
-# ============================================================
-# ТИПЫ УСТРОЙСТВ
-# ============================================================
+    EUR = "EUR"
+    GBP = "GBP"
+    CNY = "CNY"
+    JPY = "JPY"
+    KZT = "KZT"
+    BYN = "BYN"
+    UAH = "UAH"
+class PaymentMethod(str, Enum):
+    CASH = "CASH"
+    CARD = "CARD"
+    SBP = "SBP"
+    TRANSFER = "TRANSFER"
+    ONLINE = "ONLINE"
+    SUBSCRIPTION = "SUBSCRIPTION"
+    QR = "QR"
+    BALANCE = "BALANCE"
+    CRYPTOCURRENCY = "CRYPTOCURRENCY"
+    OTHER = "OTHER"
+class PaymentType(str, Enum):
+    INCOME = "INCOME"
+    EXPENSE = "EXPENSE"
+    TRANSFER = "TRANSFER"
+    REFUND = "REFUND"
+    ADJUSTMENT = "ADJUSTMENT"
+    OTHER = "OTHER"
+class DocumentType(str, Enum):
+    PKO = "PKO"
+    RKO = "RKO"
+    REALIZATION = "REALIZATION"
+    POSTUPLENIE = "POSTUPLENIE"
+    SCF = "SCF"
+    ACT = "ACT"
+    REPORT = "REPORT"
+    OTHER = "OTHER"
+class CashDeskStatus(str, Enum):
+    OPEN = "OPEN"
+    CLOSED = "CLOSED"
+class PaymentSystem(str, Enum):
+    ALFA_BANK = "ALFA_BANK"
+    VTB = "VTB"
+    PSB = "PSB"
+    T_BANK = "T_BANK"
+    SBERBANK = "SBERBANK"
+    YOOMONEY = "YOOMONEY"
+    CLOUD_PAYMENTS = "CLOUD_PAYMENTS"
+    STRIPE = "STRIPE"
+    GAZPROMBANK = "GAZPROMBANK"
+    RAIFFEISEN = "RAIFFEISEN"
+    SBP = "SBP"
+class DeviceStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    ERROR = "ERROR"
+    OFFLINE = "OFFLINE"
 
 class DeviceType(str, Enum):
-    """Типы устройств"""
-    TURNSTILE = "turnstile"      # Турникет
-    TERMINAL = "terminal"        # Терминал (планшет с ПО)
-    CONTROLLER = "controller"    # Контроллер (Сигур, Эра, Wirenboard)
-    READER = "reader"            # Считыватель (RFID, QR)
-    GATEWAY = "gateway"          # Шлюз
-    SENSOR = "sensor"            # Датчик
+    CAMERA = "CAMERA"
+    READER = "READER"
+    CONTROLLER = "CONTROLLER"
+    LOCK = "LOCK"
+    SENSOR = "SENSOR"
+    DISPLAY = "DISPLAY"
+    PRINTER = "PRINTER"
 
+class ServiceCategory(str, Enum):
+    SAUNA = "SAUNA"
+    SOLARIUM = "SOLARIUM"
+    POOL = "POOL"
+    MASSAGE = "MASSAGE"
+    AEROBICS = "AEROBICS"
+    DANCE = "DANCE"
+    PERSONAL_TRAINER = "PERSONAL_TRAINER"
 
-class DeviceProtocol(str, Enum):
-    """Протоколы связи с устройствами"""
-    NONE = "none"                # Нет устройства (ручной ввод)
-    HTTP = "http"                # HTTP API
-    MQTT = "mqtt"                # MQTT
-    MODBUS = "modbus"            # Modbus
-    SERIAL = "serial"            # RS-232 / RS-485
-    GPIO = "gpio"                # Прямое управление GPIO
-    SIGUR = "sigur"              # Специфичный протокол Сигур
-    ERA = "era"                  # Специфичный протокол Эра
-
-
-class DeviceManufacturer(str, Enum):
-    """Производители устройств"""
-    GENERIC = "generic"          # Универсальный/неизвестный
-    SIGUR = "sigur"              # Сигур
-    ERA = "era"                  # Эра
-    WIRENBOARD = "wirenboard"    # Wirenboard
-    PERCo = "perco"              # PERCo
-    NONE = "none"                # Нет производителя (ручной ввод) 
-
-# ============================================================
-# ТИПЫ УЧЁТНЫХ ДАННЫХ
-# ============================================================
-
-class CredentialType(str, Enum):
-    """Типы учётных данных"""
-    QR = "QR"
-    RFID = "RFID"
-
-
-class CredentialStatus(str, Enum):
-    """Статусы учётных данных"""
+class LicenseStatus(str, Enum):
     ACTIVE = "ACTIVE"
-    BLOCKED = "BLOCKED"
     EXPIRED = "EXPIRED"
+    TRIAL = "TRIAL"
+    REVOKED = "REVOKED"
 
-
-# ============================================================
-# ДОСТУП
-# ============================================================
-
-class AccessDecision(str, Enum):
-    """Решение о доступе"""
-    ALLOW = "ALLOW"
-    DENY = "DENY"
-    ERROR = "ERROR"
-
-
-class AccessMode(str, Enum):
-    """Режим работы"""
-    ONLINE = "online"
-    OFFLINE = "offline"
-
-
-# ============================================================
-# ШКАФЧИКИ
-# ============================================================
-
-class LockType(str, Enum):
-    """Типы замков"""
-    OFFLINE = "OFFLINE"    # Керонг офлайн
-    ONLINE = "ONLINE"      # Керонг онлайн
-    KEY = "KEY"            # Обычный ключ
-
-
-class LockerStatus(str, Enum):
-    """Статусы шкафчика"""
-    FREE = "FREE"
-    OCCUPIED = "OCCUPIED"
-    BROKEN = "BROKEN"
-    MAINTENANCE = "MAINTENANCE"
-
-
-class LockerSessionStatus(str, Enum):
-    """Статусы сессии шкафчика"""
-    ACTIVE = "ACTIVE"
-    CLOSED = "CLOSED"
-    CANCELLED = "CANCELLED"
-
-
-class LockerPrivilegeType(str, Enum):
-    """Типы привилегий на шкафчики"""
-    VIP = "VIP"
-    RENTAL = "RENTAL"
-
-
-# ============================================================
-# ВНЕШНИЕ СИСТЕМЫ
-# ============================================================
-
-class ExternalSystemType(str, Enum):
-    """Типы внешних систем"""
-    ONEC = "ONEC"           # 1С
-    SKUD = "SKUD"           # СКУД
-    FILE_SERVER = "FILE_SERVER"
-
-
-class SyncStatus(str, Enum):
-    """Статусы синхронизации"""
-    PENDING = "PENDING"
-    SUCCESS = "SUCCESS"
-    FAILED = "FAILED"   
-    
-
-# ============================================================
-# ФИНАНСОВЫЕ ENUM
-# ============================================================
-
-class TransactionType(str, Enum):
-    """Типы транзакций кошелька"""
-    DEPOSIT = "DEPOSIT"         # Пополнение
-    WITHDRAW = "WITHDRAW"       # Списание
-    FREEZE = "FREEZE"           # Заморозка
-    UNFREEZE = "UNFREEZE"       # Разморозка
-
-
-class PaymentMethod(str, Enum):
-    """Способы оплаты"""
-    CASH = "CASH"               # Наличные
-    CARD = "CARD"               # Банковская карта
-    ONLINE = "ONLINE"           # Онлайн-платёж
-    BALANCE = "BALANCE"         # С баланса кошелька
-    SBP = "SBP"                 # Система быстрых платежей (СБП)
-
-class PaymentStatus(str, Enum):
-    """Статусы платежа"""
-    PENDING = "PENDING"         # Ожидает обработки
-    COMPLETED = "COMPLETED"     # Успешно выполнен
-    FAILED = "FAILED"           # Ошибка
-    REFUNDED = "REFUNDED"       # Возвращён
-    CANCELLED = "CANCELLED"     # Отменён
-
-
-class ReceiptType(str, Enum):
-    """Типы чеков"""
-    SALE = "SALE"               # Чек продажи
-    REFUND = "REFUND"           # Чек возврата
-
-
-class CashOperationType(str, Enum):
-    """Типы кассовых операций"""
-    INCOME = "INCOME"           # Поступление
-    OUTCOME = "OUTCOME"         # Выдача
-
-
-class CashDeskStatus(str, Enum):
-    """Статусы кассовой смены"""
-    OPEN = "OPEN"               # Открыта
-    CLOSED = "CLOSED"           # Закрыта
-
-
-class PaymentSystem(str, Enum):
-    """Платёжные системы"""
-    ALFA_BANK = "ALFA_BANK"         # Альфа-Банк
-    VTB = "VTB"                     # ВТБ
-    PSB = "PSB"                     # ПСБ (Промсвязьбанк)
-    T_BANK = "T_BANK"               # Т-Банк (бывший Тинькофф)
-    SBERBANK = "SBERBANK"           # Сбербанк
-    YOOMONEY = "YOOMONEY"           # ЮMoney
-    CLOUD_PAYMENTS = "CLOUD_PAYMENTS"  # CloudPayments
-    STRIPE = "STRIPE"               # Stripe
-    GAZPROMBANK = "GAZPROMBANK"     # Газпромбанк
-    RAIFFEISEN = "RAIFFEISEN"       # Райффайзенбанк
-    SBP = "SBP"                     # Система быстрых платежей (через агрегатора)
+class AlertType(str, Enum):
+    FALL = "FALL"
+    FIGHT = "FIGHT"
+    SMOKE = "SMOKE"
+    LEFT_OBJECT = "LEFT_OBJECT"
+    CROWD = "CROWD"
+    WRONG_DIRECTION = "WRONG_DIRECTION"
+    CUSTOM = "CUSTOM"

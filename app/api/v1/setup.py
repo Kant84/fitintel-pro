@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import require_permission
 from app.core.config import settings
-from app.core.license_guard import LicenseState
+from app.core.license_guard import LicenseState, LICENSE_STATE_PATH
 from app.db.session import get_db
 from app.services.license_service import LicenseService
 
@@ -78,13 +78,11 @@ class LicenseCheckLimitsResponse(BaseModel):
 @router.get("/license/status", response_model=LicenseStatusResponse)
 async def get_license_status() -> dict[str, Any]:
     """Check current license status (no auth required — needed for initial setup)."""
+    is_licensed = LicenseState.is_licensed()
     key = LicenseState.get_license_key()
-    if not key:
+    if not is_licensed or not key:
         return {"is_licensed": False}
 
-    # Read from state file
-    if not LicenseState.is_licensed():
-        return {"is_licensed": False, "license_key": key[:8] + "..."}
 
     try:
         state = ast.literal_eval(LICENSE_STATE_PATH.read_text())
@@ -162,8 +160,9 @@ async def get_license_limits(
     _: Any = Depends(require_permission("settings.read")),
 ) -> dict[str, Any]:
     """Get current usage vs license limits."""
+    is_licensed = LicenseState.is_licensed()
     key = LicenseState.get_license_key()
-    if not key:
+    if not is_licensed or not key:
         raise HTTPException(status_code=403, detail="No active license")
     service = LicenseService(db)
     return service.check_system_limits(key)
@@ -613,6 +612,53 @@ async def initialize_database(
 
 
 @router.post("/database/seed")
+
+
+# ═══════════════════════════════════════════════
+# STEP 0: INIT (first-time setup check)
+# ═══════════════════════════════════════════════
+
+
+class InitSetupRequest(BaseModel):
+    admin_login: str = Field(..., min_length=3, description='Superadmin login')
+    admin_password: str = Field(..., min_length=8, description='Superadmin password')
+    club_name: str = Field(default='FitIntel Club', description='Club name')
+
+
+class InitSetupResponse(BaseModel):
+    setup_complete: bool
+    message: str
+
+
+@router.post('/init', response_model=InitSetupResponse)
+def init_setup(
+    payload: InitSetupRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    First-time setup initialization.
+    Creates superadmin and marks setup as complete.
+    """
+    # check if setup is already done
+    if SETUP_STATE_PATH.exists():
+        raise HTTPException(status_code=409, detail='Setup already completed')
+    
+    # create admin user
+    from app.services.auth_service import AuthService
+    auth_service = AuthService(db)
+    try:
+        auth_service.create_user(payload.admin_login, payload.admin_password)
+    except HTTPException:
+        pass  # user already exists
+    
+    # mark setup as complete
+    SETUP_STATE_PATH.write_text('completed')
+    
+    return InitSetupResponse(
+        setup_complete=True,
+        message='Setup completed successfully'
+    )
+
 async def seed_database(
     db: Session = Depends(get_db),
     _: Any = Depends(require_permission("settings.update")),

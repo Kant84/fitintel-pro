@@ -5,6 +5,7 @@ from datetime import date, datetime
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 from app.api.dependencies import require_permission
+from datetime import datetime
 from app.db.session import get_db
 from app.schemas.visit import (
     VisitResponse,
@@ -23,6 +24,23 @@ from app.services.visit_service import VisitService
 
 router = APIRouter(prefix="/visits", tags=["Visits"])
 
+
+
+# список всех визитов (GET /)
+@router.get(
+    "/",
+    response_model=VisitListResponse,
+)
+def list_visits(
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    current_user=Depends(require_permission('visits.read')),
+    db: Session = Depends(get_db),
+):
+    """Получить список всех визитов"""
+    service = VisitService(db)
+    visits = service.list_all(limit=limit, offset=offset)
+    return VisitListResponse(items=visits, count=len(visits))
 
 # ==========================================================
 # ОСНОВНЫЕ ОПЕРАЦИИ
@@ -45,9 +63,30 @@ def entry(
     - Списывает один визит из абонемента (если есть)
     - Проверяет лимиты и срок действия
     """
+    # DEBUG
+    print(f"DEBUG payload type: {type(payload)}")
+    print(f"DEBUG payload dict: {payload.model_dump()}")
+    print(f"DEBUG face_id repr: {repr(payload.face_id)}")
+    print(f"DEBUG face_id is None: {payload.face_id is None}")
+    print(f"DEBUG face_id == '': {payload.face_id == ''}")
+    
+    # Проверяем, что указан хотя бы один идентификатор
+    has_id = any([
+        payload.client_id,
+        payload.card_id,
+        payload.face_id,
+        payload.qr_payload,
+    ])
+    print(f"DEBUG has_id={has_id}")
+    if not has_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Необходимо указать client_id, card_id, face_id или qr_payload",
+        )
+    
     service = VisitService(db)
     visit = service.entry(
-        client_id=str(payload.client_id),
+        client_id=str(payload.client_id) if payload.client_id else None,
         subscription_id=str(payload.subscription_id) if payload.subscription_id else None,
         access_method=payload.access_method,
         access_device_id=payload.access_device_id,
@@ -55,6 +94,10 @@ def entry(
         entry_time=payload.entry_time,
         notes=payload.notes,
         actor_user_id=str(current_user.id),
+        card_id=payload.card_id,
+        face_id=payload.face_id,
+        qr_payload=payload.qr_payload,
+        face_confidence=payload.face_confidence,
     )
     return service._build_response(visit)
 
@@ -74,6 +117,64 @@ def exit(
     
     - Завершает активное посещение
     - Рассчитывает длительность пребывания
+    """
+    service = VisitService(db)
+    visit = service.exit(
+        visit_id=str(payload.visit_id),
+        exit_time=payload.exit_time,
+        notes=payload.notes,
+        actor_user_id=str(current_user.id),
+    )
+    return service._build_response(visit)
+
+
+# ==========================================================
+# АЛИАСЫ ДЛЯ ТЕСТОВЫХ КЕЙСОВ (E8)
+# ==========================================================
+@router.post(
+    "/check-in",
+    response_model=VisitResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def check_in(
+    payload: VisitEntryRequest,
+    current_user=Depends(require_permission("visits.create")),
+    db: Session = Depends(get_db),
+):
+    """
+    Алиас для /entry — регистрация входа клиента.
+    """
+    print(f"DEBUG check_in STARTED: {payload.model_dump()}")
+    service = VisitService(db)
+    visit = service.entry(
+        client_id=str(payload.client_id) if payload.client_id else None,
+        subscription_id=str(payload.subscription_id) if payload.subscription_id else None,
+        access_method=payload.access_method,
+        access_device_id=payload.access_device_id,
+        zone=payload.zone,
+        entry_time=payload.entry_time,
+        notes=payload.notes,
+        actor_user_id=str(current_user.id),
+        card_id=payload.card_id,
+        face_id=payload.face_id,
+        qr_payload=payload.qr_payload,
+        face_confidence=payload.face_confidence,
+    )
+    return service._build_response(visit)
+
+
+@router.post(
+    "/check-out",
+    response_model=VisitResponse,
+    status_code=status.HTTP_200_OK,
+)
+def check_out(
+    payload: VisitExitRequest,
+    current_user=Depends(require_permission("visits.update")),
+    db: Session = Depends(get_db),
+):
+    """
+    Алиас для /exit — регистрация выхода клиента.
     """
     service = VisitService(db)
     visit = service.exit(
@@ -165,6 +266,50 @@ def delete_visit(
 # ==========================================================
 # ПОЛУЧЕНИЕ ДАННЫХ
 # ==========================================================
+
+# ============================================================
+# Статистика посещений
+# ============================================================
+@router.get("/stats", response_model=dict)
+def get_visit_stats(
+    date_from: str | None = Query(default=None, description="Дата начала периода (YYYY-MM-DD)"),
+    date_to: str | None = Query(default=None, description="Дата конца периода (YYYY-MM-DD)"),
+    current_user=Depends(require_permission("visits.read")),
+    db: Session = Depends(get_db),
+):
+    """Статистика посещений с выбором периода"""
+    from datetime import datetime, date
+    visit_service = VisitService(db)
+    
+    # Получаем все посещения
+    visits = visit_service.list_all(limit=10000, offset=0)
+    
+    # Фильтруем по периоду
+    if date_from:
+        from_date = datetime.strptime(date_from, "%Y-%m-%d").date()
+        visits = [v for v in visits if v.entry_time and v.entry_time.date() >= from_date]
+    
+    if date_to:
+        to_date = datetime.strptime(date_to, "%Y-%m-%d").date()
+        visits = [v for v in visits if v.entry_time and v.entry_time.date() <= to_date]
+    
+    # Считаем статистику
+    total = len(visits)
+    active = sum(1 for v in visits if v.status == "ACTIVE")
+    completed = sum(1 for v in visits if v.status == "COMPLETED")
+    denied = sum(1 for v in visits if v.access_granted == False)
+    
+    return {
+        "total_visits": total,
+        "active_visits": active,
+        "completed_visits": completed,
+        "denied_visits": denied,
+        "period": {
+            "date_from": date_from,
+            "date_to": date_to,
+        },
+    }
+
 
 @router.get(
     "/{visit_id}",
@@ -346,3 +491,33 @@ def get_month_stats(
         start_date=start_date,
         zone=zone,
     )
+
+
+
+
+
+# ==========================================================
+# АВТО-ЗАКРЫТИЕ ПОСЕЩЕНИЙ (E8.11)
+# ==========================================================
+@router.post(
+    "/auto-close",
+    response_model=dict,
+    status_code=status.HTTP_200_OK,
+)
+def auto_close_visits(
+    days_threshold: int = Query(default=1, ge=1, le=30, description="Закрыть посещения старше N дней"),
+    current_user=Depends(require_permission("visits.update")),
+    db: Session = Depends(get_db),
+):
+    """
+    Авто-закрытие незавершённых посещений.
+    
+    Закрывает посещения, где клиент вошёл, но не вышел,
+    и прошло более N дней.
+    """
+    service = VisitService(db)
+    closed_count = service.close_incomplete_visits(days_threshold=days_threshold)
+    return {
+        "closed_count": closed_count,
+        "message": f"Закрыто {closed_count} незавершённых посещений",
+    }

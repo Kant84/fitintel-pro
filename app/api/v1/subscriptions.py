@@ -101,6 +101,9 @@ def create_subscription(
         status_value=payload.status,
         notes=payload.notes,
         actor_user_id=current_user.id,
+        time_restriction_type=payload.time_restriction_type,
+        allowed_start_time=payload.allowed_start_time,
+        allowed_end_time=payload.allowed_end_time,
     )
 
     # возвращаем ответ
@@ -109,6 +112,29 @@ def create_subscription(
 
 # обновить абонемент
 @router.patch("/{subscription_id}", response_model=SubscriptionResponse)
+
+
+# продление абонемента
+@router.post("/{subscription_id}/extend", response_model=SubscriptionResponse)
+def extend_subscription(
+    subscription_id: UUID,
+    days: int = Query(default=30, ge=1, description='Количество дней для продления'),
+    current_user=Depends(require_permission('subscriptions.renew')),
+    db: Session = Depends(get_db),
+):
+    """Продлить абонемент на указанное количество дней"""
+    # создаём сервис
+    subscription_service = SubscriptionService(db)
+    
+    # продлеваем абонемент
+    subscription = subscription_service.extend_subscription(
+        subscription_id=str(subscription_id),
+        days=days,
+        actor_user_id=current_user.id,
+    )
+    
+    return subscription
+
 def update_subscription(
     subscription_id: UUID,
     payload: SubscriptionUpdateRequest,

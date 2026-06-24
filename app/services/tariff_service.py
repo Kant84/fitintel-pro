@@ -191,6 +191,11 @@ class TariffService:
         visit_limit: int | None,
         is_unlimited: bool,
         is_active: bool,
+        promo_code: str | None = None,
+        discount_percent: int | None = 0,
+        time_restriction_type: str | None = None,
+        allowed_start_time=None,
+        allowed_end_time=None,
         actor_user_id=None,
     ) -> Tariff:
         # нормализуем код
@@ -242,6 +247,11 @@ class TariffService:
             visit_limit=resolved_visit_limit,
             is_unlimited=resolved_is_unlimited,
             is_active=is_active,
+            promo_code=promo_code,
+            discount_percent=discount_percent,
+            time_restriction_type=time_restriction_type,
+            allowed_start_time=allowed_start_time,
+            allowed_end_time=allowed_end_time,
         )
 
         # сохраняем тариф
@@ -264,7 +274,12 @@ class TariffService:
                 "duration_days": created_tariff.duration_days,
                 "visit_limit": created_tariff.visit_limit,
                 "is_unlimited": created_tariff.is_unlimited,
+                "time_restriction_type": created_tariff.time_restriction_type,
+                "allowed_start_time": str(created_tariff.allowed_start_time) if created_tariff.allowed_start_time else None,
+                "allowed_end_time": str(created_tariff.allowed_end_time) if created_tariff.allowed_end_time else None,
                 "is_active": created_tariff.is_active,
+                "promo_code": created_tariff.promo_code,
+                "discount_percent": created_tariff.discount_percent,
             },
         )
 
@@ -396,6 +411,12 @@ class TariffService:
         return updated_tariff
 
     # собрать response
+
+    def delete_tariff(self, tariff):
+        """Удаление тарифа"""
+        self.db.delete(tariff)
+        self.db.commit()
+
     def build_tariff_response(self, tariff: Tariff) -> dict:
         # возвращаем словарь ответа
         return {
@@ -409,6 +430,8 @@ class TariffService:
             "visit_limit": tariff.visit_limit,
             "is_unlimited": tariff.is_unlimited,
             "is_active": tariff.is_active,
+            "promo_code": tariff.promo_code,
+            "discount_percent": tariff.discount_percent,
             "created_at": tariff.created_at,
             "updated_at": tariff.updated_at,
         }

@@ -4,7 +4,9 @@ MAX Messenger — модели чата.
 Чаты, сообщения, прочтения, вложения.
 """
 
+import uuid
 from datetime import datetime
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import String, Text, DateTime, ForeignKey, Boolean, Integer, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampedUUIDMixin
@@ -28,7 +30,7 @@ class ChatRoom(Base, TimestampedUUIDMixin):
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Создатель
-    created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
     # Активна ли
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -46,13 +48,12 @@ class ChatMember(Base, TimestampedUUIDMixin):
 
     __tablename__ = "chat_members"
 
-    room_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("chat_rooms.id", ondelete="CASCADE"), nullable=False, index=True
+    room_id: Mapped[str] = mapped_column(UUID(as_uuid=True), ForeignKey("chat_rooms.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     # user_id или client_id
-    user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True)
-    client_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("clients.id"), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True)
 
     # Роль: admin, member, viewer
     role: Mapped[str] = mapped_column(String(20), default="member", nullable=False)
@@ -79,13 +80,12 @@ class ChatMessage(Base, TimestampedUUIDMixin):
 
     __tablename__ = "chat_messages"
 
-    room_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("chat_rooms.id", ondelete="CASCADE"), nullable=False, index=True
+    room_id: Mapped[str] = mapped_column(UUID(as_uuid=True), ForeignKey("chat_rooms.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     # Отправитель
-    sender_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True)
-    sender_client_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("clients.id"), nullable=True)
+    sender_user_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    sender_client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True)
     sender_name: Mapped[str] = mapped_column(String(200), nullable=False)
 
     # Тип: text, image, file, voice, system
@@ -123,13 +123,12 @@ class ChatMessageRead(Base, TimestampedUUIDMixin):
 
     __tablename__ = "chat_message_reads"
 
-    message_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=False, index=True
+    message_id: Mapped[str] = mapped_column(UUID(as_uuid=True), ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     # Кто прочитал
-    reader_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True)
-    reader_client_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("clients.id"), nullable=True)
+    reader_user_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    reader_client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True)
 
     # Связи
     message = relationship("ChatMessage", back_populates="reads")

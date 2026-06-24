@@ -4,7 +4,7 @@
 from uuid import UUID
 
 # импорт datetime
-from datetime import datetime
+from datetime import datetime, time
 
 # импорт Decimal
 from decimal import Decimal
@@ -78,6 +78,20 @@ class TariffResponse(BaseModel):
     is_active: bool = Field(
         description="Активен ли тариф",
         examples=[True],
+    )
+
+    # промокод
+    promo_code: str | None = Field(
+        default=None,
+        description="Промокод для скидки",
+        examples=["SUMMER2026"],
+    )
+
+    # скидка
+    discount_percent: int | None = Field(
+        default=0,
+        description="Процент скидки",
+        examples=[10],
     )
 
     # дата создания
@@ -159,6 +173,44 @@ class TariffCreateRequest(BaseModel):
         default=True,
         description="Активен ли тариф",
         examples=[True],
+    )
+
+    # промокод
+    promo_code: str | None = Field(
+        default=None,
+        max_length=50,
+        description="Промокод для скидки",
+        examples=["SUMMER2026"],
+    )
+
+    # процент скидки
+    discount_percent: int | None = Field(
+        default=0,
+        ge=0,
+        le=100,
+        description="Процент скидки",
+        examples=[10],
+    )
+
+    # тип временного ограничения
+    time_restriction_type: str | None = Field(
+        default="FULLDAY",
+        description="Тип временного ограничения: FULLDAY, DAYTIME, NIGHTTIME",
+        examples=["DAYTIME"],
+    )
+
+    # время начала доступа
+    allowed_start_time: time | None = Field(
+        default=None,
+        description="Время начала доступа (например, 06:00 для дневного)",
+        examples=["06:00"],
+    )
+
+    # время окончания доступа
+    allowed_end_time: time | None = Field(
+        default=None,
+        description="Время окончания доступа (например, 22:00 для дневного)",
+        examples=["22:00"],
     )
 
 

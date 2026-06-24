@@ -13,6 +13,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Text,
+    Time,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampedUUIDMixin
@@ -127,6 +128,28 @@ class Subscription(TimestampedUUIDMixin, Base):
     )
     last_renewed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
+        nullable=True,
+    )
+
+    # ==========================================================
+    # ВРЕМЕННЫЕ ОГРАНИЧЕНИЯ (дневной/ночной/полный день)
+    # ==========================================================
+    
+    # Тип ограничения: FULLDAY, DAYTIME, NIGHTTIME
+    time_restriction_type: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+    
+    # Время начала доступа (например, 06:00)
+    allowed_start_time: Mapped[str | None] = mapped_column(
+        Time,
+        nullable=True,
+    )
+    
+    # Время окончания доступа (например, 22:00)
+    allowed_end_time: Mapped[str | None] = mapped_column(
+        Time,
         nullable=True,
     )
 

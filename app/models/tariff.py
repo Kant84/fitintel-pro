@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from sqlalchemy import String, Boolean, Integer, Numeric, UniqueConstraint, Text
+from sqlalchemy import String, Boolean, Integer, Numeric, UniqueConstraint, Text, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampedUUIDMixin
 
@@ -63,6 +63,37 @@ class Tariff(TimestampedUUIDMixin, Base):
         nullable=False,
         default=True,
         index=True,
+    )
+
+    promo_code: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        index=True,
+    )
+
+    discount_percent: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        default=0,
+    )
+
+    # Временные ограничения (дневной/ночной/полный день)
+    time_restriction_type: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        default="FULLDAY",
+    )
+
+    # Время начала доступа (например, 06:00 для дневного)
+    allowed_start_time: Mapped[str | None] = mapped_column(
+        Time,
+        nullable=True,
+    )
+
+    # Время окончания доступа (например, 22:00 для дневного)
+    allowed_end_time: Mapped[str | None] = mapped_column(
+        Time,
+        nullable=True,
     )
 
     # ✅ ДОБАВИТЬ СВЯЗЬ С АБОНЕМЕНТАМИ

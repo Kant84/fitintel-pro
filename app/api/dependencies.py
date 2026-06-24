@@ -90,7 +90,14 @@ def require_roles(*required_roles: str):
         auth_service = AuthService(db)
 
         # получаем роли пользователя
-        user_roles = set(auth_service.get_user_roles(current_user))
+        raw_roles = auth_service.get_user_roles(current_user)
+        # извлекаем code из объектов Role (или строк, если уже строки)
+        user_roles = set()
+        for r in raw_roles:
+            if hasattr(r, 'code'):
+                user_roles.add(r.code)
+            else:
+                user_roles.add(str(r))
 
         # если пересечения нет, возвращаем 403
         if not user_roles.intersection(set(required_roles)):
