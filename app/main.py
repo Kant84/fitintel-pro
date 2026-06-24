@@ -83,6 +83,7 @@ from app.api.v1.dynamic_qr import router as dynamic_qr_router
 from app.api.v1.video_alerts import router as video_alerts_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.print import router as print_router
+from app.api.v1.trainers import router as trainers_router
 # === APP ===
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -191,6 +192,7 @@ app.include_router(video_alerts_router, prefix=settings.API_V1_PREFIX)
 app.include_router(feature_flags_router, prefix=settings.API_V1_PREFIX + "/feature-flags")
 app.include_router(reports_router, prefix=settings.API_V1_PREFIX + "/reports")
 app.include_router(print_router, prefix=settings.API_V1_PREFIX + "/print")
+app.include_router(trainers_router, prefix=settings.API_V1_PREFIX)
 # === ROOT ===
 @app.get("/")
 async def root():

@@ -97,6 +97,14 @@ class User(TimestampedUUIDMixin, Base):
         cascade="all, delete-orphan",
     )
 
+    # Trainer profile (E17)
+    trainer_profile: Mapped["TrainerProfile"] = relationship(
+        "TrainerProfile",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
     shifts: Mapped[list["EmployeeShift"]] = relationship(
         "EmployeeShift",
         back_populates="employee",
