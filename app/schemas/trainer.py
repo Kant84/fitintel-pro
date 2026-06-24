@@ -172,6 +172,17 @@ class TrainerKpiResponse(BaseModel):
     revenue_from_sales: Decimal
     commission_total: Decimal
     salary_total: Decimal
+    # E19: Progressive salary
+    rate_applied: Decimal
+    bonus_new_clients: Decimal
+    bonus_retention: Decimal
+    bonus_sales: Decimal
+    penalty_no_show: Decimal
+    penalty_late_cancel: Decimal
+    base_salary: Decimal
+    total_bonus: Decimal
+    total_penalty: Decimal
+    net_salary: Decimal
     rating_avg: Decimal
     created_at: datetime
     updated_at: datetime
