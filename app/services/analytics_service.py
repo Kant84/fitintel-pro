@@ -81,12 +81,19 @@ class AnalyticsService:
                 "recommendation": "Недостаточно данных для прогноза",
             }
         
-        # Извлекаем фичи
+        # Извлекаем фичи в зависимости от метрики
         visits = result.visits_count or 0
         lag_1 = result.visits_lag_1 or 0
         lag_7 = result.visits_lag_7 or 0
-        rolling_7 = float(result.visits_rolling_7) if result.visits_rolling_7 else 0
-        rolling_14 = float(result.visits_rolling_14) if result.visits_rolling_14 else 0
+        
+        # Для revenue используем revenue_rolling, для attendance — visits_rolling
+        if metric == 'revenue':
+            rolling_7 = float(result.revenue_rolling_7) if result.revenue_rolling_7 else 0
+            rolling_14 = float(result.revenue_rolling_14) if result.revenue_rolling_14 else 0
+        else:
+            rolling_7 = float(result.visits_rolling_7) if result.visits_rolling_7 else 0
+            rolling_14 = float(result.visits_rolling_14) if result.visits_rolling_14 else 0
+            
         trend = float(result.visits_trend) if result.visits_trend else 0
         is_weekend = result.is_weekend or 0
         is_payday = result.is_payday or 0
