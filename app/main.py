@@ -1,6 +1,7 @@
 # app/main.py
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -118,6 +119,7 @@ app = FastAPI(lifespan=lifespan,
     redoc_url="/redoc" if settings.DOCS_ENABLED else None,
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
 )
+app.mount("/static/trainer-pwa", StaticFiles(directory="app/static/trainer-pwa"), name="trainer-pwa")
 
 # === CORS ===
 app.add_middleware(
