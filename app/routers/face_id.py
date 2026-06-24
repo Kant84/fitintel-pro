@@ -7,14 +7,14 @@ from datetime import datetime
 from app.db.session import get_db
 from app.services.face_id_service import FaceIDService
 
-router = APIRouter(prefix="/api/v1/face-id", tags=["Face ID"])
+router = APIRouter(prefix="/face-id", tags=["Face ID"])
 
 # Заглушка для текущего пользователя (заменить на реальную аутентификацию)
 async def get_current_user(request: Request):
     class DummyUser:
         id = 1
         role = "admin"
-        email = "admin@fitintel.pro"
+        email = "sanakinandrej4@gmail.com"
     return DummyUser()
 
 def require_role(allowed_roles: list):

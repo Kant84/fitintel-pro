@@ -2,7 +2,7 @@
 
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, validator, model_validator
 from app.schemas.enums import VisitStatus, AccessMethod
 
 
@@ -32,10 +32,6 @@ class VisitBase(BaseModel):
         max_length=100,
         description="Зона клуба (GYM, POOL, STUDIO, ENTRANCE)",
     )
-    notes: str | None = Field(
-        default=None,
-        description="Заметки",
-    )
 
 
 # ==========================================================
@@ -45,7 +41,18 @@ class VisitBase(BaseModel):
 class VisitEntryRequest(BaseModel):
     """Схема запроса на вход"""
     
-    client_id: UUID = Field(description="ID клиента")
+    # Идентификаторы клиента (минимум один должен быть указан)
+    client_id: UUID | None = Field(default=None, description="ID клиента")
+    card_id: str | None = Field(default=None, max_length=128, description="ID карты RFID")
+    face_id: str | None = Field(default=None, max_length=255, description="ID Face ID шаблона")
+    qr_payload: str | None = Field(default=None, max_length=512, description="QR-код payload")
+    face_confidence: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Уверенность распознавания лица (0.0-1.0)",
+    )
+    
     access_method: AccessMethod = Field(
         default=AccessMethod.QR,
         description="Способ доступа",
@@ -58,7 +65,12 @@ class VisitEntryRequest(BaseModel):
     zone: str | None = Field(
         default=None,
         max_length=100,
-        description="Зона клуба",
+        description="Зона",
+    )
+    notes: str | None = Field(
+        default=None,
+        max_length=1000,
+        description="Заметки",
     )
     entry_time: datetime | None = Field(
         default=None,
@@ -68,6 +80,8 @@ class VisitEntryRequest(BaseModel):
         default=None,
         description="ID абонемента (если выбран конкретный)",
     )
+    
+    # Валидация идентификаторов перенесена в endpoint
 
 
 class VisitExitRequest(BaseModel):
@@ -78,7 +92,11 @@ class VisitExitRequest(BaseModel):
         default=None,
         description="Время выхода (если не указано — текущее)",
     )
-    notes: str | None = Field(default=None, description="Заметки")
+    notes: str | None = Field(
+        default=None,
+        max_length=1000,
+        description="Заметки",
+    )
 
 
 class VisitCompleteRequest(BaseModel):
@@ -89,7 +107,6 @@ class VisitCompleteRequest(BaseModel):
         default=None,
         description="Время выхода",
     )
-    notes: str | None = Field(default=None, description="Причина закрытия")
 
 
 # ==========================================================
@@ -147,7 +164,6 @@ class ManualVisitRequest(BaseModel):
         description="Способ доступа",
     )
     zone: str | None = Field(default=None, max_length=100, description="Зона")
-    notes: str | None = Field(default=None, description="Заметки")
 
 
 class ManualVisitResponse(VisitResponse):
@@ -205,4 +221,3 @@ class VisitDeleteRequest(BaseModel):
         max_length=255,
         description="Причина отмены",
     )
-    notes: str | None = Field(default=None, description="Дополнительные заметки")

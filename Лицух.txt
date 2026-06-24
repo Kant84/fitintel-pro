@@ -1,0 +1,6 @@
+$body = @{
+    license_key = "FCD53A7672BEC8CA8CACBE23CA46F79C"
+    device_id = "test-machine"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:8001/api/v1/setup/license/activate" -Method POST -Body $body -ContentType "application/json"

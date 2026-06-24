@@ -4,7 +4,7 @@
 from uuid import UUID
 
 # импорт BaseModel и Field из Pydantic
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr, EmailStr, EmailStr, EmailStr
 
 
 # ============================================================
@@ -17,10 +17,28 @@ class LoginRequest(BaseModel):
     login: str
 
     # пароль пользователя
-    password: str
+    password: str = Field(min_length=8, max_length=128)
 
 
 # схема ответа с access token
+# схема регистрации с email
+class RegisterRequest(BaseModel):
+    # логин пользователя
+    login: str
+    
+    # пароль пользователя
+    password: str = Field(min_length=8, max_length=128)
+    
+    # email пользователя (опционально)
+    email: EmailStr | None = None
+    
+    # телефон пользователя (опционально)
+    phone: str | None = None
+    
+    # полное имя (опционально)
+    full_name: str | None = None
+
+
 class TokenResponse(BaseModel):
     # сам JWT access token
     access_token: str
@@ -38,7 +56,7 @@ class CurrentUserResponse(BaseModel):
     id: UUID
 
     # email пользователя
-    email: str | None = None
+    email: EmailStr | None = None
 
     # username пользователя
     username: str | None = None

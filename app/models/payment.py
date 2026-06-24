@@ -19,9 +19,9 @@ class Payment(TimestampedUUIDMixin, Base):
     __tablename__ = "payments"
 
     # ID клиента
-    client_id: Mapped[str] = mapped_column(
+    client_id: Mapped[str | None] = mapped_column(
         ForeignKey("clients.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     
@@ -42,6 +42,22 @@ class Payment(TimestampedUUIDMixin, Base):
     payment_method: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
+        index=True,
+    )
+    
+    # Направление: INCOME (приход), EXPENSE (расход)
+    payment_direction: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="INCOME",
+        index=True,
+    )
+    
+    # Категория: SUBSCRIPTION, INVENTORY, SALARY, RENT, UTILITIES, OTHER
+    payment_category: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="SUBSCRIPTION",
         index=True,
     )
     

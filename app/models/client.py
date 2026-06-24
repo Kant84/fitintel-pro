@@ -44,8 +44,10 @@ class Client(TimestampedUUIDMixin, Base):
     payments = relationship("Payment", back_populates="client", cascade="all, delete-orphan")
 
     # Геймификация (XP, уровни, достижения)
-    gamification = relationship("GamificationLevel", back_populates="client", uselist=False, cascade="all, delete-orphan")
+
     achievements = relationship("Achievement", back_populates="client", cascade="all, delete-orphan")
 
     # Документы клиента
     documents = relationship("Document", back_populates="client")
+    gamification_levels = relationship("GamificationLevel", back_populates="client", cascade="all, delete-orphan")
+    achievements = relationship("Achievement", back_populates="client", cascade="all, delete-orphan")

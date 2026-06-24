@@ -31,6 +31,26 @@ from app.services.client_service import ClientService
 router = APIRouter(prefix="/clients", tags=["Clients"])
 
 
+
+
+# ============================================================
+# Удаление клиента
+# ============================================================
+@router.delete("/{client_id}")
+def delete_client(
+    client_id: UUID,
+    current_user=Depends(require_permission("clients.delete")),
+    db: Session = Depends(get_db),
+):
+    """Удаление клиента"""
+    client_service = ClientService(db)
+    client = client_service.get_client_by_id(str(client_id))
+    if not client:
+        raise HTTPException(status_code=404, detail="Клиент не найден")
+    client_service.delete_client(client)
+    return {"message": "Клиент удалён"}
+
+
 # ============================================================
 # Получить список клиентов
 # ============================================================

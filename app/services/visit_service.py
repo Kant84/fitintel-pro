@@ -1,6 +1,6 @@
 # app/services/visit_service.py
 
-from datetime import datetime, date, timedelta, timezone
+from datetime import datetime, date, timedelta, timezone, time
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from fastapi import HTTPException, status
@@ -27,6 +27,17 @@ class VisitService:
     Включает вход, выход, списание визитов, статистику.
     """
     
+
+    # метод возвращает список всех визитов
+    def list_all(self, limit: int = 100, offset: int = 0):
+        # импортируем модель Visit
+        from app.models.visit import Visit
+        
+        # получаем список визитов
+        visits = self.db.query(Visit).offset(offset).limit(limit).all()
+        
+        return visits
+
     def __init__(self, db: Session):
         self.db = db
         self.repository = VisitRepository(db)
@@ -45,6 +56,137 @@ class VisitService:
                 detail="Клиент не найден",
             )
         return client
+    
+    def _check_time_restriction(self, subscription: Subscription, entry_time: datetime | None = None) -> None:
+        """
+        Проверить временные ограничения абонемента.
+        
+        Поддерживает:
+        - FULLDAY: полный день (без ограничений)
+        - DAYTIME: дневное время (например, 06:00-22:00)
+        - NIGHTTIME: ночное время (например, 22:00-06:00)
+        """
+        # Если ограничения не заданы — пропускаем
+        if not subscription.time_restriction_type or subscription.time_restriction_type == "FULLDAY":
+            return
+        
+        # Получаем время для проверки (entry_time или текущее)
+        if entry_time:
+            now = entry_time.time()
+        else:
+            now = datetime.now().time()
+        
+        # Если время не задано — пропускаем
+        if not subscription.allowed_start_time or not subscription.allowed_end_time:
+            return
+        
+        start_time = subscription.allowed_start_time
+        end_time = subscription.allowed_end_time
+        
+        # Проверяем дневное время (06:00-22:00)
+        if subscription.time_restriction_type == "DAYTIME":
+            if now < start_time or now > end_time:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Доступ запрещён: дневной абонемент действует с {start_time.strftime('%H:%M')} до {end_time.strftime('%H:%M')}",
+                )
+        
+        # Проверяем ночное время (22:00-06:00)
+        elif subscription.time_restriction_type == "NIGHTTIME":
+            # Ночной интервал: пересекает полночь
+            if start_time > end_time:
+                # Например, 22:00-06:00
+                if not (now >= start_time or now <= end_time):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"Доступ запрещён: ночной абонемент действует с {start_time.strftime('%H:%M')} до {end_time.strftime('%H:%M')}",
+                    )
+            else:
+                # Например, 00:00-06:00
+                if now < start_time or now > end_time:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"Доступ запрещён: ночной абонемент действует с {start_time.strftime('%H:%M')} до {end_time.strftime('%H:%M')}",
+                    )
+    
+    def _resolve_client_id(
+        self,
+        client_id: str | None = None,
+        card_id: str | None = None,
+        face_id: str | None = None,
+        qr_payload: str | None = None,
+        face_confidence: float | None = None,
+    ) -> str:
+        """
+        Определить client_id по различным идентификаторам.
+        
+        Порядок приоритета:
+        1. client_id (если указан)
+        2. card_id (RFID)
+        3. face_id (Face Recognition)
+        4. qr_payload (QR-код)
+        """
+        # Если client_id указан — используем его
+        if client_id:
+            client = self._get_client(client_id)
+            return str(client.id)
+        
+        # Ищем по card_id (RFID)
+        if card_id:
+            from app.models.credential import Credential
+            cred = self.db.query(Credential).filter(
+                Credential.credential_type == 'RFID',
+                Credential.credential_value == card_id,
+                Credential.status == 'ACTIVE'
+            ).first()
+            if cred:
+                return str(cred.client_id)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Карта не найдена или не активна",
+            )
+        
+        # Ищем по face_id
+        if face_id:
+            from app.models.credential import Credential
+            cred = self.db.query(Credential).filter(
+                Credential.credential_type == 'FACE_ID',
+                Credential.credential_value == face_id,
+                Credential.status == 'ACTIVE'
+            ).first()
+            if cred:
+                # Проверяем уверенность распознавания (E8.13)
+                if cred.face_confidence is not None and face_confidence is not None:
+                    if face_confidence < cred.face_confidence:
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Низкая уверенность распознавания: {face_confidence:.2f} (требуется: {cred.face_confidence:.2f})",
+                        )
+                return str(cred.client_id)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Face ID не найден или не активен",
+            )
+        
+        # Ищем по qr_payload
+        if qr_payload:
+            from app.models.credential import Credential
+            cred = self.db.query(Credential).filter(
+                Credential.credential_type == 'QR',
+                Credential.credential_value == qr_payload,
+                Credential.status == 'ACTIVE'
+            ).first()
+            if cred:
+                return str(cred.client_id)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="QR-код не найден или не активен",
+            )
+        
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Необходимо указать client_id, card_id, face_id или qr_payload",
+        )
     
     def _get_subscription(self, subscription_id: str) -> Subscription | None:
         """Получить абонемент (опционально)"""
@@ -111,7 +253,7 @@ class VisitService:
     
     def entry(
         self,
-        client_id: str,
+        client_id: str | None = None,
         subscription_id: str | None = None,
         access_method: AccessMethod = AccessMethod.QR,
         access_device_id: str | None = None,
@@ -119,12 +261,16 @@ class VisitService:
         entry_time: datetime | None = None,
         notes: str | None = None,
         actor_user_id: str | None = None,
+        card_id: str | None = None,
+        face_id: str | None = None,
+        qr_payload: str | None = None,
+        face_confidence: float | None = None,
     ) -> Visit:
         """
         Зафиксировать вход клиента.
         
         Args:
-            client_id: ID клиента
+            client_id: ID клиента (или None, если используется другой идентификатор)
             subscription_id: ID абонемента (опционально)
             access_method: способ доступа
             access_device_id: ID устройства
@@ -132,15 +278,28 @@ class VisitService:
             entry_time: время входа (по умолчанию сейчас)
             notes: заметки
             actor_user_id: кто зафиксировал (для audit)
+            card_id: ID карты RFID (альтернатива client_id)
+            face_id: ID Face ID (альтернатива client_id)
+            qr_payload: QR-код payload (альтернатива client_id)
         
         Returns:
             Созданное посещение
         """
+        print(f"DEBUG entry: client_id={client_id}, card_id={card_id}, face_id={face_id}, qr_payload={qr_payload}")
+        # Определяем client_id по предоставленным идентификаторам
+        resolved_client_id = self._resolve_client_id(
+            client_id=client_id,
+            card_id=card_id,
+            face_id=face_id,
+            qr_payload=qr_payload,
+            face_confidence=face_confidence,
+        )
+        
         # Проверяем клиента
-        client = self._get_client(client_id)
+        client = self._get_client(resolved_client_id)
         
         # Проверяем, нет ли уже активного посещения
-        active_visit = self.repository.get_active_visit_by_client(client_id)
+        active_visit = self.repository.get_active_visit_by_client(resolved_client_id)
         if active_visit:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -157,15 +316,25 @@ class VisitService:
                     detail="Абонемент не найден",
                 )
         else:
-            subscription = self._get_active_subscription(client_id)
+            subscription = self._get_active_subscription(resolved_client_id)
+        
+        # Проверяем наличие активного абонемента
+        if not subscription:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Нет активного абонемента",
+            )
         
         # Проверяем лимиты абонемента
-        if subscription and not subscription.is_unlimited:
+        if not subscription.is_unlimited:
             if subscription.visits_used >= subscription.visit_limit:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Лимит посещений абонемента исчерпан",
                 )
+        
+        # Проверяем временные ограничения
+        self._check_time_restriction(subscription, entry_time)
         
         # Устанавливаем время входа с часовым поясом UTC
         if entry_time is None:
@@ -175,7 +344,7 @@ class VisitService:
         
         # Создаём посещение
         visit = Visit(
-            client_id=client_id,
+            client_id=resolved_client_id,
             subscription_id=subscription.id if subscription else None,
             entry_time=entry_time,
             access_method=access_method.value,
@@ -258,6 +427,15 @@ class VisitService:
             visit.notes = notes
         
         updated_visit = self.repository.save(visit)
+        
+        # Авто-освобождение шкафчика при выходе (E11.10)
+        try:
+            from app.services.locker_service import LockerService
+            locker_service = LockerService(self.db)
+            locker_service.auto_release_on_checkout(visit.client_id)
+        except Exception as e:
+            # Не прерываем выход если шкафчик не удалось освободить
+            print(f"[WARN] Auto-release locker failed: {e}")
         
         # Получаем клиента для audit
         client = self._get_client(visit.client_id)

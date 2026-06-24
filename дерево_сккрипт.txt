@@ -1,0 +1,57 @@
+$root = "C:\Users\PC\Desktop\2026\FitNexus AI"
+$output = "$root\PROJECT_TREE.txt"
+
+# Исключаем мусор (venv, node_modules, кэш, git)
+$exclude = @('.venv', 'venv', 'node_modules', '__pycache__', '.git', '.pytest_cache', 'dist', 'build', 'Lib\site-packages')
+
+function Get-Tree($Path, $Indent = "") {
+    $items = Get-ChildItem -Path $Path -Force | Where-Object {
+        $name = $_.Name
+        $skip = $false
+        foreach ($ex in $exclude) {
+            if ($name -like "*$ex*") { $skip = $true; break }
+        }
+        -not $skip
+    } | Sort-Object { $_.PSIsContainer }, Name
+
+    $result = @()
+    $count = $items.Count
+    $i = 0
+
+    foreach ($item in $items) {
+        $i++
+        $isLast = ($i -eq $count)
+        $branch = if ($isLast) { "└── " } else { "├── " }
+        $size = if ($item.PSIsContainer) { "<DIR>" } else { 
+            $s = $item.Length
+            if ($s -gt 1MB) { "{0:N2} MB" -f ($s/1MB) }
+            elseif ($s -gt 1KB) { "{0:N2} KB" -f ($s/1KB) }
+            else { "$s B" }
+        }
+        $line = "$Indent$branch$($item.Name)  [$size]"
+        $result += $line
+
+        if ($item.PSIsContainer) {
+            $newIndent = if ($isLast) { "$Indent    " } else { "$Indent│   " }
+            $result += Get-Tree -Path $item.FullName -Indent $newIndent
+        }
+    }
+    return $result
+}
+
+$header = @"
+========================================
+  FitIntel Pro — Структура проекта
+  $(Get-Date -Format "yyyy-MM-dd HH:mm")
+  Корень: $root
+========================================
+
+"@
+
+$tree = Get-Tree -Path $root
+$header + ($tree -join "`n") | Set-Content -Path $output -Encoding UTF8
+
+Write-Host "✅ Дерево проекта сохранено:" -ForegroundColor Green
+Write-Host $output -ForegroundColor Cyan
+Write-Host "`n📊 Первые 50 строк:" -ForegroundColor Yellow
+Get-Content $output -TotalCount 50

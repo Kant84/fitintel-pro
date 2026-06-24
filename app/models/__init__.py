@@ -46,6 +46,11 @@ from app.models.online_session import OnlineSession
 # Chat
 from app.models.chat import ChatRoom, ChatMessage
 
+# === ДОБАВИТЬ В app/models/__init__.py ===
+from app.models.feature_flag import (
+    FeatureFlag, FeatureFlagTenantOverride, FeatureFlagUserOverride,
+    FeatureFlagAudit, FeatureFlagDependency
+)
 # Face ID + License (v1.3.0)
 from app.models.face_id import (
     FaceTemplate,
@@ -54,3 +59,7 @@ from app.models.face_id import (
     License,
     LicenseActivation,
 )
+from app.models.service import Service, ServiceBooking
+from app.models.dynamic_qr import DynamicQRCode
+from app.models.video_alert import VideoAlert
+from app.models.analytics import AnalyticsDaily

@@ -1,6 +1,8 @@
 # app/models/marketing_campaign.py
 
+import uuid
 from datetime import datetime
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import JSONB
@@ -40,7 +42,7 @@ class MarketingCampaign(Base, TimestampedUUIDMixin):
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
 
     # Кем создана
-    created_by: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
     # Результаты отправки
     results: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

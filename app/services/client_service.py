@@ -472,6 +472,14 @@ class ClientService:
     # ============================================================
 
     # метод строит словарь ответа по одному клиенту
+    
+
+    def delete_client(self, client):
+        """Мягкое удаление клиента (деактивация)"""
+        client.is_active = False
+        client.status = 'INACTIVE'
+        self.db.commit()
+
     def build_client_response(self, client: Client) -> dict:
         # возвращаем словарь в формате response schema
         return {
@@ -500,3 +508,5 @@ class ClientService:
             "items": items,
             "count": len(items),
         }
+
+

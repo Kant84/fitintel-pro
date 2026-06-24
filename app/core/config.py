@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # ==========================================================
 
     APP_NAME: str = Field(
-        default="FitNexus AI",
+        default="FitIntel Pro",
         description="Имя приложения, отображается в документации и логах.",
     )
 
@@ -135,7 +135,7 @@ class Settings(BaseSettings):
     )
 
     REDIS_PORT: int = Field(
-        default=6379,
+        default=6380,
         description="Порт Redis.",
     )
 
@@ -150,7 +150,39 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================
-    # 5. CORS
+    # 5. SMTP Email
+    # ==========================================================
+    SMTP_HOST: str = Field(
+        default="",
+        description="SMTP хост (например, mail.fixintel.ru)",
+    )
+    SMTP_PORT: int = Field(
+        default=587,
+        description="SMTP порт (обычно 587)",
+    )
+    SMTP_USER: str = Field(
+        default="",
+        description="SMTP пользователь (email)",
+    )
+    SMTP_PASSWORD: str = Field(
+        default="",
+        description="SMTP пароль",
+    )
+    SMTP_TLS: bool = Field(
+        default=True,
+        description="Использовать TLS",
+    )
+    SMTP_FROM_NAME: str = Field(
+        default="FitIntel PRO",
+        description="Имя отправителя",
+    )
+    SMTP_FROM_EMAIL: str = Field(
+        default="",
+        description="Email отправителя",
+    )
+
+    # ==========================================================
+    # 6. CORS
     # ==========================================================
 
     BACKEND_CORS_ORIGINS: str = Field(
@@ -187,12 +219,12 @@ class Settings(BaseSettings):
     # ==========================================================
 
     CELERY_BROKER_URL: str = Field(
-        default="redis://localhost:6379/0",
+        default="redis://localhost:6380/0",
         description="Адрес брокера очередей Celery.",
     )
 
     CELERY_RESULT_BACKEND: str = Field(
-        default="redis://localhost:6379/1",
+        default="redis://localhost:6380/1",
         description="Адрес хранилища результатов Celery.",
     )
 

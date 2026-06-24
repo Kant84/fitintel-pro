@@ -23,7 +23,6 @@ from app.services.audit_service import AuditService
 # импорт нормализации текста
 from app.utils.validators import normalize_text
 
-
 # допустимые статусы абонемента
 SUBSCRIPTION_STATUSES = {
     "DRAFT",
@@ -31,7 +30,6 @@ SUBSCRIPTION_STATUSES = {
     "EXPIRED",
     "FROZEN",
 }
-
 
 class SubscriptionService:
     # конструктор
@@ -158,6 +156,9 @@ class SubscriptionService:
         status_value: str,
         notes: str | None,
         actor_user_id=None,
+        time_restriction_type: str | None = None,
+        allowed_start_time=None,
+        allowed_end_time=None,
     ) -> Subscription:
         # получаем клиента
         client = self.get_client(client_id)
@@ -177,6 +178,11 @@ class SubscriptionService:
         # нормализуем заметки
         normalized_notes = normalize_text(notes) if notes else None
 
+        # определяем временные ограничения (переопределение или из тарифа)
+        resolved_time_restriction_type = time_restriction_type if time_restriction_type is not None else tariff.time_restriction_type
+        resolved_allowed_start_time = allowed_start_time if allowed_start_time is not None else tariff.allowed_start_time
+        resolved_allowed_end_time = allowed_end_time if allowed_end_time is not None else tariff.allowed_end_time
+        
         # создаём абонемент
         subscription = Subscription(
             client_id=client.id,
@@ -191,6 +197,9 @@ class SubscriptionService:
             is_unlimited=tariff.is_unlimited,
             is_active=resolved_is_active,
             notes=normalized_notes,
+            time_restriction_type=resolved_time_restriction_type,
+            allowed_start_time=resolved_allowed_start_time,
+            allowed_end_time=resolved_allowed_end_time,
         )
 
         # сохраняем
@@ -346,12 +355,31 @@ class SubscriptionService:
         }
 
     # собираем response списка
-    def build_subscription_list_response(self, subscriptions: list[Subscription]) -> dict:
-        # собираем элементы
-        items = [self.build_subscription_response(item) for item in subscriptions]
 
-        # возвращаем структуру
+
+    def extend_subscription(self, subscription_id: str, days: int, actor_user_id: str):
+        """Продлить абонемент на указанное количество дней"""
+        from app.models.subscription import Subscription
+        from datetime import datetime, timedelta
+        
+        subscription = self.db.query(Subscription).filter(Subscription.id == subscription_id).first()
+        if not subscription:
+            raise HTTPException(status_code=404, detail="Subscription not found")
+        
+        if subscription.end_date:
+            subscription.end_date = subscription.end_date + timedelta(days=days)
+        else:
+            subscription.end_date = datetime.now() + timedelta(days=days)
+        
+        self.db.commit()
+        self.db.refresh(subscription)
+        return subscription
+
+    def build_subscription_list_response(self, subscriptions: list[Subscription]) -> dict:
+        items = [self.build_subscription_response(sub) for sub in subscriptions]
         return {
             "items": items,
             "count": len(items),
         }
+
+    

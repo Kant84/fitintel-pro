@@ -1,6 +1,7 @@
 # app/main.py
 
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
@@ -23,6 +24,13 @@ from app.api.v1.access import router as access_router
 from app.api.v1.credentials import router as credentials_router
 from app.api.v1.access_cache import router as access_cache_router
 from app.api.v1.lockers import router as lockers_router
+from app.api.v1.analytics import router as analytics_router
+from app.api.v1.sse import router as sse_router
+from app.api.v1.notifications import router as notifications_router
+from app.api.v1.analytics_chart import router as analytics_chart_router
+from app.api.v1.analytics_dashboard import router as analytics_dashboard_router
+from app.services.scheduler_service import start_analytics_scheduler, shutdown_analytics_scheduler
+from contextlib import asynccontextmanager
 from app.api.v1.wallet import router as wallet_router
 from app.api.v1.payments import router as payments_router
 from app.api.v1.receipts import router as receipts_router
@@ -30,27 +38,78 @@ from app.api.v1.cash_desk import router as cash_desk_router
 from app.api.v1.sales import router as sales_router
 from app.api.v1.devices import router as devices_router
 from app.api.v1.analytics import router as analytics_router
+from app.api.v1.sse import router as sse_router
+from app.api.v1.notifications import router as notifications_router
+from app.api.v1.analytics_chart import router as analytics_chart_router
+from app.api.v1.analytics_dashboard import router as analytics_dashboard_router
+from app.services.scheduler_service import start_analytics_scheduler, shutdown_analytics_scheduler
+from contextlib import asynccontextmanager
 from app.api.v1.selfservice import router as selfservice_router
 from app.api.v1.documents import router as documents_router
 from app.api.v1.marketing import router as marketing_router
 from app.api.v1.gamification import router as gamification_router
 from app.api.v1.online_training import router as online_training_router
 from app.api.v1.hardware import router as hardware_router
+from app.api.v1.lockers import router as lockers_router
+from app.api.v1.analytics import router as analytics_router
+from app.api.v1.sse import router as sse_router
+from app.api.v1.notifications import router as notifications_router
+from app.api.v1.analytics_chart import router as analytics_chart_router
+from app.api.v1.analytics_dashboard import router as analytics_dashboard_router
+from app.services.scheduler_service import start_analytics_scheduler, shutdown_analytics_scheduler
+from contextlib import asynccontextmanager
 from app.api.v1.chat import router as chat_router
 from app.api.v1.telegram import router as telegram_router
 from app.api.v1.yookassa import router as yookassa_router
 from app.api.v1.client_verification import router as verify_router
 from app.api.v1.setup import router as setup_router
 
+from app.api.v1.endpoints.fiscal import fiscal_router
+from app.api.v1.endpoints.accounting import accounting_router
+
+from app.api.v1.endpoints.fiscal import fiscal_router
+from app.api.v1.endpoints.accounting import accounting_router
+
 # Face ID + License (v1.3.1)
 from app.routers.face_id import router as face_id_router
 from app.routers.license import router as license_router
-
+from app.api.v1 import feature_flags  # E7a — Feature Flags
+from app.api.v1.feature_flags import router as feature_flags_router
 # Setup Wizard + License Guard (v1.3.1)
 from app.middleware.license_middleware import LicenseMiddleware
-
+# New routers for TZ v3.5
+from app.api.v1.services import router as services_router
+from app.api.v1.dynamic_qr import router as dynamic_qr_router
+from app.api.v1.video_alerts import router as video_alerts_router
+from app.api.v1.reports import router as reports_router
+from app.api.v1.print import router as print_router
 # === APP ===
-app = FastAPI(
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: инициализация Hardware Manager
+    from app.hardware.manager import DeviceManager
+    acs_config = {
+        "device_id": "acs_reader_main",
+        "driver_class": "AcsAcr1252uDriver",
+        "reader_name": "ACS ACR1252 1S CL Reader PICC 0",
+    }
+    await DeviceManager.add_device(acs_config)
+    print("[HW] ACS ACR1252U initialized")
+    
+    # Startup: планировщик аналитики
+    start_analytics_scheduler()
+    
+    yield
+    
+    # Shutdown: планировщик аналитики
+    shutdown_analytics_scheduler()
+    
+    # Shutdown: отключение устройств
+    for device_id in list(DeviceManager._devices.keys()):
+        await DeviceManager.remove_device(device_id)
+    print("[HW] All devices disconnected")
+
+app = FastAPI(lifespan=lifespan,
     title=settings.APP_NAME,
     debug=settings.APP_DEBUG,
     docs_url="/docs" if settings.DOCS_ENABLED else None,
@@ -90,6 +149,11 @@ app.include_router(access_router, prefix=settings.API_V1_PREFIX)
 app.include_router(credentials_router, prefix=settings.API_V1_PREFIX)
 app.include_router(access_cache_router, prefix=settings.API_V1_PREFIX)
 app.include_router(lockers_router, prefix=settings.API_V1_PREFIX)
+app.include_router(analytics_router, prefix=settings.API_V1_PREFIX)
+app.include_router(sse_router, prefix=settings.API_V1_PREFIX)
+app.include_router(notifications_router, prefix=settings.API_V1_PREFIX)
+app.include_router(analytics_chart_router, prefix=settings.API_V1_PREFIX)
+app.include_router(analytics_dashboard_router, prefix=settings.API_V1_PREFIX)
 app.include_router(wallet_router, prefix=settings.API_V1_PREFIX)
 app.include_router(payments_router, prefix=settings.API_V1_PREFIX)
 app.include_router(receipts_router, prefix=settings.API_V1_PREFIX)
@@ -97,23 +161,39 @@ app.include_router(cash_desk_router, prefix=settings.API_V1_PREFIX)
 app.include_router(sales_router, prefix=settings.API_V1_PREFIX)
 app.include_router(devices_router, prefix=settings.API_V1_PREFIX)
 app.include_router(analytics_router, prefix=settings.API_V1_PREFIX)
+app.include_router(sse_router, prefix=settings.API_V1_PREFIX)
 app.include_router(selfservice_router, prefix=settings.API_V1_PREFIX)
 app.include_router(documents_router, prefix=settings.API_V1_PREFIX)
 app.include_router(marketing_router, prefix=settings.API_V1_PREFIX)
 app.include_router(gamification_router, prefix=settings.API_V1_PREFIX)
 app.include_router(online_training_router, prefix=settings.API_V1_PREFIX)
 app.include_router(hardware_router, prefix=settings.API_V1_PREFIX)
+app.include_router(lockers_router, prefix=settings.API_V1_PREFIX)
+app.include_router(analytics_router, prefix=settings.API_V1_PREFIX)
+app.include_router(sse_router, prefix=settings.API_V1_PREFIX)
 app.include_router(chat_router, prefix=settings.API_V1_PREFIX)
 app.include_router(telegram_router, prefix=settings.API_V1_PREFIX)
 app.include_router(yookassa_router, prefix=settings.API_V1_PREFIX)
 app.include_router(face_id_router, prefix=settings.API_V1_PREFIX)
-app.include_router(license_router, prefix=settings.API_V1_PREFIX)
+app.include_router(license_router)
 app.include_router(verify_router, prefix=settings.API_V1_PREFIX)
 app.include_router(setup_router, prefix=settings.API_V1_PREFIX)
 
+app.include_router(fiscal_router, prefix=settings.API_V1_PREFIX)
+app.include_router(accounting_router, prefix=settings.API_V1_PREFIX)
+
+app.include_router(fiscal_router, prefix=settings.API_V1_PREFIX)
+app.include_router(accounting_router, prefix=settings.API_V1_PREFIX)
+# === ADD THESE ROUTES (after existing routes) ===
+app.include_router(services_router, prefix=settings.API_V1_PREFIX)
+app.include_router(dynamic_qr_router, prefix=settings.API_V1_PREFIX)
+app.include_router(video_alerts_router, prefix=settings.API_V1_PREFIX)
+app.include_router(feature_flags_router, prefix=settings.API_V1_PREFIX + "/feature-flags")
+app.include_router(reports_router, prefix=settings.API_V1_PREFIX + "/reports")
+app.include_router(print_router, prefix=settings.API_V1_PREFIX + "/print")
 # === ROOT ===
 @app.get("/")
-async def root() -> dict[str, str]:
+async def root():
     return {
         "app_name": settings.APP_NAME,
         "version": settings.APP_VERSION,

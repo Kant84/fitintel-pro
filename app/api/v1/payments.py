@@ -58,13 +58,15 @@ def create_payment(
     """Создать платёж"""
     service = PaymentService(db)
     payment = service.create_payment(
-        client_id=str(payload.client_id),
+        client_id=str(payload.client_id) if payload.client_id else None,
         amount=payload.amount,
         payment_method=payload.payment_method,
         payment_system=payload.payment_system,
         notes=payload.notes,
         return_url=payload.return_url,
         webhook_url=payload.webhook_url,
+        payment_direction=payload.payment_direction,
+        payment_category=payload.payment_category,
         actor_user_id=str(current_user.id),
     )
     return service._build_response(payment)
