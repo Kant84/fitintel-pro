@@ -1,5 +1,1 @@
-<<<<<<< HEAD
-{'status': 'active', 'license_key': 'FCD53A7672BEC8CA8CACBE23CA46F79C', 'validated_at': '2026-06-15T19:48:17.516989+00:00', 'expires_at': '2027-06-09T13:05:11+03:00', 'license_type': 'professional', 'max_users': 50, 'max_clients': 5000, 'max_terminals': 10}
-=======
-{'status': 'active', 'license_key': 'FCD53A7672BEC8CA8CACBE23CA46F79C', 'validated_at': '2026-06-14T22:38:55.234702+00:00', 'expires_at': '2027-06-09T13:05:11+03:00', 'license_type': 'professional', 'max_users': 50, 'max_clients': 5000, 'max_terminals': 10}
->>>>>>> add08324efb53366e13ed9684e0652c6bdaa9143
+{'status': 'active', 'license_key': 'DEMO-PRO-2026-UNLIMITED', 'validated_at': '2026-06-24T21:33:50.560407+00:00', 'expires_at': None, 'license_type': None, 'max_users': None, 'max_clients': None, 'max_terminals': None}
