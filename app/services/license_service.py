@@ -1,6 +1,10 @@
 import hashlib
 import os
+<<<<<<< HEAD
 from datetime import datetime, timezone, timedelta
+=======
+from datetime import datetime, timedelta, timezone
+>>>>>>> add08324efb53366e13ed9684e0652c6bdaa9143
 from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 from app.models.face_id import License, LicenseActivation

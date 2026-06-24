@@ -92,7 +92,7 @@ def entry(
         access_device_id=payload.access_device_id,
         zone=payload.zone,
         entry_time=payload.entry_time,
-        notes=payload.notes,
+        
         actor_user_id=str(current_user.id),
         card_id=payload.card_id,
         face_id=payload.face_id,
@@ -122,7 +122,7 @@ def exit(
     visit = service.exit(
         visit_id=str(payload.visit_id),
         exit_time=payload.exit_time,
-        notes=payload.notes,
+        
         actor_user_id=str(current_user.id),
     )
     return service._build_response(visit)
@@ -204,7 +204,7 @@ def complete_visit(
     visit = service.exit(
         visit_id=str(visit_id),
         exit_time=payload.exit_time,
-        notes=payload.notes,
+        
         actor_user_id=str(current_user.id),
     )
     return service._build_response(visit)
