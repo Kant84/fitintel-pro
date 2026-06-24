@@ -318,7 +318,7 @@ def run_scenario(
 if __name__ == "__main__":
     # Создаём парсер аргументов командной строки.
     parser = argparse.ArgumentParser(
-        description="Интеграционный smoke-test для auth/users API FitNexus AI"
+        description="Интеграционный smoke-test для auth/users API FitIntel Pro"
     )
 
     # Аргумент базового URL API.
