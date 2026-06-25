@@ -87,6 +87,7 @@ from app.api.v1.print import router as print_router
 from app.api.v1.trainers import router as trainers_router
 from app.api.v1.warehouse import router as warehouse_router
 from app.api.v1.commercial import router as commercial_router
+from app.api.v1.exports import router as exports_router
 # === APP ===
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -199,6 +200,7 @@ app.include_router(print_router, prefix=settings.API_V1_PREFIX + "/print")
 app.include_router(trainers_router, prefix=settings.API_V1_PREFIX)
 app.include_router(warehouse_router, prefix=settings.API_V1_PREFIX)
 app.include_router(commercial_router, prefix=settings.API_V1_PREFIX)
+app.include_router(exports_router, prefix=settings.API_V1_PREFIX)
 # === ROOT ===
 @app.get("/")
 async def root():
