@@ -425,3 +425,23 @@ class ReceiptService:
         )
         
         return updated_receipt
+    def create_receipt(self, payment_id: UUID, items: list, customer_email: str = None, customer_phone: str = None, created_by: UUID = None, receipt_type: str = "SALE"):
+        """Создать чек"""
+        from app.models.receipt import Receipt
+        import uuid
+        
+        receipt = Receipt(
+            id=uuid.uuid4(),
+            payment_id=payment_id,
+            receipt_number=f"REC-{uuid.uuid4().hex[:8].upper()}",
+            receipt_type=receipt_type,
+            customer_email=customer_email,
+            customer_phone=customer_phone,
+            is_sent=False
+        )
+        self.db.add(receipt)
+        self.db.commit()
+        self.db.refresh(receipt)
+        return receipt
+
+
