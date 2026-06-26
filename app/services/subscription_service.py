@@ -381,5 +381,9 @@ class SubscriptionService:
             "items": items,
             "count": len(items),
         }
+    def get_client_subscriptions(self, client_id: str) -> list[Subscription]:
+        """Получить подписки клиента"""
+        return self.db.query(Subscription).filter(
+            Subscription.client_id == client_id
+        ).order_by(Subscription.created_at.desc()).all()
 
-    
