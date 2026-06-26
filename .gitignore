@@ -1,70 +1,65 @@
-# === Python ===
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
+*.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# === Virtual Environments ===
-.env
-.venv
-env/
+.venv/
 venv/
 ENV/
+env/
 env.bak/
 venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
 
-# === IDEs ===
+# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# === OS ===
+# OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# === Logs ===
+# Logs
 *.log
-logs/
 
-# === Testing ===
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
+# Databases
+*.db
+*.sqlite
+*.sqlite3
 
-# === Temporary files ===
-*.bak
+# Exports and reports
+*.csv
+*.xlsx
+*.xml
+*.json
+*.pdf
+*.txt
+*.png
+*.jpg
+*.jpeg
+
+# Temporary and scripts
 *.tmp
-*.temp
+*.bak
+*.zip
+*.ps1
+*.go
+*.html
+scripts/temp/
+tests/manual/
+sql/migrations/
 
-# === Project specific ===
-# Local test files
-test_config.py
-test_db.py
-test_models_import.py
-test_sqlalchemy.py
-# Generated
-structure.txt
-test_result.txt
-fix_password.py
+# Node
+node_modules/
+package-lock.json
 
-# Keep .env.example
-!.env.example
+# Build
+dist/
+build/
+*.egg-info/
