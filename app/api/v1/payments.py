@@ -2,12 +2,13 @@
 
 from uuid import UUID
 from decimal import Decimal
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import require_permission, get_current_user
 from app.db.session import get_db
 from app.models.user import User
+from app.models.client import Client
 from app.schemas.payment import (
     PaymentResponse,
     PaymentListResponse,
@@ -36,9 +37,14 @@ def get_my_payments(
     db: Session = Depends(get_db),
 ):
     """Получить свои платежи"""
+    # Ищем клиента по email (связь user-client через email)
+    client = db.query(Client).filter(Client.email == current_user.email).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Клиент не найден")
+    
     service = PaymentService(db)
     return service.get_client_payments(
-        client_id=str(current_user.id),
+        client_id=str(client.id),
         limit=limit,
         offset=offset,
         status_filter=status_filter.value if status_filter else None,
