@@ -4,13 +4,14 @@
 from uuid import UUID
 
 # импорт FastAPI
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, HTTPException
 
 # импорт Session
 from sqlalchemy.orm import Session
 
 # импорт зависимостей
-from app.api.dependencies import require_permission
+from app.api.dependencies import require_permission, get_current_user
+from app.models.user import User
 
 # импорт get_db
 from app.db.session import get_db
@@ -126,6 +127,11 @@ def extend_subscription(
     # создаём сервис
     subscription_service = SubscriptionService(db)
     
+    # проверяем, не отменена ли подписка
+    existing = subscription_service.get_subscription_by_id(str(subscription_id))
+    if existing and existing.status == "CANCELLED":
+        raise HTTPException(status_code=400, detail="Невозможно продлить отменённую подписку")
+    
     # продлеваем абонемент
     subscription = subscription_service.extend_subscription(
         subscription_id=str(subscription_id),
@@ -157,3 +163,30 @@ def update_subscription(
 
     # возвращаем ответ
     return subscription_service.build_subscription_response(subscription)
+
+@router.get("/client/{client_id}", response_model=SubscriptionListResponse)
+async def get_client_subscriptions(
+    client_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Получить подписки клиента"""
+    service = SubscriptionService(db)
+    subscriptions = service.get_client_subscriptions(client_id=client_id)
+    return {"items": subscriptions, "count": len(subscriptions)}
+
+@router.delete("/{subscription_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_subscription(
+    subscription_id: UUID,
+    current_user=Depends(require_permission('subscriptions.delete')),
+    db: Session = Depends(get_db),
+):
+    """Удалить подписку"""
+    service = SubscriptionService(db)
+    subscription = service.get_subscription_by_id(str(subscription_id))
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Абонемент не найден")
+    db.delete(subscription)
+    db.commit()
+    return None
+
