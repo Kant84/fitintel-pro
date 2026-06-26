@@ -23,6 +23,9 @@ class LicenseMiddleware(BaseHTTPMiddleware):
     """Middleware that blocks API without valid license."""
 
     async def dispatch(self, request: Request, call_next: Any) -> Any:
+        # Пропускаем WebSocket запросы
+        if request.scope.get("type") == "websocket":
+            return await call_next(request)
         path = request.url.path
         print(f"[LICENSE] path={path}, excluded={LicenseState.is_path_excluded(path)}, licensed={LicenseState.is_licensed()}")
 

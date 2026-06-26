@@ -1,6 +1,6 @@
 # app/main.py
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
@@ -89,6 +89,7 @@ from app.api.v1.warehouse import router as warehouse_router
 from app.api.v1.commercial import router as commercial_router
 from app.api.v1.exports import router as exports_router
 from app.api.v1.integrations import router as integrations_router
+from app.api.v1.ws_alerts import router as ws_alerts_router
 # === APP ===
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -122,12 +123,25 @@ app = FastAPI(lifespan=lifespan,
     redoc_url="/redoc" if settings.DOCS_ENABLED else None,
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
 )
+
+# WebSocket для алертов
+@app.websocket("/ws/alerts")
+async def websocket_alerts(websocket: WebSocket):
+    """WebSocket поток алертов"""
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await websocket.send_text(f"Alert received: {data}")
+    except WebSocketDisconnect:
+        pass
+
 app.mount("/static/trainer-pwa", StaticFiles(directory="app/static/trainer-pwa"), name="trainer-pwa")
 
 # === CORS ===
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://localhost:8001", "ws://localhost:8001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -203,6 +217,7 @@ app.include_router(warehouse_router, prefix=settings.API_V1_PREFIX)
 app.include_router(commercial_router, prefix=settings.API_V1_PREFIX)
 app.include_router(exports_router, prefix=settings.API_V1_PREFIX)
 app.include_router(integrations_router, prefix=settings.API_V1_PREFIX)
+app.include_router(ws_alerts_router, prefix="/ws")
 # === ROOT ===
 @app.get("/")
 async def root():

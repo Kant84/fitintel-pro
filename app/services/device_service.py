@@ -10,7 +10,7 @@ from app.repositories.device_repository import DeviceRepository
 from app.services.audit_service import AuditService
 
 
-VALID_DEVICE_TYPES = {"turnstile", "terminal", "controller", "reader", "locker", "barrier", "gate"}
+VALID_DEVICE_TYPES = {"turnstile", "terminal", "controller", "reader", "locker", "barrier", "gate", "CAMERA"}
 VALID_PROTOCOLS = {"http", "mqtt", "modbus", "serial", "gpio", "tcp", "websocket", "none"}
 
 

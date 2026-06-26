@@ -4,17 +4,17 @@ from datetime import datetime
 from app.schemas.enums import AlertType
 
 class VideoAlertBase(BaseModel):
-    camera_id: int = Field(..., gt=0)
+    camera_id: str = Field(...)
     alert_type: AlertType
     confidence: Optional[float] = Field(None, ge=0, le=1)
-    snapshot_path: Optional[str] = None
-    video_path: Optional[str] = None
+    snapshot: Optional[str] = None
+    
 
 class VideoAlertCreate(VideoAlertBase):
     pass
 
 class VideoAlertResponse(VideoAlertBase):
-    id: int
+    id: str
     is_false_positive: bool
     reviewed_by: Optional[int]
     created_at: datetime
@@ -23,4 +23,4 @@ class VideoAlertResponse(VideoAlertBase):
 
 class VideoAlertReviewRequest(BaseModel):
     is_false_positive: bool
-    reviewed_by: int = Field(..., gt=0)
+    reviewed_by: Optional[int] = Field(None, gt=0)
