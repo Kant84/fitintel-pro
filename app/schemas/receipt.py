@@ -2,6 +2,7 @@
 
 from uuid import UUID
 from datetime import datetime
+from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.enums import ReceiptType
 
@@ -9,6 +10,21 @@ from app.schemas.enums import ReceiptType
 # ==========================================================
 # ЧЕКИ
 # ==========================================================
+
+
+class ReceiptItem(BaseModel):
+    name: str
+    quantity: int = 1
+    price: Decimal
+    total: Decimal
+
+class ReceiptCreate(BaseModel):
+    payment_id: UUID
+    items: list[ReceiptItem]
+    receipt_type: str = "SALE"
+    original_receipt_id: UUID | None = None
+    customer_email: str | None = None
+    customer_phone: str | None = None
 
 class ReceiptResponse(BaseModel):
     """Ответ с информацией о чеке"""
