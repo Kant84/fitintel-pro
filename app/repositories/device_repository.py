@@ -23,6 +23,12 @@ class DeviceRepository:
         return self.db.execute(
             select(Device).where(Device.code == code)
         ).scalar_one_or_none()
+    
+    def get_by_address(self, address: str) -> Device | None:
+        """Получить устройство по адресу (IP)"""
+        return self.db.execute(
+            select(Device).where(Device.address == address)
+        ).scalar_one_or_none()
 
     def list_devices(
         self,
