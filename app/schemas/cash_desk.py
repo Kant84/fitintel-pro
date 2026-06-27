@@ -14,6 +14,7 @@ from app.schemas.enums import CashOperationType, PaymentMethod, CashDeskStatus
 class CashDeskOpenRequest(BaseModel):
     """Запрос на открытие смены"""
     
+    user_id: UUID | None = Field(None, description="ID кассира (если открываем за другого)")
     opening_balance: Decimal = Field(default=0.00, ge=0, description="Начальный остаток")
     notes: str | None = Field(None, max_length=500, description="Заметки")
 

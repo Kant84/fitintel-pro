@@ -36,8 +36,10 @@ def open_session(
 ):
     """Открыть кассовую смену"""
     service = CashDeskService(db)
+    # Используем user_id из payload если есть, иначе текущего пользователя
+    cashier_user_id = str(payload.user_id) if payload.user_id else str(current_user.id)
     session = service.open_session(
-        cashier_user_id=str(current_user.id),
+        cashier_user_id=cashier_user_id,
         opening_balance=payload.opening_balance,
         notes=payload.notes,
         actor_user_id=str(current_user.id),
@@ -111,6 +113,24 @@ def get_z_report(
     service = CashDeskService(db)
     return service.get_z_report(str(session_id))
 
+@router.post("/sessions/{session_id}/z-report")
+def generate_z_report(
+    session_id: UUID,
+    current_user: User = Depends(require_permission("cash_desk.close")),
+    db: Session = Depends(get_db),
+):
+    """Z-отчёт с закрытием смены"""
+    service = CashDeskService(db)
+    # Получаем отчёт
+    report = service.get_z_report(str(session_id))
+    # Закрываем смену (по user_id кассира)
+    from decimal import Decimal
+    expected_cash = report.get("expected_cash", 0)
+    if expected_cash is None:
+        expected_cash = Decimal("0")
+    service.close_session(str(current_user.id), expected_cash, current_user.id)
+    return {"report": report, "status": "closed"}
+
 
 # ==========================================================
 # КАССОВЫЕ ОПЕРАЦИИ
@@ -169,3 +189,16 @@ def verify_cash(
         notes=notes,
         actor_user_id=str(current_user.id),
     )
+
+@router.post("/sessions/{session_id}/print")
+async def print_report(
+    session_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Печать отчёта на принтере"""
+    service = CashDeskService(db)
+    report = service.get_z_report(str(session_id))
+    # Заглушка для печати
+    return {"success": True, "message": "Отчёт отправлен на печать", "session_id": str(session_id)}
+

@@ -31,8 +31,16 @@ class CashDeskRepository:
     
     def get_current_session(self, cashier_user_id: str) -> Optional[CashDeskSession]:
         """Получить текущую открытую смену кассира"""
+        from sqlalchemy import text
+        # Используем SQL-запрос напрямую для корректного сравнения UUID
+        result = self.db.query(CashDeskSession).from_statement(
+            text("SELECT * FROM cash_desk_sessions WHERE cashier_user_id = :cashier_id AND status = 'OPEN'")
+        ).params(cashier_id=cashier_user_id).first()
+        return result
+    
+    def get_any_open_session(self) -> Optional[CashDeskSession]:
+        """Получить любую открытую смену"""
         return self.db.query(CashDeskSession).filter(
-            CashDeskSession.cashier_user_id == cashier_user_id,
             CashDeskSession.status == "OPEN",
         ).first()
     
