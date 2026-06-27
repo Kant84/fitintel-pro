@@ -1,3 +1,36 @@
+from uuid import UUID
+from decimal import Decimal
+from datetime import datetime
+from pydantic import BaseModel, Field, ConfigDict
+from typing import List, Optional
+
+class SaleItem(BaseModel):
+    product_id: UUID
+    quantity: int = Field(ge=1)
+    price: Decimal = Field(ge=0)
+
+class PaymentMethod(BaseModel):
+    method: str = Field(pattern="^(CASH|CARD|WALLET)$")
+    amount: Decimal = Field(ge=0)
+
+class SaleCreate(BaseModel):
+    items: List[SaleItem]
+    payment_method: str = Field(default="CASH", pattern="^(CASH|CARD|WALLET)$")
+    payment_methods: Optional[List[PaymentMethod]] = None
+    discount_code: Optional[str] = None
+
+class SaleResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID
+    cashier_id: UUID
+    total_amount: Decimal
+    payment_method: str
+    items: List[SaleItem]
+    discount_code: Optional[str]
+    status: str
+    created_at: datetime
+
 # app/schemas/sale.py
 from typing import List, Optional
 
