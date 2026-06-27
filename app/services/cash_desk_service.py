@@ -86,7 +86,7 @@ class CashDeskService:
             "id": session.id,
             "session_number": session.session_number,
             "cashier_user_id": session.cashier_user_id,
-            "cashier_name": f"{cashier.first_name} {cashier.last_name}" if cashier else None,
+            "cashier_name": cashier.username if cashier else None,
             "opened_at": session.opened_at,
             "closed_at": session.closed_at,
             "opening_balance": session.opening_balance,
@@ -141,11 +141,21 @@ class CashDeskService:
             Открытая смена
         """
         # Проверяем, нет ли уже открытой смены у этого кассира
+
         existing = self.repository.get_current_session(cashier_user_id)
+
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"У кассира уже есть открытая смена #{existing.session_number}"
+            )
+        
+        # Проверяем, нет ли открытой смены у другого кассира
+        any_open = self.repository.get_any_open_session()
+        if any_open and str(any_open.cashier_user_id) != str(cashier_user_id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Смена уже открыта другим кассиром #{any_open.session_number}"
             )
         
         # Получаем последний номер смены
@@ -322,6 +332,25 @@ class CashDeskService:
         # Получаем текущую открытую смену
         session = self._get_current_session(cashier_user_id)
         
+        # Проверяем баланс для расходных операций
+        if operation_type.value in ["WITHDRAWAL", "EXPENSE"]:
+            from sqlalchemy import func
+            from app.models.cash_operation import CashOperation as CashOpModel
+            total_income = self.db.query(func.sum(CashOpModel.amount)).filter(
+                CashOpModel.session_id == session.id,
+                CashOpModel.operation_type.in_(["DEPOSIT", "INCOME"])
+            ).scalar() or Decimal("0")
+            total_outcome = self.db.query(func.sum(CashOpModel.amount)).filter(
+                CashOpModel.session_id == session.id,
+                CashOpModel.operation_type.in_(["WITHDRAWAL", "EXPENSE"])
+            ).scalar() or Decimal("0")
+            balance = total_income - total_outcome
+            if amount > balance:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Недостаточно средств в кассе. Баланс: {balance}, запрошено: {amount}"
+                )
+        
         operation = CashOperation(
             session_id=session.id,
             operation_type=operation_type.value,
@@ -417,7 +446,7 @@ class CashDeskService:
         
         report = {
             "session_number": session.session_number,
-            "cashier": f"{cashier.first_name} {cashier.last_name}",
+            "cashier": cashier.username if cashier else None,
             "opened_at": session.opened_at,
             "closed_at": session.closed_at,
             "opening_balance": float(session.opening_balance),
