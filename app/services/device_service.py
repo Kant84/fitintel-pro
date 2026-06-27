@@ -65,6 +65,14 @@ class DeviceService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Устройство с кодом '{code}' уже существует"
             )
+        
+        # Проверка уникальности IP
+        ip_address = data.get("address") or data.get("ip_address")
+        if ip_address and self.repo.get_by_address(ip_address):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"IP адрес '{ip_address}' уже занят"
+            )
 
         device_type = data.get("device_type", "turnstile")
         self._validate_type(device_type)
@@ -79,7 +87,7 @@ class DeviceService:
             device_type=device_type,
             manufacturer=data.get("manufacturer"),
             protocol=protocol,
-            address=data.get("address"),
+            address=data.get("address") or data.get("ip_address"),
             config=data.get("config", {}),
             is_active=data.get("is_active", True),
             zone=data.get("zone"),
@@ -93,7 +101,8 @@ class DeviceService:
             action="device.create",
             status="success",
             actor_user_id=actor_user_id,
-            target_device_id=device.id,
+            entity_type="device",
+            entity_id=device.id,
             message=f"Создано устройство {device.name} ({device.code})",
             after_data={
                 "code": device.code,
@@ -194,7 +203,8 @@ class DeviceService:
                 action="device.update",
                 status="success",
                 actor_user_id=actor_user_id,
-                target_device_id=device.id,
+                entity_type="device",
+                entity_id=device.id,
                 message=f"Обновлено устройство {device.name}",
                 before_data=before,
                 after_data=self._serialize(device),
@@ -207,12 +217,26 @@ class DeviceService:
         """Удалить устройство"""
         device = self.get_by_id(device_id)
         name = device.name
+        
+        # Проверяем, используется ли устройство (привязано к турникету или другому объекту)
+        # Заглушка — в реальности нужно проверять связи в БД
+        # Если устройство привязано к visit или другой сущности — отклоняем удаление
+        from sqlalchemy import text
+        result = self.db.execute(text("""
+            SELECT COUNT(*) FROM visits WHERE access_device_id = :device_id
+        """), {"device_id": str(device_id)}).scalar()
+        if result and result > 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Нельзя удалить используемое устройство"
+            )
 
         self.audit.log(
             action="device.delete",
             status="success",
             actor_user_id=actor_user_id,
-            target_device_id=device.id,
+            entity_type="device",
+            entity_id=device.id,
             message=f"Удалено устройство {name}",
             before_data=self._serialize(device),
         )
