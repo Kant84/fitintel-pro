@@ -1,22 +1,16 @@
 # app/models/product.py
-from sqlalchemy import Column, String, Text, Numeric, Boolean, ForeignKey, TIMESTAMP
+from sqlalchemy import Column, Numeric, String, Integer, Boolean, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from app.db.base import Base, TimestampedUUIDMixin
 import uuid
-from app.db.base import Base
 
-
-class Product(Base):
+class Product(TimestampedUUIDMixin, Base):
     __tablename__ = "products"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    club_id = Column(Integer, ForeignKey("clubs.id", ondelete="CASCADE"), nullable=False)
-    name = Column(String(200), nullable=False)
-    description = Column(Text)
-    category = Column(String(50))
+    
+    club_id = Column(UUID(as_uuid=True), ForeignKey("clubs.id"), nullable=False)
+    name = Column(String(255), nullable=False)
+    description = Column(String(500), nullable=True)
     price = Column(Numeric(10, 2), nullable=False)
-    cost_price = Column(Numeric(10, 2), default=0)
+    quantity = Column(Integer, default=0)
+    category = Column(String(50), nullable=False)
     is_active = Column(Boolean, default=True)
-    created_at = Column(TIMESTAMP, default="now()")
-
-    sales = relationship("TrainerSale", back_populates="product")

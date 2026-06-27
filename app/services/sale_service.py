@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.client import Client
 from app.models.tariff import Tariff
+from app.models.sale import Sale
 from app.models.subscription import Subscription
 from app.models.visit import Visit
 # from app.models.service import Service  # Будет создано позже
@@ -472,3 +473,92 @@ class SaleService:
             "items": results,
             "message": f"Продажа {len(items)} позиций на сумму {total_amount} RUB успешно завершена",
         }
+
+    def create_sale(self, cashier_id: UUID, items: list, payment_method: str, discount_code: str = None, payment_methods: list = None) -> Sale:
+        """Создать продажу"""
+        from app.models.sale import Sale
+        import uuid
+        from decimal import Decimal
+        from fastapi import HTTPException, status
+        
+        # Проверяем, что items не пустые
+        if not items:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Добавьте товары"
+            )
+        
+        # Проверяем остаток товаров
+        from app.models.product import Product
+        for item in items:
+            product = self.db.query(Product).filter(Product.id == str(item["product_id"])).first()
+            if product and product.quantity < item["quantity"]:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Товар '{product.name}' отсутствует на складе. Доступно: {product.quantity}, запрошено: {item['quantity']}"
+                )
+        
+        # Проверяем скидку
+        if discount_code:
+            from app.models.discount import Discount
+            discount = self.db.query(Discount).filter(Discount.code == discount_code, Discount.is_active == True).first()
+            if not discount:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Скидка '{discount_code}' не найдена"
+                )
+        
+        total = sum(Decimal(str(item["price"])) * item["quantity"] for item in items)
+        
+        # Обрабатываем оплату через терминал
+        from app.services.terminal_emulator import TerminalEmulator
+        terminal = TerminalEmulator()
+        
+        # Комбинированная оплата
+        if payment_methods:
+            total_paid = Decimal("0")
+            payment_results = []
+            for pm in payment_methods:
+                result = terminal.process_payment(float(pm["amount"]), pm["method"])
+                if not result["success"]:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=result.get("error", "Ошибка оплаты")
+                    )
+                total_paid += Decimal(str(pm["amount"]))
+                payment_results.append(result)
+            
+            if total_paid < total:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Недостаточно средств. Оплачено: {total_paid}, требуется: {total}"
+                )
+            
+            payment_result = {"success": True, "methods": payment_results, "total_paid": str(total_paid)}
+        else:
+            payment_result = terminal.process_payment(float(total), payment_method)
+            if not payment_result["success"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=payment_result.get("error", "Ошибка оплаты")
+                )
+        
+        sale = Sale(
+            id=uuid.uuid4(),
+            cashier_id=cashier_id,
+            total_amount=total,
+            payment_method=payment_method,
+            items=[{"product_id": str(item["product_id"]), "quantity": item["quantity"], "price": str(item["price"])} for item in items],
+            discount_code=discount_code,
+            status="COMPLETED"
+        )
+        self.db.add(sale)
+        self.db.commit()
+        self.db.refresh(sale)
+        
+        # Сохраняем информацию об оплате в items (для истории)
+        sale.items = [{"product_id": str(item["product_id"]), "quantity": item["quantity"], "price": str(item["price"])} for item in items]
+        self.db.commit()
+        
+        return sale
+
