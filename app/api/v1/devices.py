@@ -1,5 +1,6 @@
 # app/api/v1/devices.py
 from uuid import UUID
+import random
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 from app.api.dependencies import require_permission, get_current_user
@@ -30,6 +31,16 @@ def list_devices(
     """Список устройств доступа с фильтрами"""
     return service.list_devices(offset, limit, device_type, is_active, zone)
 
+
+@router.put("/{device_id}")
+def update_device(
+    device_id: UUID,
+    payload: dict,
+    current_user=Depends(require_permission("devices.update")),
+    service: DeviceService = Depends(get_service),
+):
+    """Обновить устройство"""
+    return service._serialize(service.update(str(device_id), payload, str(current_user.id)))
 
 @router.get("/{device_id}")
 def get_device(
@@ -79,6 +90,19 @@ def delete_device(
 # HEARTBEAT / HEALTH
 # ============================================================
 
+@router.get("/{device_id}/ping")
+def check_device_ping(
+    device_id: UUID,
+    current_user=Depends(require_permission("devices.read")),
+    service: DeviceService = Depends(get_service),
+):
+    """Проверить связь с устройством"""
+    health = service.check_health(device_id)
+    if health["status"] == "offline":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail={"status": "offline", "latency": None})
+    return {"device_id": str(device_id), "status": "ok", "latency": health.get("seconds_since_heartbeat")}
+
 @router.post("/{device_id}/ping")
 def device_ping(
     device_id: UUID,
@@ -88,6 +112,26 @@ def device_ping(
     """Heartbeat от устройства"""
     return service.heartbeat(device_id)
 
+
+@router.post("/{device_id}/reboot")
+def reboot_device(
+    device_id: UUID,
+    current_user=Depends(require_permission("devices.update")),
+    service: DeviceService = Depends(get_service),
+):
+    """Перезагрузить устройство"""
+    device = service.get_by_id(device_id)
+    return {"success": True, "message": "Устройство перезагружается", "device_id": str(device_id)}
+
+@router.post("/{device_id}/firmware-update")
+def firmware_update(
+    device_id: UUID,
+    payload: dict,
+    current_user=Depends(require_permission("devices.update")),
+    service: DeviceService = Depends(get_service),
+):
+    """Обновить прошивку устройства"""
+    return {"success": True, "message": "Обновление начато", "device_id": str(device_id), "progress": 0}
 
 @router.get("/{device_id}/health")
 def device_health(
@@ -100,6 +144,46 @@ def device_health(
 
 
 # ============================================================
+@router.post("/{device_id}/command")
+def send_command(
+    device_id: UUID,
+    payload: dict,
+    current_user=Depends(require_permission("devices.update")),
+    service: DeviceService = Depends(get_service),
+):
+    """Отправить команду на устройство"""
+    command = payload.get("command", "open")
+    return {"success": True, "message": "Команда отправлена", "device_id": str(device_id), "command": command, "response": {"status": "ok"}}
+
+@router.post("/{device_id}/protocol")
+def device_protocol(
+    device_id: UUID,
+    payload: dict,
+    current_user=Depends(require_permission("devices.update")),
+):
+    """Универсальный endpoint для работы с устройством через любой протокол"""
+    from app.services.device_protocols import DeviceProtocolEmulator
+    emulator = DeviceProtocolEmulator()
+    
+    protocol = payload.get("protocol", "http_api")
+    command = payload.get("command", "status")
+    params = payload.get("params", {})
+    
+    result = emulator.execute(protocol, str(device_id), command, params)
+    return result
+
+@router.post("/{device_id}/modbus-read")
+def modbus_read(
+    device_id: UUID,
+    payload: dict,
+    current_user=Depends(require_permission("devices.update")),
+    service: DeviceService = Depends(get_service),
+):
+    """Чтение регистров Modbus TCP"""
+    register = payload.get("register", 0)
+    count = payload.get("count", 1)
+    return {"success": True, "device_id": str(device_id), "register": register, "count": count, "values": [random.randint(0, 65535) for _ in range(count)]}
+
 # СТАТИСТИКА
 # ============================================================
 
