@@ -15,7 +15,7 @@ class Service(Base):
     duration_minutes = Column(Integer)
     max_capacity = Column(Integer, default=1)
     trainer_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    schedule = Column(JSON, default=dict)
+    schedule = Column(JSON)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
