@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
+from uuid import UUID
 from app.schemas.enums import ServiceCategory
 
 class ServiceBase(BaseModel):
@@ -11,8 +12,8 @@ class ServiceBase(BaseModel):
     price: float = Field(..., gt=0)
     duration_minutes: Optional[int] = Field(None, gt=0)
     max_capacity: Optional[int] = Field(1, ge=1)
-    trainer_id: Optional[int] = None
-    schedule: Optional[Dict[str, Any]] = Field(default=dict)
+    trainer_id: Optional[UUID] = None
+    schedule: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 class ServiceCreate(ServiceBase):
     pass
@@ -25,22 +26,22 @@ class ServiceUpdate(BaseModel):
     max_capacity: Optional[int] = None
 
 class ServiceResponse(ServiceBase):
-    id: int
+    id: UUID
     is_active: bool
     created_at: datetime
     class Config:
         from_attributes = True
 
 class ServiceBookingBase(BaseModel):
-    client_id: int = Field(..., gt=0)
-    service_id: int = Field(..., gt=0)
+    client_id: UUID = Field(...)
+    service_id: UUID = Field(...)
     booking_date: datetime
 
 class ServiceBookingCreate(ServiceBookingBase):
     pass
 
 class ServiceBookingResponse(ServiceBookingBase):
-    id: int
+    id: UUID
     status: str
     created_at: datetime
     class Config:

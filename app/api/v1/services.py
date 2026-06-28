@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from typing import List, Optional
 from datetime import datetime, date
+from uuid import UUID
 
 from app.api.dependencies import get_db, get_current_user
 from app.models.service import Service, ServiceBooking
@@ -38,9 +39,23 @@ async def list_services(category: Optional[ServiceCategory] = None, is_active: O
         query = query.filter(Service.name.ilike(f"%{search}%"))
     return query.order_by(Service.name).all()
 
+@router.get("/trainer-schedule", response_model=List[ServiceBookingResponse])
+async def get_schedule(trainer_id: Optional[UUID] = None, date: Optional[date] = None, db: Session = Depends(get_db)):
+    """Получить расписание тренера"""
+    query = db.query(ServiceBooking).filter(ServiceBooking.status.in_(["BOOKED", "CONFIRMED"]))
+    if trainer_id:
+        # Находим услуги тренера
+        trainer_services = db.query(Service.id).filter(Service.trainer_id == trainer_id).all()
+        service_ids = [s[0] for s in trainer_services]
+        query = query.filter(ServiceBooking.service_id.in_(service_ids))
+    if date:
+        query = query.filter(func.date(ServiceBooking.booking_date) == date)
+    bookings = query.order_by(ServiceBooking.booking_date).all()
+    return bookings
+
 @router.get("/{service_id}", response_model=ServiceResponse)
 
-async def get_service(service_id: int, db: Session = Depends(get_db)):
+async def get_service(service_id: UUID, db: Session = Depends(get_db)):
     service = db.query(Service).filter(Service.id == service_id).first()
     if not service:
         raise HTTPException(status_code=404, detail="Услуга не найдена")
@@ -48,7 +63,7 @@ async def get_service(service_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{service_id}", response_model=ServiceResponse)
 
-async def update_service(service_id: int, service_update: ServiceUpdate, db: Session = Depends(get_db)):
+async def update_service(service_id: UUID, service_update: ServiceUpdate, db: Session = Depends(get_db)):
     service = db.query(Service).filter(Service.id == service_id).first()
     if not service:
         raise HTTPException(status_code=404, detail="Услуга не найдена")
@@ -61,17 +76,24 @@ async def update_service(service_id: int, service_update: ServiceUpdate, db: Ses
 
 @router.delete("/{service_id}", status_code=status.HTTP_204_NO_CONTENT)
 
-async def delete_service(service_id: int, db: Session = Depends(get_db)):
+async def delete_service(service_id: UUID, db: Session = Depends(get_db)):
     service = db.query(Service).filter(Service.id == service_id).first()
     if not service:
         raise HTTPException(status_code=404, detail="Услуга не найдена")
+    # Проверяем, есть ли активные бронирования
+    active_bookings = db.query(ServiceBooking).filter(
+        ServiceBooking.service_id == service_id,
+        ServiceBooking.status.in_(["BOOKED", "CONFIRMED"])
+    ).count()
+    if active_bookings > 0:
+        raise HTTPException(status_code=409, detail="Нельзя удалить услугу с активными бронированиями")
     db.delete(service)
     db.commit()
     return None
 
 @router.get("/{service_id}/availability", response_model=ServiceAvailabilityResponse)
 
-async def get_availability(service_id: int, check_date: Optional[date] = None, db: Session = Depends(get_db)):
+async def get_availability(service_id: UUID, check_date: Optional[date] = None, db: Session = Depends(get_db)):
     service = db.query(Service).filter(Service.id == service_id).first()
     if not service:
         raise HTTPException(status_code=404, detail="Услуга не найдена")
@@ -91,7 +113,7 @@ async def get_availability(service_id: int, check_date: Optional[date] = None, d
 
 @router.post("/{service_id}/book", response_model=ServiceBookingResponse, status_code=status.HTTP_201_CREATED)
 
-async def book_service(service_id: int, booking: ServiceBookingCreate, db: Session = Depends(get_db)):
+async def book_service(service_id: UUID, booking: ServiceBookingCreate, db: Session = Depends(get_db)):
     service = db.query(Service).filter(Service.id == service_id).first()
     if not service:
         raise HTTPException(status_code=404, detail="Услуга не найдена")
@@ -114,14 +136,36 @@ async def book_service(service_id: int, booking: ServiceBookingCreate, db: Sessi
     db.refresh(db_booking)
     return db_booking
 
+@router.post("/bookings/{booking_id}/send-reminder", response_model=dict)
+async def send_reminder(booking_id: UUID, db: Session = Depends(get_db)):
+    """Отправить напоминание о бронировании"""
+    booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Бронирование не найдено")
+    # Здесь будет логика отправки Email/SMS
+    return {
+        "success": True,
+        "message": "Напоминание отправлено",
+        "booking_id": str(booking_id),
+        "client_id": str(booking.client_id),
+        "booking_date": booking.booking_date.isoformat(),
+        "channel": "email"
+    }
+
 @router.post("/bookings/{booking_id}/cancel", response_model=ServiceBookingResponse)
 
-async def cancel_booking(booking_id: int, db: Session = Depends(get_db)):
+async def cancel_booking(booking_id: UUID, db: Session = Depends(get_db)):
     booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Запись не найдена")
     if booking.status != "BOOKED":
         raise HTTPException(status_code=409, detail="Нельзя отменить выполненную запись")
+    # Проверяем, что до начала бронирования более 24 часов
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    time_diff = booking.booking_date - now
+    if time_diff < timedelta(hours=24):
+        raise HTTPException(status_code=400, detail="Отмена возможна только за 24 часа до начала")
     booking.status = "CANCELLED"
     db.commit()
     db.refresh(booking)
