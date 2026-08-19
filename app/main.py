@@ -51,6 +51,7 @@ from app.api.v1.equipment import router as equipment_router
 from app.api.v1.chat import router as chat_router
 from app.api.v1.chats import router as chats_router, ws_router as chats_ws_router
 from app.api.v1.telegram import router as telegram_router
+from app.api.v1.max_bot import router as max_bot_router
 from app.api.v1.yookassa import router as yookassa_router
 from app.api.v1.client_verification import router as verify_router
 from app.api.v1.setup import router as setup_router
@@ -115,6 +116,7 @@ app.include_router(chat_router, prefix=settings.API_V1_PREFIX)
 app.include_router(chats_router, prefix=settings.API_V1_PREFIX)
 app.include_router(chats_ws_router)
 app.include_router(telegram_router, prefix=settings.API_V1_PREFIX)
+app.include_router(max_bot_router, prefix=settings.API_V1_PREFIX)
 app.include_router(yookassa_router, prefix=settings.API_V1_PREFIX)
 app.include_router(license_router)
 app.include_router(verify_router, prefix=settings.API_V1_PREFIX)
