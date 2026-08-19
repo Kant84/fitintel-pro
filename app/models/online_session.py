@@ -40,6 +40,9 @@ class OnlineSession(Base, TimestampedUUIDMixin):
     # ID тренера (ссылка на users)
     trainer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
+    # ID клиента (персональная сессия)
+    client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True)
+
     # Время начала (для live/scheduled)
     starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -54,6 +57,32 @@ class OnlineSession(Base, TimestampedUUIDMixin):
 
     # Теги (JSON)
     tags: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
+    # --- Поля для E22 (персональные онлайн-сессии) ---
+
+    # Статус: scheduled, in_progress, completed, cancelled
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="scheduled")
+
+    # Ссылка для подключения
+    join_link: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Провайдер: internal, zoom, google_meet
+    provider: Mapped[str] = mapped_column(String(20), nullable=False, default="internal")
+
+    # ID встречи/события у провайдера
+    meeting_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    event_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # Запись сессии
+    record: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    recording_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    recording_duration: Mapped[int | None] = mapped_column(Integer, nullable=True)  # секунды
+
+    # Screen sharing
+    screen_sharing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # Напоминание отправлено
+    reminder_sent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Связь с тренером
     trainer = relationship("User")
@@ -77,7 +106,7 @@ class SessionParticipant(Base, TimestampedUUIDMixin):
         index=True,
     )
 
-    # Статус: registered, attended, completed, cancelled
+    # Статус: invited, registered, attended, completed, cancelled
     status: Mapped[str] = mapped_column(String(20), default="registered", nullable=False)
 
     # Прогресс просмотра (%) для записей
@@ -98,3 +127,17 @@ class SessionParticipant(Base, TimestampedUUIDMixin):
     # Связи
     session = relationship("OnlineSession", back_populates="participants")
     client = relationship("Client")
+
+
+class SessionChatMessage(Base, TimestampedUUIDMixin):
+    """Сообщение чата онлайн-сессии (E22.11)"""
+
+    __tablename__ = "session_chat_messages"
+
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("online_sessions.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    sender_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    sender_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)

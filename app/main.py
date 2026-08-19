@@ -45,6 +45,7 @@ from app.api.v1.documents import router as documents_router
 from app.api.v1.marketing import router as marketing_router
 from app.api.v1.gamification import router as gamification_router
 from app.api.v1.online_training import router as online_training_router
+from app.api.v1.online_sessions import router as online_sessions_router
 from app.api.v1.hardware import router as hardware_router
 from app.api.v1.chat import router as chat_router
 from app.api.v1.telegram import router as telegram_router
@@ -105,6 +106,7 @@ app.include_router(documents_router, prefix=settings.API_V1_PREFIX)
 app.include_router(marketing_router, prefix=settings.API_V1_PREFIX)
 app.include_router(gamification_router, prefix=settings.API_V1_PREFIX)
 app.include_router(online_training_router, prefix=settings.API_V1_PREFIX)
+app.include_router(online_sessions_router, prefix=settings.API_V1_PREFIX)
 app.include_router(hardware_router, prefix=settings.API_V1_PREFIX)
 app.include_router(chat_router, prefix=settings.API_V1_PREFIX)
 app.include_router(telegram_router, prefix=settings.API_V1_PREFIX)
