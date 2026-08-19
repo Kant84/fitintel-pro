@@ -1,12 +1,14 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text, Float, JSON, LargeBinary
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import UUID
 from app.db.base import Base
 
 class FaceTemplate(Base):
     __tablename__ = "face_templates"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=True, index=True)
     user_type = Column(String(20), nullable=False, default="client")
     face_encoding = Column(JSON, nullable=False)
     photo_path = Column(String(255), nullable=True)
@@ -22,7 +24,7 @@ class FaceRecognitionLog(Base):
     __tablename__ = "face_recognition_logs"
     id = Column(Integer, primary_key=True, index=True)
     face_template_id = Column(Integer, ForeignKey("face_templates.id", ondelete="SET NULL"), nullable=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     user_type = Column(String(20), nullable=True)
     terminal_id = Column(String(100), nullable=False, index=True)
     terminal_location = Column(String(255), nullable=True)
