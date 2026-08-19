@@ -33,3 +33,5 @@ rebuild_main.py
 restore_*.py
 rewrite_validate.py
 setup_test_config.py
+
+uploads/
