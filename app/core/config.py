@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    QR_TTL_MINUTES: int = 5  # Время жизни QR-кода в минутах (настройка клуба)
     """
     Главный класс конфигурации проекта.
 

@@ -29,7 +29,7 @@ async def create_service(service: ServiceCreate, db: Session = Depends(get_db), 
 
 @router.get("", response_model=List[ServiceResponse])
 
-async def list_services(category: Optional[ServiceCategory] = None, is_active: Optional[bool] = None, search: Optional[str] = None, db: Session = Depends(get_db)):
+async def list_services(category: Optional[ServiceCategory] = None, is_active: Optional[bool] = None, search: Optional[str] = None, trainer_id: Optional[UUID] = None, db: Session = Depends(get_db)):
     query = db.query(Service)
     if category:
         query = query.filter(Service.category == category.value)
@@ -37,7 +37,13 @@ async def list_services(category: Optional[ServiceCategory] = None, is_active: O
         query = query.filter(Service.is_active == is_active)
     if search:
         query = query.filter(Service.name.ilike(f"%{search}%"))
+    if trainer_id:
+        query = query.filter(Service.trainer_id == trainer_id)
     return query.order_by(Service.name).all()
+
+
+
+
 
 @router.get("/trainer-schedule", response_model=List[ServiceBookingResponse])
 async def get_schedule(trainer_id: Optional[UUID] = None, date: Optional[date] = None, db: Session = Depends(get_db)):

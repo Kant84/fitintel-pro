@@ -112,3 +112,34 @@ async def delete_alert(alert_id: str, db: Session = Depends(get_db)):
     db.commit()
     return None
 
+
+
+@router.post("/face-match", status_code=200)
+async def face_match_alert(data: dict, db: Session = Depends(get_db)):
+    """E27.11: Камера присылает кадр — ищем совпадение лица и создаём алерт."""
+    from app.api.v1.face_id import extract_face_encoding
+    from app.services.face_id_service import FaceIDService
+    from app.models.video_alert import VideoAlert
+    camera_id = data.get("camera_id", "unknown")
+    photo = data.get("photo", "")
+    encoding, error, quality = extract_face_encoding(photo)
+    if error:
+        return {"matched": False, "reason": error, "camera_id": camera_id}
+    service = FaceIDService(db)
+    template, confidence = service.find_best_match(encoding)
+    matched = template is not None
+    alert = VideoAlert(
+        camera_id=camera_id,
+        alert_type="face_match",
+        confidence=round(confidence, 2),
+        description=(f"Face match: client_id={template.client_id}, conf={round(confidence, 4)}"
+                     if matched else "Face not matched"),
+    )
+    db.add(alert)
+    db.commit()
+    db.refresh(alert)
+    return {"matched": matched,
+            "client_id": str(template.client_id) if matched else None,
+            "confidence": round(confidence, 4),
+            "alert_id": str(alert.id),
+            "camera_id": camera_id}
