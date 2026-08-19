@@ -1,311 +1,388 @@
-# app/services/gamification_service.py
-
-from uuid import UUID
-from datetime import datetime, timezone, timedelta
-from fastapi import HTTPException
+"""GamificationService — XP, уровни, достижения, streak, награды, правила XP."""
 from sqlalchemy.orm import Session
-from sqlalchemy import select, desc, func
+from sqlalchemy import desc
+from typing import Optional
+from uuid import UUID
+from datetime import datetime, timedelta
 
-from app.models.client import Client
 from app.models.gamification_level import (
-    GamificationLevel, Achievement, xp_for_level, xp_needed_for_next, MAX_LEVEL
+    GamificationLevel, Achievement, AchievementDef,
+    Reward, RewardActivation, XPRule,
+    xp_needed_for_next, MAX_LEVEL,
 )
-from app.models.visit import Visit
-
-
-# Таблица достижений
-ACHIEVEMENT_DEFS = {
-    "first_visit": {"title": "Первый шаг", "description": "Первое посещение клуба", "xp": 50, "icon": "🎯"},
-    "week_warrior": {"title": "Недельный воин", "description": "7 дней посещений подряд", "xp": 200, "icon": "🔥"},
-    "month_master": {"title": "Месячный мастер", "description": "30 дней посещений подряд", "xp": 500, "icon": "👑"},
-    "centurion": {"title": "Центурион", "description": "100 посещений", "xp": 1000, "icon": "💯"},
-    "early_bird": {"title": "Ранняя пташка", "description": "10 утренних тренировок (до 9:00)", "xp": 150, "icon": "🌅"},
-    "night_owl": {"title": "Сова", "description": "10 вечерних тренировок (после 20:00)", "xp": 150, "icon": "🌙"},
-    " marathon": {"title": "Марафонец", "description": "500 минут тренировок", "xp": 300, "icon": "🏃"},
-    "loyal": {"title": "Преданный", "description": "1 год в клубе", "xp": 2000, "icon": "⭐"},
-}
+from app.models.client import Client
 
 XP_PER_VISIT = 10
-XP_PER_MINUTE = 0.1  # XP за минуту тренировки
-STREAK_BONUS_XP = 5  # Бонус за каждый день streak
+XP_PER_MINUTE = 0.1
+STREAK_BONUS_XP = 5
+
+ACHIEVEMENT_DEFS = {
+    "first_visit": {"title": "Первый шаг", "description": "Первое посещение клуба", "xp_reward": 50, "icon": "target"},
+    "week_warrior": {"title": "Воин недели", "description": "7 посещений", "xp_reward": 200, "icon": "sword"},
+    "month_master": {"title": "Мастер месяца", "description": "20 посещений", "xp_reward": 500, "icon": "crown"},
+    "centurion": {"title": "Центурион", "description": "100 посещений", "xp_reward": 100, "icon": "hundred"},
+    "early_bird": {"title": "Ранняя пташка", "description": "Тренировка до 8 утра", "xp_reward": 150, "icon": "sunrise"},
+    "night_owl": {"title": "Ночная сова", "description": "Тренировка после 22:00", "xp_reward": 300, "icon": "owl"},
+    "marathon": {"title": "Марафонец", "description": "Тренировка дольше 2 часов", "xp_reward": 300, "icon": "runner"},
+    "streak_7": {"title": "Неделя огня", "description": "7 дней посещений без пропусков", "xp_reward": 350, "icon": "fire"},
+}
 
 
 class GamificationService:
-    """Сервис геймификации: XP, уровни, достижения, серии"""
-
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session):
         self.db = db
 
-    # ============================================================
-    # ПОЛУЧЕНИЕ / СОЗДАНИЕ
-    # ============================================================
+    # ---------- базовое ----------
 
     def get_or_create_level(self, client_id: UUID) -> GamificationLevel:
-        """Получить или создать прогресс клиента"""
-        level = self.db.execute(
-            select(GamificationLevel).where(GamificationLevel.client_id == str(client_id))
-        ).scalar_one_or_none()
-
+        level = self.db.query(GamificationLevel).filter(
+            GamificationLevel.client_id == client_id
+        ).first()
         if not level:
             level = GamificationLevel(
-                client_id=str(client_id),
-                level=1,
-                current_xp=0,
+                client_id=client_id, level=1, current_xp=0,
                 xp_to_next=xp_needed_for_next(1),
+                total_visits=0, total_workout_minutes=0,
+                streak_days=0, max_streak_days=0, last_visit_date=None,
+                achievements_count=0,
             )
             self.db.add(level)
             self.db.commit()
             self.db.refresh(level)
-
         return level
 
+    def _client_name(self, client) -> str:
+        for attr in ("full_name", "name"):
+            v = getattr(client, attr, None)
+            if v:
+                return v
+        fn = getattr(client, "first_name", "") or ""
+        ln = getattr(client, "last_name", "") or ""
+        return (fn + " " + ln).strip() or str(client.id)
+
+    def _get_level_title(self, level: int) -> str:
+        if level >= 50:
+            return "Легенда клуба"
+        if level >= 30:
+            return "Мастер"
+        if level >= 20:
+            return "Эксперт"
+        if level >= 10:
+            return "Профи"
+        if level >= 5:
+            return "Любитель"
+        return "Новичок"
+
+    def _get_client_rank(self, current_xp: int) -> int:
+        higher = self.db.query(GamificationLevel).filter(
+            GamificationLevel.current_xp > current_xp
+        ).count()
+        return higher + 1
+
+    def _get_achievements(self, client_id: UUID) -> list:
+        rows = self.db.query(Achievement).filter(
+            Achievement.client_id == client_id
+        ).order_by(desc(Achievement.created_at)).all()
+        return [{
+            "id": str(a.id), "type": a.achievement_type, "title": a.title,
+            "description": a.description, "xp_reward": a.xp_reward,
+            "icon": a.icon,
+            "unlocked_at": a.created_at.isoformat() if a.created_at else None,
+        } for a in rows]
+
+    def _get_next_rewards(self, level: int) -> list:
+        rows = self.db.query(Reward).filter(
+            Reward.is_active == True, Reward.level_required > level
+        ).order_by(Reward.level_required).limit(3).all()
+        return [{"title": r.title, "required_level": r.level_required} for r in rows]
+
     def get_client_progress(self, client_id: UUID) -> dict:
-        """Полный прогресс клиента"""
         level = self.get_or_create_level(client_id)
-        achievements = self._get_achievements(client_id)
-        rank = self._get_client_rank(client_id)
-
-        # Рассчитываем прогресс бар
-        xp_for_current = xp_for_level(level.level)
-        xp_for_next = xp_for_level(level.level + 1)
-        xp_progress = level.current_xp - xp_for_current
-        xp_needed = xp_for_next - xp_for_current
-        progress_pct = min(100, max(0, (xp_progress / xp_needed * 100))) if xp_needed > 0 else 100
-
+        progress = round(level.current_xp / level.xp_to_next * 100, 1) if level.xp_to_next else 100.0
         return {
             "client_id": str(client_id),
-            "level": level.level,
+            "current_level": level.level,
             "level_title": self._get_level_title(level.level),
             "current_xp": level.current_xp,
-            "xp_to_next": xp_for_next,
-            "xp_progress": xp_progress,
-            "xp_needed_for_next": xp_needed,
-            "progress_percent": round(progress_pct, 1),
-            "total_visits": level.total_visits,
-            "total_workout_minutes": level.total_workout_minutes,
+            "xp_to_next": level.xp_to_next,
+            "progress_percent": progress,
+            "rank": self._get_client_rank(level.current_xp),
             "streak_days": level.streak_days,
             "max_streak_days": level.max_streak_days,
-            "achievements_count": len(achievements),
-            "achievements": achievements,
-            "rank": rank,
+            "total_visits": level.total_visits,
+            "total_workout_minutes": level.total_workout_minutes,
+            "achievements_count": self.db.query(Achievement).filter(
+                Achievement.client_id == client_id
+            ).count(),
+            "achievements": self._get_achievements(client_id),
             "next_rewards": self._get_next_rewards(level.level),
         }
 
-    def get_leaderboard(self, limit: int = 20) -> list[dict]:
-        """Топ клиентов по XP"""
-        levels = self.db.execute(
-            select(GamificationLevel)
+    def get_leaderboard(self, period: Optional[str] = None, limit: int = 10) -> list:
+        # period: week | month | all — пока учитываем общий XP (period принимаем для совместимости)
+        rows = (
+            self.db.query(GamificationLevel, Client)
+            .join(Client, GamificationLevel.client_id == Client.id)
             .order_by(desc(GamificationLevel.current_xp))
-            .limit(limit)
-        ).scalars().all()
-
-        result = []
-        for i, lvl in enumerate(levels, 1):
-            client = self.db.execute(
-                select(Client).where(Client.id == lvl.client_id)
-            ).scalar_one_or_none()
-            name = f"{client.first_name} {client.last_name}" if client else "Неизвестный"
-            result.append({
-                "rank": i,
-                "client_id": lvl.client_id,
-                "client_name": name,
-                "level": lvl.level,
-                "current_xp": lvl.current_xp,
-                "total_visits": lvl.total_visits,
-                "streak_days": lvl.streak_days,
-                "achievements_count": lvl.achievements_count,
-            })
-        return result
-
-    # ============================================================
-    # ОБРАБОТКА ПОСЕЩЕНИЯ
-    # ============================================================
-
-    def process_visit(self, client_id: UUID, entry_at: datetime, exit_at: datetime | None = None) -> dict:
-        """Начислить XP за посещение, проверить достижения"""
-        level = self.get_or_create_level(client_id)
-
-        # XP за визит
-        xp_gained = XP_PER_VISIT
-        level.total_visits += 1
-
-        # XP за минуты тренировки
-        minutes = 0
-        if exit_at:
-            minutes = int((exit_at - entry_at).total_seconds() / 60)
-            workout_xp = int(minutes * XP_PER_MINUTE)
-            xp_gained += workout_xp
-            level.total_workout_minutes += minutes
-
-        # Проверка streak
-        streak_bonus = self._update_streak(level, entry_at)
-        xp_gained += streak_bonus
-
-        # Начисляем XP
-        old_level = level.level
-        level.current_xp += xp_gained
-
-        # Проверяем повышение уровня
-        level_ups = 0
-        while level.level < MAX_LEVEL and level.current_xp >= xp_for_level(level.level + 1):
-            level.level += 1
-            level_ups += 1
-
-        level.xp_to_next = xp_needed_for_next(level.level)
-        self.db.commit()
-
-        # Проверяем достижения
-        new_achievements = self._check_achievements(client_id, level, entry_at)
-
-        return {
-            "xp_gained": xp_gained,
-            "streak_bonus": streak_bonus,
-            "total_xp": level.current_xp,
+            .limit(limit).all()
+        )
+        return [{
+            "rank": i + 1,
+            "client_id": str(level.client_id),
+            "client_name": self._client_name(client),
+            "current_xp": level.current_xp,
             "level": level.level,
-            "levels_gained": level_ups,
-            "workout_minutes": minutes,
-            "new_achievements": new_achievements,
+            "level_title": self._get_level_title(level.level),
             "streak_days": level.streak_days,
+        } for i, (level, client) in enumerate(rows)]
+
+    # ---------- XP ----------
+
+    def _add_xp(self, level: GamificationLevel, amount: int) -> bool:
+        level.current_xp += amount
+        leveled_up = False
+        while level.level < MAX_LEVEL and level.current_xp >= level.xp_to_next:
+            level.current_xp -= level.xp_to_next
+            level.level += 1
+            level.xp_to_next = xp_needed_for_next(level.level)
+            leveled_up = True
+        return leveled_up
+
+    def award_xp(self, client_id: UUID, amount: int, reason: str = "manual") -> dict:
+        level = self.get_or_create_level(client_id)
+        leveled_up = self._add_xp(level, int(amount))
+        self.db.commit()
+        self.db.refresh(level)
+        return {
+            "client_id": str(client_id),
+            "xp_awarded": int(amount),
+            "reason": reason,
+            "current_xp": level.current_xp,
+            "level": level.level,
+            "level_title": self._get_level_title(level.level),
+            "leveled_up": leveled_up,
+            "new_level": level.level if leveled_up else None,
         }
 
-    def _update_streak(self, level: GamificationLevel, visit_date: datetime) -> int:
-        """Обновить streak, вернуть бонус XP"""
-        bonus = 0
-        today = visit_date.date()
+    # ---------- визиты и streak ----------
 
-        if level.last_visit_at:
-            last_date = level.last_visit_at.date()
-            diff = (today - last_date).days
+    def _rules(self) -> dict:
+        rules = {r.key: r.value for r in self.db.query(XPRule).all()}
+        return {
+            "xp_per_visit": rules.get("xp_per_visit", XP_PER_VISIT),
+            "xp_per_minute": rules.get("xp_per_minute", XP_PER_MINUTE),
+            "streak_bonus_xp": rules.get("streak_bonus_xp", STREAK_BONUS_XP),
+        }
 
-            if diff == 0:
-                # Уже посещал сегодня — streak не меняется
-                pass
-            elif diff == 1:
-                # Последовательный день — streak +
-                level.streak_days += 1
-                bonus = level.streak_days * STREAK_BONUS_XP
-            else:
-                # Прервали streak
-                if level.streak_days > level.max_streak_days:
-                    level.max_streak_days = level.streak_days
-                level.streak_days = 1
-                bonus = STREAK_BONUS_XP
+    def _update_streak(self, level: GamificationLevel, entry_at: datetime) -> int:
+        today = entry_at.date()
+        if level.last_visit_date == today:
+            return 0
+        if level.last_visit_date is not None and level.last_visit_date == today - timedelta(days=1):
+            level.streak_days += 1
         else:
             level.streak_days = 1
-            bonus = STREAK_BONUS_XP
+        level.max_streak_days = max(level.max_streak_days, level.streak_days)
+        level.last_visit_date = today
+        if level.streak_days > 1:
+            return self._rules()["streak_bonus_xp"] * level.streak_days
+        return 0
 
-        level.last_visit_at = visit_date
-        return bonus
-
-    # ============================================================
-    # ДОСТИЖЕНИЯ
-    # ============================================================
-
-    def _check_achievements(self, client_id: UUID, level: GamificationLevel, visit_time: datetime) -> list[dict]:
-        """Проверить и выдать новые достижения"""
-        new_achievements = []
-
-        # Получаем уже имеющиеся
-        existing_types = {
-            row[0] for row in self.db.execute(
-                select(Achievement.achievement_type)
-                .where(Achievement.client_id == str(client_id))
-            ).all()
+    def process_visit(self, client_id: UUID, entry_at: datetime,
+                      exit_at: Optional[datetime] = None, workout_minutes: int = 0) -> dict:
+        level = self.get_or_create_level(client_id)
+        rules = self._rules()
+        xp_earned = int(rules["xp_per_visit"] + workout_minutes * rules["xp_per_minute"])
+        streak_bonus = self._update_streak(level, entry_at)
+        xp_earned += streak_bonus
+        leveled_up = self._add_xp(level, xp_earned)
+        level.total_visits += 1
+        level.total_workout_minutes += workout_minutes
+        new_achievements = self._check_achievements(client_id, level, entry_at, exit_at)
+        level.achievements_count = self.db.query(Achievement).filter(
+            Achievement.client_id == client_id
+        ).count()
+        self.db.commit()
+        return {
+            "xp_earned": xp_earned,
+            "streak_bonus": streak_bonus,
+            "leveled_up": leveled_up,
+            "level": level.level,
+            "streak_days": level.streak_days,
+            "total_visits": level.total_visits,
+            "new_achievements": new_achievements,
         }
 
-        checks = [
-            ("first_visit", level.total_visits >= 1),
-            ("week_warrior", level.streak_days >= 7),
-            ("month_master", level.streak_days >= 30),
-            ("centurion", level.total_visits >= 100),
-            ("early_bird", level.total_visits >= 10 and visit_time.hour < 9),
-            ("night_owl", level.total_visits >= 10 and visit_time.hour >= 20),
-            (" marathon", level.total_workout_minutes >= 500),
-        ]
+    def _check_achievements(self, client_id: UUID, level: GamificationLevel,
+                            entry_at: Optional[datetime] = None,
+                            exit_at: Optional[datetime] = None) -> list:
+        existing = {a.achievement_type for a in self.db.query(Achievement).filter(
+            Achievement.client_id == client_id
+        ).all()}
+        checks = {
+            "first_visit": level.total_visits >= 1,
+            "week_warrior": level.total_visits >= 7,
+            "month_master": level.total_visits >= 20,
+            "centurion": level.total_visits >= 100,
+            "streak_7": level.streak_days >= 7,
+        }
+        if entry_at is not None:
+            checks["early_bird"] = entry_at.hour < 8
+            checks["night_owl"] = entry_at.hour >= 22
+        if entry_at is not None and exit_at is not None:
+            checks["marathon"] = (exit_at - entry_at).total_seconds() >= 2 * 3600
 
-        for ach_type, condition in checks:
-            if condition and ach_type not in existing_types:
-                ach_def = ACHIEVEMENT_DEFS.get(ach_type, {})
-                achievement = Achievement(
-                    client_id=str(client_id),
-                    achievement_type=ach_type,
-                    title=ach_def.get("title", ach_type),
-                    description=ach_def.get("description", ""),
-                    xp_reward=ach_def.get("xp", 0),
-                    icon=ach_def.get("icon"),
+        new = []
+        for key, cond in checks.items():
+            if cond and key not in existing:
+                d = ACHIEVEMENT_DEFS[key]
+                ach = Achievement(
+                    client_id=client_id, achievement_type=key,
+                    title=d["title"], description=d["description"],
+                    xp_reward=d["xp_reward"], icon=d["icon"],
                 )
-                self.db.add(achievement)
-                level.current_xp += ach_def.get("xp", 0)
-                level.achievements_count += 1
-                new_achievements.append({
-                    "type": ach_type,
-                    "title": achievement.title,
-                    "xp_reward": achievement.xp_reward,
-                    "icon": achievement.icon,
-                })
+                self.db.add(ach)
+                self._add_xp(level, d["xp_reward"])
+                new.append({"type": key, "title": d["title"], "xp_reward": d["xp_reward"]})
 
-        if new_achievements:
-            self.db.commit()
-
-        return new_achievements
-
-    def _get_achievements(self, client_id: UUID) -> list[dict]:
-        """Все достижения клиента"""
-        achievements = self.db.execute(
-            select(Achievement)
-            .where(Achievement.client_id == str(client_id))
-            .order_by(desc(Achievement.created_at))
-        ).scalars().all()
-
-        return [
-            {
-                "type": a.achievement_type,
-                "title": a.title,
-                "description": a.description,
-                "xp_reward": a.xp_reward,
-                "icon": a.icon,
-                "earned_at": a.created_at.isoformat() if a.created_at else None,
-            }
-            for a in achievements
-        ]
-
-    def _get_client_rank(self, client_id: UUID) -> int:
-        """Место клиента в рейтинге"""
-        client_level = self.db.execute(
-            select(GamificationLevel).where(GamificationLevel.client_id == str(client_id))
-        ).scalar_one_or_none()
-
-        if not client_level:
-            return 0
-
-        rank = self.db.execute(
-            select(func.count(GamificationLevel.id))
-            .where(GamificationLevel.current_xp > client_level.current_xp)
-        ).scalar() or 0
-
-        return rank + 1
-
-    @staticmethod
-    def _get_level_title(level: int) -> str:
-        """Название уровня"""
-        titles = {
-            1: "Новичок", 5: "Боец", 10: "Атлет", 15: "Спортсмен",
-            20: "Профи", 25: "Эксперт", 30: "Мастер", 40: "Легенда", 50: "Чемпион"
+        # кастомные условия из achievement_defs (E21.8)
+        metrics = {
+            "visits_count": level.total_visits,
+            "streak_days": level.streak_days,
+            "workout_minutes": level.total_workout_minutes,
         }
-        for lvl in sorted(titles.keys(), reverse=True):
-            if level >= lvl:
-                return titles[lvl]
-        return "Новичок"
+        for d in self.db.query(AchievementDef).all():
+            key = f"def_{d.id}"
+            if key in existing:
+                continue
+            if metrics.get(d.condition_type, 0) >= d.condition_value:
+                ach = Achievement(
+                    client_id=client_id, achievement_type=key,
+                    title=d.name, description=f"Условие: {d.condition_type} >= {d.condition_value}",
+                    xp_reward=d.xp_reward, icon=d.icon,
+                )
+                self.db.add(ach)
+                self._add_xp(level, d.xp_reward)
+                new.append({"type": key, "title": d.name, "xp_reward": d.xp_reward})
+        return new
 
-    @staticmethod
-    def _get_next_rewards(current_level: int) -> list[dict]:
-        """Награды за ближайшие уровни"""
-        rewards = []
-        for lvl in range(current_level + 1, min(current_level + 4, MAX_LEVEL + 1)):
-            if lvl % 5 == 0:
-                rewards.append({"level": lvl, "reward": f"Бонусный абонемент на {lvl // 5} дней"})
-            elif lvl % 10 == 0:
-                rewards.append({"level": lvl, "reward": f"Персональная тренировка в подарок"})
-        if not rewards:
-            rewards.append({"level": current_level + 1, "reward": "+10 XP бонус"})
-        return rewards[:3]
+    # ---------- достижения: прогресс (E21.14) ----------
+
+    def get_achievement_progress(self, client_id: UUID) -> list:
+        level = self.get_or_create_level(client_id)
+        unlocked = {a.achievement_type for a in self.db.query(Achievement).filter(
+            Achievement.client_id == client_id
+        ).all()}
+        metrics = {
+            "visits_count": level.total_visits,
+            "streak_days": level.streak_days,
+            "workout_minutes": level.total_workout_minutes,
+        }
+        out = []
+        for d in self.db.query(AchievementDef).all():
+            cur = metrics.get(d.condition_type, 0)
+            pct = min(100.0, round(cur / d.condition_value * 100, 1)) if d.condition_value else 100.0
+            out.append({
+                "id": str(d.id),
+                "name": d.name,
+                "condition_type": d.condition_type,
+                "condition_value": d.condition_value,
+                "current_value": cur,
+                "progress_percent": pct,
+                "remaining": max(0, d.condition_value - cur),
+                "unlocked": f"def_{d.id}" in unlocked,
+            })
+        return out
+
+    # ---------- награды ----------
+
+    def get_rewards(self, client_id: UUID) -> list:
+        level = self.get_or_create_level(client_id)
+        used_ids = {a.reward_id for a in self.db.query(RewardActivation).filter(
+            RewardActivation.client_id == client_id
+        ).all()}
+        out = []
+        for r in self.db.query(Reward).filter(Reward.is_active == True).order_by(Reward.level_required).all():
+            out.append({
+                "id": str(r.id),
+                "title": r.title,
+                "description": r.description,
+                "level_required": r.level_required,
+                "discount_percent": r.discount_percent,
+                "available": level.level >= r.level_required,
+                "used": r.id in used_ids,
+            })
+        return out
+
+    def activate_reward(self, client_id: UUID, reward_id: UUID) -> dict:
+        level = self.get_or_create_level(client_id)
+        reward = self.db.query(Reward).filter(Reward.id == reward_id).first()
+        if not reward or not reward.is_active:
+            return {"error": "not_found", "message": "Награда не найдена"}
+        existing = self.db.query(RewardActivation).filter(
+            RewardActivation.reward_id == reward_id,
+            RewardActivation.client_id == client_id,
+        ).first()
+        if existing:
+            return {"error": "already_used", "message": "Награда уже использована"}
+        if level.level < reward.level_required:
+            return {"error": "level_too_low",
+                    "message": f"Награда доступна с уровня {reward.level_required}"}
+        act = RewardActivation(reward_id=reward_id, client_id=client_id, is_used=True)
+        self.db.add(act)
+        self.db.commit()
+        return {
+            "success": True,
+            "reward_id": str(reward.id),
+            "title": reward.title,
+            "discount_percent": reward.discount_percent,
+            "activated_at": act.created_at.isoformat() if act.created_at else None,
+        }
+
+    # ---------- админ: достижения и правила ----------
+
+    def create_achievement_def(self, name: str, condition_type: str,
+                               condition_value: int, xp_reward: int = 0) -> AchievementDef:
+        d = AchievementDef(name=name, condition_type=condition_type,
+                           condition_value=condition_value, xp_reward=xp_reward)
+        self.db.add(d)
+        self.db.commit()
+        self.db.refresh(d)
+        return d
+
+    def get_xp_rules(self) -> dict:
+        rules = {r.key: r.value for r in self.db.query(XPRule).all()}
+        return {
+            "xp_per_visit": rules.get("xp_per_visit", XP_PER_VISIT),
+            "xp_per_minute": rules.get("xp_per_minute", XP_PER_MINUTE),
+            "streak_bonus_xp": rules.get("streak_bonus_xp", STREAK_BONUS_XP),
+            **rules,
+        }
+
+    def update_xp_rules(self, rules: dict) -> dict:
+        for k, v in rules.items():
+            rule = self.db.query(XPRule).filter(XPRule.key == k).first()
+            if rule:
+                rule.value = int(v)
+            else:
+                self.db.add(XPRule(key=k, value=int(v)))
+        self.db.commit()
+        return self.get_xp_rules()
+
+    # ---------- мобильное приложение (E21.15) ----------
+
+    def get_mobile_summary(self, client_id: UUID) -> dict:
+        progress = self.get_client_progress(client_id)
+        rewards = [r for r in self.get_rewards(client_id) if not r["used"]][:3]
+        return {
+            "client_id": str(client_id),
+            "level": progress["current_level"],
+            "level_title": progress["level_title"],
+            "current_xp": progress["current_xp"],
+            "xp_to_next": progress["xp_to_next"],
+            "progress_percent": progress["progress_percent"],
+            "streak_days": progress["streak_days"],
+            "achievements_count": progress["achievements_count"],
+            "rank": progress["rank"],
+            "next_rewards": rewards,
+        }
