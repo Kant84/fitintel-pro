@@ -47,6 +47,7 @@ from app.api.v1.gamification import router as gamification_router
 from app.api.v1.online_training import router as online_training_router
 from app.api.v1.online_sessions import router as online_sessions_router
 from app.api.v1.hardware import router as hardware_router
+from app.api.v1.equipment import router as equipment_router
 from app.api.v1.chat import router as chat_router
 from app.api.v1.telegram import router as telegram_router
 from app.api.v1.yookassa import router as yookassa_router
@@ -108,6 +109,7 @@ app.include_router(gamification_router, prefix=settings.API_V1_PREFIX)
 app.include_router(online_training_router, prefix=settings.API_V1_PREFIX)
 app.include_router(online_sessions_router, prefix=settings.API_V1_PREFIX)
 app.include_router(hardware_router, prefix=settings.API_V1_PREFIX)
+app.include_router(equipment_router, prefix=settings.API_V1_PREFIX)
 app.include_router(chat_router, prefix=settings.API_V1_PREFIX)
 app.include_router(telegram_router, prefix=settings.API_V1_PREFIX)
 app.include_router(yookassa_router, prefix=settings.API_V1_PREFIX)
