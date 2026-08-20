@@ -73,6 +73,7 @@ from app.api.v1.integrations import router as integrations_router
 from app.api.v1.ws_alerts import router as ws_alerts_router
 from app.api.v1.phone_verify import router as phone_verify_router
 from app.api.v1.fiscal import router as fiscal_e31_router
+from app.api.v1.documents import router as documents_e33_router
 from app.routers.license import router as license_router
 
 # === ROUTES ===
@@ -139,6 +140,7 @@ app.include_router(integrations_router, prefix=settings.API_V1_PREFIX)
 app.include_router(ws_alerts_router, prefix="/ws")
 app.include_router(phone_verify_router, prefix="/api/v1")
 app.include_router(fiscal_e31_router, prefix="/api/v1")
+app.include_router(documents_e33_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
