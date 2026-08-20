@@ -62,6 +62,16 @@ def register(
     
     # создаём пользователя с email
     user = auth_service.create_user(payload.login, payload.password, payload.email)
+
+    # сохраняем телефон для последующей верификации (E29.15)
+    if getattr(payload, "phone", None):
+        user.phone = payload.phone
+        db.commit()
+
+    # сохраняем телефон для последующей верификации (E29.15)
+    if getattr(payload, "phone", None):
+        user.phone = payload.phone
+        db.commit()
     
     # генерируем токены
     access_token = auth_service.create_user_access_token(user)
