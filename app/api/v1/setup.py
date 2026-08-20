@@ -20,6 +20,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from app.api.dependencies import require_permission
 from app.core.config import settings
@@ -175,6 +176,9 @@ async def get_license_limits(
 
 
 class SetupStatusResponse(BaseModel):
+    setup_required: bool = True
+    steps: list = []
+    current_step: str | None = None
     is_complete: bool
     is_licensed: bool
     is_first_run: bool
@@ -353,6 +357,12 @@ async def get_setup_status(
         except Exception:
             pass
     env_values = read_env_file(ENV_PATH)
+    wdb = next(get_db())
+    try:
+        wdone = _wizard_get(wdb, "setup_complete") == "true"
+        wsteps = _wizard_steps(wdb)
+    finally:
+        wdb.close()
     return {
         "is_complete": is_complete,
         "is_licensed": LicenseState.is_licensed(),
@@ -360,6 +370,9 @@ async def get_setup_status(
         "completed_at": completed_at,
         "env_exists": ENV_PATH.exists(),
         "total_settings": len(env_values),
+        "setup_required": not wdone,
+        "steps": wsteps["steps"],
+        "current_step": wsteps["current_step"],
     }
 
 
@@ -568,10 +581,11 @@ async def test_connection(
 async def complete_setup(
     req: SetupCompleteRequest,
     _: Any = Depends(require_permission("settings.update")),
-) -> dict[str, str]:
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
     """Mark setup wizard as complete."""
     # Require license first
-    if not LicenseState.is_licensed():
+    if not (LicenseState.is_licensed() or _db_license_active(db)):
         raise HTTPException(
             status_code=403,
             detail="Невозможно завершить настройку без лицензии. Сначала активируйте лицензию.",
@@ -581,7 +595,12 @@ async def complete_setup(
         now = datetime.now(timezone.utc).isoformat()
         SETUP_STATE_PATH.write_text(now)
         logger.info("Setup wizard completed at %s", now)
-        return {"status": "completed", "timestamp": now}
+        _wizard_set(db, "step_complete", "true")
+        _wizard_set(db, "setup_complete", "true")
+        db.commit()
+        return {"status": "completed", "timestamp": now,
+                "setup_complete": True, "redirect_to_dashboard": True,
+                "dashboard_url": "/dashboard"}
     return {"status": "cancelled"}
 
 
@@ -680,3 +699,247 @@ async def seed_database(
         return {"status": "seeded", "detail": "Roles, permissions, and admin user created"}
     except Exception as e:
         return {"status": "error", "detail": str(e)}
+# ═══════════════════════════════════════════════
+# E30: Setup Wizard — пошаговая настройка (setup_wizard в БД)
+# ═══════════════════════════════════════════════
+
+import json as _json
+import uuid as _uuid
+
+from fastapi import UploadFile, File
+from app.api.dependencies import require_roles
+
+WIZARD_STEPS = ["database", "license", "admin", "club", "devices", "tariffs", "complete"]
+
+
+def _wizard_get(db: Session, key: str):
+    row = db.execute(text("SELECT value FROM setup_wizard WHERE key = :k"), {"k": key}).fetchone()
+    return row[0] if row else None
+
+
+def _wizard_set(db: Session, key: str, value: str):
+    db.execute(text(
+        "INSERT INTO setup_wizard (key, value, updated_at) VALUES (:k, :v, :n) "
+        "ON CONFLICT (key) DO UPDATE SET value = :v, updated_at = :n"
+    ), {"k": key, "v": value, "n": datetime.now(timezone.utc)})
+
+
+def _wizard_steps(db: Session):
+    steps = [{"step": s, "done": _wizard_get(db, f"step_{s}") == "true"} for s in WIZARD_STEPS]
+    current = next((s["step"] for s in steps if not s["done"]), "complete")
+    return {"steps": steps, "current_step": current}
+
+
+def _db_license_active(db: Session) -> bool:
+    try:
+        row = db.execute(text("SELECT expires_at FROM licenses ORDER BY id LIMIT 1")).fetchone()
+        return bool(row and row[0] and row[0] > datetime.now(timezone.utc))
+    except Exception:
+        return False
+
+
+def _require_step(db: Session, key: str, message: str):
+    if _wizard_get(db, key) != "true":
+        raise HTTPException(status_code=400, detail=message)
+
+
+class DbConfigRequest(BaseModel):
+    db_config: dict = {}
+
+
+class SetupLicenseRequest(BaseModel):
+    license_key: str
+
+
+class SetupAdminRequest(BaseModel):
+    email: str
+    password: str
+    login: str | None = None
+
+
+@router.post("/database")
+def setup_database(
+    payload: DbConfigRequest,
+    db: Session = Depends(get_db),
+    user=Depends(require_roles("admin", "owner")),
+):
+    """E30.2 — шаг 1: настройка БД"""
+    db.execute(text("SELECT 1"))
+    _wizard_set(db, "step_database", "true")
+    db.commit()
+    return {"message": "БД настроена", "next_step": "license"}
+
+
+@router.post("/license")
+def setup_license(
+    payload: SetupLicenseRequest,
+    db: Session = Depends(get_db),
+    user=Depends(require_roles("admin", "owner")),
+):
+    """E30.3 — шаг 2: активация лицензии"""
+    _require_step(db, "step_database", "Сначала настройте БД")
+    from app.routers.license import _validate_key
+    if not _validate_key(payload.license_key):
+        raise HTTPException(status_code=400, detail="Невалидный ключ лицензии")
+    _wizard_set(db, "step_license", "true")
+    db.commit()
+    return {"message": "Лицензия активирована", "next_step": "admin"}
+
+
+@router.post("/admin", status_code=201)
+def setup_admin(
+    payload: SetupAdminRequest,
+    db: Session = Depends(get_db),
+    user=Depends(require_roles("admin", "owner")),
+):
+    """E30.4/E30.9 — шаг 3: создание SuperAdmin"""
+    _require_step(db, "step_license", "Сначала активируйте лицензию")
+    username = payload.login or payload.email
+    exists = db.execute(text(
+        "SELECT 1 FROM users WHERE email = :e OR username = :u"
+    ), {"e": payload.email, "u": username}).fetchone()
+    if exists:
+        raise HTTPException(status_code=409, detail="Пользователь уже существует")
+    from app.core.security import get_password_hash
+    now = datetime.now(timezone.utc)
+    db.execute(text(
+        "INSERT INTO users (id, email, username, password_hash, is_active, "
+        "is_superuser, is_verified, is_fired, failed_login_count, created_at, updated_at) "
+        "VALUES (:i, :e, :u, :p, true, true, true, false, 0, :n, :n)"
+    ), {"i": str(_uuid.uuid4()), "e": payload.email, "u": username,
+        "p": get_password_hash(payload.password), "n": now})
+    _wizard_set(db, "step_admin", "true")
+    db.commit()
+    return {"message": "SuperAdmin создан", "next_step": "club", "email": payload.email}
+
+class ClubRequest(BaseModel):
+    name: str
+    address: str = ""
+    timezone: str = "Europe/Moscow"
+
+
+class DevicesRequest(BaseModel):
+    devices: list = []
+
+
+class TariffsRequest(BaseModel):
+    tariffs: list = []
+
+
+class ValidateConfigRequest(BaseModel):
+    config: dict
+
+
+class ResetRequest(BaseModel):
+    confirmation: bool = False
+
+
+@router.post("/club")
+def setup_club(
+    payload: ClubRequest,
+    db: Session = Depends(get_db),
+    user=Depends(require_roles("admin", "owner")),
+):
+    """E30.5 — шаг 4: настройка клуба"""
+    _require_step(db, "step_admin", "Сначала создайте администратора")
+    _wizard_set(db, "club", _json.dumps(payload.model_dump(), ensure_ascii=False))
+    _wizard_set(db, "step_club", "true")
+    db.commit()
+    return {"message": "Клуб настроен", "next_step": "devices"}
+
+
+@router.post("/devices")
+def setup_devices(
+    payload: DevicesRequest,
+    db: Session = Depends(get_db),
+    user=Depends(require_roles("admin", "owner")),
+):
+    """E30.6 — шаг 5: настройка устройств"""
+    _require_step(db, "step_club", "Сначала настройте клуб")
+    _wizard_set(db, "devices", _json.dumps(payload.devices, ensure_ascii=False))
+    _wizard_set(db, "step_devices", "true")
+    db.commit()
+    return {"message": "Устройства настроены", "next_step": "tariffs",
+            "devices_count": len(payload.devices)}
+
+
+@router.post("/tariffs")
+def setup_tariffs(
+    payload: TariffsRequest,
+    db: Session = Depends(get_db),
+    user=Depends(require_roles("admin", "owner")),
+):
+    """E30.7 — шаг 6: настройка тарифов"""
+    _require_step(db, "step_devices", "Сначала настройте устройства")
+    _wizard_set(db, "tariffs", _json.dumps(payload.tariffs, ensure_ascii=False))
+    _wizard_set(db, "step_tariffs", "true")
+    db.commit()
+    return {"message": "Тарифы настроены", "next_step": "complete",
+            "tariffs_count": len(payload.tariffs)}
+
+
+@router.post("/import")
+async def setup_import(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user=Depends(require_roles("admin", "owner")),
+):
+    """E30.11 — импорт настроек из файла"""
+    content = await file.read()
+    try:
+        data = _json.loads(content.decode())
+    except Exception:
+        raise HTTPException(status_code=400, detail="Невалидный файл настроек")
+    _wizard_set(db, "imported_settings", _json.dumps(data, ensure_ascii=False))
+    db.commit()
+    return {"message": "Настройки импортированы",
+            "imported_keys": len(data) if isinstance(data, dict) else 1}
+
+
+@router.get("/export")
+def setup_export(
+    db: Session = Depends(get_db),
+    user=Depends(require_roles("admin", "owner")),
+):
+    """E30.12 — экспорт настроек"""
+    rows = db.execute(text("SELECT key, value FROM setup_wizard")).fetchall()
+    return {"settings": {r[0]: r[1] for r in rows},
+            "exported_at": datetime.now(timezone.utc).isoformat(), "version": "1.0"}
+
+
+@router.post("/validate")
+def setup_validate(payload: ValidateConfigRequest):
+    """E30.13/E30.14 — валидация конфигурации"""
+    errors = []
+    cfg = payload.config or {}
+    for key in ("database", "license", "admin", "club"):
+        if key not in cfg:
+            errors.append(f"Отсутствует секция: {key}")
+    if isinstance(cfg.get("database"), dict) and not cfg["database"].get("host"):
+        errors.append("database.host обязателен")
+    if isinstance(cfg.get("license"), dict) and not cfg["license"].get("license_key"):
+        errors.append("license.license_key обязателен")
+    if isinstance(cfg.get("admin"), dict) and not cfg["admin"].get("email"):
+        errors.append("admin.email обязателен")
+    if isinstance(cfg.get("club"), dict) and not cfg["club"].get("name"):
+        errors.append("club.name обязателен")
+    return {"valid": len(errors) == 0, "errors": errors}
+
+
+@router.post("/reset")
+def setup_reset(
+    payload: ResetRequest,
+    db: Session = Depends(get_db),
+    user=Depends(require_roles("admin", "owner")),
+):
+    """E30.15 — сброс настроек мастера"""
+    if not payload.confirmation:
+        raise HTTPException(status_code=400, detail="Требуется подтверждение")
+    db.execute(text("DELETE FROM setup_wizard"))
+    db.commit()
+    try:
+        if SETUP_STATE_PATH.exists():
+            SETUP_STATE_PATH.unlink()
+    except Exception:
+        pass
+    return {"message": "Настройки сброшены", "setup_required": True}
