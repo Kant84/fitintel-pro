@@ -289,3 +289,19 @@
 - Redis-кэш оценки (требование ≤10мс из ТЗ) НЕ реализован — чтение из PostgreSQL напрямую.
 - WS /stream тестами не покрыт (нет ws-клиента в тестах) — проверен только broadcast-эндпоинт (sent=0 без подключений).
 - evaluate требует авторизации; для публичных клиентских SDK нужен отдельный токен/scope.
+
+## E44 — AI Analytics (ТЗ §4.20)
+
+Что важно помнить:
+- Новый файл app/api/v1/analytics_ai.py, prefix /analytics, пути под /ai/* — конфликтов с базовой аналитикой нет.
+- Churn score (0-100) rule-based: >30 дней без визитов +60, >14 +40, >7 +15; 0 визитов за 30д +30; <2 визитов +15; абонемент <=14 дней +10. Уровни: low <30, medium 30-59, high >=60.
+- Рекомендации rule-based по факторам: retention/winback/motivation/renewal/upsell/cross_sell.
+- Heatmap: Python-агрегация visits по weekday/hour (адаптивно к типу колонки даты: timestamptz или VARCHAR).
+- Колонка даты visits определяется адаптивно: visited_at/visit_date/check_in_at/created_at/start_time.
+
+Оговорки по тестам / эмуляция:
+- Это НЕ ML-модель — rule-based эвристика (model "rules-v1"). Для прода: ML (scikit-learn/XGBoost) с обучением на исторических оттоках, фичи уже считаются в _churn_score.
+- /ai/recalc — заглушка (считает COUNT клиентов), т.к. расчёт on-the-fly.
+- Churn-список и сегменты ограничены 500 активными клиентами (LIMIT 500).
+- Heatmap читает ВСЕ visits и фильтрует в Python — на больших объёмах нужна SQL-агрегация.
+- Рекомендации не отправляются (TODO: связка с marketing E34 / notifications).
