@@ -231,3 +231,17 @@
 - Скидка только процентная, фиксированной суммы нет.
 - Промокод одноразовый на клиента, лимита активаций нет (TODO: max_uses).
 - Авторизация: чтение/валидация — любой аутентифицированный; CRUD/activate/finish/auto-activate — admin.
+
+## E40 — Нишевые шаблоны (ТЗ §4.11)
+
+Что важно помнить:
+- Таблицы: niche_templates (code UNIQUE, config JSON TEXT, is_builtin), niche_template_applies (история применений).
+- 6 встроенных шаблонов: fitness, yoga, martial_arts, dance, swimming, crossfit (seed в setup_e40.py, идемпотентен).
+- Встроенные шаблоны immutable: PUT/DELETE -> 400. Кастомные — полный CRUD + clone.
+- Применение создаёт записи в tariffs и services клуба через _insert с фильтрацией по information_schema.
+
+Оговорки по тестам / особенности:
+- ОБЯЗАТЕЛЬНЫЕ поля tariffs: code (генерим "NICH-XXXXXXXX"), currency='RUB', is_unlimited=false, created_at/updated_at (datetime-объекты). У services обязательна category (= имя ниши), duration_minutes=60 по умолчанию.
+- Тарифы/услуги из шаблона дублируются при повторном apply (дедупликации нет — TODO: проверка по имени+club_id).
+- club_id при apply не валидируется по таблице клубов (свободная строка).
+- Авторизация: чтение — любой аутентифицированный; create/update/delete/apply/clone — admin.
