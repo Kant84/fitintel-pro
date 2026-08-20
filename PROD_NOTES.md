@@ -147,3 +147,30 @@
   разделение сегмента и статистическая значимость.
 - Mailchimp/SendGrid — эмуляция (сгенерированные id). В проде — реальные
   API-ключи в .env (НЕ коммитить, см. общий раздел про ротацию секретов).
+
+
+## E35 — Терминал самообслуживания (Self-Service)
+
+- E35-блок — отдельный роутер e35_router (prefix /self-service) в
+  существующем app/api/v1/selfservice.py; старые ручки /selfservice/*
+  (profile, subscriptions, visits) не тронуты.
+- Face ID — ЭМУЛЯЦИЯ: photo хранится как строка в terminal_faces и
+  матчится точным сравнением; 'blurry' в строке = лицо не распознано.
+  В ПРОДЕ — ТОЛЬКО self-hosted распознавание (свой сервис, см. общий
+  раздел: НЕ FindFace/NtechLab, НЕ Face++ cloud — лицензии и 152-ФЗ,
+  биометрия = особая категория ПДн, нужно согласие клиента).
+- /self-service/test/terminal — ТОЛЬКО для тестов (переключает
+  _TERMINAL['online'] в памяти процесса). В проде удалить/закрыть.
+- Регистрация создаёт реального клиента в clients (gender NOT NULL —
+  хардкод 'male', в проде брать из анкеты), карту в terminal_cards,
+  абонемент в subscriptions. card_number генерируется FIT-XXXXXXXX.
+- Бронирование: слот = строка slot_datetime в self_service_bookings,
+  конфликт = точное совпадение (service_id, slot_datetime) -> 409.
+  В проде — интервальная проверка (duration_minutes услуги) и лимиты
+  max_capacity.
+- Баланс — из wallets (0.0, если кошелька нет). Заморозка: status
+  active<->frozen в subscriptions (frozen_at, freeze_reason).
+- QR-код — просто строка FITQR-... (без PNG). В проде — генерация
+  изображения (qrcode lib) и ротация/подпись токена.
+- pay-terminal — эмуляция эквайринга (slip_printed=true). В проде —
+  драйвер банковского терминала (Сбер/Тинькофф SDK).
