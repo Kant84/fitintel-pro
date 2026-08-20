@@ -305,3 +305,18 @@
 - Churn-список и сегменты ограничены 500 активными клиентами (LIMIT 500).
 - Heatmap читает ВСЕ visits и фильтрует в Python — на больших объёмах нужна SQL-агрегация.
 - Рекомендации не отправляются (TODO: связка с marketing E34 / notifications).
+
+## E45 — Video Analytics advanced (ТЗ E12)
+
+Что важно помнить:
+- Новый файл app/api/v1/video_ai.py, prefix /video-ai. Дополняет базовые video_alerts.py (7 роутов) и face_id.py (9 роутов).
+- Таблицы: video_triggers (event_type intrusion/loitering/crowd/fall/tailgating, threshold 0-1, learn_samples), video_trigger_events (statuses new/confirmed/false_alarm), video_cameras (discovered_via onvif/manual, ip UNIQUE-поведение через проверку 409).
+- Feedback-loop: false-alarm автоматически дообучает триггер (learn_samples+1, threshold +0.005, cap 0.99).
+- Событие не создаётся, если confidence < threshold триггера (400) или триггер неактивен (400).
+
+Оговорки по тестам / эмуляция:
+- ONVIF discovery ЭМУЛИРОВАН: фиксированный список 192.168.1.64/.65 (в проде — WS-Discovery UDP probe на порт 3702 + парсинг XAddrs).
+- Edge-инференс не реализован: нет реального видеопотока/детекции (события создаются через API-эмуляцию POST /events).
+- Snapshot URL — заглушка /snapshots/{id}.jpg (файлы не сохраняются).
+- Обучение триггеров — численная эмуляция (threshold растёт от samples), не ML.
+- Авторизация: события/чтение — любой аутентифицированный; triggers/cameras/discover — admin.
