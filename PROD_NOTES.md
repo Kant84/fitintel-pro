@@ -174,3 +174,18 @@
   изображения (qrcode lib) и ротация/подпись токена.
 - pay-terminal — эмуляция эквайринга (slip_printed=true). В проде —
   драйвер банковского терминала (Сбер/Тинькофф SDK).
+
+## E36 — Рекуррентные платежи (ТЗ §4.7)
+
+Что важно помнить про модуль:
+- Таблицы: recurring_schedules (расписания: интервал day/week/month, next_charge_at VARCHAR(19), status active/paused/cancelled/failed, retry_count/max_retries), recurring_charges (история попыток списаний).
+- POST /api/v1/recurring/run — синхронный прогон должников (status='active' AND next_charge_at<=now). В проде должен вызываться планировщиком (cron/Celery beat/APScheduler), а не вручную.
+- Ретраи: экспоненциальная пауза 2^n часов; при retry_count >= max_retries расписание -> status 'failed' (last_error "Превышено число попыток списания").
+- month = 30 дней (упрощение, не календарный месяц). next_charge_at после успеха считается от предыдущей даты списания (catch-up: при долгом простое возможны подряд идущие списания — так задумано, чтобы догнать пропущенные периоды).
+
+Оговорки по тестам / что эмулировано:
+- Само списание эмулируется: реальный вызов YooKassa API (payment с сохранённой картой) НЕ выполняется; payment_id = "yk-<hex>" локальный. Для прода — подключить yookassa_service.create_payment(card_id, amount).
+- /test/fail-next и /test/clear — ТОЛЬКО для тестов (in-memory флаг, не переживает рестарт).
+- Уведомления клиенту о неудачном списании не отправляются (TODO: интеграция с notifications/E13 MAX Bot).
+- Даты хранятся как VARCHAR(19) "%Y-%m-%d %H:%M:%S" (лексикографическое сравнение).
+- Авторизация: чтение — любой аутентифицированный, мутации и /run — admin.
