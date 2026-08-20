@@ -85,6 +85,7 @@ from app.api.v1.documents_bulk import router as documents_bulk_router
 from app.api.v1.feature_flags_adv import router as feature_flags_adv_router
 from app.api.v1.analytics_ai import router as analytics_ai_router
 from app.api.v1.video_ai import router as video_ai_router
+from app.api.v1.max_bot_fsm import router as max_bot_fsm_router
 from app.routers.license import router as license_router
 
 # === ROUTES ===
@@ -163,6 +164,7 @@ app.include_router(niche_router, prefix="/api/v1")
 app.include_router(booking_widget_router, prefix="/api/v1")
 app.include_router(analytics_ai_router, prefix="/api/v1")
 app.include_router(video_ai_router, prefix="/api/v1")
+app.include_router(max_bot_fsm_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
