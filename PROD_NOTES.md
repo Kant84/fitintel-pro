@@ -29,6 +29,14 @@
 - E26.9/10: рекуррент — реальный автоплатёж требует save_payment_method: true при первом платеже и списание по payment_method_id; логика списания готова, боевой вызов API — одна строчка при появлении ключей.
 
 
+
+## E30 Setup Master
+- Состояние мастера — таблица setup_wizard (БД); старый механизм на файлах (.setup_state, app/core/license_guard) сохранён для legacy-эндпоинтов. В проде унифицировать на БД.
+- /setup/status и /setup/complete расширены полями setup_required/steps/current_step и setup_complete/redirect_to_dashboard — старые поля (is_complete и пр.) сохранены.
+- Проверка лицензии в /complete принимает и license_guard (файл), и лицензию из БД (E28).
+- Шаги devices/tariffs/club сохраняются как JSON в setup_wizard; в проде — запись в реальные таблицы equipment/tariffs/clubs.
+- /setup/reset чистит setup_wizard и удаляет .setup_state.
+
 ## E29 Phone Verify
 - `dev_code` в ответе /phone-verify/send — ТОЛЬКО для тестов; в проде убрать из ответа (код должен уходить только в SMS/мессенджер).
 - Провайдеры smsru/twilio/whatsapp/telegram — эмуляция. Боевые интеграции: ключи SMSRU_API_KEY, TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN, WhatsApp Business API; отправка через telegram — по telegram_links (E25).
