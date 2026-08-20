@@ -320,3 +320,19 @@
 - Snapshot URL — заглушка /snapshots/{id}.jpg (файлы не сохраняются).
 - Обучение триггеров — численная эмуляция (threshold растёт от samples), не ML.
 - Авторизация: события/чтение — любой аутентифицированный; triggers/cameras/discover — admin.
+
+## E46 — MAX Bot FSM (ТЗ §15.3.5, E13)
+
+Что важно помнить:
+- Новый файл app/api/v1/max_bot_fsm.py, prefix /max-bot/fsm — дополняет max_bot.py (API: setup/webhook/cron), не конфликтует.
+- FSM: start -> main_menu -> booking_service -> booking_date -> booking_confirm -> main_menu. Состояние и контекст в bot_sessions (user_id UNIQUE, context JSON).
+- Из состояния start ЛЮБОЕ сообщение = приветствие -> main_menu (не обрабатываются команды сценария — так задумано).
+- Валидация §15.3.5: услуга строго из клавиатуры; дата ДД.ММ.ГГГГ / Сегодня / Завтра, не в прошлом; ошибки валидации возвращают 200 с reply-подсказкой и той же клавиатурой (не HTTP 4xx — это чат-бот).
+- Подтверждённая запись пишется в bot_bookings (status new).
+
+Оговорки по тестам / эмуляция:
+- Это FSM-ядро БЕЗ транспорта: сообщения приходят через POST /message (в проде вызывается из webhook max_bot.py).
+- "Мой абонемент"/"Баланс" — заглушки, не читают реальные subscriptions/wallets (TODO: по user_id -> telegram_links -> client).
+- Клавиатуры — массивы строк в JSON (структура под MAX API, не подтверждена боевым API MAX).
+- Сценариев пока один (booking); сценарий привязки телефона описан, но не включён в FSM.
+- Авторизация: все эндпоинты — аутентифицированный пользователь (в проде /message вызывается сервисом webhook, нужен service-token).
