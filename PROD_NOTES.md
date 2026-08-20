@@ -245,3 +245,18 @@
 - Тарифы/услуги из шаблона дублируются при повторном apply (дедупликации нет — TODO: проверка по имени+club_id).
 - club_id при apply не валидируется по таблице клубов (свободная строка).
 - Авторизация: чтение — любой аутентифицированный; create/update/delete/apply/clone — admin.
+
+## E41 — Online Booking Widget (ТЗ §4.8)
+
+Что важно помнить:
+- Таблицы: widget_settings (club_id UNIQUE, is_enabled, title/primary_color/logo_url, allowed_services JSON, require_phone), widget_bookings (statuses new/confirmed/cancelled).
+- Публичные эндпоинты БЕЗ авторизации: /public/{club_id}/config|services|slots|book, /public/{club_id}/booking/{id}, cancel по телефону, /embed/{club_id}. Админские — /settings, /bookings, confirm/cancel (admin).
+- Слоты генерируются на лету: почасовые 09:00–20:00, занятые = widget_bookings (status<>'cancelled') по service_id+slot_datetime.
+- Отмена гостем — по совпадению телефона (403 "Телефон не совпадает").
+
+Оговорки по тестам / эмуляция:
+- Слоты НЕ связаны с реальным расписанием услуг/тренеров (фиксированные часы 09–20; TODO: интеграция с schedule/service_bookings).
+- Запись гостя НЕ создаёт клиента в CRM (TODO: авто-создание лида по телефону).
+- Уведомления о записи/подтверждении не отправляются (TODO: notifications).
+- widget.js на cdn.fitintel.pro — заглушка-URL, сам JS-бандл виджета не реализован.
+- Телефон валидируется regex ^\+?\d[\d\s\-()]{9,}$.
