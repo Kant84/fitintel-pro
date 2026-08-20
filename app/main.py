@@ -79,6 +79,7 @@ from app.api.v1.recurring import router as recurring_router
 from app.api.v1.referrals import router as referrals_router
 from app.api.v1.corporate import router as corporate_router
 from app.api.v1.seasonal import router as seasonal_router
+from app.api.v1.niche import router as niche_router
 from app.routers.license import router as license_router
 
 # === ROUTES ===
@@ -151,6 +152,7 @@ app.include_router(recurring_router, prefix="/api/v1")
 app.include_router(referrals_router, prefix="/api/v1")
 app.include_router(corporate_router, prefix="/api/v1")
 app.include_router(seasonal_router, prefix="/api/v1")
+app.include_router(niche_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
