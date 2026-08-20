@@ -81,6 +81,7 @@ from app.api.v1.corporate import router as corporate_router
 from app.api.v1.seasonal import router as seasonal_router
 from app.api.v1.niche import router as niche_router
 from app.api.v1.booking_widget import router as booking_widget_router
+from app.api.v1.documents_bulk import router as documents_bulk_router
 from app.routers.license import router as license_router
 
 # === ROUTES ===
@@ -115,6 +116,7 @@ app.include_router(cash_desk_router, prefix=settings.API_V1_PREFIX)
 app.include_router(sales_router, prefix=settings.API_V1_PREFIX)
 app.include_router(devices_router, prefix=settings.API_V1_PREFIX)
 app.include_router(selfservice_router, prefix=settings.API_V1_PREFIX)
+app.include_router(documents_bulk_router, prefix="/api/v1")
 app.include_router(documents_router, prefix=settings.API_V1_PREFIX)
 app.include_router(marketing_router, prefix=settings.API_V1_PREFIX)
 app.include_router(gamification_router, prefix=settings.API_V1_PREFIX)
