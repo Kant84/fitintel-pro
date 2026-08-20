@@ -189,3 +189,18 @@
 - Уведомления клиенту о неудачном списании не отправляются (TODO: интеграция с notifications/E13 MAX Bot).
 - Даты хранятся как VARCHAR(19) "%Y-%m-%d %H:%M:%S" (лексикографическое сравнение).
 - Авторизация: чтение — любой аутентифицированный, мутации и /run — admin.
+
+## E37 — Реферальная программа (ТЗ §4.9)
+
+Что важно помнить:
+- Таблицы: referral_codes (client_id UNIQUE, code "REF-XXXXXXXX"), referrals (referrer/referred, status registered/rewarded/rejected), referral_rewards (kind referrer_bonus/referred_bonus, status accrued/paid).
+- POST /codes идемпотентен: повтор для того же client_id -> 200 existing=true, тот же код.
+- Антифрод: самоприглашение -> 400; повторная регистрация referred -> 409.
+- Двусторонние бонусы: реферер 500р, приглашённый 300р (дефолт, переопределяется в /reward).
+- /payout переводит accrued -> paid пакетно.
+
+Оговорки по тестам / эмуляция:
+- Бонусы — учётные записи в БД, реальное начисление на wallet клиента НЕ выполняется (TODO: интеграция с wallets/loyalty).
+- Регистрация приглашения НЕ проверяет существование referred_client_id в clients (приглашённый может ещё не быть клиентом клуба — атрибуция по ссылке).
+- referred_client_id в тестах — сгенерированный UUID, не реальный клиент.
+- Авторизация: коды/регистрация/баланс — любой аутентифицированный; reward/payout/stats/delete — admin.
