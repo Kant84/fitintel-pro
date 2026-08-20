@@ -77,6 +77,7 @@ from app.api.v1.documents import router as documents_e33_router
 from app.api.v1.selfservice import e35_router as selfservice_e35_router
 from app.api.v1.recurring import router as recurring_router
 from app.api.v1.referrals import router as referrals_router
+from app.api.v1.corporate import router as corporate_router
 from app.routers.license import router as license_router
 
 # === ROUTES ===
@@ -147,6 +148,7 @@ app.include_router(documents_e33_router, prefix="/api/v1")
 app.include_router(selfservice_e35_router, prefix="/api/v1")
 app.include_router(recurring_router, prefix="/api/v1")
 app.include_router(referrals_router, prefix="/api/v1")
+app.include_router(corporate_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
