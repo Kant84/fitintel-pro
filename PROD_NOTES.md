@@ -218,3 +218,16 @@
 - Сотрудникам НЕ создаются абонементы автоматически (TODO: связка с subscriptions по tariff_id договора).
 - ИНН проверяется только по формату (10/12 цифр), контрольная сумма не считается.
 - Авторизация: чтение — любой аутентифицированный, мутации — admin.
+
+## E39 — Сезонные кампании (ТЗ §4.14)
+
+Что важно помнить:
+- Таблицы: seasonal_campaigns (season winter/spring/summer/autumn/new_year/custom, promo_code UNIQUE "SALE-XXXXXX", статусы draft/active/finished, auto_activate), seasonal_promo_uses (одно применение на клиента на кампанию -> 409).
+- Валидация промокода: активность + окно дат (start_date/end_date VARCHAR(10), лексикографика); скидка = amount * discount_percent / 100.
+- POST /auto-activate — пакетный перевод по календарю: draft+auto_activate+start_date<=today -> active; active+end_date<today -> finished. В проде — по планировщику (как /recurring/run).
+
+Оговорки по тестам / эмуляция:
+- Применение промокода НЕ создаёт платёж/заказ — только фиксирует использование (TODO: связка с payments/subscriptions при покупке).
+- Скидка только процентная, фиксированной суммы нет.
+- Промокод одноразовый на клиента, лимита активаций нет (TODO: max_uses).
+- Авторизация: чтение/валидация — любой аутентифицированный; CRUD/activate/finish/auto-activate — admin.
