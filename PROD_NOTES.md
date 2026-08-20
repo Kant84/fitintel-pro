@@ -97,3 +97,28 @@
 - close-month идемпотентен по (year, month): повтор -> "Месяц уже закрыт".
   Проводки закрытия — только revenue->profit и profit->expense.
 - Баланс счёта = SUM(дебет) - SUM(кредит) без сальдо на начало периода.
+
+
+## E33 — Документы (шаблоны, подписание, PDF/DOCX, ЭП)
+
+- Шаблоны сидятся в document_templates (code: subscription_contract,
+  gdpr_consent, medical_certificate), плейсхолдеры {{client_name}},
+  {{client_phone}}, {{client_email}}, {{birth_date}}, {{tariff}}, {{date}} —
+  простая str.replace-подстановка, без движка шаблонов (Jinja2 не нужна,
+  но в проде лучше формализовать).
+- template_id при создании можно не передавать — резолвится по type.
+  Если type неизвестен и template_id пуст -> 422 'template_id обязателен'.
+- PDF генерируется ВРУЧНУЮ (минимальный PDF-1.4, Helvetica): кириллица
+  заменяется на '?' (latin-1). Для прода — reportlab/weasyprint с
+  русскими шрифтами.
+- DOCX — минимальный валидный OOXML-пакет (zip: [Content_Types].xml,
+  _rels/.rels, word/document.xml), кириллица ОК (UTF-8). Для прода —
+  python-docx с полноценной вёрсткой.
+- send-email и print — ЭМУЛЯЦИЯ (ничего не отправляется/не печатается).
+  В проде: email через SMTP/SendGrid, печать через принт-сервис/CUPS.
+- sign-ep — ЭМУЛЯЦИЯ CAdES: signature_valid всегда true при наличии
+  certificate. В проде — КриптоПро/ГОСТ Р 34.10-2012, проверка цепочки
+  сертификатов УЦ, формат CAdES-BES/T.
+- Подписанный документ нельзя подписать повторно (400) — и для простой
+  подписи, и для ЭП. Удаление документа — физическое (в проде, возможно,
+  нужен soft-delete/архив для юрзначимых документов).
