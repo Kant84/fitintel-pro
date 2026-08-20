@@ -274,3 +274,18 @@
 - ip_address подписи хардкод 127.0.0.1 (в проде — из request.client).
 - Это НЕ криптографическая ЭП (для УКЭП см. E33 /sign-ep, эмуляция CAdES).
 - Авторизация: mass-generate/delete — admin; events/signatures/relations чтение и добавление — любой аутентифицированный.
+
+## E43 — Feature Flags advanced (ТЗ §4.27, UC-2)
+
+Что важно помнить:
+- Новый файл app/api/v1/feature_flags_adv.py (prefix /feature-flags), include в main.py стоит ВЫШЕ базового feature_flags_router — все advanced-пути двухсегментные (/rollout/{key}, /evaluate/{key}, /license-bind/{key}, /stats/{key}), конфликтов с базовым CRUD нет.
+- Таблицы: ff_rollouts (strategy percentage/canary, percent, canary_users JSON), ff_license_binds (license_feature, required), ff_evaluations (история оценок), ff_license_features (эмуляция фич лицензии: core/crm/payments/analytics_basic).
+- Оценка: license-bind (deny при отсутствии фичи, reason license_denied) -> rollout (canary по списку / percentage по бакету MD5(user_id:flag_key)%100) -> default (is_active + default_value JSON).
+- Бакет детерминированный — один и тот же user всегда получает одинаковый результат при том же percent.
+- WebSocket /api/v1/feature-flags/stream: broadcast при изменении rollout; POST /test/broadcast — test-only.
+
+Оговорки по тестам / эмуляция:
+- Проверка лицензии эмулируется таблицей ff_license_features (TODO: заменить на вызов сервиса лицензий E28).
+- Redis-кэш оценки (требование ≤10мс из ТЗ) НЕ реализован — чтение из PostgreSQL напрямую.
+- WS /stream тестами не покрыт (нет ws-клиента в тестах) — проверен только broadcast-эндпоинт (sent=0 без подключений).
+- evaluate требует авторизации; для публичных клиентских SDK нужен отдельный токен/scope.

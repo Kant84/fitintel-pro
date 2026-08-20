@@ -82,6 +82,7 @@ from app.api.v1.seasonal import router as seasonal_router
 from app.api.v1.niche import router as niche_router
 from app.api.v1.booking_widget import router as booking_widget_router
 from app.api.v1.documents_bulk import router as documents_bulk_router
+from app.api.v1.feature_flags_adv import router as feature_flags_adv_router
 from app.routers.license import router as license_router
 
 # === ROUTES ===
@@ -138,6 +139,7 @@ app.include_router(accounting_router, prefix=settings.API_V1_PREFIX)
 app.include_router(services_router, prefix=settings.API_V1_PREFIX)
 app.include_router(dynamic_qr_router, prefix=settings.API_V1_PREFIX)
 app.include_router(video_alerts_router, prefix=settings.API_V1_PREFIX)
+app.include_router(feature_flags_adv_router, prefix="/api/v1")
 app.include_router(feature_flags_router, prefix=settings.API_V1_PREFIX + "/feature-flags")
 app.include_router(reports_router, prefix=settings.API_V1_PREFIX + "/reports")
 app.include_router(print_router, prefix=settings.API_V1_PREFIX + "/print")
