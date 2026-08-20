@@ -260,3 +260,17 @@
 - Уведомления о записи/подтверждении не отправляются (TODO: notifications).
 - widget.js на cdn.fitintel.pro — заглушка-URL, сам JS-бандл виджета не реализован.
 - Телефон валидируется regex ^\+?\d[\d\s\-()]{9,}$.
+
+## E42 — Documents: массогенерация + events/signatures/relations (ТЗ §13)
+
+Что важно помнить:
+- Новый файл app/api/v1/documents_bulk.py с тем же prefix /documents (роутеры сливаются). ВАЖНО: include documents_bulk_router стоит ВЫШЕ documents (E33) в main.py — иначе GET /{document_id} из E33 перехватывает /mass-jobs (была ошибка E42.4).
+- Таблицы: document_events (created/generated/viewed/signed...), document_signatures (signer_role UNIQUE в рамках документа, is_valid), document_relations (related_type: subscription/payment/contract/visit), document_jobs (total/done/failed, document_ids JSON, errors JSON).
+- Массогенерация синхронная: job сразу status=done; несуществующие клиенты идут в failed+errors, не роняют задачу.
+- Подписи дедуплицируются по signer_role (400 "Подпись этой стороны уже есть"); каждая подпись пишет событие signed в журнал.
+
+Оговорки по тестам / эмуляция:
+- Рендер шаблона — простая подстановка {{client_name}}/{{client_phone}}/{{client_email}}/{{date}}; PDF/DOCX-файлы при массогенерации НЕ создаются (content только текст; генерацию файлов см. E33 /download).
+- ip_address подписи хардкод 127.0.0.1 (в проде — из request.client).
+- Это НЕ криптографическая ЭП (для УКЭП см. E33 /sign-ep, эмуляция CAdES).
+- Авторизация: mass-generate/delete — admin; events/signatures/relations чтение и добавление — любой аутентифицированный.
