@@ -88,6 +88,7 @@ from app.api.v1.video_ai import router as video_ai_router
 from app.api.v1.max_bot_fsm import router as max_bot_fsm_router
 from app.api.v1.dal import router as dal_router
 from app.api.v1.reporting import router as reporting_router
+from app.api.v1.ops import router as ops_router
 from app.routers.license import router as license_router
 
 # === ROUTES ===
@@ -169,6 +170,7 @@ app.include_router(video_ai_router, prefix="/api/v1")
 app.include_router(max_bot_fsm_router, prefix="/api/v1")
 app.include_router(dal_router, prefix="/api/v1")
 app.include_router(reporting_router, prefix="/api/v1")
+app.include_router(ops_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():

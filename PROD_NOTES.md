@@ -383,3 +383,20 @@
 - РСВ без разбивки по подразделам/превышению базы.
 - Payroll — ручной ввод начислений; интеграции с табелем/расчётом зарплаты нет.
 - Авторизация: чтение — любой аутентифицированный; payroll create/delete — admin.
+
+## E50 — HA и резервное копирование (ТЗ §9, E10)
+
+Что важно помнить:
+- Новый файл app/api/v1/ops.py, prefix /ops. Бэкапы пишутся в ./backups/ (backup_YYYYMMDD_HHMMSS.sql).
+- /backup/run: pg_dump если доступен в PATH, иначе каталог-дамп (список таблиц + row counts, помечен mode="catalog").
+- Имя файла санитизируется (os.path.basename) — path traversal -> 400.
+- Боевые скрипты: deploy/backup/backup.ps1 (pg_dump + ротация 14 дней, env FITINTEL_DB_PASSWORD), deploy/backup/restore.ps1.
+- /replication честно отвечает single-node.
+
+Оговорки по тестам / эмуляция:
+- Restore через API — ЭМУЛЯЦИЯ (не выполняет psql); боевое восстановление — только через deploy/backup/restore.ps1.
+- pg_dump на dev-машине может отсутствовать -> mode="catalog" (не полноценный дамп! только каталог).
+- HA/репликация PostgreSQL НЕ настроена (single-node): для прода — Patroni/streaming replication + pgbouncer (см. deploy/).
+- Ротация бэкапов в API не реализована — только в backup.ps1 (14 дней).
+- Бэкап не включает Redis/файлы загрузок — только PostgreSQL.
+- Авторизация: run/restore/delete — admin; list/health/replication — любой аутентифицированный.
