@@ -400,3 +400,13 @@
 - Ротация бэкапов в API не реализована — только в backup.ps1 (14 дней).
 - Бэкап не включает Redis/файлы загрузок — только PostgreSQL.
 - Авторизация: run/restore/delete — admin; list/health/replication — любой аутентифицированный.
+
+## E51 — UI-Config (экраны тонкого клиента по ролям)
+
+**Что сделано:** реестр из 17 экранов тонкого клиента (ui_screens), матрица «роль → экраны» (ui_role_screens, 5 ролей × все экраны), дефолтные профили superadmin/admin/manager/trainer/reception. API: GET /ui-config/screens, POST /screens (201/409), GET /roles (матрица), GET+PUT /roles/{role}/screens, POST /roles/{role}/reset, GET /my (тонкий клиент строит меню при входе). Алиасы ролей: administrator→admin, super_admin→superadmin и др. Защита от самоблокировки: нельзя скрыть ui_config у superadmin (400). Права: запись — superadmin/admin, чтение /my — любой авторизованный.
+
+**Продакшен-оговорки:**
+- Роль пользователя определяется из атрибута user.role/role_name (строка или enum) — при смене модели пользователей проверить маппинг.
+- Новые экраны после POST /screens видны только superadmin — остальным ролям включаются вручную через PUT.
+- Тонкий клиент (fitintel-desktop) пока не читает /ui-config/my — вкладки захардкожены; для полного замыкания UX добавить в main_window построение меню из /my.
+- Мастер установки (E30) уже покрывает шаги license + devices (WIZARD_STEPS: database, license, admin, club, devices, tariffs, complete); устройства также через DAL (E47) — доработка не потребовалась.
