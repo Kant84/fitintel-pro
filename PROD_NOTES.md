@@ -352,3 +352,19 @@
 - Клавиатуры — массивы строк в JSON (структура под MAX API, не подтверждена боевым API MAX).
 - Сценариев пока один (booking); сценарий привязки телефона описан, но не включён в FSM.
 - Авторизация: все эндпоинты — аутентифицированный пользователь (в проде /message вызывается сервисом webhook, нужен service-token).
+
+## E47 — DAL, Device Abstraction Layer (ТЗ §4.26, E15)
+
+Что важно помнить:
+- Новый файл app/api/v1/dal.py, prefix /dal. Таблицы: dal_drivers (package_name UNIQUE, status installed/enabled/disabled/error, manifest JSON), dal_devices (connection_string, last_seen), dal_events (ping/command журнал).
+- Репозиторий .fnp-пакетов — константа REPOSITORY (5 пакетов: atol-kkt, shtrih-kkt, mercury-scale, hikvision-face, zebra-scanner). Install копирует manifest из репозитория; upgrade сверяет с latest_version.
+- Автообнаружение устройств: берёт discovery-список из manifest драйвера, дедупликация по (driver_id, connection_string). Только для status=enabled.
+- Каскад: удаление драйвера удаляет его устройства и их события.
+
+Оговорки по тестам / эмуляция:
+- Репозиторий и discovery ЭМУЛИРОВАНЫ константами (в проде: внешний registry .fnp + реальные probe-запросы драйверов).
+- .fnp-пакет не распаковывается и не исполняется (нет sandbox-загрузчика driver.py); execute() — эмуляция echo.
+- ping всегда возвращает online (эмуляция).
+- Версии сравниваются строкой (нет semver-разбора).
+- Авторизация: чтение — любой; install/enable/disable/upgrade/delete/discover/add — admin; ping/command — любой аутентифицированный.
+- Связка с Device Manager: devices.py/equipment.py остаются на своих таблицах (TODO: миграция их устройств в dal_devices).
