@@ -410,3 +410,9 @@
 - Новые экраны после POST /screens видны только superadmin — остальным ролям включаются вручную через PUT.
 - Тонкий клиент (fitintel-desktop) пока не читает /ui-config/my — вкладки захардкожены; для полного замыкания UX добавить в main_window построение меню из /my.
 - Мастер установки (E30) уже покрывает шаги license + devices (WIZARD_STEPS: database, license, admin, club, devices, tariffs, complete); устройства также через DAL (E47) — доработка не потребовалась.
+
+## E52 — Тонкий клиент: прокачка (часть 1)
+
+**Что сделано:** фикс логина (JSON /auth/login вместо form /auth/token); нормализация списков в api/client.py (_as_list: items/entries/users/...); visits_tab переписан — вместо UUID ФИО+телефон клиента (join по client_id), цветной статус, поиск; новые вкладки: Аналитика (dashboard + AI churn + risk-segments), Платежи (accounting entries), Пользователи, Устройства (DAL), Экраны ролей (редактор матрицы E51); main_window строит вкладки из GET /ui-config/my по роли с fallback на полный набор; авто-ремонт битых строк (\n в литералах) в 4 файлах клиента.
+
+**Фикс данных БД (важно для прода!):** GET /clients/ падал с 500 — legacy-значения не совпадали с enum схемы. Мигрировано: gender МУЖСКОЙ/male→MALE; client_category ОБЫЧНАЯ/REGULAR/terminal→ADULT/STAFF; status→UPPER; NULL email→noemail-{id}@fitintel.local. **Рекомендация:** ослабить response-схемы (Optional/str) или добавить валидаторы на входе, чтобы legacy-данные не роняли список.

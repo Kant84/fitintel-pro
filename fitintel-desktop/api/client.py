@@ -17,12 +17,25 @@ class ApiClient:
         self.token = None
         self.session.headers.pop("Authorization", None)
 
+    @staticmethod
+    def _as_list(data) -> List[Dict[str, Any]]:
+        """API может вернуть list или dict с вложенным списком."""
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            for k in ("items", "data", "results", "visits", "clients",
+                      "subscriptions", "logs", "records", "entries", "users",
+                      "devices", "drivers"):
+                if isinstance(data.get(k), list):
+                    return data[k]
+        return []
+
     def _url(self, path: str) -> str:
         return f"{self.base_url}/{path.lstrip('/')}"
 
     def login(self, username: str, password: str) -> Dict[str, Any]:
-        data = {"username": username, "password": password}
-        resp = self.session.post(self._url("/auth/token"), data=data)
+        payload = {"login": username, "password": password}
+        resp = self.session.post(self._url("/auth/login"), json=payload)
         resp.raise_for_status()
         return resp.json()
 
@@ -40,7 +53,7 @@ class ApiClient:
     def get_clients(self) -> List[Dict[str, Any]]:
         resp = self.session.get(self._url("/clients/"))
         resp.raise_for_status()
-        return resp.json()
+        return self._as_list(resp.json())
 
     def create_client(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         resp = self.session.post(self._url("/clients/"), json=payload)
@@ -60,7 +73,7 @@ class ApiClient:
     def get_subscriptions(self) -> List[Dict[str, Any]]:
         resp = self.session.get(self._url("/subscriptions/"))
         resp.raise_for_status()
-        return resp.json()
+        return self._as_list(resp.json())
 
     def create_subscription(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         resp = self.session.post(self._url("/subscriptions/"), json=payload)
@@ -81,7 +94,7 @@ class ApiClient:
     def get_visits(self) -> List[Dict[str, Any]]:
         resp = self.session.get(self._url("/visits/"))
         resp.raise_for_status()
-        return resp.json()
+        return self._as_list(resp.json())
 
     def get_visit_stats(self) -> Dict[str, Any]:
         resp = self.session.get(self._url("/visits/stats"))
@@ -116,7 +129,7 @@ class ApiClient:
     def get_face_logs(self) -> List[Dict[str, Any]]:
         resp = self.session.get(self._url("/face-id/logs"))
         resp.raise_for_status()
-        return resp.json()
+        return self._as_list(resp.json())
 
     # --- License ---
     def verify_license(self, license_key: str, device_id: str) -> Dict[str, Any]:
@@ -133,5 +146,71 @@ class ApiClient:
     # --- Analytics ---
     def get_dashboard(self) -> Dict[str, Any]:
         resp = self.session.get(self._url("/analytics/dashboard"))
+        resp.raise_for_status()
+        return resp.json()
+
+    # --- Dashboard / AI Analytics ---
+    def get_churn(self) -> Dict[str, Any]:
+        resp = self.session.get(self._url("/analytics/ai/churn"))
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_risk_segments(self) -> Dict[str, Any]:
+        resp = self.session.get(self._url("/analytics/ai/risk-segments"))
+        resp.raise_for_status()
+        return resp.json()
+
+    # --- Users ---
+    def get_users(self) -> List[Dict[str, Any]]:
+        resp = self.session.get(self._url("/users/"))
+        resp.raise_for_status()
+        return self._as_list(resp.json())
+
+    # --- Devices (DAL) ---
+    def get_devices(self) -> List[Dict[str, Any]]:
+        resp = self.session.get(self._url("/dal/devices"))
+        resp.raise_for_status()
+        return self._as_list(resp.json())
+
+    def get_drivers(self) -> List[Dict[str, Any]]:
+        resp = self.session.get(self._url("/dal/drivers"))
+        resp.raise_for_status()
+        return self._as_list(resp.json())
+
+    # --- Payments / Accounting ---
+    def get_accounting_entries(self) -> List[Dict[str, Any]]:
+        resp = self.session.get(self._url("/accounting/entries"))
+        resp.raise_for_status()
+        return self._as_list(resp.json())
+
+    def get_sales_report(self) -> Dict[str, Any]:
+        resp = self.session.get(self._url("/sales/report"))
+        resp.raise_for_status()
+        return resp.json()
+
+    # --- UI-Config (E51) ---
+    def get_ui_my(self) -> Dict[str, Any]:
+        resp = self.session.get(self._url("/ui-config/my"))
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_ui_screens(self) -> List[Dict[str, Any]]:
+        resp = self.session.get(self._url("/ui-config/screens"))
+        resp.raise_for_status()
+        return resp.json().get("screens", [])
+
+    def get_ui_roles(self) -> Dict[str, Any]:
+        resp = self.session.get(self._url("/ui-config/roles"))
+        resp.raise_for_status()
+        return resp.json()
+
+    def set_ui_role_screens(self, role: str, screens: List[str]) -> Dict[str, Any]:
+        resp = self.session.put(self._url(f"/ui-config/roles/{role}/screens"),
+                                json={"screens": screens})
+        resp.raise_for_status()
+        return resp.json()
+
+    def reset_ui_role(self, role: str) -> Dict[str, Any]:
+        resp = self.session.post(self._url(f"/ui-config/roles/{role}/reset"))
         resp.raise_for_status()
         return resp.json()
