@@ -143,5 +143,4 @@ class ClientsTab(QWidget):
         self._render(filtered)
 
     def _add_client(self):
-        QMessageBox.information(self, "Добавление", "Форма добавления клиента будет здесь.
-Используйте API или Swagger для создания.")
+        QMessageBox.information(self, "Добавление", "Форма добавления клиента будет здесь.\nИспользуйте API или Swagger для создания.")

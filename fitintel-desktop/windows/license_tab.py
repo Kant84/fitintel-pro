@@ -118,13 +118,11 @@ class LicenseTab(QWidget):
         if valid:
             self.card_status.setStyleSheet("background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 16px;")
             self.lbl_status.setStyleSheet("font-size: 14px; color: #065f46; font-weight: 600;")
-            self.lbl_status.setText(f"✅ Лицензия ВАЛИДНА
-{message}")
+            self.lbl_status.setText(f"✅ Лицензия ВАЛИДНА\n{message}")
         else:
             self.card_status.setStyleSheet("background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; padding: 16px;")
             self.lbl_status.setStyleSheet("font-size: 14px; color: #991b1b; font-weight: 600;")
-            self.lbl_status.setText(f"❌ Лицензия НЕВАЛИДНА
-{message}")
+            self.lbl_status.setText(f"❌ Лицензия НЕВАЛИДНА\n{message}")
 
         self.info_area.setText(str(info))
 

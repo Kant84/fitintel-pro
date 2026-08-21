@@ -83,9 +83,7 @@ class SettingsTab(QWidget):
             self.api.health()
             QMessageBox.information(self, "Соединение", "✅ Сервер доступен!")
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"❌ Не удалось подключиться:
-{e}")
+            QMessageBox.critical(self, "Ошибка", f"❌ Не удалось подключиться:\n{e}")
 
     def _save(self):
-        QMessageBox.information(self, "Сохранено", "Настройки сохранены (в памяти).
-Для постоянного хранения добавьте JSON-конфиг.")
+        QMessageBox.information(self, "Сохранено", "Настройки сохранены (в памяти).\nДля постоянного хранения добавьте JSON-конфиг.")

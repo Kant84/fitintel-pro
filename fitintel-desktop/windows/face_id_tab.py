@@ -136,16 +136,10 @@ class FaceIDTab(QWidget):
 
         if access:
             self.lbl_result.setStyleSheet("padding: 20px; background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; font-size: 16px; color: #065f46; font-weight: 600;")
-            self.lbl_result.setText(f"✅ ДОСТУП РАЗРЕШЁН
-
-Пользователь: {user}
-Тип: {user_type}
-Причина: {reason}")
+            self.lbl_result.setText(f"✅ ДОСТУП РАЗРЕШЁН\n\nПользователь: {user}\nТип: {user_type}\nПричина: {reason}")
         else:
             self.lbl_result.setStyleSheet("padding: 20px; background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; font-size: 16px; color: #991b1b; font-weight: 600;")
-            self.lbl_result.setText(f"❌ ДОСТУП ЗАПРЕЩЁН
-
-Причина: {reason}")
+            self.lbl_result.setText(f"❌ ДОСТУП ЗАПРЕЩЁН\n\nПричина: {reason}")
 
         self.refresh_logs()
 
