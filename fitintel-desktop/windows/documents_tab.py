@@ -26,7 +26,7 @@ class DocumentsWorker(QThread):
             resp = self.api.session.get(self.api._url("/documents"))
             resp.raise_for_status()
             docs = resp.json().get("documents", [])
-            resp2 = self.api.session.get(self.api._url("/documents/templates"))
+            resp2 = self.api.session.get(self.api._url("/document-templates"))
             resp2.raise_for_status()
             tpls = resp2.json().get("templates", [])
             clients = self.api.get_clients()
@@ -167,7 +167,7 @@ def create_template_dialog(self):
         if not ed_name.text().strip():
             QMessageBox.warning(d, "Шаблон", "Введите название"); return
         try:
-            self.api._e55_post("/documents/templates", {"name": ed_name.text().strip(), "doc_type": cb.currentText(), "content": ed_body.toPlainText()})
+            self.api._e55_post("/document-templates", {"name": ed_name.text().strip(), "doc_type": cb.currentText(), "content": ed_body.toPlainText()})
             QMessageBox.information(d, "Шаблон", "Шаблон сохранён! Теперь он доступен в кнопке «📄 Из шаблона».")
             d.accept()
         except Exception as e:
@@ -196,3 +196,19 @@ try:
     DocumentsTab.__init__ = _patched_init
 except Exception as e:
     print("patch:", e)
+
+
+# === E63_PRINT ===
+try:
+    from windows.print_helper import add_print_button as _e63_apb
+    _e63_orig = DocumentsTab.__init__
+    def _e63_init(self, *a, **kw):
+        _e63_orig(self, *a, **kw)
+        try:
+            _e63_apb(self, "Документы")
+        except Exception as e:
+            print("print btn:", e)
+    DocumentsTab.__init__ = _e63_init
+    print("E63 print OK: documents_tab.py")
+except Exception as e:
+    print("E63 FAIL:", e)

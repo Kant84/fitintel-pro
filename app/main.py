@@ -186,7 +186,7 @@ async def root():
 # === E59B: document templates router ===
 try:
     from app.api.v1.document_templates import router as doc_templates_router
-    app.include_router(doc_templates_router, prefix="/api/v1/documents/templates", tags=["document-templates"])
+    app.include_router(doc_templates_router, prefix="/api/v1/document-templates", tags=["document-templates"])
     print("document_templates router OK")
 except Exception as e:
     print("document_templates router FAIL:", e)
@@ -199,3 +199,12 @@ try:
     print("ai router OK")
 except Exception as e:
     print("ai router FAIL:", e)
+
+
+# === License validation ===
+try:
+    from app.api.v1.license_api import router as license_router
+    app.include_router(license_router, prefix="/api/v1", tags=["license"])
+    print("license router OK")
+except Exception as e:
+    print("license router FAIL:", e)

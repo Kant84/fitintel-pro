@@ -142,3 +142,49 @@ class LicenseTab(QWidget):
             self.info_area.setText(str(result))
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))
+
+
+# === E64_LICENSE: key check panel ===
+try:
+    from PyQt6.QtWidgets import QWidget as _W64, QHBoxLayout as _H64, QVBoxLayout as _V64, QLineEdit as _E64, QPushButton as _B64, QLabel as _L64, QMessageBox as _M64
+    import requests as _rq64
+    _e64_orig = LicenseTab.__init__
+    def _e64_init(self, *a, **kw):
+        _e64_orig(self, *a, **kw)
+        try:
+            panel = _W64(); v = _V64(panel)
+            v.addWidget(_L64("Проверка лицензионного ключа (из License Studio):"))
+            row = _H64()
+            ed = _E64(); ed.setPlaceholderText("FIPRO-.....")
+            row.addWidget(ed)
+            btn = _B64("✔ Проверить"); row.addWidget(btn)
+            v.addLayout(row)
+            res = _L64("—"); res.setWordWrap(True)
+            v.addWidget(res)
+            def _check():
+                key = ed.text().strip()
+                if not key:
+                    return
+                api = getattr(self, "api", None)
+                base = getattr(api, "base_url", None) or getattr(api, "base", None) or "http://localhost:8001/api/v1"
+                try:
+                    r = _rq64.post(str(base).rstrip("/") + "/license/validate", json={"key": key}, timeout=15).json()
+                    if r.get("valid"):
+                        res.setText("✅ Лицензия ДЕЙСТВИТЕЛЬНА: тариф %s, до %s, клиентов: %s, клуб: %s" % (
+                            r.get("plan"), r.get("exp"), r.get("max_clients"), r.get("club")))
+                        res.setStyleSheet("color:#39ff14; font-weight:bold;")
+                    else:
+                        res.setText("❌ Недействительна: %s" % r.get("reason", "?"))
+                        res.setStyleSheet("color:#ff3860; font-weight:bold;")
+                except Exception as e:
+                    res.setText("Ошибка проверки: %s" % e)
+            btn.clicked.connect(_check)
+            lay = self.layout()
+            if lay is not None:
+                lay.addWidget(panel)
+        except Exception as e:
+            print("license panel:", e)
+    LicenseTab.__init__ = _e64_init
+    print("E64 license panel OK")
+except Exception as e:
+    print("E64 FAIL:", e)

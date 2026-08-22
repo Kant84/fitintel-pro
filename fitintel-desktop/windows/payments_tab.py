@@ -285,3 +285,19 @@ class PaymentsTab(QWidget):
                     e.get("description") or ""]
             for j, val in enumerate(vals):
                 self.tbl_e.setItem(r, j, QTableWidgetItem(str(val)))
+
+
+# === E63_PRINT ===
+try:
+    from windows.print_helper import add_print_button as _e63_apb
+    _e63_orig = PaymentsTab.__init__
+    def _e63_init(self, *a, **kw):
+        _e63_orig(self, *a, **kw)
+        try:
+            _e63_apb(self, "Платежи")
+        except Exception as e:
+            print("print btn:", e)
+    PaymentsTab.__init__ = _e63_init
+    print("E63 print OK: payments_tab.py")
+except Exception as e:
+    print("E63 FAIL:", e)

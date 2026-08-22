@@ -68,12 +68,17 @@ def _mapping():
     }
 
 def _ensure():
+    try:
+        with _eng().begin() as m:
+            m.execute(text("ALTER TABLE ai_predictions ALTER COLUMN client_id TYPE VARCHAR(64) USING client_id::text"))
+    except Exception:
+        pass
     with _eng().begin() as c:
         c.execute(text("""CREATE TABLE IF NOT EXISTS ai_models (
             id SERIAL PRIMARY KEY, name VARCHAR(64) UNIQUE,
             weights TEXT, trained_at TIMESTAMP, samples INT DEFAULT 0, accuracy NUMERIC(6,3))"""))
         c.execute(text("""CREATE TABLE IF NOT EXISTS ai_predictions (
-            id SERIAL PRIMARY KEY, client_id INT, prob NUMERIC(5,4),
+            id SERIAL PRIMARY KEY, client_id VARCHAR(64), prob NUMERIC(5,4),
             created_at TIMESTAMP DEFAULT NOW(), outcome INT, resolved_at TIMESTAMP)"""))
         c.execute(text("""CREATE TABLE IF NOT EXISTS ai_accuracy_log (
             id SERIAL PRIMARY KEY, model VARCHAR(64), accuracy NUMERIC(6,3),
@@ -85,11 +90,11 @@ def _features(cid, mp):
         return None
     try:
         with _eng().connect() as c:
-            last = c.execute(text(f"SELECT MAX({vtm}) FROM {vt} WHERE {vo}=:i"), {"i": cid}).scalar()
-            v30 = c.execute(text(f"SELECT COUNT(*) FROM {vt} WHERE {vo}=:i AND {vtm} > NOW() - INTERVAL '30 days'"), {"i": cid}).scalar() or 0
+            last = c.execute(text(f"SELECT MAX({vtm}) FROM {vt} WHERE {vo}::text=:i"), {"i": str(cid)}).scalar()
+            v30 = c.execute(text(f"SELECT COUNT(*) FROM {vt} WHERE {vo}::text=:i AND {vtm} > NOW() - INTERVAL '30 days'"), {"i": str(cid)}).scalar() or 0
             sdl = 0
             if mp["subs_table"] and mp["subs_owner"] and mp["subs_end"]:
-                sub = c.execute(text(f"SELECT MAX({mp['subs_end']}) FROM {mp['subs_table']} WHERE {mp['subs_owner']}=:i"), {"i": cid}).scalar()
+                sub = c.execute(text(f"SELECT MAX({mp['subs_end']}) FROM {mp['subs_table']} WHERE {mp['subs_owner']}=:i"), {"i": str(cid)}).scalar()
                 if sub:
                     sdl = (sub.date() if hasattr(sub, "date") else sub) - date.today()
                     sdl = sdl.days if hasattr(sdl, "days") else 0
@@ -162,6 +167,13 @@ def _train_inner():
 
 @router.get("/ai/churn/predict")
 def predict(limit: int = Query(50)):
+    import traceback
+    try:
+        return _predict_inner(limit)
+    except Exception:
+        return {"ok": False, "error": traceback.format_exc()}
+
+def _predict_inner(limit):
     _ensure()
     with _eng().connect() as c:
         row = c.execute(text("SELECT weights FROM ai_models WHERE name='churn'")).scalar()
@@ -181,7 +193,7 @@ def predict(limit: int = Query(50)):
     with _eng().begin() as c:
         for r in out:
             c.execute(text("INSERT INTO ai_predictions (client_id, prob) VALUES (:i,:p)"),
-                      {"i": r["client_id"], "p": r["churn_prob"]})
+                      {"i": str(r["client_id"]), "p": r["churn_prob"]})
     return {"ok": True, "at_risk": out}
 
 @router.post("/ai/churn/resolve")
@@ -196,7 +208,7 @@ def resolve():
         for pid, cid in rows:
             last = None
             if vt and vo and vtm:
-                last = c.execute(text(f"SELECT MAX({vtm}) FROM {vt} WHERE {vo}=:i"), {"i": cid}).scalar()
+                last = c.execute(text(f"SELECT MAX({vtm}) FROM {vt} WHERE {vo}::text=:i"), {"i": str(cid)}).scalar()
             if last is not None and getattr(last, "tzinfo", None) is not None:
                 last = last.replace(tzinfo=None)
             actual = 1 if (not last or (datetime.now() - last).days > 30) else 0
