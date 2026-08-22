@@ -6,7 +6,11 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor
 
+from PyQt6.QtWidgets import QMessageBox
+
 from api import ApiClient
+from windows import theme
+from windows.form_dialog import FormDialog
 
 
 class UsersWorker(QThread):
@@ -38,6 +42,10 @@ class UsersTab(QWidget):
 
         row = QHBoxLayout()
         row.addStretch()
+        b_add = QPushButton("Создать пользователя")
+        b_add.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        b_add.clicked.connect(self._add)
+        row.addWidget(b_add)
         btn = QPushButton("Обновить")
         btn.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn.clicked.connect(self.refresh)
@@ -51,10 +59,7 @@ class UsersTab(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
-        self.table.setStyleSheet("""
-            QTableWidget { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; gridline-color: #f1f5f9; }
-            QHeaderView::section { background: #f8fafc; padding: 10px; font-weight: 600; border: none; border-bottom: 1px solid #e2e8f0; }
-        """)
+        self.table.setStyleSheet(theme.table_style())
         layout.addWidget(self.table)
 
     def refresh(self):
@@ -80,6 +85,25 @@ class UsersTab(QWidget):
             item = QTableWidgetItem("Активен" if active else "Отключён")
             item.setForeground(QColor("#059669" if active else "#ef4444"))
             self.table.setItem(i, 4, item)
+
+    def _add(self):
+        dlg = FormDialog("Новый пользователь", [
+            ("username", "Логин *"),
+            ("email", "Email *"),
+            ("password", "Пароль *"),
+        ], self)
+        if dlg.exec() != FormDialog.DialogCode.Accepted:
+            return
+        v = dlg.values()
+        if not v["username"] or not v["password"]:
+            QMessageBox.warning(self, "Ошибка", "Логин и пароль обязательны")
+            return
+        try:
+            r = self.api.session.post(self.api._url("/users/"), json=v)
+            r.raise_for_status()
+            self.refresh()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", str(e))
 
     def _on_error(self, msg: str):
         self.table.setRowCount(1)

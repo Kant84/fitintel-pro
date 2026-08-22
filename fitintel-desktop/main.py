@@ -16,11 +16,14 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
+from app_logging import log, install_excepthook
 from api import ApiClient
 from windows import LoginWindow, MainWindow
 
 
 def main():
+    install_excepthook()
+    log.info('=== FitIntel Pro Desktop запущен ===')
     # Включаем поддержку высокого DPI
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
@@ -40,6 +43,7 @@ def main():
     main_window = None
 
     def on_login_success(user_data: dict, token: str):
+        log.info('Вход выполнен: %s', user_data.get('username', '?'))
         nonlocal main_window
         api.set_token(token)
         main_window = MainWindow(api, user_data, token)
@@ -56,7 +60,9 @@ def main():
     login.login_success.connect(on_login_success)
     login.show()
 
-    sys.exit(app.exec())
+    code = app.exec()
+    log.info('=== Клиент завершил работу ===')
+    sys.exit(code)
 
 
 if __name__ == "__main__":

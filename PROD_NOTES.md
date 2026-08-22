@@ -416,3 +416,12 @@
 **Что сделано:** фикс логина (JSON /auth/login вместо form /auth/token); нормализация списков в api/client.py (_as_list: items/entries/users/...); visits_tab переписан — вместо UUID ФИО+телефон клиента (join по client_id), цветной статус, поиск; новые вкладки: Аналитика (dashboard + AI churn + risk-segments), Платежи (accounting entries), Пользователи, Устройства (DAL), Экраны ролей (редактор матрицы E51); main_window строит вкладки из GET /ui-config/my по роли с fallback на полный набор; авто-ремонт битых строк (\n в литералах) в 4 файлах клиента.
 
 **Фикс данных БД (важно для прода!):** GET /clients/ падал с 500 — legacy-значения не совпадали с enum схемы. Мигрировано: gender МУЖСКОЙ/male→MALE; client_category ОБЫЧНАЯ/REGULAR/terminal→ADULT/STAFF; status→UPPER; NULL email→noemail-{id}@fitintel.local. **Рекомендация:** ослабить response-схемы (Optional/str) или добавить валидаторы на входе, чтобы legacy-данные не роняли список.
+
+## E55 — Платежи / Face ID (тонкий клиент)
+- Отдельного endpoint «отмена платежа» в API нет: кнопка «Отмена» = POST /payments/{id}/refund
+  полной суммы с reason="Отмена платежа". Для прода: завести статус CANCELLED на бэкенде,
+  чтобы отмена не смешивалась с возвратами в отчётах.
+- /face-id/verify принимает {"photo": base64} (не face_encoding). Симуляция шлёт тестовое
+  фото 1x1; в проде фото идёт с камеры терминала, anti-spoofing через /face-id/anti-spoofing.
+- Экспорт платежей: POST /reports/payments/export (format=csv) — проверить формат ответа
+  на реальных данных (файл или JSON со ссылкой).

@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from api import ApiClient
+from windows import theme
 
 
 class VerifyLicenseWorker(QThread):
@@ -84,7 +85,7 @@ class LicenseTab(QWidget):
         self.info_area = QTextEdit()
         self.info_area.setReadOnly(True)
         self.info_area.setPlaceholderText("Информация о лицензии появится здесь...")
-        self.info_area.setStyleSheet("background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px;")
+        self.info_area.setStyleSheet(theme.card_style())
         self.info_area.setMaximumHeight(200)
         layout.addWidget(self.info_area)
 

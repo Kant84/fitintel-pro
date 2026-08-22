@@ -155,6 +155,7 @@ class LoginWindow(QWidget):
 
         # Remember me
         self.chk_remember = QCheckBox("Запомнить меня")
+        self._load_saved_credentials()
         card_layout.addWidget(self.chk_remember)
 
         # Button
@@ -203,6 +204,39 @@ class LoginWindow(QWidget):
         self.worker.error.connect(self._on_error)
         self.worker.start()
 
+    def _load_saved_credentials(self):
+        try:
+            import json as _json
+            from pathlib import Path as _P
+            st = _json.loads((_P(__file__).parents[1] / "client_settings.json").read_text(encoding="utf-8"))
+            if st.get("remember_login"):
+                self.edit_login.setText(st.get("saved_login", ""))
+                self.edit_pass.setText(st.get("saved_password", ""))
+                self.chk_remember.setChecked(True)
+        except Exception:
+            pass
+
+    def _save_credentials(self):
+        try:
+            import json as _json
+            from pathlib import Path as _P
+            path = _P(__file__).parents[1] / "client_settings.json"
+            try:
+                st = _json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                st = {}
+            if self.chk_remember.isChecked():
+                st["remember_login"] = True
+                st["saved_login"] = self.edit_login.text().strip()
+                st["saved_password"] = self.edit_pass.text()
+            else:
+                st["remember_login"] = False
+                st.pop("saved_login", None)
+                st.pop("saved_password", None)
+            path.write_text(_json.dumps(st, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
+
     def _on_success(self, result: dict):
         token = result.get("access_token")
         if not token:
@@ -216,6 +250,12 @@ class LoginWindow(QWidget):
             self._on_error(f"Не удалось получить данные пользователя: {e}")
             return
 
+        try:
+            from app_logging import log as _log
+            _log.info("Успешный вход: %s", user.get("username", "?"))
+        except Exception:
+            pass
+        self._save_credentials()
         self.login_success.emit(user, token)
         self.close()
 

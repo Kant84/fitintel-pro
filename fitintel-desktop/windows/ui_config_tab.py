@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
 from api import ApiClient
+from windows import theme
 
 
 class UiConfigWorker(QThread):
@@ -84,10 +85,7 @@ class UiConfigTab(QWidget):
         self.table.setHorizontalHeaderLabels(["Виден", "Экран", "Код"])
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.setStyleSheet("""
-            QTableWidget { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; gridline-color: #f1f5f9; }
-            QHeaderView::section { background: #f8fafc; padding: 10px; font-weight: 600; border: none; border-bottom: 1px solid #e2e8f0; }
-        """)
+        self.table.setStyleSheet(theme.table_style())
         layout.addWidget(self.table)
 
     def refresh(self):

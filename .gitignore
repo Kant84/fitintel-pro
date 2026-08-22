@@ -35,3 +35,6 @@ rewrite_validate.py
 setup_test_config.py
 
 uploads/
+
+fitintel-desktop/client_settings.json
+fitintel-desktop/logs/

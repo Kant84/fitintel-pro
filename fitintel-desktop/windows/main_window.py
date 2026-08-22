@@ -1,13 +1,17 @@
-"""FitIntel Pro — Main Window (вкладки строятся из /ui-config/my по роли)"""
+"""FitIntel Pro — Main Window (боковое меню слева, темы, масштаб)"""
+import json
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QTabWidget, QStatusBar, QMessageBox,
-    QFrame
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QStatusBar, QMessageBox, QFrame,
+    QListWidget, QListWidgetItem, QStackedWidget
 )
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QAction
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QSize
+from PyQt6.QtGui import QAction, QFont
 
 from api import ApiClient
+from windows import theme
 from windows.clients_tab import ClientsTab
 from windows.subscriptions_tab import SubscriptionsTab
 from windows.visits_tab import VisitsTab
@@ -19,26 +23,52 @@ from windows.payments_tab import PaymentsTab
 from windows.users_tab import UsersTab
 from windows.devices_tab import DevicesTab
 from windows.ui_config_tab import UiConfigTab
+from windows.schedule_tab import ScheduleTab
+from windows.reports_tab import ReportsTab
+from windows.documents_tab import DocumentsTab
+from windows.roles_tab import RolesTab
+from windows.setup_tab import SetupTab
+from windows.tariffs_tab import TariffsTab
 
-# реестр: код экрана -> (заголовок вкладки, класс)
+SETTINGS_PATH = Path(__file__).parents[1] / "client_settings.json"
+
 TAB_REGISTRY = {
     "dashboard":     ("Главная", DashboardTab),
     "analytics":     ("Аналитика", DashboardTab),
     "clients":       ("Клиенты", ClientsTab),
     "subscriptions": ("Абонементы", SubscriptionsTab),
+    "tariffs":       ("Тарифы", TariffsTab),
     "visits":        ("Входы/Выходы", VisitsTab),
+    "schedule":      ("Расписание", ScheduleTab),
     "payments":      ("Платежи", PaymentsTab),
+    "reports":       ("Отчёты", ReportsTab),
+    "documents":     ("Документы", DocumentsTab),
     "users":         ("Пользователи", UsersTab),
+    "roles":         ("Роли и права", RolesTab),
     "devices":       ("Устройства", DevicesTab),
     "face_id":       ("Face ID", FaceIDTab),
     "license":       ("Лицензия", LicenseTab),
     "ui_config":     ("Экраны ролей", UiConfigTab),
+    "setup":         ("Мастер установки", SetupTab),
     "settings":      ("Настройки", SettingsTab),
 }
 
-# порядок по умолчанию, если /ui-config/my недоступен
-DEFAULT_TABS = ["dashboard", "clients", "subscriptions", "visits", "payments",
-                "users", "devices", "face_id", "license", "ui_config", "settings"]
+DEFAULT_TABS = ["dashboard", "clients", "subscriptions", "tariffs", "visits",
+                "schedule", "payments", "reports", "documents", "users", "roles",
+                "devices", "face_id", "license", "ui_config", "setup", "settings"]
+
+SIDEBAR_LIGHT = """
+    QListWidget { background: #ffffff; border: none; border-right: 1px solid #e2e8f0; outline: none; }
+    QListWidget::item { padding: 10px 14px; color: #475569; font-weight: 600; border-left: 3px solid transparent; }
+    QListWidget::item:selected { background: #ecfdf5; color: #065f46; border-left: 3px solid #10b981; }
+    QListWidget::item:hover:!selected { background: #f1f5f9; }
+"""
+SIDEBAR_DARK = """
+    QListWidget { background: #1e293b; border: none; border-right: 1px solid #334155; outline: none; }
+    QListWidget::item { padding: 10px 14px; color: #94a3b8; font-weight: 600; border-left: 3px solid transparent; }
+    QListWidget::item:selected { background: #064e3b; color: #a7f3d0; border-left: 3px solid #10b981; }
+    QListWidget::item:hover:!selected { background: #334155; }
+"""
 
 
 class MainWindow(QMainWindow):
@@ -49,35 +79,73 @@ class MainWindow(QMainWindow):
         self.api = api
         self.user = user_data
         self.token = token
-        self.setWindowTitle("FitIntel Pro — Система управления")
+        self.ui_settings = self._load_ui_settings()
+        self.setWindowTitle("FitIntel Pro — Система управления [sidebar v2]")
         self.setMinimumSize(1280, 800)
-        self.setStyleSheet(self._stylesheet())
         self._build_ui()
+        self.apply_appearance(save=False)
         self._start_health_check()
 
-    def _stylesheet(self) -> str:
-        return """
-        QMainWindow { background-color: #f1f5f9; }
-        QTabWidget::pane { border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff; top: -1px; }
-        QTabBar::tab {
-            background: #e2e8f0; color: #475569; padding: 10px 16px; margin-right: 4px;
-            border-top-left-radius: 8px; border-top-right-radius: 8px;
-            font-weight: 600; font-size: 13px;
-        }
-        QTabBar::tab:selected { background: #ffffff; color: #0f172a; border-bottom: 2px solid #10b981; }
-        QTabBar::tab:hover:!selected { background: #cbd5e1; }
-        QLabel#header-title { font-size: 20px; font-weight: 700; color: #0f172a; }
-        QLabel#header-user { font-size: 12px; color: #64748b; }
-        QPushButton#logout {
-            background: transparent; color: #ef4444; border: 1px solid #ef4444;
-            border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600;
-        }
-        QPushButton#logout:hover { background: #ef4444; color: white; }
-        QStatusBar { background: #ffffff; color: #64748b; font-size: 12px; border-top: 1px solid #e2e8f0; }
-        """
+    def _load_ui_settings(self) -> dict:
+        try:
+            return json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            return {"theme": "light", "font_size": 10}
+
+    def apply_appearance(self, theme_name: str = None, font_size: int = None, save: bool = True):
+        old_theme = self.ui_settings.get("theme", "light")
+        if theme_name:
+            self.ui_settings["theme"] = theme_name
+        if font_size:
+            self.ui_settings["font_size"] = max(8, min(18, int(font_size)))
+        cur_theme = self.ui_settings.get("theme", "light")
+        size = self.ui_settings.get("font_size", 10)
+
+        QApplication.instance().setFont(QFont("Segoe UI", size))
+        dark = cur_theme == "dark"
+        theme.set_dark(dark)
+
+        sidebar = SIDEBAR_DARK if dark else SIDEBAR_LIGHT
+        if dark:
+            self._header_bg = "background: #1e293b; border-bottom: 1px solid #334155;"
+            self.setStyleSheet(
+                "QMainWindow { background-color: #0f172a; }" + sidebar +
+                "QStackedWidget { background: #0f172a; }" +
+                "QLabel#header-title { font-size: 20px; font-weight: 700; color: #f1f5f9; }"
+                "QLabel#header-user { font-size: 12px; color: #94a3b8; }"
+                "QStatusBar { background: #1e293b; color: #94a3b8; font-size: 12px; border-top: 1px solid #334155; }"
+                "QMenuBar { background: #0f172a; color: #cbd5e1; } QMenuBar::item:selected { background: #334155; }"
+                "QMenu { background: #1e293b; color: #cbd5e1; } QMenu::item:selected { background: #334155; }"
+                "QPushButton#logout { background: transparent; color: #f87171; border: 1px solid #f87171; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; }"
+                "QPushButton#logout:hover { background: #f87171; color: #0f172a; }")
+        else:
+            self._header_bg = "background: #ffffff; border-bottom: 1px solid #e2e8f0;"
+            self.setStyleSheet(
+                "QMainWindow { background-color: #f1f5f9; }" + sidebar +
+                "QLabel#header-title { font-size: 20px; font-weight: 700; color: #0f172a; }"
+                "QLabel#header-user { font-size: 12px; color: #64748b; }"
+                "QStatusBar { background: #ffffff; color: #64748b; font-size: 12px; border-top: 1px solid #e2e8f0; }"
+                "QPushButton#logout { background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; }"
+                "QPushButton#logout:hover { background: #ef4444; color: white; }")
+
+        if hasattr(self, "_header"):
+            self._header.setStyleSheet(self._header_bg)
+        if save:
+            try:
+                SETTINGS_PATH.write_text(json.dumps(self.ui_settings, ensure_ascii=False),
+                                         encoding="utf-8")
+            except Exception:
+                pass
+        if theme_name and theme_name != old_theme and hasattr(self, "stack"):
+            self._rebuild_content()
+
+    def zoom_in(self):
+        self.apply_appearance(font_size=self.ui_settings.get("font_size", 10) + 1)
+
+    def zoom_out(self):
+        self.apply_appearance(font_size=self.ui_settings.get("font_size", 10) - 1)
 
     def _visible_screen_codes(self) -> list:
-        """Запрашивает у бэка экраны роли (E51). Fallback — полный набор."""
         try:
             data = self.api.get_ui_my()
             codes = [s["code"] for s in data.get("screens", [])]
@@ -87,23 +155,46 @@ class MainWindow(QMainWindow):
             pass
         return list(DEFAULT_TABS)
 
-    def _build_tabs(self):
-        self.tabs = QTabWidget()
-        self.tabs.setDocumentMode(True)
-        self.tabs.setTabPosition(QTabWidget.TabPosition.North)
+    def _make_widget(self, code: str):
+        cls = TAB_REGISTRY[code][1]
+        if code == "settings":
+            return SettingsTab(self.api, self)
+        return cls(self.api)
+
+    def _rebuild_content(self):
+        current = self.sidebar.currentRow()
+        self.sidebar.blockSignals(True)
+        self.sidebar.clear()
+        while self.stack.count():
+            w = self.stack.widget(0)
+            self.stack.removeWidget(w)
+            w.deleteLater()
 
         added = set()
         for code in self._visible_screen_codes():
             if code in added or code not in TAB_REGISTRY:
                 continue
-            title, cls = TAB_REGISTRY[code]
             try:
-                self.tabs.addTab(cls(self.api), title)
-                added.add(code)
+                widget = self._make_widget(code)
             except Exception:
                 continue
-        if not added:  # на крайний случай
-            self.tabs.addTab(ClientsTab(self.api), "Клиенты")
+            widget.setStyleSheet(theme.widget_style())
+            title = TAB_REGISTRY[code][0]
+            item = QListWidgetItem(title)
+            item.setSizeHint(QSize(-1, 38))
+            item.setData(Qt.ItemDataRole.UserRole, code)
+            self.sidebar.addItem(item)
+            self.stack.addWidget(widget)
+            added.add(code)
+
+        if self.sidebar.count() == 0:
+            self.sidebar.addItem(QListWidgetItem("Клиенты"))
+            self.stack.addWidget(ClientsTab(self.api))
+
+        self.sidebar.blockSignals(False)
+        row = current if 0 <= current < self.sidebar.count() else 0
+        self.sidebar.setCurrentRow(row)
+        self.stack.setCurrentIndex(row)
 
     def _build_ui(self):
         central = QWidget()
@@ -112,33 +203,39 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        header = QFrame()
-        header.setStyleSheet("background: #ffffff; border-bottom: 1px solid #e2e8f0;")
-        header.setFixedHeight(64)
-        h_layout = QHBoxLayout(header)
+        self._header = QFrame()
+        self._header.setFixedHeight(64)
+        h_layout = QHBoxLayout(self._header)
         h_layout.setContentsMargins(24, 0, 24, 0)
-
         title = QLabel("FitIntel Pro")
         title.setObjectName("header-title")
         h_layout.addWidget(title)
         h_layout.addStretch()
-
         role = self.user.get("role", "admin")
         role_name = getattr(role, "value", role)
         user_info = QLabel(f"{self.user.get('full_name', self.user.get('username', 'Админ'))} | {role_name}")
         user_info.setObjectName("header-user")
         h_layout.addWidget(user_info)
         h_layout.addSpacing(16)
-
         btn_logout = QPushButton("Выход")
         btn_logout.setObjectName("logout")
         btn_logout.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_logout.clicked.connect(self._on_logout)
         h_layout.addWidget(btn_logout)
-        layout.addWidget(header)
+        layout.addWidget(self._header)
 
-        self._build_tabs()
-        layout.addWidget(self.tabs)
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
+        self.sidebar = QListWidget()
+        self.sidebar.setFixedWidth(180)
+        self.sidebar.currentRowChanged.connect(self._on_nav)
+        body.addWidget(self.sidebar)
+        self.stack = QStackedWidget()
+        body.addWidget(self.stack, 1)
+        layout.addLayout(body, 1)
+
+        self._rebuild_content()
 
         self.status = QStatusBar()
         self.status.showMessage("Сервер подключён")
@@ -156,6 +253,27 @@ class MainWindow(QMainWindow):
         act_exit.triggered.connect(self.close)
         file_menu.addAction(act_exit)
 
+        view_menu = menubar.addMenu("Вид")
+        act_light = QAction("Светлая тема", self)
+        act_light.triggered.connect(lambda: self.apply_appearance(theme_name="light"))
+        view_menu.addAction(act_light)
+        act_dark = QAction("Тёмная тема", self)
+        act_dark.triggered.connect(lambda: self.apply_appearance(theme_name="dark"))
+        view_menu.addAction(act_dark)
+        view_menu.addSeparator()
+        act_zi = QAction("Увеличить шрифт", self)
+        act_zi.setShortcut("Ctrl++")
+        act_zi.triggered.connect(self.zoom_in)
+        view_menu.addAction(act_zi)
+        act_zo = QAction("Уменьшить шрифт", self)
+        act_zo.setShortcut("Ctrl+-")
+        act_zo.triggered.connect(self.zoom_out)
+        view_menu.addAction(act_zo)
+
+    def _on_nav(self, row: int):
+        if 0 <= row < self.stack.count():
+            self.stack.setCurrentIndex(row)
+
     def _start_health_check(self):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._check_health)
@@ -169,9 +287,13 @@ class MainWindow(QMainWindow):
             self.status.showMessage("Сервер недоступен — проверьте бэкенд localhost:8001")
 
     def _refresh_current(self):
-        widget = self.tabs.currentWidget()
-        if hasattr(widget, "refresh"):
-            widget.refresh()
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            widget = self.stack.currentWidget()
+            if hasattr(widget, "refresh"):
+                widget.refresh()
+        finally:
+            QApplication.restoreOverrideCursor()
 
     def _on_logout(self):
         reply = QMessageBox.question(

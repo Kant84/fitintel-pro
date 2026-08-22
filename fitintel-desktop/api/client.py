@@ -8,6 +8,15 @@ class ApiClient:
         self.token: Optional[str] = None
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})
+        try:
+            from app_logging import log as _log
+            def _resp_hook(resp, *args, **kwargs):
+                if resp.status_code >= 400:
+                    _log.warning("%s %s -> %s: %s", resp.request.method, resp.url,
+                                 resp.status_code, resp.text[:200])
+            self.session.hooks["response"].append(_resp_hook)
+        except Exception:
+            pass
 
     def set_token(self, token: str):
         self.token = token
@@ -214,3 +223,124 @@ class ApiClient:
         resp = self.session.post(self._url(f"/ui-config/roles/{role}/reset"))
         resp.raise_for_status()
         return resp.json()
+
+# ============================ E55_EXT ============================
+import requests as _rq
+
+def _e55_url(self, path):
+    base = (getattr(self, "base_url", None) or getattr(self, "base", None)
+            or getattr(self, "BASE_URL", None) or "http://localhost:8001")
+    return str(base).rstrip("/") + "/api/v1" + path
+
+def _e55_sess(self):
+    return getattr(self, "session", None) or getattr(self, "_session", None) or _rq
+
+def _e55_get(self, path, params=None):
+    r = _e55_sess(self).get(_e55_url(self, path), params=params or {})
+    r.raise_for_status()
+    try: return r.json()
+    except Exception: return r.text
+
+def _e55_post(self, path, payload=None, files=None, data=None):
+    s = _e55_sess(self)
+    if files is not None:
+        r = s.post(_e55_url(self, path), files=files, data=data or {})
+    else:
+        r = s.post(_e55_url(self, path), json=payload or {})
+    r.raise_for_status()
+    try: return r.json()
+    except Exception: return r.text
+
+def _e55_list(self, data):
+    f = getattr(self, "_as_list", None)
+    if f:
+        try: return f(data)
+        except Exception: pass
+    if isinstance(data, dict):
+        for k in ("items","data","results","records","payments","entries"):
+            if isinstance(data.get(k), list): return data[k]
+        return []
+    return data if isinstance(data, list) else []
+
+def verify_face(self, photo_b64, device_id=None):
+    p = {"photo": photo_b64}
+    if device_id: p["device_id"] = device_id
+    return _e55_post(self, "/face-id/verify", p)
+
+def face_engine_info(self): return _e55_get(self, "/face-id/engine/info")
+def face_templates(self): return _e55_list(self, _e55_get(self, "/face-id"))
+def face_register(self, client_id, photo_b64):
+    return _e55_post(self, "/face-id/register", {"client_id": client_id, "photo": photo_b64})
+
+def get_client_payments(self, client_id, status=None, limit=200):
+    pr = {"limit": limit}
+    if status: pr["status"] = status
+    return _e55_list(self, _e55_get(self, "/payments/client/%s" % client_id, pr))
+
+def create_payment(self, amount, payment_method, client_id=None, notes=None,
+                   direction=None, category=None):
+    p = {"amount": float(amount), "payment_method": payment_method}
+    if client_id: p["client_id"] = str(client_id)
+    if notes: p["notes"] = notes
+    if direction: p["payment_direction"] = direction
+    if category: p["payment_category"] = category
+    return _e55_post(self, "/payments/", p)
+
+def complete_payment(self, pid): return _e55_post(self, "/payments/%s/complete" % pid)
+
+def refund_payment(self, pid, reason, amount=None, to_balance=False):
+    p = {"reason": reason, "refund_to_balance": bool(to_balance)}
+    if amount: p["amount"] = float(amount)
+    return _e55_post(self, "/payments/%s/refund" % pid, p)
+
+def export_payments(self, date_from=None, date_to=None, client_id=None, fmt="csv"):
+    p = {"format": fmt}
+    if date_from: p["date_from"] = date_from
+    if date_to: p["date_to"] = date_to
+    if client_id: p["client_id"] = str(client_id)
+    return _e55_post(self, "/reports/payments/export", p)
+
+def download_document(self, document_id, fmt=None):
+    pr = {"format": fmt} if fmt else {}
+    r = _e55_sess(self).get(_e55_url(self, "/documents/%s/download" % document_id), params=pr)
+    r.raise_for_status()
+    return r.content, r.headers.get("Content-Type", "")
+
+def issue_card(self, client_id, card_number, valid_until=None, notes=None):
+    p = {"client_id": str(client_id), "card_number": str(card_number)}
+    if valid_until: p["valid_until"] = valid_until
+    if notes: p["notes"] = notes
+    return _e55_post(self, "/credentials/card", p)
+
+def issue_bracelet(self, client_id, bracelet_id, valid_until=None):
+    p = {"client_id": str(client_id), "bracelet_id": str(bracelet_id)}
+    if valid_until: p["valid_until"] = valid_until
+    return _e55_post(self, "/credentials/bracelet", p)
+
+def get_client_credentials(self, client_id):
+    return _e55_list(self, _e55_get(self, "/credentials/rfid/client/%s" % client_id))
+
+def block_credential(self, cid, reason):
+    return _e55_post(self, "/credentials/%s/block" % cid, {"reason": reason})
+def unblock_credential(self, cid):
+    return _e55_post(self, "/credentials/%s/unblock" % cid)
+
+def get_lockers(self): return _e55_list(self, _e55_get(self, "/lockers"))
+def assign_locker(self, lid, client_id, credential_id=None):
+    p = {"client_id": str(client_id)}
+    if credential_id: p["credential_id"] = str(credential_id)
+    return _e55_post(self, "/lockers/%s/assign" % lid, p)
+def open_locker(self, lid): return _e55_post(self, "/lockers/%s/open" % lid)
+def release_locker(self, lid): return _e55_post(self, "/lockers/%s/release" % lid)
+def block_locker(self, lid, reason):
+    return _e55_post(self, "/lockers/%s/block" % lid, {"reason": reason})
+
+_NAMES = ["verify_face","face_engine_info","face_templates","face_register",
+          "get_client_payments","create_payment","complete_payment","refund_payment",
+          "export_payments","download_document","issue_card","issue_bracelet",
+          "get_client_credentials","block_credential","unblock_credential",
+          "get_lockers","assign_locker","open_locker","release_locker","block_locker"]
+_g = globals()
+for _n in _NAMES:
+    setattr(ApiClient, _n, _g[_n])
+# ========================== E55_EXT END ==========================
