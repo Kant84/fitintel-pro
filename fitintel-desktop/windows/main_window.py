@@ -336,3 +336,30 @@ try:
 except Exception as _e58:
     print("E58 tab:", _e58)
 # ========================== E58_WIRED END ==========================
+
+
+# === E59D_WIRED: theme toggle in menu ===
+try:
+    from windows import theme as _th59
+    _orig_mw_init_59d = MainWindow.__init__
+    def _mw_init_59d(self, *a, **kw):
+        _orig_mw_init_59d(self, *a, **kw)
+        try:
+            from PyQt6.QtGui import QAction
+            act = QAction("🌗 Переключить тему", self)
+            act.triggered.connect(lambda: _th59.set_dark(not _th59.DARK))
+            mb = self.menuBar()
+            view = None
+            for a in mb.actions():
+                if a.text().strip().lower().startswith("вид"):
+                    view = a.menu()
+                    break
+            if view is None:
+                view = mb.addMenu("Вид")
+            view.addAction(act)
+        except Exception as e:
+            print("theme toggle menu:", e)
+    MainWindow.__init__ = _mw_init_59d
+    print("E59D theme toggle OK")
+except Exception as e:
+    print("E59D FAIL:", e)

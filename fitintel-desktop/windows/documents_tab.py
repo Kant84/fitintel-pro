@@ -145,3 +145,54 @@ class DocumentsTab(QWidget):
     def _on_error(self, msg: str):
         self.table.setRowCount(1)
         self.table.setItem(0, 0, QTableWidgetItem(f"Ошибка загрузки: {msg}"))
+
+
+# === E59B: create template button ===
+def create_template_dialog(self):
+    from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, QComboBox, QPlainTextEdit, QPushButton, QLabel, QMessageBox
+    d = QDialog(self)
+    d.setWindowTitle("Новый шаблон документа")
+    lay = QVBoxLayout(d)
+    lay.addWidget(QLabel("Название шаблона:"))
+    ed_name = QLineEdit(); lay.addWidget(ed_name)
+    lay.addWidget(QLabel("Тип:"))
+    cb = QComboBox(); cb.addItems(["contract", "act", "agreement", "scan", "receipt", "other"]); lay.addWidget(cb)
+    lay.addWidget(QLabel("Текст шаблона (можно использовать {client}, {tariff}, {days}):"))
+    ed_body = QPlainTextEdit(); lay.addWidget(ed_body)
+    btns = QHBoxLayout()
+    ok = QPushButton("💾 Сохранить шаблон"); cancel = QPushButton("Отмена")
+    btns.addWidget(ok); btns.addWidget(cancel); lay.addLayout(btns)
+    cancel.clicked.connect(d.reject)
+    def _save():
+        if not ed_name.text().strip():
+            QMessageBox.warning(d, "Шаблон", "Введите название"); return
+        try:
+            self.api._e55_post("/documents/templates", {"name": ed_name.text().strip(), "doc_type": cb.currentText(), "content": ed_body.toPlainText()})
+            QMessageBox.information(d, "Шаблон", "Шаблон сохранён! Теперь он доступен в кнопке «📄 Из шаблона».")
+            d.accept()
+        except Exception as e:
+            QMessageBox.critical(d, "Ошибка", str(e))
+    ok.clicked.connect(_save)
+    d.resize(560, 480)
+    d.exec()
+
+try:
+    DocumentsTab.create_template_dialog = create_template_dialog
+    _orig_init = DocumentsTab.__init__
+    def _patched_init(self, *a, **kw):
+        _orig_init(self, *a, **kw)
+        try:
+            from PyQt6.QtWidgets import QPushButton
+            btn = QPushButton("📝 Создать шаблон")
+            btn.clicked.connect(self.create_template_dialog)
+            for b in self.findChildren(QPushButton):
+                if "шаблон" in b.text().lower():
+                    b.parentWidget().layout().addWidget(btn) if b.parentWidget() and b.parentWidget().layout() else None
+                    break
+            else:
+                self.layout().addWidget(btn)
+        except Exception as e:
+            print("template btn:", e)
+    DocumentsTab.__init__ = _patched_init
+except Exception as e:
+    print("patch:", e)

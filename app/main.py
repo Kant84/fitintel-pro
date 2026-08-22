@@ -182,3 +182,11 @@ app.include_router(_e56_msg.router, prefix="/api/v1")
 @app.get("/")
 async def root():
     return {"message": "FitIntel AI API", "version": settings.APP_VERSION, "docs": "/docs"}
+
+# === E59B: document templates router ===
+try:
+    from app.api.v1.document_templates import router as doc_templates_router
+    app.include_router(doc_templates_router, prefix="/api/v1/documents/templates", tags=["document-templates"])
+    print("document_templates router OK")
+except Exception as e:
+    print("document_templates router FAIL:", e)

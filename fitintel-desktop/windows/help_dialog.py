@@ -113,4 +113,11 @@ def install_help(mw):
     menu.addAction("Поддержка разработчика (MAX)", lambda: open_support(mw))
     sc = QShortcut(QKeySequence("F1"), mw)
     sc.activated.connect(lambda: show_help(mw))
+    btn = QPushButton("❓ Инструкция")
+    btn.setToolTip("Инструкция по текущему экрану (F1)")
+    btn.clicked.connect(lambda: show_help(mw))
+    try:
+        mw.statusBar().addPermanentWidget(btn)
+    except Exception:
+        pass
 
