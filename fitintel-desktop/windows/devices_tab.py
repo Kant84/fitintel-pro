@@ -6,7 +6,11 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor
 
+from PyQt6.QtWidgets import QMessageBox
+
 from api import ApiClient
+from windows import theme
+from windows.form_dialog import FormDialog
 
 
 class DevicesWorker(QThread):
@@ -46,6 +50,14 @@ class DevicesTab(QWidget):
         self.lbl_info.setStyleSheet("color: #64748b; font-size: 12px;")
         row.addWidget(self.lbl_info)
         row.addStretch()
+        b_disc = QPushButton("Найти устройства")
+        b_disc.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        b_disc.clicked.connect(self._discover)
+        row.addWidget(b_disc)
+        b_add = QPushButton("Добавить вручную")
+        b_add.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        b_add.clicked.connect(self._add)
+        row.addWidget(b_add)
         btn = QPushButton("Обновить")
         btn.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn.clicked.connect(self.refresh)
@@ -83,6 +95,7 @@ class DevicesTab(QWidget):
         self.worker.start()
 
     def _on_loaded(self, devices: list, drivers: list):
+        self._drivers = drivers
         self.table.setRowCount(max(len(devices), 1))
         if not devices:
             self.table.setItem(0, 0, QTableWidgetItem(
@@ -107,6 +120,51 @@ class DevicesTab(QWidget):
             item.setForeground(QColor("#059669" if enabled else "#ef4444"))
             self.tbl_drivers.setItem(i, 2, item)
             self.tbl_drivers.setItem(i, 3, QTableWidgetItem(str(d.get("installed_at") or "")[:10]))
+
+    def _driver_options(self):
+        return [(str(d.get("package") or d.get("name")), str(d.get("id") or d.get("driver_id") or d.get("package")))
+                for d in getattr(self, "_drivers", [])]
+
+    def _discover(self):
+        opts = self._driver_options()
+        if not opts:
+            QMessageBox.warning(self, "Нет драйверов", "Сначала установите драйвер (DAL)")
+            return
+        dlg = FormDialog("Поиск устройств", [("driver_id", "Драйвер *", "combo", opts)], self)
+        if dlg.exec() != FormDialog.DialogCode.Accepted:
+            return
+        try:
+            r = self.api.session.post(self.api._url("/dal/devices/discover"),
+                                      json={"driver_id": dlg.values()["driver_id"]})
+            r.raise_for_status()
+            res = r.json()
+            QMessageBox.information(self, "Поиск завершён", str(res)[:300])
+            self.refresh()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка поиска", str(e))
+
+    def _add(self):
+        opts = self._driver_options()
+        if not opts:
+            QMessageBox.warning(self, "Нет драйверов", "Сначала установите драйвер (DAL)")
+            return
+        dlg = FormDialog("Новое устройство", [
+            ("driver_id", "Драйвер *", "combo", opts),
+            ("name", "Название *"),
+            ("connection_string", "Подключение (IP/COM/URL) *"),
+        ], self)
+        if dlg.exec() != FormDialog.DialogCode.Accepted:
+            return
+        v = dlg.values()
+        if not v["name"] or not v["connection_string"]:
+            QMessageBox.warning(self, "Ошибка", "Заполните название и подключение")
+            return
+        try:
+            r = self.api.session.post(self.api._url("/dal/devices"), json=v)
+            r.raise_for_status()
+            self.refresh()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", str(e))
 
     def _on_error(self, msg: str):
         self.table.setRowCount(1)

@@ -6,7 +6,12 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor
 
+from datetime import datetime
+from PyQt6.QtWidgets import QMessageBox
+
 from api import ApiClient
+from windows import theme
+from windows.form_dialog import FormDialog
 
 
 class LoadVisitsWorker(QThread):
@@ -63,6 +68,10 @@ class VisitsTab(QWidget):
         self.edit_filter.textChanged.connect(self._filter)
         cards.addWidget(self.edit_filter)
 
+        btn_in = QPushButton("Ручной вход")
+        btn_in.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        btn_in.clicked.connect(self._checkin)
+        cards.addWidget(btn_in)
         btn = QPushButton("Обновить")
         btn.setStyleSheet(self._btn_secondary())
         btn.clicked.connect(self.refresh)
@@ -76,16 +85,13 @@ class VisitsTab(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
-        self.table.setStyleSheet("""
-            QTableWidget { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; gridline-color: #f1f5f9; }
-            QHeaderView::section { background: #f8fafc; padding: 10px; font-weight: 600; border: none; border-bottom: 1px solid #e2e8f0; }
-        """)
+        self.table.setStyleSheet(theme.table_style())
         layout.addWidget(self.table)
 
     def _stat_card(self, title: str, value: str) -> QLabel:
-        lbl = QLabel(f"<b style='font-size:24px; color:#0f172a;'>{value}</b><br>"
-                     f"<span style='font-size:12px; color:#64748b;'>{title}</span>")
-        lbl.setStyleSheet("background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; min-width: 120px;")
+        lbl = QLabel(f"<b style='font-size:24px; color:{theme.fg()};'>{value}</b><br>"
+                     f"<span style='font-size:12px; color:{theme.sub()};'>{title}</span>")
+        lbl.setStyleSheet(theme.card_style())
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         return lbl
 
@@ -101,8 +107,8 @@ class VisitsTab(QWidget):
         self.worker.start()
 
     def _card(self, lbl: QLabel, title: str, value):
-        lbl.setText(f"<b style='font-size:24px; color:#0f172a;'>{value}</b><br>"
-                    f"<span style='font-size:12px; color:#64748b;'>{title}</span>")
+        lbl.setText(f"<b style='font-size:24px; color:{theme.fg()};'>{value}</b><br>"
+                    f"<span style='font-size:12px; color:{theme.sub()};'>{title}</span>")
 
     def _on_loaded(self, visits: list, stats: dict, cmap: dict):
         self._all_data = visits
@@ -143,6 +149,30 @@ class VisitsTab(QWidget):
             if t in hay:
                 filtered.append(r)
         self._render(filtered)
+
+    def _checkin(self):
+        if not self._cmap:
+            QMessageBox.warning(self, "Нет данных", "Список клиентов пуст")
+            return
+        options = [(f"{v[0]} ({v[1]})", k) for k, v in list(self._cmap.items())[:200]]
+        dlg = FormDialog("Ручной вход клиента", [
+            ("client_id", "Клиент *", "combo", options),
+            ("access_method", "Способ", "combo",
+             [("Ручной (ресепшен)", "manual"), ("Карта", "card"), ("QR", "qr"), ("Face ID", "face")]),
+            ("zone", "Зона", "text", "main"),
+        ], self)
+        if dlg.exec() != FormDialog.DialogCode.Accepted:
+            return
+        v = dlg.values()
+        payload = {"client_id": v["client_id"],
+                   "entry_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                   "access_method": v["access_method"], "zone": v["zone"] or "main"}
+        try:
+            r = self.api.session.post(self.api._url("/visits/manual"), json=payload)
+            r.raise_for_status()
+            self.refresh()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка входа", str(e))
 
     def _on_error(self, msg: str):
         self.table.setRowCount(1)
