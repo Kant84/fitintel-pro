@@ -409,3 +409,81 @@ _g58 = globals()
 for _n in ["get_notif_settings", "save_notif_settings"]:
     setattr(ApiClient, _n, _g58[_n])
 # ========================== E58_EXT END ==========================
+
+# ============================ E59_EXT ============================
+def _e55_del(self, path):
+    r = _e55_sess(self).delete(_e55_url(self, path))
+    r.raise_for_status()
+    try: return r.json()
+    except Exception: return r.text
+
+def _e55_try(self, kind, paths, payload=None):
+    last = None
+    for pth in paths:
+        try:
+            if kind == "get": return _e55_get(self, pth)
+            if kind == "post": return _e55_post(self, pth, payload)
+        except Exception as e:
+            last = e
+    raise last
+
+_TARIFF_PATHS = ["/tariffs/", "/tariffs", "/subscriptions/tariffs/", "/subscriptions/tariffs"]
+
+def get_tariffs(self):
+    return _e55_list(self, _e55_try(self, "get", _TARIFF_PATHS))
+
+def create_tariff(self, code, name, price, duration_days):
+    return _e55_try(self, "post", _TARIFF_PATHS,
+                    {"code": code, "name": name, "price": float(price),
+                     "duration_days": int(duration_days)})
+
+def update_tariff(self, tid, data):
+    return _e56_put(self, "/tariffs/%s" % tid, data)
+
+def delete_tariff(self, tid):
+    return _e55_del(self, "/tariffs/%s" % tid)
+
+def delete_user(self, uid):
+    return _e55_del(self, "/users/%s" % uid)
+
+def get_documents(self, client_id=None):
+    pr = {"client_id": str(client_id)} if client_id else {}
+    return _e55_list(self, _e55_get(self, "/documents", pr))
+
+def create_document(self, doc_type, client_id, data=None, template_id=None):
+    p = {"type": doc_type, "client_id": str(client_id)}
+    if template_id: p["template_id"] = str(template_id)
+    if data: p["data"] = data
+    return _e55_post(self, "/documents", p)
+
+def delete_document(self, did):
+    return _e55_del(self, "/documents/%s" % did)
+
+_N59 = ["get_tariffs","create_tariff","update_tariff","delete_tariff","delete_user",
+        "get_documents","create_document","delete_document"]
+_g59 = globals()
+for _n in _N59:
+    setattr(ApiClient, _n, _g59[_n])
+# ========================== E59_EXT END ==========================
+
+
+# === E59B_EXT: PATCH helper + fix update_tariff ===
+def _e55_patch(self, path, payload=None):
+    import requests
+    url = _e55_url(self, path)
+    r = self._session.patch(url, json=payload or {}, timeout=30) if hasattr(self, "_session") else requests.patch(url, json=payload or {}, timeout=30)
+    r.raise_for_status()
+    try:
+        return r.json()
+    except Exception:
+        return {}
+
+def update_tariff(self, tariff_id, data):
+    """Backend accepts PATCH (not PUT) on /tariffs/{id}."""
+    last = None
+    for base in _TARIFF_PATHS:
+        try:
+            return _e55_patch(self, base.rstrip("/") + "/" + str(tariff_id), data)
+        except Exception as e:
+            last = e
+    raise last
