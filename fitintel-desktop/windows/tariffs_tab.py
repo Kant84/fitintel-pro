@@ -120,3 +120,19 @@ class TariffsTab(QWidget):
     def _on_error(self, msg: str):
         self.table.setRowCount(1)
         self.table.setItem(0, 0, QTableWidgetItem(f"Ошибка загрузки: {msg}"))
+
+
+# === E63_PRINT ===
+try:
+    from windows.print_helper import add_print_button as _e63_apb
+    _e63_orig = TariffsTab.__init__
+    def _e63_init(self, *a, **kw):
+        _e63_orig(self, *a, **kw)
+        try:
+            _e63_apb(self, "Тарифы")
+        except Exception as e:
+            print("print btn:", e)
+    TariffsTab.__init__ = _e63_init
+    print("E63 print OK: tariffs_tab.py")
+except Exception as e:
+    print("E63 FAIL:", e)
