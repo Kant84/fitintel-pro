@@ -1,0 +1,116 @@
+# -*- coding: utf-8 -*-
+"""E56: Помощь — инструкция по экрану (F1), чат клиентов и поддержка через MAX."""
+import os
+import glob
+from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtWidgets import (QMessageBox, QListWidget, QDialog, QVBoxLayout,
+                             QHBoxLayout, QPushButton, QLabel, QApplication)
+
+MAX_SUPPORT_URL = "https://max.ru/fitintel_support"  # TODO: заменить на реальный чат разработчика
+
+HELP_TEXTS = {
+    "Главная": "KPI-карточки, график выручки (зелёная линия — факт, оранжевый пунктир — AI-прогноз), тепловая карта посещаемости, топ клиентов с риском оттока. Кнопка «Веб-график» открывает интерактивный дашборд в браузере.",
+    "Клиенты": "＋ Добавить — новый клиент. ✎ Изменить (или двойной клик) — правка карточки. ⊘ Деактивировать — отключить без удаления. 🗑 Удалить — с подтверждением.",
+    "Абонементы": "＋ Продать абонемент — выбрать клиента и тариф. ❄ Заморозить — пауза с датой и причиной. ▶ Разморозить — снять заморозку.",
+    "Входы-Выходы": "Журнал посещений с ФИО и телефоном. «Ручной вход» — регистрация визита вручную, если у клиента нет карты или Face ID.",
+    "Расписание": "Расписание тренеров: кто, когда и с кем работает.",
+    "Тарифы": "Тарифы клуба. «Создать тариф» — код, название, цена, длительность в днях.",
+    "Платежи": "Выберите клиента → ＋ Провести платёж → ✓ Подтвердить. ↩ Возврат — полный или частичный (причина обязательна). ✕ Отмена — возврат полной суммы. ⇩ Экспорт CSV — выгрузка для бухгалтерии. Подвкладка «Проводки» — бухгалтерский журнал.",
+    "Отчёты": "Календарь отчётности: сроки и статусы.",
+    "Аналитика": "AI-аналитика: прогнозы, сегменты риска, веб-графики.",
+    "Документы": "Шаблоны и документы клиентов. «Сгенерировать» — документ из шаблона (договор и т.п.).",
+    "Устройства": "Драйверы и устройства DAL. «Найти устройства» — автопоиск. «Добавить вручную»: драйвер, имя, строка подключения. IP-устройство: TCP:192.168.1.50:8080; COM-порт: COM3:9600.",
+    "Пользователи": "Учётные записи сотрудников. «Создать пользователя» — логин, пароль, роль.",
+    "Роли и права": "RBAC-матрица: какие права у каждой роли.",
+    "Face ID": "«Движок Face ID» — статус распознавания. «Шаблоны» — зарегистрированные лица. Симуляция verify — проверка связи тестовым фото. Реальная работа — фото с камеры терминала.",
+    "Лицензия": "Статус лицензии: срок действия, лимиты устройств и пользователей.",
+    "Настройки": "Тема (светлая/тёмная), размер шрифта (А−/А+), проверка сервера, логи клиента.",
+    "Экраны ролей": "Какие экраны видит каждая роль. Отметьте чекбоксы → «Сохранить». У superadmin этот экран скрыть нельзя.",
+    "Мастер установки": "Первичная настройка: БД → лицензия → админ → клуб → устройства → тарифы.",
+    "Интеграции": "API-ключи сторонних систем: 1С, Mobifitness, MAX, ЮKassa. «Настроить» — ввод ключей, «Проверить» — тест подключения. Секреты показаны как *** — оставьте *** чтобы не менять.",
+    "MAX сообщения": "Чаты — переписка с клиентами. Рассылка — акции и инфо всем клиентам/тренерам или одному клиенту. Привязки — сопоставление клиента и его MAX user_id (бот пишет первым только тем, кто запустил бота). Напоминания — автоправила: абонемент истекает, клиент пропал. Журнал — статусы отправок.",
+    "Оповещения": "Настройка отправки уведомлений: канал MAX, время отправки, правила (за сколько дней напоминать об истечении абонемента, через сколько дней считать клиента пропавшим) и шаблоны текстов с переменными {days} {date}. «Сгенерировать и отправить сейчас» — ручной запуск.",
+}
+
+DEFAULT_HELP = ("Рабочий экран FitIntel Pro. Кнопка «Обновить» перезагружает данные. "
+                "Помощь: меню «Помощь» → «Поддержка разработчика (MAX)».")
+
+
+def _current_title(mw):
+    lw = mw.findChild(QListWidget)
+    if lw is not None and lw.currentItem() is not None:
+        return lw.currentItem().text().strip()
+    return ""
+
+
+def show_help(mw):
+    title = _current_title(mw)
+    text = HELP_TEXTS.get(title, DEFAULT_HELP)
+    QMessageBox.information(mw, "Инструкция: " + (title or "экран"), text)
+
+
+def open_client_chat(mw):
+    lw = mw.findChild(QListWidget)
+    if lw is not None:
+        for i in range(lw.count()):
+            if "MAX" in lw.item(i).text():
+                lw.setCurrentRow(i)
+                return
+    QMessageBox.information(mw, "MAX", "Вкладка «MAX сообщения» появится после перезапуска клиента.")
+
+
+def _logs_tail(lines=40):
+    for base in (os.getcwd(), os.path.dirname(os.getcwd())):
+        files = glob.glob(os.path.join(base, "logs", "client_*.log"))
+        if files:
+            newest = max(files, key=os.path.getmtime)
+            try:
+                with open(newest, encoding="utf-8", errors="replace") as f:
+                    return newest + "\n" + "".join(f.readlines()[-lines:])
+            except Exception:
+                pass
+    return "Логи не найдены"
+
+
+def open_support(mw):
+    dlg = QDialog(mw)
+    dlg.setWindowTitle("Поддержка разработчика — MAX")
+    v = QVBoxLayout(dlg)
+    lbl = QLabel(
+        "Вопросы и проблемы — пишите разработчику в MAX:\n" + MAX_SUPPORT_URL +
+        "\n\nПеред обращением нажмите «Скопировать логи» и вставьте их в сообщение —"
+        " так проблема решится быстрее.\n"
+        "Что описать: экран, кнопка, что ожидали, что произошло.")
+    lbl.setWordWrap(True)
+    v.addWidget(lbl)
+    bar = QHBoxLayout()
+    b1 = QPushButton("Открыть MAX")
+    b2 = QPushButton("Скопировать логи")
+    b3 = QPushButton("Закрыть")
+    bar.addWidget(b1); bar.addWidget(b2); bar.addWidget(b3)
+    v.addLayout(bar)
+
+    def _open():
+        try:
+            os.startfile(MAX_SUPPORT_URL)
+        except Exception as e:
+            QMessageBox.warning(dlg, "MAX", "Не удалось открыть: %s" % e)
+
+    def _copy():
+        QApplication.clipboard().setText(_logs_tail())
+        b2.setText("Логи скопированы ✓")
+
+    b1.clicked.connect(_open)
+    b2.clicked.connect(_copy)
+    b3.clicked.connect(dlg.accept)
+    dlg.exec()
+
+
+def install_help(mw):
+    menu = mw.menuBar().addMenu("Помощь")
+    menu.addAction("Инструкция по экрану (F1)", lambda: show_help(mw))
+    menu.addAction("Чат с клиентами (MAX)", lambda: open_client_chat(mw))
+    menu.addAction("Поддержка разработчика (MAX)", lambda: open_support(mw))
+    sc = QShortcut(QKeySequence("F1"), mw)
+    sc.activated.connect(lambda: show_help(mw))
+
