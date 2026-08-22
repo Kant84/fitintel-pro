@@ -363,3 +363,13 @@ try:
     print("E59D theme toggle OK")
 except Exception as e:
     print("E59D FAIL:", e)
+
+
+# === E61_WIRED: AI Center tab ===
+try:
+    from windows.ai_center_tab import AICenterTab
+    if "ai_center" not in TAB_REGISTRY:
+        TAB_REGISTRY["ai_center"] = ("AI Центр", AICenterTab)
+        print("E61 AI tab OK")
+except Exception as e:
+    print("E61 FAIL:", e)

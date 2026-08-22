@@ -190,3 +190,12 @@ try:
     print("document_templates router OK")
 except Exception as e:
     print("document_templates router FAIL:", e)
+
+
+# === E22-lite: self-learning AI router ===
+try:
+    from app.api.v1.ai_engine import router as ai_router
+    app.include_router(ai_router, prefix="/api/v1", tags=["ai"])
+    print("ai router OK")
+except Exception as e:
+    print("ai router FAIL:", e)
