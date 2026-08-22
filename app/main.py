@@ -174,6 +174,11 @@ app.include_router(reporting_router, prefix="/api/v1")
 app.include_router(ops_router, prefix="/api/v1")
 app.include_router(ui_config_router, prefix=settings.API_V1_PREFIX)
 
+from app.api.v1 import integrations_config as _e56_ic
+from app.api.v1 import messenger as _e56_msg
+app.include_router(_e56_ic.router, prefix="/api/v1")
+app.include_router(_e56_msg.router, prefix="/api/v1")
+
 @app.get("/")
 async def root():
     return {"message": "FitIntel AI API", "version": settings.APP_VERSION, "docs": "/docs"}

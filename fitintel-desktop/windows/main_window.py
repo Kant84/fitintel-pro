@@ -303,3 +303,36 @@ class MainWindow(QMainWindow):
             self.api.clear_token()
             self.logout_requested.emit()
             self.close()
+
+
+# ============================ E56_WIRED ============================
+try:
+    from windows.integrations_tab import IntegrationsTab
+    from windows.messenger_tab import MessengerTab
+    TAB_REGISTRY["integrations"] = ("Интеграции", IntegrationsTab)
+    TAB_REGISTRY["messenger"] = ("MAX сообщения", MessengerTab)
+except Exception as _e:
+    print("E56 tabs:", _e)
+
+try:
+    _e56_orig_init = MainWindow.__init__
+    def _e56_mw_init(self, *a, **kw):
+        _e56_orig_init(self, *a, **kw)
+        try:
+            from windows.help_dialog import install_help
+            install_help(self)
+        except Exception as _e2:
+            print("help install:", _e2)
+    MainWindow.__init__ = _e56_mw_init
+except Exception as _e3:
+    print("E56 wire:", _e3)
+# ========================== E56_WIRED END ==========================
+
+
+# ============================ E58_WIRED ============================
+try:
+    from windows.notifications_tab import NotificationsTab
+    TAB_REGISTRY["notifications"] = ("Оповещения", NotificationsTab)
+except Exception as _e58:
+    print("E58 tab:", _e58)
+# ========================== E58_WIRED END ==========================

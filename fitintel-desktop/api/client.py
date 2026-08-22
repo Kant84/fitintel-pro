@@ -344,3 +344,68 @@ _g = globals()
 for _n in _NAMES:
     setattr(ApiClient, _n, _g[_n])
 # ========================== E55_EXT END ==========================
+
+# ============================ E56_EXT ============================
+def _e56_put(self, path, payload=None):
+    r = _e55_sess(self).put(_e55_url(self, path), json=payload or {})
+    r.raise_for_status()
+    try: return r.json()
+    except Exception: return r.text
+
+def get_integration_schema(self): return _e55_get(self, "/integrations-config/schema")
+def get_integrations(self): return _e55_get(self, "/integrations-config/")
+def save_integration(self, service, config):
+    return _e56_put(self, "/integrations-config/%s" % service, {"config": config})
+def test_integration(self, service):
+    return _e55_post(self, "/integrations-config/%s/test" % service)
+
+def get_chats(self): return _e55_list(self, _e55_get(self, "/messenger/chats"))
+def get_chat_messages(self, chat_id):
+    return _e55_list(self, _e55_get(self, "/messenger/chats/%s/messages" % chat_id))
+def send_chat_message(self, chat_id, text):
+    return _e55_post(self, "/messenger/chats/%s/send" % chat_id, {"text": text})
+def sync_max(self): return _e55_post(self, "/messenger/max/sync")
+def demo_chat(self): return _e55_post(self, "/messenger/demo")
+
+_N56 = ["get_integration_schema","get_integrations","save_integration","test_integration",
+        "get_chats","get_chat_messages","send_chat_message","sync_max","demo_chat"]
+_g56 = globals()
+for _n in _N56:
+    setattr(ApiClient, _n, _g56[_n])
+# ========================== E56_EXT END ==========================
+
+# ============================ E57_EXT ============================
+def get_bindings(self): return _e55_list(self, _e55_get(self, "/messenger/bindings"))
+def bind_client(self, client_id, max_user_id, client_name=None, role="client"):
+    return _e55_post(self, "/messenger/bindings",
+                     {"client_id": str(client_id), "max_user_id": str(max_user_id),
+                      "client_name": client_name, "role": role})
+def notify_client(self, client_id, text, kind="info"):
+    return _e55_post(self, "/messenger/notify",
+                     {"client_id": str(client_id), "text": text, "kind": kind})
+def broadcast(self, audience, text, kind="promo", client_ids=None):
+    return _e55_post(self, "/messenger/broadcast",
+                     {"audience": audience, "text": text, "kind": kind,
+                      "client_ids": client_ids})
+def run_reminders(self): return _e55_post(self, "/messenger/reminders/run")
+def get_notifications(self, status=None):
+    pr = {"status": status} if status else {}
+    return _e55_list(self, _e55_get(self, "/messenger/notifications", pr))
+def dispatch_notifications(self):
+    return _e55_post(self, "/messenger/notifications/dispatch")
+
+_N57 = ["get_bindings","bind_client","notify_client","broadcast","run_reminders",
+        "get_notifications","dispatch_notifications"]
+_g57 = globals()
+for _n in _N57:
+    setattr(ApiClient, _n, _g57[_n])
+# ========================== E57_EXT END ==========================
+
+# ============================ E58_EXT ============================
+def get_notif_settings(self): return _e55_get(self, "/messenger/settings")
+def save_notif_settings(self, cfg): return _e56_put(self, "/messenger/settings", cfg)
+
+_g58 = globals()
+for _n in ["get_notif_settings", "save_notif_settings"]:
+    setattr(ApiClient, _n, _g58[_n])
+# ========================== E58_EXT END ==========================
