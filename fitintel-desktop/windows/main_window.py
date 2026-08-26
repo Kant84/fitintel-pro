@@ -381,3 +381,12 @@ try:
     print("[E17] вкладка Уведомления зарегистрирована")
 except Exception as _e17e:
     print("[E17] wire FAIL:", _e17e)
+
+
+# === E18_COMMERCE_WIRED ===
+try:
+    from windows.commerce_tab import CommerceTab
+    TAB_REGISTRY["commerce"] = ("🏢 Коммерция", CommerceTab)
+    print("E18 commerce tab OK")
+except Exception as _e18ui:
+    print("E18 commerce tab FAIL:", _e18ui)

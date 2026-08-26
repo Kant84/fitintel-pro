@@ -305,3 +305,13 @@ try:
     print("notifications router OK")
 except Exception as e:
     print("notifications router FAIL:", e)
+
+
+# === E18_COMMERCE_ROUTER ===
+try:
+    from app.api.v1.branding import router as branding_router, _ensure as _e18_ensure
+    app.include_router(branding_router, prefix="/api/v1", tags=["commerce"])
+    _e18_ensure()
+    print("E18 commerce router OK")
+except Exception as _e18e:
+    print("E18 commerce router FAIL:", _e18e)
