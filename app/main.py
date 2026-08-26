@@ -335,3 +335,15 @@ try:
     print("E21 A&A bridge OK")
 except Exception as _e21:
     print("E21 A&A bridge FAIL:", _e21)
+
+
+# === E7_BACKUP_SCHEDULER: автобэкап PostgreSQL 03:00 ===
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from scripts.backup_postgres import backup, rotate
+    _sched = BackgroundScheduler()
+    _sched.add_job(lambda: backup() and rotate(), "cron", hour=3, minute=0, id="pg_backup")
+    _sched.start()
+    print("E7 backup scheduler OK (03:00 daily)")
+except Exception as _e7:
+    print("E7 backup scheduler FAIL:", _e7)

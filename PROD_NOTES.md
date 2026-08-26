@@ -1,5 +1,252 @@
 # PROD_NOTES.md — что важно помнить перед продом
 
+## E1 — Общая архитектура (ТЗ §1)
+
+**Что важно помнить:**
+- Стек: FastAPI + SQLAlchemy 2.0 + PostgreSQL 14+ + psycopg (v3) + Pydantic v2.
+- Структура: `app/api/v1/` — роутеры, `app/services/` — бизнес-логика, `app/core/` — конфиг, `fitintel-desktop/` — PyQt6 тонкий клиент.
+- Базовый префикс API: `/api/v1` (настраивается в `.env` через `API_V1_PREFIX`).
+- CORS: `BACKEND_CORS_ORIGINS` в `.env` — обязательно указать продакшен-домен.
+
+**Оговорки по тестам / эмуляция:**
+- `DOCS_ENABLED=true` в dev; в проде отключить (`false`) или закрыть basic-auth.
+- `MAINTENANCE_MODE` — заглушка, middleware не реализовано полностью.
+
+## E2 — Аутентификация и авторизация (ТЗ §2)
+
+**Что важно помнить:**
+- JWT: `SECRET_KEY` в `.env` (HS256), `ACCESS_TOKEN_EXPIRE_MINUTES=30`, `REFRESH_TOKEN_EXPIRE_DAYS=7`.
+- Роли: superadmin, admin, manager, trainer, reception (E51 расширяет матрицей экранов).
+- Эндпоинты: `/auth/login` (JSON), `/auth/refresh`, `/auth/me`.
+- Пароли хранятся хешированными (bcrypt).
+
+**Оговорки по тестам / эмуляция:**
+- Legacy `/auth/token` (form-data) сохранён для совместимости; тонкий клиент переключён на JSON `/auth/login` (E52).
+- RBAC на уровне эндпоинтов — через `Depends(require_permission(...))` или `Depends(get_current_user)`; не все роутеры покрыты (E56, E34 и др. — доработать).
+
+## E3 — Клиенты (ТЗ §3)
+
+**Что важно помнить:**
+- Таблица `clients`: `first_name`, `last_name`, `middle_name`, `phone` (UNIQUE), `email`, `birth_date`, `gender` (enum: MALE/FEMALE/НЕ_УКАЗАН), `client_category` (enum: ADULT/CHILD/VIP/STAFF/...), `status` (ACTIVE/INACTIVE/BLOCKED).
+- Импорт из A&A: `/aa/import-csv` (E21) — автоподстановка enum, парсинг ФИО из одной колонки.
+- Поиск и фильтрация через `/clients` (query params).
+
+**Оговорки по тестам / эмуляция:**
+- Legacy-данные в БД могли содержать значения вне enum (МУЖСКОЙ, ОБЫЧНАЯ, REGULAR) — мигрировано в E52, но новый импорт должен нормализовать через `_norm_gender/_norm_category` (E21).
+- `email` NOT NULL: legacy NULL заменены на `noemail-{id}@fitintel.local`.
+
+## E4 — Абонементы и тарифы (ТЗ §4.1–4.3)
+
+**Что важно помнить:**
+- Таблицы: `tariffs` (услуги/периоды/цены), `subscriptions` (привязка к клиенту, start_date/end_date, status).
+- Статусы подписки: active, paused, expired, cancelled.
+- Автопроверка срока: `/subscriptions/expiring` + `/subscriptions/inactive`.
+
+**Оговорки по тестам / эмуляция:**
+- Заморозка подписки (freeze) — статус frozen в БД, логика в терминале (E35); полноценный freeze_reason/frozen_at добавлены в схему.
+- Рекуррентные списания — см. E36.
+
+## E5 — Посещения (ТЗ §4.4)
+
+**Что важно помнить:**
+- Таблица `visits`: `client_id`, `visit_date`/`visited_at`, `status` (planned/completed/cancelled/no_show).
+- Check-in: POST `/visits/check-in` (связь с Face ID E12/E45).
+- История визитов — основа для аналитики (churn, heatmap E44).
+
+**Оговорки по тестам / эмуляция:**
+- Колонка даты адаптивная: `visited_at`/`visit_date`/`check_in_at`/`created_at`/`start_time` — E44 пытается угадать имя.
+- Тип колонки может быть `timestamptz` или `VARCHAR` — heatmap (E44) фильтрует в Python.
+
+## E6 — Расписание и бронирование (ТЗ §4.5)
+
+**Что важно помнить:**
+- Таблицы: `schedule` (расписание тренеров/услуг), `service_bookings` (брони).
+- Бронирование через тонкий клиент и MAX Bot (E46).
+- Widget бронирования (E41) — публичные слоты без авторизации.
+
+**Оговорки по тестам / эмуляция:**
+- Слоты в widget (E41) фиксированы 09:00–20:00, не связаны с реальным schedule.
+- Конфликты бронирования — проверка на точное совпадение slot_datetime; в проде нужна интервальная проверка + max_capacity.
+
+## E7 — Автобэкап PostgreSQL (ТЗ §9, E10)
+
+**Что важно помнить:**
+- Скрипт: `scripts/backup_postgres.py` — pg_dump + gzip.
+- Планировщик: APScheduler в `app/main.py` (cron `0 3 * * *`).
+- Ротация: 30 дней (`backups/postgres/`).
+- Пароль читается из `.env` (`POSTGRES_PASSWORD`).
+
+**Оговорки по тестам / эмуляция:**
+- На dev-машине без pg_dump в PATH — mode="catalog" (только список таблиц).
+- Бэкап НЕ включает Redis/файлы загрузок — только PostgreSQL.
+
+## E8 — Ротация секретов (ТЗ §9)
+
+**Что важно помнить:**
+- `.env` добавлен в `.gitignore` (E8 выполнено).
+- Перед продом: сменить `SECRET_KEY`, `POSTGRES_PASSWORD`, `SMTP_PASSWORD`, `LICENSE_SECRET` — старые значения были в git-истории.
+- JWT-токены инвалидируются при смене `SECRET_KEY`.
+
+**Оговорки по тестам / эмуляция:**
+- `LICENSE_SECRET` в `.env` — дефолт test-only; в проде использовать сильный ключ.
+- Integration settings (E56) хранятся в БД открытым текстом — перед продом шифровать (Fernet/Vault).
+
+## E9 — Мониторинг и health-check (ТЗ §9)
+
+**Что важно помнить:**
+- Базовый: `GET /api/v1/health/` — всегда 200.
+- Расширенный: `GET /api/v1/health/extended` (E9) — проверяет PostgreSQL, диск, память, дату последнего бэкапа.
+- Логи: `logs/` directory, уровень `LOG_LEVEL` из `.env`.
+
+**Оговорки по тестам / эмуляция:**
+- Redis-кэш для health НЕ используется — все проверки синхронные.
+- Нет алертинга (Telegram/PagerDuty) — только endpoint.
+
+## E10 — Развёртывание (ТЗ §9)
+
+**Что важно помнить:**
+- Файл `PROD_NOTES.md` (этот документ) — единая точка входа.
+- Прод: `uvicorn app.main:app --host 0.0.0.0 --port 8001 --workers 4`.
+- Тонкий клиент: `cd fitintel-desktop && python main.py`.
+- Системные требования: 4 GB RAM, 20 GB SSD, PostgreSQL 14+.
+
+**Оговорки по тестам / эмуляция:**
+- Нет Docker-файла — ручное развёртывание.
+- Нет CI/CD pipeline — деплой через git pull + restart.
+
+## E11 — Платежи (ТЗ §4.6)
+
+**Что важно помнить:**
+- Таблица `payments`: `client_id`, `amount`, `method` (cash/card/transfer/yookassa), `status` (pending/completed/failed/refunded).
+- Интеграция YooKassa: E26 (отдельный модуль).
+- Возврат: POST `/payments/{id}/refund` (E55).
+
+**Оговорки по тестам / эмуляция:**
+- Статус CANCELLED отсутствует — кнопка «Отмена» в UI делает refund (E55). Для прода завести отдельный статус.
+- Автопроводки в бухгалтерию (E32) — ручные триггеры, не автоматические.
+
+## E12 — Face ID / Биометрия (ТЗ §5)
+
+**Что важно помнить:**
+- Таблица `face_id_records`: `client_id`, `face_encoding`, `photo` (base64 или путь).
+- Эндпоинты: `/face-id/enroll`, `/face-id/verify`, `/face-id/anti-spoofing`.
+- В ПРОДЕ — ТОЛЬКО self-hosted распознавание (свой сервис). НЕ FindFace/NtechLab, НЕ Face++ cloud — лицензии и 152-ФЗ.
+
+**Оговорки по тестам / эмуляция:**
+- Verify принимает `{"photo": base64}` (не face_encoding). Тест шлёт 1x1 пиксель.
+- Anti-spoofing — заглушка; в проде — liveness detection.
+- Терминал (E35) использует эмуляцию Face ID (точное сравнение строк).
+
+## E13 — MAX Bot / Мессенджер (ТЗ §15)
+
+**Что важно помнить:**
+- MAX API: база `https://platform-api.max.ru`, токен в заголовке `Authorization`.
+- Бота может создать только верифицированное юрлицо РФ («MAX для бизнеса»).
+- Webhook: HTTPS с доверенным сертификатом (в dev — Long Polling `platform-api2.max.ru`).
+
+**Оговорки по тестам / эмуляция:**
+- FSM (E46) — ядро бронирования без транспорта; сообщения через POST `/max-bot/fsm/message`.
+- Клавиатуры — массивы строк JSON (структура не подтверждена боевым API MAX).
+- Рассылки (E57) — ручная привязка client_id ↔ max_user_id.
+
+## E14 — Email / SMTP (ТЗ §15.2)
+
+**Что важно помнить:**
+- Настройки в `.env`: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_TLS`.
+- Отправка через `smtplib` (E17 дайджест, E34 рассылки).
+- `SMTP_FROM_NAME` / `SMTP_FROM_EMAIL` — брендинг.
+
+**Оговорки по тестам / эмуляция:**
+- SendGrid/Mailchimp — эмуляция (E34), реальные API-ключи в `.env`.
+- Email в документах (E33) — эмуляция, ничего не отправляется.
+
+## E15 — Устройства и оборудование (ТЗ §6, E23, E47)
+
+**Что важно помнить:**
+- Таблицы: `equipment` / `devices` (legacy), `dal_drivers` / `dal_devices` (E47 DAL).
+- Протоколы: Modbus TCP, HTTP API, MQTT (эмуляторы в `DeviceProtocolEmulator`).
+- DAL (E47): драйверы `.fnp` (atol-kkt, shtrih-kkt, hikvision-face, zebra-scanner).
+
+**Оговорки по тестам / эмуляция:**
+- Репозиторий `.fnp` — константа в коде, не внешний registry.
+- Ping устройств всегда возвращает `online`.
+- Связка DAL ↔ legacy devices — не реализована (TODO: миграция).
+
+## E16 — Аналитика и дашборд (ТЗ §4.19)
+
+**Что важно помнить:**
+- Дашборд: KPI (выручка, посещения, churn, LTV), графики, SSE-обновления.
+- AI-аналитика: churn score, heatmap, рекомендации (E44).
+- Тонкий клиент: вкладка «Аналитика» с dashboard + AI churn + risk-segments (E52).
+
+**Оговорки по тестам / эмуляция:**
+- Churn score — rule-based, не ML (E44).
+- Heatmap — агрегация в Python, не SQL (может тормозить на больших объёмах).
+
+## E17 — Уведомления (ТЗ §4.17, §15)
+
+**Что важно помнить:**
+- Каналы: Email, SMS, WebPush, Telegram, MAX.
+- Дайджест: ежедневный отчёт (APScheduler), настраивается в `notification_settings`.
+- Журнал: `notification_log` — все отправленные сообщения.
+
+**Оговорки по тестам / эмуляция:**
+- SMS — эмуляция (E29 phone-verify, E34 marketing); боевые: SMSRU, Twilio.
+- WebPush — заглушка FCM (E24).
+- Автонапоминания (E57) — ручная кнопка «Сгенерировать»; в проде — cron.
+
+## E18 — Коммерция и White-label (ТЗ §4.2)
+
+**Что важно помнить:**
+- White-label: название клуба, логотип, primary/secondary цвета, favicon.
+- Тенанты: `tenants` (multi-club), `commerce_settings`.
+- Тонкий клиент: брендинг подтягивается из `/commerce/settings`.
+
+**Оговорки по тестам / эмуляция:**
+- Цвета валидируются regex HEX; кастомный цвет — через диалог (E52).
+- Нет CDN для assets — файлы локальные.
+
+## E19 — Экспорт данных (ТЗ §4.18, 152-ФЗ)
+
+**Что важно помнить:**
+- Форматы: xlsx, csv (BOM + `;`), json, xml.
+- Асинхронные задачи: `POST /export/jobs` → JWT-ссылка на скачивание (24ч).
+- All-my-data: ZIP со всеми сущностями (GDPR / 152-ФЗ).
+- Анонимизация: `POST /clients/{id}/anonymize`.
+
+**Оговорки по тестам / эмуляция:**
+- Скачивание по `/download?token=` (не `/export/download` — был shadowing, исправлено).
+- CSV-экспорт — BOM для Excel, разделитель `;`.
+
+## E20 — Бухгалтерия (ТЗ §4.16, E32)
+
+**Что важно помнить:**
+- ПКО/РКО: `POST /accounting/pko`, `/accounting/rko`.
+- Отчёты: ОСВ, прибыль-убыток, баланс, проводки.
+- План счетов: 50 (Касса), 51 (Банк), 62 (Клиенты), 90.1 (Выручка), 91.2 (Расходы), 99 (Прибыль).
+- Тонкий клиент: вкладка «Бухгалтерия» с ПКО/РКО/отчётами.
+
+**Оговорки по тестам / эмуляция:**
+- 1С-экспорт — mock (упрощённый XML, не CommerceML).
+- Автопроводки — ручные триггеры (`/auto/from-sale`).
+
+## E21 — Интеграция A&A (ТЗ §4.21)
+
+**Что важно помнить:**
+- Импорт CSV: `POST /aa/import-csv` (JSON-обёртка с полем `csv`).
+- Автоопределение колонок: ФИО, Телефон, Email, Дата рождения, Пол, Категория, Статус, Фото(URL).
+- Парсинг ФИО из одной колонки: `Иванов Иван Иванович` → last/first/middle.
+- Нормализация enum: gender → MALE/FEMALE, category → ADULT/VIP/STAFF, status → ACTIVE/INACTIVE.
+- Экспорт: JSON или CSV; журнал синхронизации: `/aa/sync-log`.
+- Webhook: `POST /aa/webhook` (incoming от A&A).
+
+**Оговорки по тестам / эмуляция:**
+- Импорт НЕ создаёт абонементы/платежи — только клиенты.
+- `updated_at` NOT NULL — исправлено в INSERT (NOW()).
+- Тонкий клиент: вкладка «Интеграции» → подвкладка A&A (импорт, экспорт, журнал, webhook URL).
+
+
+
 ## Общее / безопасность
 - `.env` попадал в git-историю — секреты (пароли БД, SECRET_KEY) считать скомпрометированными, перед продом ротировать.
 - Face ID — только self-hosted (без FindFace/NtechLab/Face++): лицензии + 152-ФЗ.
