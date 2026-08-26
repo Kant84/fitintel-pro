@@ -248,3 +248,31 @@ def notify_contacts():
     except Exception as e:
         return {"error": str(e)[:200]}
     return out
+
+
+# === E17_SCHEDULER: авто-дайджест ежедневно в digest_time ===
+import threading as _th, time as _time, urllib.request as _ur
+from datetime import datetime as _dt, date as _date
+
+def _e17_scheduler():
+    last = {}
+    while True:
+        try:
+            with _eng().begin() as c:
+                row = c.execute(text("SELECT digest_time, email_enabled FROM notification_settings WHERE id=1")).mappings().first()
+            if row and row.get("email_enabled"):
+                dt = str(row.get("digest_time") or "08:00")[:5]
+                now = _dt.now().strftime("%H:%M")
+                today = str(_date.today())
+                if now == dt and last.get("d") != today:
+                    last["d"] = today
+                    req = _ur.Request("http://localhost:8001/api/v1/notify/digest",
+                                      data=b"{}", headers={"Content-Type": "application/json"})
+                    _ur.urlopen(req, timeout=60)
+                    print("[E17] авто-дайджест отправлен", now)
+        except Exception as e:
+            print("[E17] scheduler:", str(e)[:120])
+        _time.sleep(60)
+
+_th.Thread(target=_e17_scheduler, daemon=True).start()
+print("[E17] scheduler OK")
