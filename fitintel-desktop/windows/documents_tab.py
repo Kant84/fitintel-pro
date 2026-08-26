@@ -28,8 +28,11 @@ class DocumentsWorker(QThread):
             docs = resp.json().get("documents", [])
             resp2 = self.api.session.get(self.api._url("/document-templates"))
             resp2.raise_for_status()
-            tpls = resp2.json().get("templates", [])
+            _tpls_raw = resp2.json()
+            tpls = _tpls_raw.get("templates", []) if isinstance(_tpls_raw, dict) else _tpls_raw
             clients = self.api.get_clients()
+            if isinstance(clients, dict):
+                clients = clients.get("items", []) or clients.get("clients", [])
             cmap = {}
             for c in clients:
                 fio = " ".join(x for x in (c.get("last_name"), c.get("first_name")) if x)
@@ -60,6 +63,14 @@ class DocumentsTab(QWidget):
         btn.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn.clicked.connect(self.refresh)
         row.addWidget(btn)
+        b_sign = QPushButton("✍ Подписать")
+        b_sign.setStyleSheet("QPushButton { background: #E6007E; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        b_sign.clicked.connect(self._sign_doc)
+        row.addWidget(b_sign)
+        b_dl = QPushButton("📥 PDF")
+        b_dl.setStyleSheet("QPushButton { background: #3B82F6; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        b_dl.clicked.connect(self._download_pdf)
+        row.addWidget(b_dl)
         layout.addLayout(row)
 
         box_t = QGroupBox("Шаблоны документов")
@@ -105,7 +116,9 @@ class DocumentsTab(QWidget):
             self.table.setItem(0, 0, QTableWidgetItem("Документов пока нет"))
             return
         for i, d in enumerate(docs):
-            self.table.setItem(i, 0, QTableWidgetItem(str(d.get("title") or "—")))
+            it0 = QTableWidgetItem(str(d.get("title") or "—"))
+            it0.setData(Qt.ItemDataRole.UserRole, str(d.get("document_id") or ""))
+            self.table.setItem(i, 0, it0)
             self.table.setItem(i, 1, QTableWidgetItem(str(d.get("type") or "—")))
             self.table.setItem(i, 2, QTableWidgetItem(cmap.get(str(d.get("client_id")), "—")))
             st = str(d.get("status") or "—")
@@ -141,6 +154,43 @@ class DocumentsTab(QWidget):
             self.refresh()
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))
+
+    def _sign_doc(self):
+        row = self.table.currentRow()
+        if row < 0:
+            return
+        doc_id = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        if not doc_id:
+            QMessageBox.warning(self, "Подпись", "ID документа не найден")
+            return
+        try:
+            r = self.api.session.post(self.api._url(f"/documents/{doc_id}/sign"), json={})
+            r.raise_for_status()
+            d = r.json()
+            QMessageBox.information(self, "Подпись", d.get("message", "Подписано"))
+            self.refresh()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка подписи", str(e)[:200])
+
+    def _download_pdf(self):
+        row = self.table.currentRow()
+        if row < 0:
+            return
+        doc_id = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        if not doc_id:
+            QMessageBox.warning(self, "PDF", "ID документа не найден")
+            return
+        try:
+            r = self.api.session.get(self.api._url(f"/documents/{doc_id}/download?format=pdf"))
+            r.raise_for_status()
+            from PyQt6.QtWidgets import QFileDialog
+            path, _ = QFileDialog.getSaveFileName(self, "Сохранить PDF", f"doc_{doc_id}.pdf", "PDF (*.pdf)")
+            if path:
+                with open(path, "wb") as f:
+                    f.write(r.content)
+                QMessageBox.information(self, "PDF", f"Сохранено: {path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", str(e)[:200])
 
     def _on_error(self, msg: str):
         self.table.setRowCount(1)

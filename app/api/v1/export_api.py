@@ -245,7 +245,7 @@ class JobIn(BaseModel):
 MIME = {"xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "csv": "text/csv", "json": "application/json", "zip": "application/zip"}
 
-@router.post("/export/jobs")
+@router.post("/export-jobs")
 def create_job(p: JobIn, token: str = Query("")):
     if not _valid_token(token):
         raise HTTPException(401, "Некорректный токен")
