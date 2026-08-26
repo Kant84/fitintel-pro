@@ -242,3 +242,28 @@ try:
     LicenseTab.__init__ = _e65_init
 except Exception as e:
     print("E65 FAIL:", e)
+
+
+# === E67_HIDE_LEGACY_LICENSE: скрываем старый блок (license API v1.3.0) ===
+def _e67_hide_legacy(tab):
+    try:
+        from PyQt6.QtWidgets import QLabel, QPushButton
+        lbls = [w for w in tab.findChildren(QLabel) if "ID устройства" in (w.text() or "")]
+        if not lbls:
+            return
+        node = lbls[0].parentWidget()
+        while node is not None and node is not tab:
+            if any("Проверить лимиты" in (b.text() or "") for b in node.findChildren(QPushButton)):
+                node.hide()
+                print("[E67] legacy license block hidden")
+                return
+            node = node.parentWidget()
+    except Exception as e:
+        print("[E67] WARN:", e)
+
+_E67_ORIG_INIT = LicenseTab.__init__
+def _e67_init(self, *a, **kw):
+    _E67_ORIG_INIT(self, *a, **kw)
+    from PyQt6.QtCore import QTimer
+    QTimer.singleShot(0, lambda: _e67_hide_legacy(self))
+LicenseTab.__init__ = _e67_init
