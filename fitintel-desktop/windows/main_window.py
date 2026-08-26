@@ -373,3 +373,11 @@ try:
         print("E61 AI tab OK")
 except Exception as e:
     print("E61 FAIL:", e)
+
+# === E17_NOTIFY_WIRED ===
+try:
+    from windows.notifications_tab import NotificationsTab
+    TAB_REGISTRY["notifications"] = ("🔔 Уведомления", NotificationsTab)
+    print("[E17] вкладка Уведомления зарегистрирована")
+except Exception as _e17e:
+    print("[E17] wire FAIL:", _e17e)
