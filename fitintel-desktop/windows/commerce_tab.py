@@ -3,7 +3,23 @@ import json
 import urllib.request
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QLabel,
                              QLineEdit, QPushButton, QCheckBox, QTableWidget,
-                             QTableWidgetItem, QComboBox, QSpinBox, QMessageBox, QFormLayout)
+                             QTableWidgetItem, QComboBox, QSpinBox, QMessageBox,
+                             QFormLayout, QColorDialog)
+from PyQt6.QtGui import QColor
+
+PALETTE = [
+    ("Фирменный розовый", "#E6007E"),
+    ("Голубой", "#00BFFF"),
+    ("Синий", "#3B82F6"),
+    ("Тёмно-синий", "#1E3A8A"),
+    ("Фиолетовый", "#8B5CF6"),
+    ("Бирюзовый", "#14B8A6"),
+    ("Зелёный", "#22C55E"),
+    ("Жёлтый", "#EAB308"),
+    ("Оранжевый", "#F97316"),
+    ("Красный", "#EF4444"),
+    ("Графитовый", "#334155"),
+]
 
 
 def _base():
@@ -19,6 +35,50 @@ def _req(method, path, data=None):
                                data=json.dumps(data).encode() if data is not None else None,
                                headers={"Content-Type": "application/json"}, method=method)
     return json.load(urllib.request.urlopen(r, timeout=10))
+
+
+def _color_row(edit: QLineEdit) -> QWidget:
+    w = QWidget()
+    h = QHBoxLayout(w)
+    h.setContentsMargins(0, 0, 0, 0)
+    combo = QComboBox()
+    combo.addItem("— выбрать из палитры —", "")
+    for name, hexv in PALETTE:
+        combo.addItem(f"{name}  {hexv}", hexv)
+    btn = QPushButton("🎨")
+    btn.setFixedWidth(40)
+    btn.setToolTip("Свой цвет…")
+    prev = QLabel()
+    prev.setFixedSize(26, 26)
+
+    def upd(*_):
+        c = edit.text().strip()
+        if QColor(c).isValid():
+            prev.setStyleSheet(f"background:{c}; border:1px solid #888; border-radius:5px;")
+        else:
+            prev.setStyleSheet("background:transparent; border:1px dashed #888; border-radius:5px;")
+
+    def pick_combo(i):
+        v = combo.itemData(i)
+        if v:
+            edit.setText(v)
+            upd()
+
+    def pick_dialog():
+        c = QColorDialog.getColor(QColor(edit.text().strip() or "#E6007E"), w, "Выбор цвета")
+        if c.isValid():
+            edit.setText(c.name().upper())
+            upd()
+
+    edit.textChanged.connect(upd)
+    combo.currentIndexChanged.connect(pick_combo)
+    btn.clicked.connect(pick_dialog)
+    h.addWidget(edit, 2)
+    h.addWidget(combo, 2)
+    h.addWidget(btn)
+    h.addWidget(prev)
+    upd()
+    return w
 
 
 class CommerceTab(QWidget):
@@ -37,13 +97,17 @@ class CommerceTab(QWidget):
         lay = QVBoxLayout(w)
         form = QFormLayout()
         self.f = {}
+        color_keys = ("primary_color", "accent_color")
         for key, label in [("club_name", "Название клуба"), ("tagline", "Слоган"),
                            ("logo_url", "URL логотипа"), ("primary_color", "Основной цвет"),
                            ("accent_color", "Акцентный цвет"), ("support_email", "Email поддержки"),
                            ("support_phone", "Телефон поддержки"), ("custom_domain", "Свой домен")]:
             e = QLineEdit()
             self.f[key] = e
-            form.addRow(label + ":", e)
+            if key in color_keys:
+                form.addRow(label + ":", _color_row(e))
+            else:
+                form.addRow(label + ":", e)
         lay.addLayout(form)
         self.cb_powered = QCheckBox("Показывать «Powered by FitIntel»")
         lay.addWidget(self.cb_powered)
