@@ -315,3 +315,12 @@ try:
     print("E18 commerce router OK")
 except Exception as _e18e:
     print("E18 commerce router FAIL:", _e18e)
+
+
+# === E19_EXPORT_ROUTER ===
+try:
+    from app.api.v1.export_api import router as export_router
+    app.include_router(export_router, prefix="/api/v1", tags=["export"])
+    print("E19 export router OK")
+except Exception as _e19e:
+    print("E19 export router FAIL:", _e19e)
