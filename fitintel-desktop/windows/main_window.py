@@ -413,7 +413,16 @@ except Exception as _e20ui:
 # === E21_AA_WIRED ===
 try:
     from windows.aa_integration_tab import AAIntegrationTab
-    TAB_REGISTRY["aa_integration"] = ("🔗 A&A", AAIntegrationTab)
+    # E21: replaced by integrations_tab
     print("E21 A&A tab OK")
 except Exception as _e21ui:
     print("E21 A&A tab FAIL:", _e21ui)
+
+
+# === E21_INTEGRATIONS_WIRED ===
+try:
+    from windows.integrations_tab import IntegrationsTab
+    TAB_REGISTRY["integrations"] = ("🔗 Интеграции", IntegrationsTab)
+    print("E21 integrations tab OK")
+except Exception as _e21ui:
+    print("E21 integrations tab FAIL:", _e21ui)
