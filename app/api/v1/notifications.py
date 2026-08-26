@@ -1,209 +1,250 @@
-# app/api/v1/notifications.py
-from typing import Optional, List
-from uuid import UUID
+"""E17: омниканальные уведомления — email (SMTP), SMS (smsc.ru), Web Push."""
+import json, smtplib, logging
+from datetime import datetime
+from email.mime.text import MIMEText
+from fastapi import APIRouter
+from pydantic import BaseModel
+from sqlalchemy import text
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+logger = logging.getLogger(__name__)
+router = APIRouter()
 
-from app.api.dependencies import get_current_user, require_permission
-from app.db.session import get_db
-from app.services.notification_service import NotificationService
+_engine = None
+def _eng():
+    global _engine
+    if _engine is None:
+        for mod in ("app.db.session", "app.core.database", "app.database"):
+            try:
+                m = __import__(mod, fromlist=["engine"])
+                _engine = getattr(m, "engine")
+                break
+            except Exception:
+                continue
+    if _engine is None:
+        raise RuntimeError("DB engine not found")
+    return _engine
 
-
-router = APIRouter(prefix="/notifications", tags=["Notifications"])
-
-
-# ========== PUSH SUBSCRIPTIONS ==========
-@router.post("/push/subscribe", status_code=201)
-async def subscribe_push(
-    data: dict,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Подписка на Web Push уведомления"""
-    from app.models.notification import PushSubscription
-    
-    sub = PushSubscription(
-        user_id=current_user.id,
-        endpoint=data.get('endpoint'),
-        p256dh=data.get('p256dh'),
-        auth=data.get('auth')
-    )
-    db.add(sub)
-    db.commit()
-    return {"status": "subscribed"}
-
-
-@router.delete("/push/unsubscribe", status_code=204)
-async def unsubscribe_push(
-    endpoint: str = Query(...),
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Отписка от Web Push"""
-    from app.models.notification import PushSubscription
-    
-    db.query(PushSubscription).filter(
-        PushSubscription.user_id == current_user.id,
-        PushSubscription.endpoint == endpoint
-    ).delete()
-    db.commit()
-    return None
-
-
-# ========== SEND NOTIFICATIONS ==========
-@router.post("/send", status_code=200)
-async def send_notification(
-    data: dict,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_permission("notifications.send"))
-):
-    """Отправка уведомления с fallback"""
-    service = NotificationService(db)
-    
-    user_id = data.get('user_id')
-    message = data.get('message')
-    subject = data.get('subject')
-    priority = data.get('priority', 'high')
-    channels = data.get('channels')
-    
-    results = service.send_with_fallback(
-        user_id=user_id,
-        message=message,
-        subject=subject,
-        priority=priority,
-        channels=channels
-    )
-    
-    return {
-        "results": results,
-        "user_id": user_id,
-        "priority": priority
-    }
+def _ensure():
+    with _eng().begin() as c:
+        c.execute(text("""CREATE TABLE IF NOT EXISTS notification_settings (
+            id INT PRIMARY KEY, updated_at TIMESTAMP DEFAULT NOW())"""))
+    for col in ("email_enabled BOOLEAN DEFAULT FALSE", "smtp_host TEXT",
+                "smtp_port INT DEFAULT 465", "smtp_user TEXT", "smtp_pass TEXT",
+                "email_from TEXT", "sms_enabled BOOLEAN DEFAULT FALSE",
+                "smsc_login TEXT", "smsc_pass TEXT", "smsc_sender TEXT",
+                "webpush_enabled BOOLEAN DEFAULT FALSE", "vapid_public TEXT",
+                "vapid_private TEXT", "vapid_sub TEXT",
+                "digest_time VARCHAR(5) DEFAULT '09:00'"):
+        try:
+            with _eng().begin() as c:
+                c.execute(text(f"ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS {col}"))
+        except Exception as e:
+            logger.warning("ensure col %s: %s", col.split()[0], str(e)[:100])
+    try:
+        with _eng().begin() as c:
+            c.execute(text("INSERT INTO notification_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING"))
+    except Exception:
+        pass
+    with _eng().begin() as c:
+        c.execute(text("""CREATE TABLE IF NOT EXISTS notification_log (
+            id BIGSERIAL PRIMARY KEY, channel VARCHAR(16), recipient TEXT,
+            subject TEXT, body TEXT, status VARCHAR(16), error TEXT,
+            created_at TIMESTAMP DEFAULT NOW())"""))
+    with _eng().begin() as c:
+        c.execute(text("""CREATE TABLE IF NOT EXISTS webpush_subscriptions (
+            id BIGSERIAL PRIMARY KEY, endpoint TEXT UNIQUE, keys_json TEXT,
+            created_at TIMESTAMP DEFAULT NOW())"""))
 
 
-# ========== MAX MESSENGER ==========
-@router.post("/max/send", status_code=200)
-async def send_max_message(
-    data: dict,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_permission("notifications.send"))
-):
-    """Отправка через MAX Messenger"""
-    service = NotificationService(db)
-    
-    user_id = data.get('user_id')
-    message = data.get('message')
-    
-    result = service.send_max_message(user_id, message)
-    return {"max_sent": result, "user_id": user_id}
+def _settings():
+    _ensure()
+    with _eng().connect() as c:
+        row = c.execute(text("SELECT * FROM notification_settings WHERE id=1")).mappings().first()
+    return dict(row) if row else {}
 
+def _log(channel, recipient, subject, body, status, error=None):
+    try:
+        with _eng().begin() as c:
+            c.execute(text("""INSERT INTO notification_log (channel, recipient, subject, body, status, error)
+                VALUES (:ch, :r, :s, :b, :st, :e)"""),
+                {"ch": channel, "r": recipient, "s": (subject or "")[:250],
+                 "b": (body or "")[:2000], "st": status, "e": (str(error) if error else None)})
+    except Exception as e:
+        logger.warning("notification log failed: %s", e)
 
-# ========== EMAIL ==========
-@router.post("/email/send", status_code=200)
-async def send_email(
-    data: dict,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_permission("notifications.send"))
-):
-    """Отправка email"""
-    service = NotificationService(db)
-    
-    to_email = data.get('to_email')
-    subject = data.get('subject')
-    body = data.get('body')
-    template_name = data.get('template')
-    
-    if template_name:
-        subject, body = service.render_template(template_name, data.get('variables', {}))
-        if not body:
-            raise HTTPException(404, "Template not found")
-    
-    result = service.send_email(to_email, subject, body)
-    return {"email_sent": result, "to": to_email}
+def _send_email(to, subject, body):
+    s = _settings()
+    if not s.get("email_enabled"):
+        return False, "email отключён в настройках"
+    if not s.get("smtp_host"):
+        return False, "smtp_host не задан"
+    try:
+        msg = MIMEText(body, "plain", "utf-8")
+        msg["Subject"] = subject
+        msg["From"] = s.get("email_from") or s.get("smtp_user") or ""
+        msg["To"] = to
+        port = int(s.get("smtp_port") or 465)
+        if port == 465:
+            srv = smtplib.SMTP_SSL(s["smtp_host"], port, timeout=20)
+        else:
+            srv = smtplib.SMTP(s["smtp_host"], port, timeout=20)
+            srv.starttls()
+        if s.get("smtp_user"):
+            srv.login(s["smtp_user"], s.get("smtp_pass") or "")
+        srv.sendmail(msg["From"], [to], msg.as_string())
+        srv.quit()
+        return True, None
+    except Exception as e:
+        return False, str(e)[:300]
 
+def _send_sms(phone, message):
+    s = _settings()
+    if not s.get("sms_enabled"):
+        return False, "sms отключён в настройках"
+    if not s.get("smsc_login"):
+        return False, "smsc_login не задан"
+    try:
+        import requests as _rq
+        r = _rq.get("https://smsc.ru/sys/send.php", params={
+            "login": s["smsc_login"], "psw": s.get("smsc_pass") or "",
+            "phones": phone, "mes": message,
+            "sender": s.get("smsc_sender") or "", "fmt": 3, "charset": "utf-8"}, timeout=20)
+        data = r.json()
+        if "error" in data:
+            return False, data["error"]
+        return True, None
+    except Exception as e:
+        return False, str(e)[:300]
 
-# ========== SMS ==========
-@router.post("/sms/send", status_code=200)
-async def send_sms(
-    data: dict,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_permission("notifications.send"))
-):
-    """Отправка SMS"""
-    service = NotificationService(db)
-    
-    phone = data.get('phone')
-    message = data.get('message')
-    
-    result = service.send_sms(phone, message)
-    return {"sms_sent": result, "phone": phone}
+def _send_webpush(title, body):
+    s = _settings()
+    if not s.get("webpush_enabled"):
+        return False, "webpush отключён в настройках"
+    try:
+        from pywebpush import webpush, WebPushException
+    except ImportError:
+        return False, "pywebpush не установлен (pip install pywebpush)"
+    ok, errs = 0, []
+    with _eng().connect() as c:
+        subs = c.execute(text("SELECT endpoint, keys_json FROM webpush_subscriptions")).all()
+    for ep, keys in subs:
+        try:
+            webpush({"endpoint": ep, "keys": json.loads(keys)},
+                    json.dumps({"title": title, "body": body}, ensure_ascii=False),
+                    vapid_private_key=s.get("vapid_private"),
+                    vapid_claims={"sub": s.get("vapid_sub") or "mailto:admin@fitintel.local"})
+            ok += 1
+        except Exception as e:
+            errs.append(str(e)[:150])
+    if ok:
+        return True, None
+    return False, "; ".join(errs) or "нет подписок"
 
+class TestIn(BaseModel):
+    channel: str            # email | sms | webpush
+    to: str = ""
+    message: str = "Тестовое уведомление FitIntel Pro"
 
-# ========== TELEGRAM ==========
-@router.post("/telegram/send", status_code=200)
-async def send_telegram(
-    data: dict,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_permission("notifications.send"))
-):
-    """Отправка через Telegram Bot"""
-    service = NotificationService(db)
-    
-    chat_id = data.get('chat_id')
-    message = data.get('message')
-    
-    result = service.send_telegram(chat_id, message)
-    return {"telegram_sent": result, "chat_id": chat_id}
+@router.get("/notify/settings")
+def get_settings():
+    s = _settings()
+    for k in ("smtp_pass", "smsc_pass", "vapid_private"):
+        if s.get(k):
+            s[k] = "***"
+    return s
 
+@router.post("/notify/settings")
+def set_settings(body: dict):
+    _ensure()
+    allowed = {"email_enabled", "smtp_host", "smtp_port", "smtp_user", "smtp_pass", "email_from",
+               "sms_enabled", "smsc_login", "smsc_pass", "smsc_sender",
+               "webpush_enabled", "vapid_public", "vapid_private", "vapid_sub", "digest_time"}
+    sets, params = [], {}
+    for k, v in body.items():
+        if k in allowed:
+            if k in ("smtp_pass", "smsc_pass", "vapid_private") and v == "***":
+                continue
+            sets.append(f"{k} = :{k}")
+            params[k] = v
+    if sets:
+        with _eng().begin() as c:
+            c.execute(text(f"UPDATE notification_settings SET {', '.join(sets)}, updated_at=NOW() WHERE id=1"), params)
+    return {"ok": True}
 
-# ========== TEMPLATES ==========
-@router.get("/templates")
-async def list_templates(
-    channel: Optional[str] = Query(None),
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Список шаблонов уведомлений"""
-    from app.models.notification import NotificationTemplate
-    
-    query = db.query(NotificationTemplate).filter(NotificationTemplate.is_active == True)
-    if channel:
-        query = query.filter(NotificationTemplate.channel == channel)
-    return query.all()
+@router.post("/notify/test")
+def test_send(body: TestIn):
+    ch = body.channel.lower()
+    if ch == "email":
+        ok, err = _send_email(body.to, "FitIntel Pro — тест", body.message)
+    elif ch == "sms":
+        ok, err = _send_sms(body.to, body.message)
+    elif ch == "webpush":
+        ok, err = _send_webpush("FitIntel Pro", body.message)
+    else:
+        return {"ok": False, "error": "channel: email|sms|webpush"}
+    _log(ch, body.to or "(all)", "test", body.message, "sent" if ok else "error", err)
+    return {"ok": ok, "error": err}
 
+@router.get("/notify/log")
+def get_log(limit: int = 50):
+    _ensure()
+    with _eng().connect() as c:
+        rows = c.execute(text("SELECT id, channel, recipient, subject, status, error, created_at FROM notification_log ORDER BY id DESC LIMIT :n"), {"n": min(limit, 200)}).mappings().all()
+    return [dict(r) for r in rows]
 
-@router.post("/templates", status_code=201)
-async def create_template(
-    data: dict,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_permission("notifications.manage"))
-):
-    """Создать шаблон уведомления"""
-    from app.models.notification import NotificationTemplate
-    
-    template = NotificationTemplate(**data)
-    db.add(template)
-    db.commit()
-    db.refresh(template)
-    return template
+@router.post("/notify/webpush/subscribe")
+def wp_subscribe(body: dict):
+    _ensure()
+    ep = body.get("endpoint")
+    if not ep:
+        return {"ok": False, "error": "endpoint обязателен"}
+    with _eng().begin() as c:
+        c.execute(text("""INSERT INTO webpush_subscriptions (endpoint, keys_json) VALUES (:e, :k)
+            ON CONFLICT (endpoint) DO UPDATE SET keys_json=EXCLUDED.keys_json"""),
+            {"e": ep, "k": json.dumps(body.get("keys") or {})})
+    return {"ok": True}
 
+@router.post("/notify/digest")
+def send_digest():
+    """Ежедневный дайджест на email: посещения/выручка/клиенты за сегодня."""
+    with _eng().connect() as c:
+        def _cnt(q):
+            try:
+                return c.execute(text(q)).scalar() or 0
+            except Exception:
+                return 0
+        clients = _cnt("SELECT COUNT(*) FROM clients")
+        visits = _cnt("SELECT COUNT(*) FROM visits WHERE created_at::date = CURRENT_DATE")
+        revenue = _cnt("SELECT COALESCE(SUM(amount),0) FROM payments WHERE created_at::date = CURRENT_DATE")
+    s = _settings()
+    to = s.get("email_from") or s.get("smtp_user") or ""
+    body = (f"Дайджест FitIntel Pro за {datetime.now():%d.%m.%Y}\n\n"
+            f"Клиентов в базе: {clients}\nПосещений сегодня: {visits}\nВыручка сегодня: {revenue} руб.")
+    ok, err = _send_email(to, f"FitIntel дайджест {datetime.now():%d.%m.%Y}", body)
+    _log("email", to, "digest", body, "sent" if ok else "error", err)
+    return {"ok": ok, "error": err, "stats": {"clients": clients, "visits_today": visits, "revenue_today": revenue}}
 
-# ========== LOGS ==========
-@router.get("/logs")
-async def get_logs(
-    channel: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    limit: int = Query(50),
-    db: Session = Depends(get_db),
-    current_user = Depends(require_permission("notifications.read"))
-):
-    """История отправки уведомлений"""
-    from app.models.notification import NotificationLog
-    
-    query = db.query(NotificationLog).order_by(NotificationLog.created_at.desc())
-    if channel:
-        query = query.filter(NotificationLog.channel == channel)
-    if status:
-        query = query.filter(NotificationLog.status == status)
-    return query.limit(limit).all()
+@router.get("/notify/contacts")
+def notify_contacts():
+    """Список контактов клиентов для выбора получателя (без ручного ввода)."""
+    out = []
+    try:
+        with _eng().connect() as c:
+            cols = {r[0] for r in c.execute(text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name='clients'"))}
+        nm = next((x for x in ("full_name", "name", "first_name") if x in cols), None)
+        em = next((x for x in ("email", "e_mail", "mail") if x in cols), None)
+        ph = next((x for x in ("phone", "phone_number", "tel", "mobile") if x in cols), None)
+        sel = [x for x in (nm, em, ph) if x]
+        if not sel:
+            return []
+        with _eng().connect() as c:
+            rows = c.execute(text(f"SELECT {', '.join(sel)} FROM clients ORDER BY 1 LIMIT 500")).mappings().all()
+        for r in rows:
+            d = dict(r)
+            out.append({"name": str(d.get(nm) or "") if nm else "",
+                        "email": str(d.get(em) or "") if em else "",
+                        "phone": str(d.get(ph) or "") if ph else ""})
+    except Exception as e:
+        return {"error": str(e)[:200]}
+    return out

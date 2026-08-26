@@ -243,27 +243,167 @@ try:
 except Exception as e:
     print("E65 FAIL:", e)
 
+# === E67_HIDE_LEGACY_LICENSE v4: оставляем только новую панель FIPRO ===
+def _e67_beautify(tab):
+    from PyQt6.QtWidgets import QLabel, QPushButton, QWidget
+    from PyQt6.QtCore import Qt
+    if getattr(tab, "_e67_done", False):
+        return
+    marker = None
+    for lb in tab.findChildren(QLabel):
+        if "License Studio" in (lb.text() or ""):
+            marker = lb
+            break
+    if marker is None:
+        for b in tab.findChildren(QPushButton):
+            t = (b.text() or "").replace("\u2714", "").replace("\u2705", "").strip()
+            if t == "Проверить":
+                marker = b
+                break
+    if marker is None:
+        print("[E67] маркер новой панели не найден")
+        return
+    keep = marker
+    while keep.parentWidget() is not None and keep.parentWidget() is not tab:
+        keep = keep.parentWidget()
+    footer = None
+    for lb in tab.findChildren(QLabel):
+        if "Санакин" in (lb.text() or ""):
+            footer = lb
+            break
+    hidden = 0
+    for w in tab.findChildren(QWidget):
+        if w is keep or keep.isAncestorOf(w):
+            continue
+        if footer is not None and (w is footer or footer.isAncestorOf(w) or w.isAncestorOf(footer)):
+            continue
+        if w.isAncestorOf(keep):
+            continue
+        if isinstance(w, QPushButton):
+            try:
+                w.setEnabled(False)
+            except Exception:
+                pass
+        if not w.isHidden():
+            w.hide()
+            hidden += 1
+    lay = tab.layout()
+    if lay is not None:
+        try:
+            lay.removeWidget(keep)
+            lay.insertWidget(0, keep)
+            lay.addStretch(1)
+            if footer is not None:
+                lay.removeWidget(footer)
+                lay.addWidget(footer, 0, Qt.AlignmentFlag.AlignHCenter)
+        except Exception as e:
+            print("[E67] layout:", e)
+    tab._e67_done = True
+    print(f"[E67] скрыто legacy-виджетов: {hidden}")
 
-# === E67_HIDE_LEGACY_LICENSE: скрываем старый блок (license API v1.3.0) ===
-def _e67_hide_legacy(tab):
-    try:
-        from PyQt6.QtWidgets import QLabel, QPushButton
-        lbls = [w for w in tab.findChildren(QLabel) if "ID устройства" in (w.text() or "")]
-        if not lbls:
-            return
-        node = lbls[0].parentWidget()
-        while node is not None and node is not tab:
-            if any("Проверить лимиты" in (b.text() or "") for b in node.findChildren(QPushButton)):
-                node.hide()
-                print("[E67] legacy license block hidden")
-                return
-            node = node.parentWidget()
-    except Exception as e:
-        print("[E67] WARN:", e)
-
-_E67_ORIG_INIT = LicenseTab.__init__
+_e67_orig_init = LicenseTab.__init__
 def _e67_init(self, *a, **kw):
-    _E67_ORIG_INIT(self, *a, **kw)
+    _e67_orig_init(self, *a, **kw)
     from PyQt6.QtCore import QTimer
-    QTimer.singleShot(0, lambda: _e67_hide_legacy(self))
+    for ms in (0, 500, 1500):
+        QTimer.singleShot(ms, lambda self=self: _e67_beautify(self))
 LicenseTab.__init__ = _e67_init
+
+# === E68_ACTIVATE_FROM_CLIENT: проверка+активация ключа и показ текущей лицензии ===
+def _e68_base():
+    import json as _j
+    try:
+        cfg = _j.load(open("client_settings.json", encoding="utf-8"))
+        return cfg.get("api_base") or cfg.get("base_url") or "http://localhost:8001/api/v1"
+    except Exception:
+        return "http://localhost:8001/api/v1"
+
+def _e68_token():
+    import json as _j, urllib.request as _u
+    try:
+        cfg = _j.load(open("client_settings.json", encoding="utf-8"))
+        login = cfg.get("login") or cfg.get("username") or ""
+        pw = cfg.get("password") or ""
+        req = _u.Request(_e68_base() + "/auth/login",
+                         data=_j.dumps({"login": login, "password": pw}).encode(),
+                         headers={"Content-Type": "application/json"})
+        r = _j.load(_u.urlopen(req, timeout=10))
+        return r.get("access_token") or r.get("token")
+    except Exception:
+        return None
+
+def _e68_wire(tab):
+    from PyQt6.QtWidgets import QLabel, QPushButton, QLineEdit
+    from PyQt6.QtCore import QTimer
+    import json as _j, urllib.request as _u
+    if getattr(tab, "_e68_done", False):
+        return
+    marker = None
+    for lb in tab.findChildren(QLabel):
+        if "License Studio" in (lb.text() or ""):
+            marker = lb
+            break
+    if marker is None:
+        print("[E68] панель не найдена")
+        return
+    keep = marker
+    while keep.parentWidget() is not None and keep.parentWidget() is not tab:
+        keep = keep.parentWidget()
+    edits = keep.findChildren(QLineEdit)
+    btns = [b for b in keep.findChildren(QPushButton) if "Проверить" in (b.text() or "")]
+    labels = [lb for lb in keep.findChildren(QLabel) if lb is not marker]
+    if not edits or not btns:
+        print("[E68] поле/кнопка не найдены")
+        return
+    ed, btn = edits[0], btns[0]
+    res = labels[-1] if labels else marker
+
+    def do_activate():
+        key = ed.text().strip()
+        if not key:
+            res.setText("Введите ключ FIPRO-...")
+            return
+        res.setText("⏳ Активация...")
+        try:
+            tok = _e68_token()
+            req = _u.Request(_e68_base() + "/license/activate",
+                             data=_j.dumps({"key": key}).encode(),
+                             headers={"Content-Type": "application/json"})
+            if tok:
+                req.add_header("Authorization", "Bearer " + tok)
+            r = _j.load(_u.urlopen(req, timeout=10))
+            if r.get("activated"):
+                res.setText(f"✅ Лицензия активирована: тариф {r.get('plan')}, до {r.get('expires')}, клиентов: {r.get('max_clients')}")
+            else:
+                res.setText("❌ " + str(r)[:200])
+        except Exception as e:
+            res.setText(f"❌ Ошибка активации: {str(e)[:150]}")
+
+    try:
+        btn.clicked.disconnect()
+    except Exception:
+        pass
+    btn.setText("✔ Проверить и активировать")
+    btn.clicked.connect(do_activate)
+
+    def load_current():
+        try:
+            req = _u.Request(_e68_base() + "/license/current")
+            tok = _e68_token()
+            if tok:
+                req.add_header("Authorization", "Bearer " + tok)
+            r = _j.load(_u.urlopen(req, timeout=10))
+            if r.get("activated"):
+                res.setText(f"ℹ️ Активна: тариф {r.get('plan')}, до {r.get('expires')}, клиентов {r.get('used')}/{r.get('max_clients')} ({r.get('mode')})")
+        except Exception:
+            pass
+    QTimer.singleShot(900, load_current)
+    tab._e68_done = True
+    print("[E68] активация с клиента подключена")
+
+_e68_orig_init = LicenseTab.__init__
+def _e68_init(self, *a, **kw):
+    _e68_orig_init(self, *a, **kw)
+    from PyQt6.QtCore import QTimer
+    QTimer.singleShot(1600, lambda self=self: _e68_wire(self))
+LicenseTab.__init__ = _e68_init

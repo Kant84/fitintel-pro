@@ -295,3 +295,13 @@ def _e66_fix_license_routes():
         print(f"[E66] WARN: {type(e).__name__}: {e}")
 
 _e66_fix_license_routes()
+
+
+# === E17: notifications ===
+try:
+    from app.api.v1.notifications import router as notifications_router, _ensure as _n17_ensure
+    app.include_router(notifications_router, prefix="/api/v1", tags=["notifications"])
+    _n17_ensure()
+    print("notifications router OK")
+except Exception as e:
+    print("notifications router FAIL:", e)
