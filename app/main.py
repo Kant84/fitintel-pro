@@ -4,6 +4,13 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from app.core.logger import setup_logging
+import logging
+
+# === Logging (Linux-style: logs/app.log, logs/error.log, logs/access.log) ===
+setup_logging(settings.LOG_LEVEL)
+logger = logging.getLogger(__name__)
+logger.info("FitIntel Pro starting — logging initialized")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
