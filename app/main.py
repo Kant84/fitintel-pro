@@ -208,3 +208,90 @@ try:
     print("license router OK")
 except Exception as e:
     print("license router FAIL:", e)
+
+
+# === E66: license limit middleware ===
+try:
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from fastapi.responses import JSONResponse
+
+    class LicenseLimitMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            try:
+                path = request.url.path.rstrip("/")
+                if request.method == "POST" and (path.endswith("/clients") or path.endswith("/members")):
+                    from app.api.v1.license_api import license_block_check
+                    chk = license_block_check()
+                    if chk.get("block"):
+                        return JSONResponse(
+                            {"detail": "Лимит клиентов по лицензии исчерпан (%s/%s). Обновите тариф." % (chk.get("used"), chk.get("limit"))},
+                            status_code=403)
+                    if chk.get("over_limit"):
+                        print("LICENSE WARNING: клиентов больше лимита (мягкий режим)")
+            except Exception as e:
+                print("license middleware:", e)
+            return await call_next(request)
+
+    app.add_middleware(LicenseLimitMiddleware)
+    print("license middleware OK")
+except Exception as e:
+    print("license middleware FAIL:", e)
+
+
+# === E66_ROUTE_PRIORITY v4: работа с _IncludedRouter (ленивая маршрутизация) ===
+def _e66_fix_license_routes():
+    try:
+        from app.api.v1 import license_api as _la
+        our_eps = {id(getattr(x, "endpoint", None)) for x in _la.router.routes}
+        our_short = {"/license/validate", "/license/limits", "/license/activate",
+                     "/license/current", "/license/mode"}
+
+        def inner(r):
+            v = getattr(r, "routes", None)
+            if v:
+                return list(v)
+            return list(getattr(getattr(r, "router", None), "routes", []) or [])
+
+        entries = list(app.router.routes)
+        ours_idx = None
+        for i, r in enumerate(entries):
+            if {id(getattr(x, "endpoint", None)) for x in inner(r)} & our_eps:
+                ours_idx = i
+                break
+        if ours_idx is None:
+            app.include_router(_la.router, prefix="/api/v1")
+            entries = list(app.router.routes)
+            for i, r in enumerate(entries):
+                if {id(getattr(x, "endpoint", None)) for x in inner(r)} & our_eps:
+                    ours_idx = i
+                    break
+            print(f"[E66] принудительно включён, ours_idx={ours_idx}")
+
+        dropped = 0
+        for i, r in enumerate(entries):
+            if i == ours_idx:
+                continue
+            ir = getattr(r, "router", None)
+            target = ir if (ir is not None and hasattr(ir, "routes")) else (r if hasattr(r, "routes") else None)
+            if target is None:
+                continue
+            kept = []
+            for x in list(target.routes):
+                pth = getattr(x, "path", "") or ""
+                short = pth[len("/api/v1"):] if pth.startswith("/api/v1") else pth
+                if short in our_short:
+                    dropped += 1
+                    continue
+                kept.append(x)
+            if len(kept) != len(target.routes):
+                target.routes[:] = kept
+
+        if ours_idx is not None and ours_idx > 4:
+            e = entries.pop(ours_idx)
+            entries.insert(4, e)
+            app.router.routes[:] = entries
+        print(f"[E66] готово: ours_idx={ours_idx}, вырезано конфликтов={dropped}")
+    except Exception as e:
+        print(f"[E66] WARN: {type(e).__name__}: {e}")
+
+_e66_fix_license_routes()

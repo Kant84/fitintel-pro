@@ -111,17 +111,18 @@ def _devices_used(db: Session, lic_ref: str) -> int:
 
 
 class ActivateRequest(BaseModel):
-    license_key: str
-    device_id: str
+    license_key: str | None = None
+    key: str | None = None  # E66 FIPRO
+    device_id: str | None = None
 
 
 class DeactivateDeviceRequest(BaseModel):
-    device_id: str
+    device_id: str | None = None
     license_key: Optional[str] = None
 
 
 class RenewRequest(BaseModel):
-    license_key: str
+    license_key: str | None = None
 
 
 class GenerateRequest(BaseModel):
@@ -209,6 +210,21 @@ def activate(
     user=Depends(real_auth),
 ):
     """E28.3/E28.4/E28.5/E28.15 — активация лицензии на устройстве"""
+    # E66_ACTIVATE_DELEGATE: FIPRO-ключи -> новая система (License Studio)
+    _k = (getattr(payload, "key", None) or payload.license_key or "").strip()
+    if _k.startswith("FIPRO-"):
+        from app.api.v1 import license_api as _la
+        _v = _la._validate(_k)
+        if not _v.get("valid"):
+            raise HTTPException(status_code=400, detail=_v.get("reason", "Невалидный ключ лицензии"))
+        _la._ensure_state()
+        with _la._eng().begin() as _c:
+            _c.execute(text("""INSERT INTO license_state (id, key, mode, updated_at)
+                VALUES (1, :k, 'soft', NOW())
+                ON CONFLICT (id) DO UPDATE SET key=EXCLUDED.key, updated_at=EXCLUDED.updated_at"""),
+                {"k": _k})
+        return {"activated": True, "valid": True, "plan": _v.get("plan"),
+                "expires": _v.get("exp"), "max_clients": _v.get("max_clients")}
     if not _validate_key(payload.license_key):
         raise HTTPException(status_code=400, detail="Невалидный ключ лицензии")
 
@@ -370,8 +386,8 @@ def verify_signature(
 # ============================ LEGACY (не трогаем) ============================
 
 class LicenseVerifyRequest(BaseModel):
-    license_key: str
-    device_id: str
+    license_key: str | None = None
+    device_id: str | None = None
 
 
 @router.post("/verify")
@@ -382,14 +398,27 @@ async def verify_license(request: LicenseVerifyRequest, db: Session = Depends(ge
 
 
 @router.get("/limits")
-async def check_limits(license_key: str, db: Session = Depends(get_db),
+async def check_limits(license_key: str | None = None, db: Session = Depends(get_db),
                        current_user=Depends(require_role(["admin"]))):
     service = LicenseService(db)
-    return service.check_system_limits(license_key)
+    try:
+        return service.check_system_limits(license_key)
+    except AttributeError:
+        from app.api.v1.license_api import _validate, _clients_count
+        v = _validate(license_key)
+        if not v.get("valid"):
+            return v
+        used = _clients_count()
+        limit = int(v.get("max_clients") or 0)
+        return {"valid": True, "plan": v.get("plan"), "expires": v.get("exp"), "club": v.get("club"),
+                "max_clients": limit, "clients_used": used,
+                "clients_remaining": max(limit - used, 0),
+                "within_limit": used <= limit,
+                "usage_percent": round(used / limit * 100, 1) if limit else 0}
 
 
 @router.post("/revoke")
-async def revoke_license(license_key: str, db: Session = Depends(get_db),
+async def revoke_license(license_key: str | None = None, db: Session = Depends(get_db),
                          current_user=Depends(require_role(["admin"]))):
     service = LicenseService(db)
     success = service.revoke_license(license_key)
@@ -399,10 +428,11 @@ async def revoke_license(license_key: str, db: Session = Depends(get_db),
 
 
 @router.get("/{license_key}/activations")
-async def get_activations(license_key: str, db: Session = Depends(get_db),
+async def get_activations(license_key: str | None = None, db: Session = Depends(get_db),
                           current_user=Depends(require_role(["admin"]))):
     from app.models.face_id import License
     license_obj = db.query(License).filter(License.license_key == license_key).first()
     if not license_obj:
         raise HTTPException(status_code=404, detail="Лицензия не найдена")
     return license_obj.activations
+
