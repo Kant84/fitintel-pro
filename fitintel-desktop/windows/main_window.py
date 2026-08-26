@@ -390,3 +390,12 @@ try:
     print("E18 commerce tab OK")
 except Exception as _e18ui:
     print("E18 commerce tab FAIL:", _e18ui)
+
+
+# === E19_EXPORT_WIRED ===
+try:
+    from windows.export_tab import ExportTab
+    TAB_REGISTRY["export"] = ("📤 Экспорт", ExportTab)
+    print("E19 export tab OK")
+except Exception as _e19ui:
+    print("E19 export tab FAIL:", _e19ui)
