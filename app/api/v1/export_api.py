@@ -106,6 +106,17 @@ def export_entity(entity: str, fmt: str = Query("json"), token: str = Query(""))
         return Response(buf.getvalue(),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={"Content-Disposition": f"attachment; filename={entity}.xlsx"})
+    if fmt == "csv":
+        import csv as _csv
+        buf2 = io.StringIO()
+        w = _csv.writer(buf2, delimiter=";")
+        cols = list(rows[0].keys()) if rows else ["info"]
+        w.writerow(cols)
+        for r in rows:
+            w.writerow([r.get(c) for c in cols])
+        return Response(("\ufeff" + buf2.getvalue()).encode("utf-8"),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={entity}.csv"})
     return Response(json.dumps(rows, ensure_ascii=False, indent=2, default=str),
         media_type="application/json",
         headers={"Content-Disposition": f"attachment; filename={entity}.json"})
@@ -146,4 +157,4 @@ def forget_client(p: ForgetIn, token: str = Query("")):
 
 @router.get("/export")
 def export_index():
-    return {"entities": sorted(ALLOWED), "formats": ["json", "xlsx"], "auth": "?token=JWT"}
+    return {"entities": sorted(ALLOWED), "formats": ["json", "xlsx", "csv"], "auth": "?token=JWT"}
