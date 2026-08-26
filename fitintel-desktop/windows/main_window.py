@@ -399,3 +399,12 @@ try:
     print("E19 export tab OK")
 except Exception as _e19ui:
     print("E19 export tab FAIL:", _e19ui)
+
+
+# === E20_ACCOUNTING_WIRED ===
+try:
+    from windows.accounting_tab import AccountingTab
+    TAB_REGISTRY["accounting"] = ("📊 Бухгалтерия", AccountingTab)
+    print("E20 accounting tab OK")
+except Exception as _e20ui:
+    print("E20 accounting tab FAIL:", _e20ui)
