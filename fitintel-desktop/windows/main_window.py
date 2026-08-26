@@ -408,3 +408,12 @@ try:
     print("E20 accounting tab OK")
 except Exception as _e20ui:
     print("E20 accounting tab FAIL:", _e20ui)
+
+
+# === E21_AA_WIRED ===
+try:
+    from windows.aa_integration_tab import AAIntegrationTab
+    TAB_REGISTRY["aa_integration"] = ("🔗 A&A", AAIntegrationTab)
+    print("E21 A&A tab OK")
+except Exception as _e21ui:
+    print("E21 A&A tab FAIL:", _e21ui)

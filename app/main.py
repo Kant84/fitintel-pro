@@ -326,3 +326,12 @@ except Exception as _e19e:
     print("E19 export router FAIL:", _e19e)
 
 
+
+
+# === E21_AA_BRIDGE: интеграция с A&A ===
+try:
+    from app.api.v1.aa_bridge import router as aa_router
+    app.include_router(aa_router, prefix="/api/v1", tags=["integrations"])
+    print("E21 A&A bridge OK")
+except Exception as _e21:
+    print("E21 A&A bridge FAIL:", _e21)
