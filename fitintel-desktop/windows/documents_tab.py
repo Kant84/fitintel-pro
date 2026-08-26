@@ -71,6 +71,15 @@ class DocumentsTab(QWidget):
         b_dl.setStyleSheet("QPushButton { background: #3B82F6; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_dl.clicked.connect(self._download_pdf)
         row.addWidget(b_dl)
+        self._btn_tpl = QPushButton("📄 Шаблоны")
+        self._btn_doc = QPushButton("📋 Документы")
+        self._btn_tpl.setCheckable(True)
+        self._btn_doc.setCheckable(True)
+        self._btn_doc.setChecked(True)
+        self._btn_tpl.clicked.connect(lambda: self._switch_tab("tpl"))
+        self._btn_doc.clicked.connect(lambda: self._switch_tab("doc"))
+        row.addWidget(self._btn_tpl)
+        row.addWidget(self._btn_doc)
         layout.addLayout(row)
 
         box_t = QGroupBox("Шаблоны документов")
@@ -80,8 +89,9 @@ class DocumentsTab(QWidget):
         self.tbl_tpl.setHorizontalHeaderLabels(["Код", "Название"])
         self.tbl_tpl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.tbl_tpl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tbl_tpl.setMaximumHeight(140)
+        # self.tbl_tpl.setMaximumHeight(140)  # E16D: full height
         tl.addWidget(self.tbl_tpl)
+        tl.addStretch(1)
         layout.addWidget(box_t)
 
         box_d = QGroupBox("Документы")
@@ -133,8 +143,11 @@ class DocumentsTab(QWidget):
     def _generate(self):
         tpls = getattr(self, "_tpls", [])
         cmap = getattr(self, "_cmap", {})
-        if not tpls or not cmap:
-            QMessageBox.warning(self, "Нет данных", "Нужны шаблоны и клиенты")
+        if not tpls:
+            QMessageBox.warning(self, "Нет шаблонов", "Шаблоны документов не загружены. Нажмите Обновить.")
+            return
+        if not cmap:
+            QMessageBox.warning(self, "Нет клиентов", "В базе нет клиентов. Добавьте клиента в разделе Клиенты.")
             return
         dlg = FormDialog("Новый документ", [
             ("template", "Шаблон *", "combo",
@@ -191,6 +204,16 @@ class DocumentsTab(QWidget):
                 QMessageBox.information(self, "PDF", f"Сохранено: {path}")
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e)[:200])
+
+    def _switch_tab(self, mode):
+        self._btn_tpl.setChecked(mode == "tpl")
+        self._btn_doc.setChecked(mode == "doc")
+        # Находим group boxes
+        for gb in self.findChildren(QGroupBox):
+            if "Шаблоны" in gb.title():
+                gb.setVisible(mode == "tpl")
+            elif "Документы" in gb.title():
+                gb.setVisible(mode == "doc")
 
     def _on_error(self, msg: str):
         self.table.setRowCount(1)
