@@ -309,28 +309,51 @@ def _e67_init(self, *a, **kw):
         QTimer.singleShot(ms, lambda self=self: _e67_beautify(self))
 LicenseTab.__init__ = _e67_init
 
-# === E68_ACTIVATE_FROM_CLIENT: проверка+активация ключа и показ текущей лицензии ===
+# === E68_ACTIVATE_FROM_CLIENT v2 ===
 def _e68_base():
     import json as _j
     try:
         cfg = _j.load(open("client_settings.json", encoding="utf-8"))
-        return cfg.get("api_base") or cfg.get("base_url") or "http://localhost:8001/api/v1"
+        return cfg.get("api_base") or cfg.get("base_url") or cfg.get("server_url") or "http://localhost:8001/api/v1"
     except Exception:
         return "http://localhost:8001/api/v1"
 
-def _e68_token():
+def _e68_token(skip_stored=False):
     import json as _j, urllib.request as _u
     try:
         cfg = _j.load(open("client_settings.json", encoding="utf-8"))
-        login = cfg.get("login") or cfg.get("username") or ""
-        pw = cfg.get("password") or ""
-        req = _u.Request(_e68_base() + "/auth/login",
-                         data=_j.dumps({"login": login, "password": pw}).encode(),
-                         headers={"Content-Type": "application/json"})
-        r = _j.load(_u.urlopen(req, timeout=10))
-        return r.get("access_token") or r.get("token")
-    except Exception:
+    except Exception as e:
+        print("[E68] client_settings:", e)
         return None
+    if not skip_stored:
+        for tk in ("token", "access_token", "jwt", "auth_token"):
+            if cfg.get(tk):
+                return cfg[tk]
+    login = pw = None
+    for k in ("login", "username", "user", "email", "saved_login"):
+        if cfg.get(k):
+            login = cfg[k]
+            break
+    for k in ("password", "pass", "pwd", "saved_password"):
+        if cfg.get(k):
+            pw = cfg[k]
+            break
+    if not login or not pw:
+        print("[E68] нет логина/пароля, ключи client_settings:", list(cfg.keys()))
+        return None
+    for path in ("/auth/login", "/login", "/auth/token"):
+        try:
+            req = _u.Request(_e68_base() + path,
+                             data=_j.dumps({"login": login, "username": login, "password": pw}).encode(),
+                             headers={"Content-Type": "application/json"})
+            r = _j.load(_u.urlopen(req, timeout=10))
+            t = r.get("access_token") or r.get("token")
+            if t:
+                print("[E68] токен получен через", path)
+                return t
+        except Exception as e:
+            print("[E68] login", path, ":", str(e)[:80])
+    return None
 
 def _e68_wire(tab):
     from PyQt6.QtWidgets import QLabel, QPushButton, QLineEdit
@@ -358,6 +381,14 @@ def _e68_wire(tab):
     ed, btn = edits[0], btns[0]
     res = labels[-1] if labels else marker
 
+    def _act(key, tok):
+        req = _u.Request(_e68_base() + "/license/activate",
+                         data=_j.dumps({"key": key}).encode(),
+                         headers={"Content-Type": "application/json"})
+        if tok:
+            req.add_header("Authorization", "Bearer " + tok)
+        return _j.load(_u.urlopen(req, timeout=10))
+
     def do_activate():
         key = ed.text().strip()
         if not key:
@@ -366,12 +397,14 @@ def _e68_wire(tab):
         res.setText("⏳ Активация...")
         try:
             tok = _e68_token()
-            req = _u.Request(_e68_base() + "/license/activate",
-                             data=_j.dumps({"key": key}).encode(),
-                             headers={"Content-Type": "application/json"})
-            if tok:
-                req.add_header("Authorization", "Bearer " + tok)
-            r = _j.load(_u.urlopen(req, timeout=10))
+            try:
+                r = _act(key, tok)
+            except Exception as e1:
+                if "401" in str(e1):
+                    tok = _e68_token(skip_stored=True)
+                    r = _act(key, tok)
+                else:
+                    raise
             if r.get("activated"):
                 res.setText(f"✅ Лицензия активирована: тариф {r.get('plan')}, до {r.get('expires')}, клиентов: {r.get('max_clients')}")
             else:
@@ -388,18 +421,27 @@ def _e68_wire(tab):
 
     def load_current():
         try:
-            req = _u.Request(_e68_base() + "/license/current")
             tok = _e68_token()
+            req = _u.Request(_e68_base() + "/license/current")
             if tok:
                 req.add_header("Authorization", "Bearer " + tok)
-            r = _j.load(_u.urlopen(req, timeout=10))
+            try:
+                r = _j.load(_u.urlopen(req, timeout=10))
+            except Exception as e1:
+                if "401" not in str(e1):
+                    raise
+                req = _u.Request(_e68_base() + "/license/current")
+                tok = _e68_token(skip_stored=True)
+                if tok:
+                    req.add_header("Authorization", "Bearer " + tok)
+                r = _j.load(_u.urlopen(req, timeout=10))
             if r.get("activated"):
-                res.setText(f"ℹ️ Активна: тариф {r.get('plan')}, до {r.get('expires')}, клиентов {r.get('used')}/{r.get('max_clients')} ({r.get('mode')})")
-        except Exception:
-            pass
+                res.setText(f"ℹ️ Активна: тариф {r.get('plan')}, до {r.get('expires')}, клиентов {r.get('used') if r.get('used') is not None else r.get('clients_used', '?')}/{r.get('max_clients')} ({r.get('mode')})")
+        except Exception as e:
+            print("[E68] current:", str(e)[:100])
     QTimer.singleShot(900, load_current)
     tab._e68_done = True
-    print("[E68] активация с клиента подключена")
+    print("[E68 v2] активация с клиента подключена")
 
 _e68_orig_init = LicenseTab.__init__
 def _e68_init(self, *a, **kw):
