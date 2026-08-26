@@ -42,3 +42,6 @@ fitintel-desktop/logs/
 backups/
 
 fitintel-desktop/*.pdf
+fitintel-desktop/*.xlsx
+fitintel-desktop/*.json
+!fitintel-desktop/client_settings.json
