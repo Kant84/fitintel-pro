@@ -188,3 +188,57 @@ try:
     print("E64 license panel OK")
 except Exception as e:
     print("E64 FAIL:", e)
+
+
+# === E65_LICENSE_UNIFY: old field accepts FIPRO keys ===
+try:
+    from PyQt6.QtWidgets import QPushButton as _B65, QLineEdit as _E65, QPlainTextEdit as _P65, QTextEdit as _T65
+    import requests as _rq65
+    _e65_orig = LicenseTab.__init__
+    def _e65_init(self, *a, **kw):
+        _e65_orig(self, *a, **kw)
+        try:
+            key_ed, info, btn = None, None, None
+            for le in self.findChildren(_E65):
+                if "XXXX" in (le.placeholderText() or ""):
+                    key_ed = le
+            for b in self.findChildren(_B65):
+                if "Проверить лицензию" in b.text():
+                    btn = b
+            boxes = list(self.findChildren(_P65)) + list(self.findChildren(_T65))
+            if boxes:
+                info = boxes[0]
+            if key_ed and btn:
+                key_ed.setPlaceholderText("Вставь ключ FIPRO-... (выдаёт владелец через License Studio)")
+                try:
+                    btn.clicked.disconnect()
+                except Exception:
+                    pass
+                def _check65():
+                    key = key_ed.text().strip()
+                    api = getattr(self, "api", None)
+                    base = getattr(api, "base_url", None) or getattr(api, "base", None) or "http://localhost:8001/api/v1"
+                    try:
+                        r = _rq65.post(str(base).rstrip("/") + "/license/validate", json={"key": key}, timeout=15).json()
+                        if r.get("valid"):
+                            try:
+                                _rq65.post(str(base).rstrip("/") + "/license/activate", json={"key": key}, timeout=15)
+                            except Exception:
+                                pass
+                            txt = "ЛИЦЕНЗИЯ ДЕЙСТВИТЕЛЬНА\n\nТариф: %s\nДействует до: %s\nЛимит клиентов: %s\nКлуб: %s" % (r.get("plan"), r.get("exp"), r.get("max_clients"), r.get("club"))
+                        else:
+                            txt = "Лицензия недействительна: %s" % r.get("reason", "?")
+                    except Exception as e:
+                        txt = "Ошибка проверки: %s" % e
+                    if info is not None:
+                        try:
+                            info.setPlainText(txt)
+                        except Exception:
+                            info.setText(txt)
+                btn.clicked.connect(_check65)
+                print("E65 license unify OK")
+        except Exception as e:
+            print("E65:", e)
+    LicenseTab.__init__ = _e65_init
+except Exception as e:
+    print("E65 FAIL:", e)
