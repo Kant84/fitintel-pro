@@ -44,3 +44,5 @@ backups/
 fitintel-desktop/*.pdf
 fitintel-desktop/*.xlsx
 fitintel-desktop/*.json
+
+exports/
