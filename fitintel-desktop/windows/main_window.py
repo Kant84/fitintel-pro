@@ -426,3 +426,12 @@ try:
     print("E21 integrations tab OK")
 except Exception as _e21ui:
     print("E21 integrations tab FAIL:", _e21ui)
+
+
+# === E15_CREDENTIALS_TAB ===
+try:
+    from windows.credentials_tab import CredentialsTab
+    TAB_REGISTRY["credentials"] = ("🔑 Браслеты/Карты", CredentialsTab)
+    print("E15 credentials tab OK")
+except Exception as _e15ui:
+    print("E15 credentials tab FAIL:", _e15ui)

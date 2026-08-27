@@ -1,9 +1,11 @@
 # app/api/v1/credentials.py
 
 from uuid import UUID
-from datetime import date
+from datetime import date, datetime
 from fastapi import APIRouter, Depends, Query, status
+from app.schemas.enums import CredentialStatus
 from sqlalchemy.orm import Session
+from app.models.credential import Credential
 
 from app.api.dependencies import require_permission
 from app.db.session import get_db
@@ -23,6 +25,7 @@ from app.schemas.credential import (
     CardReaderEmulateRequest,
     CardReaderEmulateResponse,
     MifareProgramRequest,
+    OnlineLockCreateRequest,
 )
 from app.services.credential_service import CredentialService
 from app.services.qr_service import QRService
@@ -474,3 +477,97 @@ def program_mifare(
         actor_user_id=str(current_user.id),
     )
     return result
+# ==========================================================
+# ONLINE LOCKS (TTLock, KERONG Cloud, Sciener)
+# ==========================================================
+
+@router.post(
+    "/online-lock",
+    response_model=CredentialResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_online_lock(
+    payload: OnlineLockCreateRequest,
+    current_user=Depends(require_permission("credentials.create")),
+    db: Session = Depends(get_db),
+):
+    """
+    Создать онлайн-ключ для умного замка.
+    - TTLock: требуется lock_id из облака TTLock
+    - KERONG Cloud: требуется lock_id из KR-Cloud
+    """
+    service = CredentialService(db)
+    credential = service.create_rfid(
+        client_id=str(payload.client_id),
+        credential_type="ONLINE_LOCK",
+        credential_value=f"{payload.lock_provider}:{payload.lock_id}",
+        rfid_manufacturer=payload.lock_provider,
+        rfid_model="online",
+        valid_until=payload.valid_until,
+        actor_user_id=str(current_user.id),
+    )
+    return service._build_response(credential)
+# ==========================================================
+# FORCE WRITE RFID (РїРµСЂРµР·Р°РїРёСЃСЊ UID вЂ” СѓРґР°Р»СЏРµС‚ СЃС‚Р°СЂСѓСЋ Р·Р°РїРёСЃСЊ)
+# ==========================================================
+
+@router.post(
+    "/rfid/force-write",
+    response_model=CredentialResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def force_write_rfid(
+    payload: RFIDCreateRequest,
+    current_user=Depends(require_permission("credentials.create")),
+    db: Session = Depends(get_db),
+):
+    """
+    Принудительная запись RFID — удаляет старую запись и создаёт новую напрямую.
+    """
+    from datetime import date, timedelta
+    
+    # Удаляем старую запись с таким UID
+    db.query(Credential).filter(
+        Credential.credential_value == payload.credential_value,
+        Credential.credential_type == "RFID"
+    ).delete(synchronize_session="fetch")
+    db.commit()
+    db.expire_all()
+    
+    # Создаём новую запись напрямую через SQLAlchemy
+    credential = Credential(
+        client_id=payload.client_id,
+        credential_type="RFID",
+        credential_value=payload.credential_value,
+        rfid_manufacturer=payload.rfid_manufacturer,
+        rfid_model=payload.rfid_model,
+        status=CredentialStatus.ACTIVE,
+        valid_from=date.today(),
+        valid_until=payload.valid_until or (date.today() + timedelta(days=365)),
+        issued_by_user_id=current_user.id,
+        issued_at=datetime.now(),
+    )
+    db.add(credential)
+    db.commit()
+    db.refresh(credential)
+    
+    # Формируем ответ вручную
+    return CredentialResponse(
+        id=credential.id,
+        client_id=credential.client_id,
+        credential_type=credential.credential_type,
+        credential_value=credential.credential_value,
+        status=credential.status,
+        valid_from=credential.valid_from,
+        valid_until=credential.valid_until,
+        qr_version=credential.qr_version,
+        qr_format=credential.qr_format,
+        rfid_manufacturer=credential.rfid_manufacturer,
+        rfid_model=credential.rfid_model,
+        issued_by_user_id=credential.issued_by_user_id,
+        issued_at=credential.issued_at,
+        notes=credential.notes,
+        created_at=credential.created_at,
+        updated_at=credential.updated_at,
+    )
+

@@ -354,3 +354,12 @@ try:
     print("E7 backup scheduler OK (03:00 daily)")
 except Exception as _e7:
     print("E7 backup scheduler FAIL:", _e7)
+
+
+# === RFID Reader API ===
+try:
+    from app.api.v1.reader import router as reader_router
+    app.include_router(reader_router, prefix="/api/v1")
+    print("RFID reader API OK")
+except Exception as _er:
+    print("RFID reader API FAIL:", _er)

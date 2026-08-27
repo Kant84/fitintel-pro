@@ -287,3 +287,14 @@ class MifareProgramRequest(BaseModel):
         description="Данные для записи (16 байт в hex)",
         examples=["1234567890ABCDEF1234567890ABCDEF"],
     )
+# ==========================================================
+# ONLINE LOCKS (TTLock, KERONG Cloud, Sciener)
+# ==========================================================
+
+class OnlineLockCreateRequest(BaseModel):
+    """Создание онлайн-ключа для умного замка"""
+    client_id: UUID
+    lock_provider: str = Field(..., description="ttlock, kerong-cloud, sciener")
+    lock_id: str = Field(..., description="ID замка в облаке")
+    password: str | None = Field(None, description="Временный пароль (для TTLock)")
+    valid_until: date | None = None
