@@ -47,6 +47,15 @@ def main():
         nonlocal main_window
         api.set_token(token)
         main_window = MainWindow(api, user_data, token)
+        
+        # === E16: RFID Monitor (всплывает при считывании браслета) ===
+        try:
+            from rfid_monitor_widget import RFIDMonitorWidget
+            main_window.rfid_monitor = RFIDMonitorWidget(main_window)
+            print('E16 RFID Monitor integrated')
+        except Exception as e:
+            print('E16 RFID Monitor FAIL:', e)
+        
         main_window.logout_requested.connect(show_login)
         main_window.show()
 
