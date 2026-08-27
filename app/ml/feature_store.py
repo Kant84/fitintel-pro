@@ -1,6 +1,6 @@
 """E60: Feature Store — центральное хранилище признаков для ML-моделей."""
 from typing import Dict, List, Any, Optional
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 
@@ -31,7 +31,7 @@ class FeatureStore:
     
     def get_client_features(self, client_id: str) -> Dict[str, Any]:
         """Извлечь все признаки клиента."""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         thirty_days_ago = now - timedelta(days=30)
         ninety_days_ago = now - timedelta(days=90)
         
@@ -46,7 +46,13 @@ class FeatureStore:
             SELECT entry_time FROM visits
             WHERE client_id = :cid ORDER BY entry_time DESC LIMIT 1
         """), {"cid": client_id}).fetchone()
-        last_visit_days = (now - last_visit[0]).days if last_visit else 999
+        if last_visit and last_visit[0]:
+            lv = last_visit[0]
+            if lv.tzinfo is None:
+                lv = lv.replace(tzinfo=timezone.utc)
+            last_visit_days = (now - lv).days
+        else:
+            last_visit_days = 999
         
         # Платежи за 90 дней
         payments_90d = self.db.execute(text("""
@@ -56,12 +62,14 @@ class FeatureStore:
         payment_count = payments_90d[0] if payments_90d else 0
         total_spent = float(payments_90d[1]) if payments_90d else 0.0
         
-        # Активная подписка
+        # Активная подписка с JOIN к tariffs
         sub = self.db.execute(text("""
-            SELECT tariff_name, end_date, status FROM subscriptions
-            WHERE client_id = :cid AND status = 'active'
-            ORDER BY end_date DESC LIMIT 1
-        """), {"cid": client_id}).fetchone()
+            SELECT t.name, s.end_date, s.status
+            FROM subscriptions s
+            LEFT JOIN tariffs t ON s.tariff_id = t.id
+            WHERE s.client_id = :cid AND s.status = :active
+            ORDER BY s.end_date DESC LIMIT 1
+        """), {"cid": client_id, "active": "active"}).fetchone()
         
         subscription_type = sub[0] if sub else "none"
         subscription_days_left = (sub[1] - date.today()).days if sub and sub[1] else 0

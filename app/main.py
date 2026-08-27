@@ -381,3 +381,12 @@ try:
     print("E60 Auto-Scheduler OK")
 except Exception as _eauto:
     print("E60 Auto-Scheduler FAIL:", _eauto)
+
+
+# === E60: Self-Learning API ===
+try:
+    from app.api.v1.self_learning import router as sl_router
+    app.include_router(sl_router, prefix="/api/v1")
+    print("E60 Self-Learning OK")
+except Exception as _esl:
+    print("E60 Self-Learning FAIL:", _esl)
