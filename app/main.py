@@ -372,3 +372,12 @@ try:
     print("E15-SKUD OK")
 except Exception as _eskud:
     print("E15-SKUD FAIL:", _eskud)
+
+
+# === E60: Auto-Scheduler API ===
+try:
+    from app.api.v1.auto import router as auto_router
+    app.include_router(auto_router, prefix="/api/v1")
+    print("E60 Auto-Scheduler OK")
+except Exception as _eauto:
+    print("E60 Auto-Scheduler FAIL:", _eauto)
