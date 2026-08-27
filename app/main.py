@@ -399,3 +399,12 @@ try:
     print("E16 Kerong OK")
 except Exception as _ekr:
     print("E16 Kerong FAIL:", _ekr)
+
+
+# === E16: RFID Reader API (Thin Client) ===
+try:
+    from app.api.v1.rfid_reader import router as rfid_router
+    app.include_router(rfid_router, prefix="/api/v1")
+    print("E16 RFID Reader API OK")
+except Exception as _erfid:
+    print("E16 RFID Reader API FAIL:", _erfid)
