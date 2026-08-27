@@ -1,0 +1,24 @@
+Windows Registry Editor Version 5.00
+
+; ============================================================
+; E15-SKUD: Конфигурация ITCService для интеграции с FitIntel Pro
+; ============================================================
+; Инструкция:
+; 1. Замените 192.168.1.50 на IP-адрес вашего сервера FitIntel Pro
+; 2. Дважды кликните по этому файлу → "Да" → "Да"
+; 3. Перезапустите службу ITCService
+; ============================================================
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ITCService]
+"CheckAccessURL"="http://192.168.1.50:8001/api/v1/skud/checkaccess"
+"EventURL"="http://192.168.1.50:8001/api/v1/skud/event"
+"HealthCheckURL"="http://192.168.1.50:8001/api/v1/skud/health_check"
+"OlockCheckAccessURL"="http://192.168.1.50:8001/api/v1/skud/olock_checkaccess"
+"AquaCheckAccessURL"="http://192.168.1.50:8001/api/v1/skud/aqua_checkaccess"
+"SolarCheckAccessURL"="http://192.168.1.50:8001/api/v1/skud/solar/checkaccess"
+"CheckAccessErrorURL"="http://192.168.1.50:8001/api/v1/skud/checkaccess_error"
+"BasicAuthUser"="itc"
+"BasicAuthPass"="itc_secret_2026"
+"TimeoutMs"=dword:00001388
+"RetryCount"=dword:00000003
+"ConnectionPoolSize"=dword:0000000A
