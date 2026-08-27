@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.credential import Credential
 from app.models.client import Client
 from app.models.subscription import Subscription
+from app.ml.event_logger import EventLogger
 
 router = APIRouter(prefix="/skud", tags=["SKUD / ITC Integration"])
 security = HTTPBasic(auto_error=False)
@@ -199,6 +200,13 @@ def event(payload: EventRequest, db: Session = Depends(get_db), auth=Depends(ver
         "updated": now,
     })
     db.commit()
+    logger = EventLogger(db)
+    logger.log_access(
+        client_card=payload.client_card,
+        device_id=payload.device_id,
+        granted=True,
+        client_id=client_id,
+    )
     return EventResponse(request_id=payload.request_id, success=True)
 
 @router.post("/checkaccess_error")
