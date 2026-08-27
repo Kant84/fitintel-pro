@@ -1,4 +1,4 @@
-"""E15-SKUD: Интеграция с ITCService."""
+"""E15-SKUD: Интеграция с ITCService + контроль шкафчиков."""
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, Field
@@ -22,6 +22,7 @@ class CheckAccessRequest(BaseModel):
     qr: Optional[str] = Field(None, description="QR-код")
     minutes: Optional[str] = Field("0", description="Минуты для солярия")
     client_id: Optional[str] = Field(None, description="UUID клиента")
+    direction: Optional[str] = Field("entry", description="entry / exit")
 
 class CheckAccessResponse(BaseModel):
     client_id: Optional[str] = None
@@ -104,6 +105,35 @@ def _get_active_sub(db, client_id: str):
         Subscription.status == "active"
     ).order_by(Subscription.end_date.desc()).first()
 
+def _check_locker_exit(db, client_id: str) -> tuple:
+    """
+    Контроль выхода:
+    - Арендованный (rented): выход всегда разрешен
+    - Бесплатный (free) и status=occupied (закрыт/занят): нельзя выходить — клиент забыл открыть!
+    - Бесплатный (free) и status=available (открыт) или нет записи: можно выходить
+    Returns: (can_exit: bool, message: str)
+    """
+    # 1. Арендованный шкафчик — выход всегда разрешен
+    rented = db.execute(text("""
+        SELECT locker_number FROM lockers
+        WHERE client_id = :cid AND rental_type = :rented
+        LIMIT 1
+    """), {"cid": client_id, "rented": "rented"}).fetchone()
+    if rented:
+        return True, ""
+    
+    # 2. Бесплатный шкафчик закрыт (occupied) — клиент забыл открыть!
+    free_closed = db.execute(text("""
+        SELECT locker_number FROM lockers
+        WHERE client_id = :cid AND rental_type = :free AND status = :occupied
+        LIMIT 1
+    """), {"cid": client_id, "free": "free", "occupied": "occupied"}).fetchone()
+    
+    if free_closed:
+        return False, f"Откройте шкафчик №{free_closed[0]} перед выходом!"
+    
+    return True, ""  # Нет закрытых бесплатных шкафчиков — можно выходить
+
 @router.post("/checkaccess", response_model=CheckAccessResponse)
 def check_access(payload: CheckAccessRequest, db: Session = Depends(get_db), auth=Depends(verify_basic)):
     credential = db.query(Credential).filter(
@@ -121,6 +151,14 @@ def check_access(payload: CheckAccessRequest, db: Session = Depends(get_db), aut
     if active_sub.end_date and active_sub.end_date < date.today():
         return CheckAccessResponse(client_id=client_id, text="Абонемент просрочен",
             grant_access=0, text_full="Доступ запрещен. Абонемент просрочен.", withoutface=False)
+    
+    # Контроль выхода: проверяем шкафчики
+    if payload.direction == "exit":
+        can_exit, msg = _check_locker_exit(db, client_id)
+        if not can_exit:
+            return CheckAccessResponse(client_id=client_id, text="Откройте шкафчик",
+                grant_access=0, text_full=msg, withoutface=False)
+    
     return CheckAccessResponse(
         client_id=client_id,
         subscription_id=str(active_sub.id),
