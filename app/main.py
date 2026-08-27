@@ -390,3 +390,12 @@ try:
     print("E60 Self-Learning OK")
 except Exception as _esl:
     print("E60 Self-Learning FAIL:", _esl)
+
+
+# === E16: Kerong Offline Locks ===
+try:
+    from app.api.v1.kerong import router as kerong_router
+    app.include_router(kerong_router, prefix="/api/v1")
+    print("E16 Kerong OK")
+except Exception as _ekr:
+    print("E16 Kerong FAIL:", _ekr)
