@@ -363,3 +363,12 @@ try:
     print("RFID reader API OK")
 except Exception as _er:
     print("RFID reader API FAIL:", _er)
+
+
+# === E15-SKUD: ITCService integration ===
+try:
+    from app.api.v1.skud_itconnect import router as skud_router
+    app.include_router(skud_router, prefix="/api/v1")
+    print("E15-SKUD OK")
+except Exception as _eskud:
+    print("E15-SKUD FAIL:", _eskud)
