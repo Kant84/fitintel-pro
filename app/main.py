@@ -408,3 +408,12 @@ try:
     print("E16 RFID Reader API OK")
 except Exception as _erfid:
     print("E16 RFID Reader API FAIL:", _erfid)
+
+
+# === Tariffs Fix (code-based delete/update) ===
+try:
+    from app.api.v1.tariffs_fix import router as tariffs_fix_router
+    app.include_router(tariffs_fix_router, prefix="/api/v1")
+    print("Tariffs Fix OK")
+except Exception as _etf:
+    print("Tariffs Fix FAIL:", _etf)

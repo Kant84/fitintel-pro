@@ -56,7 +56,7 @@ def list_tariffs(
 # получить тариф по id
 @router.get("/{tariff_id}", response_model=TariffResponse)
 def get_tariff_by_id(
-    tariff_id: UUID,
+    tariff_id: str,
     current_user=Depends(require_permission("tariffs.read")),
     db: Session = Depends(get_db),
 ):
@@ -64,7 +64,7 @@ def get_tariff_by_id(
     tariff_service = TariffService(db)
 
     # получаем тариф
-    tariff = tariff_service.get_tariff_by_id(str(tariff_id))
+    tariff = tariff_service.get_tariff_by_code(tariff_id)
 
     # пишем аудит чтения
     tariff_service.audit.log(
@@ -117,9 +117,36 @@ def create_tariff(
 
 
 # обновить тариф
+@router.put("/{tariff_id}", response_model=TariffResponse)
+def update_tariff_put(
+    tariff_id: str,
+    payload: TariffUpdateRequest,
+    current_user=Depends(require_permission("tariffs.update")),
+    db: Session = Depends(get_db),
+):
+    tariff_service = TariffService(db)
+    tariff = tariff_service.get_tariff_by_code(tariff_id)
+    if not tariff:
+        raise HTTPException(status_code=404, detail="Тариф не найден")
+    tariff_service.update_tariff(
+        tariff_id=str(tariff.id),
+        code=payload.code,
+        name=payload.name,
+        description=payload.description,
+        price=payload.price,
+        currency=payload.currency,
+        duration_days=payload.duration_days,
+        visit_limit=payload.visit_limit,
+        is_unlimited=payload.is_unlimited,
+        is_active=payload.is_active,
+        actor_user_id=current_user.id,
+    )
+    return tariff_service.build_tariff_response(tariff)
+
+# обновить тариф
 @router.patch("/{tariff_id}", response_model=TariffResponse)
 def update_tariff(
-    tariff_id: UUID,
+    tariff_id: str,
     payload: TariffUpdateRequest,
     current_user=Depends(require_permission("tariffs.update")),
     db: Session = Depends(get_db),
@@ -151,13 +178,13 @@ def update_tariff(
 # ============================================================
 @router.delete("/{tariff_id}")
 def delete_tariff(
-    tariff_id: UUID,
+    tariff_id: str,
     current_user=Depends(require_permission("tariffs.delete")),
     db: Session = Depends(get_db),
 ):
     """Удаление тарифа"""
     tariff_service = TariffService(db)
-    tariff = tariff_service.get_tariff_by_id(str(tariff_id))
+    tariff = tariff_service.get_tariff_by_code(tariff_id)
     if not tariff:
         raise HTTPException(status_code=404, detail="Тариф не найден")
     tariff_service.delete_tariff(tariff)
