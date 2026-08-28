@@ -41,20 +41,19 @@ def reader_status():
 
 @router.post("/detect-card")
 def detect_card():
-    """Ожидание карты и возврат UID."""
+    """Мгновенная проверка карты (без ожидания)."""
     try:
         r = get_reader()
-        if not r.wait_for_card(timeout_sec=10):
-            raise HTTPException(408, "Карта не обнаружена в течение 10 секунд")
+        if not r.reader:
+            r._detect_reader()
+        # Мгновенная проверка — не ждём
+        if not r.connect_card():
+            return {"uid": None, "reader": str(r.reader)}
         uid = r.get_uid()
         r.disconnect()
         return {"uid": uid, "reader": str(r.reader)}
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(500, f"Ошибка считывателя: {e}")
-    finally:
-        release_reader()
+        return {"uid": None, "reader": str(e), "_err": str(e)}
 
 
 @router.post("/read")
