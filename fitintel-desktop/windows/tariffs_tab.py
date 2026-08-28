@@ -1,12 +1,10 @@
-"""FitIntel Pro — Tariffs Tab"""
+"""FitIntel Pro — Tariffs Tab (with Edit & Delete)"""
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView
+    QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor
-
-from PyQt6.QtWidgets import QMessageBox
 
 from api import ApiClient
 from windows import theme
@@ -46,10 +44,12 @@ class TariffsTab(QWidget):
         layout.setSpacing(12)
         row = QHBoxLayout()
         row.addStretch()
+        
         btn_add = QPushButton("Создать тариф")
         btn_add.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         btn_add.clicked.connect(self._add)
         row.addWidget(btn_add)
+        
         btn = QPushButton("Обновить")
         btn.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn.clicked.connect(self.refresh)
@@ -57,9 +57,9 @@ class TariffsTab(QWidget):
         layout.addLayout(row)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(7)
+        self.table.setColumnCount(8)
         self.table.setHorizontalHeaderLabels(
-            ["Код", "Название", "Цена", "Дней", "Визитов", "Тип", "Статус"])
+            ["Код", "Название", "Цена", "Дней", "Визитов", "Тип", "Статус", "Действия"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
@@ -88,6 +88,27 @@ class TariffsTab(QWidget):
             item = QTableWidgetItem("Активен" if active else "Отключён")
             item.setForeground(QColor("#059669" if active else "#ef4444"))
             self.table.setItem(i, 6, item)
+            
+            actions = QWidget()
+            al = QHBoxLayout(actions)
+            al.setContentsMargins(4, 2, 4, 2)
+            al.setSpacing(6)
+            
+            be = QPushButton("✎")
+            be.setFixedSize(48, 20)
+            be.setStyleSheet("QPushButton{background:#3b82f6;color:white;border:none;border-radius:4px;font-size:16px;padding:0px}QPushButton:hover{background:#2563eb}")
+            be.setCursor(Qt.CursorShape.PointingHandCursor)
+            be.clicked.connect(lambda c, d=t: self._edit(d))
+            al.addWidget(be)
+            
+            bd = QPushButton("✕")
+            bd.setFixedSize(48, 20)
+            bd.setStyleSheet("QPushButton{background:#ef4444;color:white;border:none;border-radius:4px;font-size:16px;padding:0px}QPushButton:hover{background:#dc2626}")
+            bd.setCursor(Qt.CursorShape.PointingHandCursor)
+            bd.clicked.connect(lambda c, d=t: self._delete(d))
+            al.addWidget(bd)
+            al.addStretch()
+            self.table.setCellWidget(i, 7, actions)
 
     def _add(self):
         dlg = FormDialog("Новый тариф", [
@@ -101,14 +122,14 @@ class TariffsTab(QWidget):
         if dlg.exec() != FormDialog.DialogCode.Accepted:
             return
         v = dlg.values()
-        if not v["code"] or not v["name"]:
-            QMessageBox.warning(self, "Ошибка", "Код и название обязательны")
+        if not v["name"]:
+            QMessageBox.warning(self, "Ошибка", "Название обязательно")
             return
         payload = {"code": v["code"].upper(), "name": v["name"],
                    "price": float(v["price"] or 0),
                    "duration_days": int(v["duration_days"] or 30),
                    "is_unlimited": bool(v["is_unlimited"])}
-        if v["visit_limit"]:
+        if v.get("visit_limit") and str(v["visit_limit"]) not in ("None", "", "null"):
             payload["visit_limit"] = int(v["visit_limit"])
         try:
             r = self.api.session.post(self.api._url("/tariffs/"), json=payload)
@@ -116,6 +137,64 @@ class TariffsTab(QWidget):
             self.refresh()
         except Exception as e:
             QMessageBox.critical(self, "Ошибка создания", str(e))
+
+    def _edit(self, data: dict):
+        code = data.get("code", "")
+        name = data.get("name", "")
+        price = str(data.get("price", ""))
+        duration = str(data.get("duration_days", ""))
+        visit_limit = str(data.get("visit_limit", ""))
+        is_unlimited = bool(data.get("is_unlimited", False))
+        
+        dlg = FormDialog("Редактировать: " + name, [
+            ("code", "Код *", "text", code),
+            ("name", "Название *", "text", name),
+            ("price", "Цена *", "text", price),
+            ("duration_days", "Дней действия *", "text", duration),
+            ("visit_limit", "Лимит визитов (пусто = без лимита)", "text", visit_limit),
+            ("is_unlimited", "Тип", "combo", [("Лимитированный", False), ("Безлимитный", True)], is_unlimited),
+        ], self)
+        
+        if dlg.exec() != FormDialog.DialogCode.Accepted:
+            return
+        v = dlg.values()
+        if not v["name"]:
+            QMessageBox.warning(self, "Ошибка", "Название обязательно")
+            return
+        payload = {
+            "name": v["name"],
+            "price": float(v["price"] or 0),
+            "duration_days": int(v["duration_days"] or 30),
+            "is_unlimited": bool(v["is_unlimited"]),
+            "is_active": True,
+            "currency": "RUB",
+        }
+        if v.get("visit_limit") and str(v["visit_limit"]) not in ("None", "", "null"):
+            payload["visit_limit"] = int(v["visit_limit"])
+        try:
+            r = self.api.session.put(self.api._url("/tariffs/" + code), json=payload)
+            r.raise_for_status()
+            QMessageBox.information(self, "Готово", "Тариф обновлён")
+            self.refresh()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка обновления", str(e))
+
+    def _delete(self, data: dict):
+        code = data.get("code", "")
+        name = data.get("name", "")
+        msg = "Удалить тариф " + name + " (" + code + ")? Это действие нельзя отменить!"
+        reply = QMessageBox.question(self, "Подтверждение удаления", msg,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            r = self.api.session.delete(self.api._url("/tariffs/" + code))
+            r.raise_for_status()
+            QMessageBox.information(self, "Готово", "Тариф удалён")
+            self.refresh()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка удаления", str(e))
 
     def _on_error(self, msg: str):
         self.table.setRowCount(1)

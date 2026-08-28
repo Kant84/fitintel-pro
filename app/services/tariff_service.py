@@ -133,6 +133,9 @@ class TariffService:
         return False, visit_limit
 
     # получить тариф по id
+
+    def get_tariff_by_code(self, code: str):
+        return self.db.query(Tariff).filter(Tariff.code == code).first()
     def get_tariff_by_id(self, tariff_id: str) -> Tariff:
         # ищем тариф
         tariff = self.tariff_repository.get_by_id(tariff_id)
