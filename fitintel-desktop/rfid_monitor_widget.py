@@ -23,7 +23,7 @@ class RFIDMonitorWidget(QWidget):
         self.hide()
         self._poll_timer = QTimer(self)
         self._poll_timer.timeout.connect(self._poll)
-        self._poll_timer.start(300)
+        self._poll_timer.start(1000)
         self._hide_timer = QTimer(self)
         self._hide_timer.timeout.connect(self._do_hide)
         self._hide_timer.setSingleShot(True)
@@ -76,6 +76,7 @@ class RFIDMonitorWidget(QWidget):
         self.hide()
 
     def _show_client(self, data):
+        t0 = time.time()
         self.lbl_name.setText(data.get("full_name", "—"))
         self.lbl_phone.setText(data.get("phone", "—"))
         self.lbl_sub.setText("Абонемент: " + data.get("subscription_name", "-"))
@@ -84,6 +85,9 @@ class RFIDMonitorWidget(QWidget):
         self.status.setText("🟢 Доступ разрешен" if data.get("access_granted") else "🔴 Доступ запрещен")
         self.status.setStyleSheet("color: #10b981;" if data.get("access_granted") else "color: #ef4444;")
         self._show()
+        t1 = time.time()
+        if t1 - t0 > 0.1:
+            print(f"[RFID DEBUG] show_client took {(t1-t0)*1000:.0f}ms")
 
     def _show_unknown(self, uid):
         self.lbl_name.setText("Неизвестная карта")
