@@ -129,8 +129,13 @@ class TariffsTab(QWidget):
                    "price": float(v["price"] or 0),
                    "duration_days": int(v["duration_days"] or 30),
                    "is_unlimited": bool(v["is_unlimited"])}
-        if v.get("visit_limit") and str(v["visit_limit"]) not in ("None", "", "null"):
-            payload["visit_limit"] = int(v["visit_limit"])
+        if not v["is_unlimited"]:
+            # Для лимитированных тарифов visit_limit обязателен
+            vl = v.get("visit_limit")
+            if vl and str(vl) not in ("None", "", "null"):
+                payload["visit_limit"] = int(vl)
+            else:
+                payload["visit_limit"] = 30  # дефолт если пусто
         try:
             r = self.api.session.post(self.api._url("/tariffs/"), json=payload)
             r.raise_for_status()
@@ -162,22 +167,32 @@ class TariffsTab(QWidget):
             QMessageBox.warning(self, "Ошибка", "Название обязательно")
             return
         payload = {
+            "code": v["code"].upper(),
             "name": v["name"],
-            "price": float(v["price"] or 0),
+            "price": str(float(v["price"] or 0)),  # Decimal требует строку
             "duration_days": int(v["duration_days"] or 30),
             "is_unlimited": bool(v["is_unlimited"]),
-            "is_active": True,
-            "currency": "RUB",
         }
-        if v.get("visit_limit") and str(v["visit_limit"]) not in ("None", "", "null"):
-            payload["visit_limit"] = int(v["visit_limit"])
+        if not v["is_unlimited"]:
+            # Для лимитированных тарифов visit_limit обязателен
+            vl = v.get("visit_limit")
+            if vl and str(vl) not in ("None", "", "null"):
+                payload["visit_limit"] = int(vl)
+            else:
+                payload["visit_limit"] = 30  # дефолт если пусто
         try:
             r = self.api.session.put(self.api._url("/tariffs/" + code), json=payload)
             r.raise_for_status()
             QMessageBox.information(self, "Готово", "Тариф обновлён")
             self.refresh()
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка обновления", str(e))
+            detail = str(e)
+            try:
+                if "r" in locals() and hasattr(r, "text"):
+                    detail = r.text
+            except:
+                pass
+            QMessageBox.critical(self, "Ошибка обновления", detail)
 
     def _delete(self, data: dict):
         code = data.get("code", "")

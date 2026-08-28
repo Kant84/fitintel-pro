@@ -8,7 +8,7 @@ API_BASE = "http://127.0.0.1:8001/api/v1"
 def api_post(endpoint, payload):
     try:
         req = urllib.request.Request(f"{API_BASE}{endpoint}", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}, method="POST")
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=3) as resp:
             return json.loads(resp.read().decode())
     except Exception as e:
         return {"_err": str(e)}
