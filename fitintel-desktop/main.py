@@ -1,3 +1,4 @@
+from windows.credentials_tab import CredentialsTab
 """FitIntel Pro Desktop — Entry Point
 
 Запуск:
@@ -51,7 +52,7 @@ def main():
         # === E16: RFID Monitor (всплывает при считывании браслета) ===
         try:
             from rfid_monitor_widget import RFIDMonitorWidget
-            main_window.rfid_monitor = RFIDMonitorWidget(main_window)
+            main_window.rfid_monitor = RFIDMonitorWidget()  # без parent — независимое окно
             print('E16 RFID Monitor integrated')
         except Exception as e:
             print('E16 RFID Monitor FAIL:', e)
@@ -76,3 +77,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
