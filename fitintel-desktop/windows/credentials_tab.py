@@ -3,7 +3,7 @@ import json, urllib.request
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTableWidget, QTableWidgetItem, QMessageBox, QComboBox,
     QLineEdit, QGroupBox, QFormLayout, QSpinBox, QPlainTextEdit,
-    QTabWidget, QSplitter, QFrame)
+    QTabWidget, QSplitter, QFrame, QDialog, QTextEdit)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
@@ -13,24 +13,24 @@ QGroupBox { border: 1px solid #334155; border-radius: 10px; margin-top: 12px; pa
 QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 8px; }
 QLineEdit, QComboBox, QSpinBox { background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 8px 12px; color: #f1f5f9; selection-background-color: #ec4899; }
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus { border: 1px solid #ec4899; }
-QPushButton { border: none; border-radius: 8px; padding: 10px 18px; font-weight: 600; color: white; }
+QPushButton { border: none; border-radius: 0px; padding: 10px 18px; font-weight: 600; color: white; }
 QPushButton:hover { opacity: 0.85; }
 QPushButton:pressed { opacity: 0.7; }
 QPlainTextEdit { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 8px; color: #94a3b8; font-family: "Consolas", monospace; }
+QTextEdit { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px; color: #e2e8f0; font-family: "Segoe UI", sans-serif; font-size: 13px; }
 QTableWidget { background: #1e293b; border: 1px solid #334155; border-radius: 8px; gridline-color: #334155; color: #e2e8f0; }
 QTableWidget::item:selected { background: #ec4899; color: white; }
 QHeaderView::section { background: #1e293b; color: #06b6d4; padding: 8px; border: none; font-weight: 600; }
 QLabel { color: #cbd5e1; }
 """
 
-BTN_PRIMARY   = "background: linear-gradient(135deg, #ec4899, #be185d);"
-BTN_SECONDARY = "background: linear-gradient(135deg, #06b6d4, #0891b2);"
-BTN_SUCCESS   = "background: linear-gradient(135deg, #10b981, #059669);"
-BTN_WARNING   = "background: linear-gradient(135deg, #f59e0b, #d97706);"
-BTN_DANGER    = "background: linear-gradient(135deg, #ef4444, #dc2626);"
-BTN_PURPLE    = "background: linear-gradient(135deg, #8b5cf6, #7c3aed);"
+BTN_PRIMARY   = "background: linear-gradient(135deg, #ec4899, #be185d); border-radius: 0px;"
+BTN_SECONDARY = "background: linear-gradient(135deg, #06b6d4, #0891b2); border-radius: 0px;"
+BTN_SUCCESS   = "background: linear-gradient(135deg, #10b981, #059669); border-radius: 0px;"
+BTN_WARNING   = "background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 0px;"
+BTN_DANGER    = "background: linear-gradient(135deg, #ef4444, #dc2626); border-radius: 0px;"
+BTN_PURPLE    = "background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 0px;"
 
-# Kerong S80F / ITC-S80F форматы
 EMPTY_CARD    = "025D000000000000000000000000005F"
 ADMIN_CARD    = "02000000000000000000000001000003"
 TRAILER_ITC   = "000000000000FF078069666666666666"
@@ -40,6 +40,60 @@ KEY_B_ITC     = "666666666666"
 
 def _encode_locknum(num: int) -> str:
     return f"020B000000{num:02X}00000000000000000003"
+
+
+INSTRUCTION_TEXT = """📘 ИНСТРУКЦИЯ: Браслеты, карты и замки
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 КЛИЕНТСКАЯ КАРТА
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Введите ФИО/телефон/ID клиента → Найти
+2. 🔷 Очистить носитель — поднесите карту (станет 'Пустая карта')
+3. 💾 Привязать к клиенту — поднесите карту, система запишет UID в базу
+4. 🗑️ Сброс к заводским — полный сброс Mifare
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 ПРОГРАММИРОВАНИЕ ЗАМКОВ (Kerong S80F / ITC-30)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ШАГ 1 — Выберите рабочий сектор (0 по умолчанию)
+ШАГ 2 — 🛡️ Карта доступа → приложите к замку (1 писк)
+ШАГ 3 — 👑 Мастер-карта → приложите к замку
+ШАГ 4 — Введите номер шкафчика → 🔢 Назначить номер
+        → приложите к замку (замок закроется)
+        → приложите повторно (замок откроется)
+ШАГ 5 — 🔷 Очистить носитель — карта готова к выдаче клиенту
+
+КНОПКИ ПРОГРАММИРОВАНИЯ:
+  🔷 Очистить носитель — 'Пустая карта' для клиента
+  🗑️ Сброс к заводским — уничтожение утерянных карт
+  📖 Прочитать карту — диагностика (покажет все блоки)
+  🛡️ Карта доступа — авторизация замка
+  👑 Мастер-карта — админ-карта (открывает и сбрасывает клиента)
+  🔢 Назначить номер — задать номер шкафчика замку
+  🔐 Режим личный — замок открывается только этой картой
+  🚫 Очистить замок — удалить все карты из замка
+  📋 Клонировать — скопировать данные с одной карты на другую
+  🔀 Сменить сектор — перевести замок на сектор 0/1/2
+  💥 Перезагрузить замок — полный сброс (стирает номер и карты)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+☁️ ОНЛАЙН-ЗАМКИ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Введите ID клиента (UUID)
+2. Выберите провайдера (TTLock / KERONG Cloud)
+3. Введите Lock ID из облака
+4. 💾 Создать цифровой ключ
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ ТИПИЧНЫЕ ОШИБКИ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+«Носитель не обнаружен» → Поднесите плотнее
+«Ошибка аутентификации» → Проверьте сектор/ключ
+«Уже привязана» → Нажмите Привязать повторно
+Считыватель не найден → Проверьте USB
+408 Timeout → Поднесите карту быстрее
+
+💡 Поддержка: MAX Messenger / Telegram"""
 
 
 class CredentialsTab(QWidget):
@@ -96,10 +150,30 @@ class CredentialsTab(QWidget):
     def _log(self, widget, msg):
         widget.appendPlainText(msg)
 
+    def _show_instruction_dialog(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("📖 Инструкция: Браслеты, карты и замки")
+        dlg.resize(750, 650)
+        dlg.setMinimumSize(700, 550)
+        dlg.setStyleSheet(STYLE_DARK)
+        v = QVBoxLayout(dlg)
+        v.setContentsMargins(16, 16, 16, 16)
+        te = QTextEdit()
+        te.setPlainText(INSTRUCTION_TEXT)
+        te.setReadOnly(True)
+        v.addWidget(te, 1)
+        b = QPushButton("Закрыть")
+        b.setStyleSheet(BTN_SECONDARY)
+        b.setMinimumHeight(40)
+        b.clicked.connect(dlg.accept)
+        v.addWidget(b)
+        dlg.exec()
+
     def _client_tab(self):
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setSpacing(12)
+
         top = QHBoxLayout()
         self.client_search = QLineEdit()
         self.client_search.setPlaceholderText("🔍  ФИО, телефон или ID клиента...")
@@ -109,20 +183,14 @@ class CredentialsTab(QWidget):
         b_search.setStyleSheet(BTN_SECONDARY)
         b_search.clicked.connect(self._search_client)
         top.addWidget(b_search, 1)
-        self.vendor = QComboBox()
-        self.vendor.addItems(["KERONG", "Gantner", "ACS (PC/SC)"])
-        self.vendor.currentIndexChanged.connect(self._update_models)
-        top.addWidget(QLabel("Производитель:"))
-        top.addWidget(self.vendor, 2)
-        self.model = QComboBox()
-        top.addWidget(QLabel("Модель:"))
-        top.addWidget(self.model, 2)
         lay.addLayout(top)
-        self._update_models()
+
         split = QSplitter(Qt.Orientation.Horizontal)
+
         left = QWidget()
         left_lay = QVBoxLayout(left)
         left_lay.setSpacing(10)
+
         self.client_info = QGroupBox("👤  Клиент не выбран")
         fl = QFormLayout(self.client_info)
         fl.setSpacing(8)
@@ -133,18 +201,7 @@ class CredentialsTab(QWidget):
         fl.addRow("Телефон:", self.lbl_phone)
         fl.addRow("ID:",      self.lbl_id)
         left_lay.addWidget(self.client_info)
-        prog = QGroupBox("⚙️  Параметры записи")
-        pfl = QFormLayout(prog)
-        pfl.setSpacing(8)
-        self.sector = QSpinBox()
-        self.sector.setRange(0, 15)
-        self.sector.setValue(0)
-        pfl.addRow("Сектор:", self.sector)
-        self.block = QSpinBox()
-        self.block.setRange(0, 3)
-        self.block.setValue(1)
-        pfl.addRow("Блок:", self.block)
-        left_lay.addWidget(prog)
+
         btn_grid = QHBoxLayout()
         btn_grid.setSpacing(8)
         b_encode = QPushButton("🔷  Очистить носитель")
@@ -163,23 +220,28 @@ class CredentialsTab(QWidget):
         b_reset.clicked.connect(self._reset_card)
         btn_grid.addWidget(b_reset)
         left_lay.addLayout(btn_grid)
+
         self.reader_status = QLabel("🔴  Считыватель не подключён")
         self.reader_status.setStyleSheet("color: #ef4444; font-weight: 600;")
         left_lay.addWidget(self.reader_status)
+
         b_check = QPushButton("🔍  Проверить считыватель")
         b_check.setStyleSheet(BTN_PURPLE)
         b_check.clicked.connect(self._check_reader)
         left_lay.addWidget(b_check)
+
         self.log = QPlainTextEdit()
         self.log.setMaximumBlockCount(100)
         self.log.setPlaceholderText("Журнал операций...")
         left_lay.addWidget(self.log, 1)
         split.addWidget(left)
+
         right = QWidget()
         right_lay = QVBoxLayout(right)
         right_lay.setSpacing(10)
         hdr = QLabel("<h4 style='color:#06b6d4;'>📋  Носители клиента</h4>")
         right_lay.addWidget(hdr)
+
         self.tbl = QTableWidget(0, 5)
         self.tbl.setHorizontalHeaderLabels(["Тип", "ID / UID", "Статус", "Действителен до", "Модель"])
         self.tbl.horizontalHeader().setStretchLastSection(True)
@@ -187,6 +249,7 @@ class CredentialsTab(QWidget):
         self.tbl.setColumnWidth(1, 140)
         self.tbl.setColumnWidth(2, 90)
         right_lay.addWidget(self.tbl, 1)
+
         b_refresh = QPushButton("🔄  Обновить список")
         b_refresh.setStyleSheet(BTN_SECONDARY)
         b_refresh.clicked.connect(self._load_credentials)
@@ -194,17 +257,9 @@ class CredentialsTab(QWidget):
         split.addWidget(right)
         split.setSizes([520, 420])
         lay.addWidget(split, 1)
+
         self._current_client_id = None
         return w
-
-    def _update_models(self):
-        vendors = {
-            "KERONG":      ["KR-S50", "KR-S80", "KR-S100", "KR-S100L", "KR-S300"],
-            "Gantner":     ["GAT-Lock 2.0", "GAT-Lock 3.0"],
-            "ACS (PC/SC)": ["ACR122U", "ACR1252", "OMNIKEY 5022"],
-        }
-        self.model.clear()
-        self.model.addItems(vendors.get(self.vendor.currentText(), []))
 
     def _search_client(self):
         q = self.client_search.text().strip()
@@ -266,8 +321,8 @@ class CredentialsTab(QWidget):
         if not self._current_client_id:
             QMessageBox.warning(self, "Клиент", "Сначала выберите клиента")
             return
-        vendor = self.vendor.currentText()
-        model = self.model.currentText()
+        vendor = "KERONG"
+        model = "KR-S50"
         cid = str(self._current_client_id)
         self._log(self.log, "📖 Поднесите браслет / карту к считывателю...")
         self.reader_status.setText("🟡  Ожидание носителя...")
@@ -285,8 +340,8 @@ class CredentialsTab(QWidget):
             "credential_value": uid,
             "rfid_manufacturer": vendor,
             "rfid_model": model,
-            "sector": self.sector.value(),
-            "block": self.block.value()
+            "sector": 0,
+            "block": 1
         })
         if isinstance(r, dict) and "_err" not in r:
             self._log(self.log, "✅ Привязано: " + vendor + " " + model + ", UID=" + str(uid))
@@ -336,7 +391,9 @@ class CredentialsTab(QWidget):
         w.setStyleSheet(STYLE_DARK)
         lay = QVBoxLayout(w)
         lay.setSpacing(12)
+
         lay.addWidget(QLabel("<h3 style='color:#ec4899;'>🔧  Программирование оффлайн-замков Kerong S80F</h3>"))
+
         top = QHBoxLayout()
         self.admin_sector = QSpinBox()
         self.admin_sector.setRange(0, 2)
@@ -348,50 +405,61 @@ class CredentialsTab(QWidget):
         top.addWidget(self.lock_num)
         top.addStretch(1)
         lay.addLayout(top)
+
         grid = QHBoxLayout()
         grid.setSpacing(10)
+
         def make_btn(text, color, cmd):
             b = QPushButton(text)
             b.setStyleSheet(color)
-            b.setMinimumHeight(48)
+            b.setMinimumHeight(40)
+            b.setMinimumWidth(150)
             b.clicked.connect(lambda: self._admin_cmd(cmd))
             return b
+
         col1 = QVBoxLayout()
         col1.setSpacing(8)
         col1.addWidget(make_btn("🔷  Очистить носитель", BTN_SECONDARY, "encode"))
         col1.addWidget(make_btn("🗑️  Сброс к заводским", BTN_DANGER, "reset_card"))
         col1.addWidget(make_btn("📖  Прочитать карту", BTN_PURPLE, "read"))
         grid.addLayout(col1)
+
         col2 = QVBoxLayout()
         col2.setSpacing(8)
         col2.addWidget(make_btn("🛡️  Карта доступа", BTN_PURPLE, "auth_card"))
         col2.addWidget(make_btn("👑  Мастер-карта", BTN_PRIMARY, "admin_card"))
         col2.addWidget(make_btn("🔢  Назначить номер", BTN_SUCCESS, "assign_num"))
         grid.addLayout(col2)
+
         col3 = QVBoxLayout()
         col3.setSpacing(8)
         col3.addWidget(make_btn("🔐  Режим личный", BTN_PURPLE, "individual"))
         col3.addWidget(make_btn("🚫  Очистить замок", BTN_WARNING, "remove_mode"))
         col3.addWidget(make_btn("📋  Клонировать", BTN_SECONDARY, "clone"))
         grid.addLayout(col3)
+
         col4 = QVBoxLayout()
         col4.setSpacing(8)
-        col4.addStretch(1)
-        b_reset_lock = make_btn("💥  Перезагрузить замок", BTN_DANGER, "reset_lock")
-        b_reset_lock.setMinimumHeight(100)
-        col4.addWidget(b_reset_lock)
+        col4.addWidget(make_btn("🔀  Сменить сектор", BTN_SUCCESS, "set_sector"))
+        col4.addWidget(make_btn("💥  Перезагрузить замок", BTN_DANGER, "reset_lock"))
         grid.addLayout(col4)
+
         lay.addLayout(grid)
+
         self.admin_log = QPlainTextEdit()
         self.admin_log.setMaximumBlockCount(100)
         self.admin_log.setPlaceholderText("Журнал программирования...")
         lay.addWidget(self.admin_log, 1)
+
         return w
 
     def _admin_cmd(self, cmd):
         log = self.admin_log
         sector = self.admin_sector.value()
         lock_num = self.lock_num.text().strip()
+
+        log.appendPlainText("DEBUG: cmd=" + str(cmd) + ", sector=" + str(sector) + ", lock_num='" + str(lock_num) + "'")
+
         if cmd == "encode":
             data_hex, block, ktype, khex = EMPTY_CARD, 1, "B", KEY_B_ITC
         elif cmd == "reset_card":
@@ -413,6 +481,26 @@ class CredentialsTab(QWidget):
             data_hex, block, ktype, khex = "02020000000000000000000000000003", 1, "B", KEY_B_ITC
         elif cmd == "reset_lock":
             data_hex, block, ktype, khex = "02030000000000000000000000000003", 1, "B", KEY_B_ITC
+        elif cmd == "set_sector":
+            try:
+                if lock_num:
+                    num = int(lock_num)
+                    log.appendPlainText("DEBUG: используем lock_num=" + str(num))
+                else:
+                    num = sector
+                    log.appendPlainText("DEBUG: используем admin_sector=" + str(num))
+                if not 0 <= num <= 15:
+                    log.appendPlainText("❌ Сектор " + str(num) + " вне диапазона 0-15")
+                    return
+                # РОВНО 32 hex-символа: 0204 + 000000 + XX + 0000000000000000 + 03
+                data_hex = f"0204000000{num:02X}00000000000000000003"
+                block = 1
+                ktype = "B"
+                khex = KEY_B_ITC
+                log.appendPlainText("DEBUG: data_hex=" + data_hex + " (len=" + str(len(data_hex)) + ")")
+            except ValueError as e:
+                log.appendPlainText("❌ Введите номер сектора (ошибка: " + str(e) + ")")
+                return
         elif cmd == "read":
             self._read_card_admin(log)
             return
@@ -421,6 +509,7 @@ class CredentialsTab(QWidget):
             return
         else:
             data_hex, block, ktype, khex = "0" * 32, 1, "A", KEY_A_ITC
+
         log.appendPlainText("▶ " + cmd + "  |  сектор " + str(sector) + "  |  блок " + str(block))
         log.appendPlainText("  Поднесите карту к считывателю...")
         r = self._req("POST", "/reader/detect-card")
@@ -428,7 +517,7 @@ class CredentialsTab(QWidget):
             log.appendPlainText("  ❌ Карта не обнаружена")
             return
         r2 = self._req("POST", "/reader/write", {
-            "sector": sector,
+            "sector": 0,
             "block": block,
             "key_type": ktype,
             "key_hex": khex,
