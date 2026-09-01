@@ -15,13 +15,15 @@ class ReadRequest(BaseModel):
     sector: int = 0
     block: int = 0
     key_type: str = "A"
+    key_hex: str = None
 
 
 class WriteRequest(BaseModel):
     sector: int = 0
     block: int = 0
     key_type: str = "A"
-    data_hex: str  # 32 hex chars = 16 bytes
+    key_hex: str = None
+    data_hex: str
 
 
 class UIDResponse(BaseModel):
@@ -31,7 +33,6 @@ class UIDResponse(BaseModel):
 
 @router.get("/status", response_model=ReaderStatus)
 def reader_status():
-    """Проверить, подключен ли считыватель."""
     try:
         r = get_reader()
         return {"connected": True, "reader_name": str(r.reader)}
@@ -41,12 +42,10 @@ def reader_status():
 
 @router.post("/detect-card")
 def detect_card():
-    """Мгновенная проверка карты (без ожидания)."""
     try:
         r = get_reader()
         if not r.reader:
             r._detect_reader()
-        # Мгновенная проверка — не ждём
         if not r.connect_card():
             return {"uid": None, "reader": str(r.reader)}
         uid = r.get_uid()
@@ -58,12 +57,12 @@ def detect_card():
 
 @router.post("/read")
 def read_block(req: ReadRequest):
-    """Прочитать блок Mifare Classic."""
     try:
         r = get_reader()
         if not r.connect_card():
             raise HTTPException(408, "Поднесите карту к считывателю")
-        r.authenticate(req.sector, req.key_type)
+        key = list(bytes.fromhex(req.key_hex)) if req.key_hex else None
+        r.authenticate(req.sector, req.key_type, key)
         data = r.read_block(req.sector * 4 + req.block)
         r.disconnect()
         return {
@@ -82,17 +81,16 @@ def read_block(req: ReadRequest):
 
 @router.post("/write")
 def write_block(req: WriteRequest):
-    """Записать блок Mifare Classic."""
     try:
         import binascii
         data = binascii.unhexlify(req.data_hex.replace(" ", ""))
         if len(data) != 16:
             raise HTTPException(400, "Данные должны быть ровно 32 hex-символа (16 байт)")
-        
         r = get_reader()
         if not r.connect_card():
             raise HTTPException(408, "Поднесите карту к считывателю")
-        r.authenticate(req.sector, req.key_type)
+        key = list(bytes.fromhex(req.key_hex)) if req.key_hex else None
+        r.authenticate(req.sector, req.key_type, key)
         r.write_block(req.sector * 4 + req.block, data)
         r.disconnect()
         return {"status": "ok", "sector": req.sector, "block": req.block}
@@ -106,12 +104,12 @@ def write_block(req: WriteRequest):
 
 @router.post("/read-sector")
 def read_sector(req: ReadRequest):
-    """Прочитать весь сектор (4 блока)."""
     try:
         r = get_reader()
         if not r.connect_card():
             raise HTTPException(408, "Поднесите карту к считывателю")
-        result = r.read_sector(req.sector, req.key_type)
+        key = list(bytes.fromhex(req.key_hex)) if req.key_hex else None
+        result = r.read_sector(req.sector, req.key_type, key)
         r.disconnect()
         return {"sector": req.sector, "blocks": result}
     except HTTPException:

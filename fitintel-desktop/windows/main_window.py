@@ -55,7 +55,7 @@ TAB_REGISTRY = {
 
 DEFAULT_TABS = ["dashboard", "clients", "subscriptions", "tariffs", "visits",
                 "schedule", "payments", "reports", "documents", "users", "roles",
-                "devices", "face_id", "license", "ui_config", "setup", "settings"]
+                "devices", "face_id", "license", "ui_config", "setup", "settings", "credentials"]
 
 SIDEBAR_LIGHT = """
     QListWidget { background: #ffffff; border: none; border-right: 1px solid #e2e8f0; outline: none; }
@@ -150,6 +150,8 @@ class MainWindow(QMainWindow):
             data = self.api.get_ui_my()
             codes = [s["code"] for s in data.get("screens", [])]
             if codes:
+                if "credentials" not in codes:
+                    codes.append("credentials")
                 return codes
         except Exception:
             pass

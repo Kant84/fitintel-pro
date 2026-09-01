@@ -1,17 +1,23 @@
-import sys, json, urllib.request
+import sys, json, urllib.request, time
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QFont
 
 API_BASE = "http://127.0.0.1:8001/api/v1"
 
+
 def api_post(endpoint, payload):
     try:
-        req = urllib.request.Request(f"{API_BASE}{endpoint}", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}, method="POST")
+        req = urllib.request.Request(
+            API_BASE + endpoint,
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST")
         with urllib.request.urlopen(req, timeout=3) as resp:
             return json.loads(resp.read().decode())
     except Exception as e:
         return {"_err": str(e)}
+
 
 class RFIDMonitorWidget(QWidget):
     def __init__(self, parent=None):
@@ -69,7 +75,7 @@ class RFIDMonitorWidget(QWidget):
                     self._show_unknown(uid)
         else:
             if self._last_uid is not None and not self._hide_timer.isActive():
-                self._hide_timer.start(1000)  # 1 сек после уборки
+                self._hide_timer.start(1000)
 
     def _do_hide(self):
         self._last_uid = None
@@ -87,7 +93,7 @@ class RFIDMonitorWidget(QWidget):
         self._show()
         t1 = time.time()
         if t1 - t0 > 0.1:
-            print(f"[RFID DEBUG] show_client took {(t1-t0)*1000:.0f}ms")
+            print("[RFID DEBUG] show_client took " + str(int((t1 - t0) * 1000)) + "ms")
 
     def _show_unknown(self, uid):
         self.lbl_name.setText("Неизвестная карта")

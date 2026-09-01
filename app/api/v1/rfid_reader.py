@@ -28,8 +28,8 @@ class RFIDScanResponse(BaseModel):
 @router.post("/scan", response_model=RFIDScanResponse)
 def rfid_scan(payload: RFIDScanRequest, db: Session = Depends(get_db)):
     # 1. Найти credential
-    cred = db.execute(text("SELECT client_id FROM credentials WHERE credential_value = :uid AND credential_type = :rfid"),
-        {"uid": payload.card_uid, "rfid": "RFID"}).fetchone()
+    cred = db.execute(text("SELECT client_id FROM credentials WHERE credential_value = :uid AND credential_type = :rfid AND status = :active"),
+        {"uid": payload.card_uid, "rfid": "RFID", "active": "active"}).fetchone()
     
     if not cred:
         return RFIDScanResponse(found=False, message="Карта не найдена в базе")
@@ -80,3 +80,20 @@ def rfid_scan(payload: RFIDScanRequest, db: Session = Depends(get_db)):
         access_granted=access,
         message="Доступ разрешен" if access else "Нет активного абонемента",
     )
+
+
+# === Деактивация браслета после сброса ===
+@router.post("/deactivate/{uid}")
+def deactivate_credential(uid: str, db: Session = Depends(get_db)):
+    """Деактивировать credential по UID (после сброса браслета)."""
+    result = db.execute(text("""
+        UPDATE credentials 
+        SET status = 'inactive', updated_at = NOW() 
+        WHERE credential_value = :uid AND credential_type = 'RFID'
+        RETURNING id
+    """), {"uid": uid})
+    row = result.fetchone()
+    db.commit()
+    if row:
+        return {"success": True, "message": "Браслет деактивирован"}
+    return {"success": False, "message": "Браслет не найден в базе"}
