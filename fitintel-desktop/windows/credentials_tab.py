@@ -1,4 +1,7 @@
 """E15: Браслеты и карты доступа — интеграция со СКУД (ITC-30, S80F, онлайн-замки)."""
+from rfid.card_ops import RFIDCardOps
+from rfid.api_ops import RFIDApiOps
+from rfid.client_search import ClientSearch
 import json, urllib.request
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTableWidget, QTableWidgetItem, QMessageBox, QComboBox,
@@ -101,6 +104,9 @@ class CredentialsTab(QWidget):
         super().__init__(parent)
         self.api = api
         self.setStyleSheet(STYLE_DARK)
+        self._rfid_card = RFIDCardOps(self)
+        self._rfid_api = RFIDApiOps(self)
+        self._client_search = ClientSearch(self)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(16, 16, 16, 16)
         lay.setSpacing(12)
@@ -131,7 +137,12 @@ class CredentialsTab(QWidget):
             return None
 
     def _req(self, method, path, data=None):
-        tok = self._token()
+        # Сначала берём токен из api (если пользователь уже вошёл в приложение)
+        tok = None
+        if self.api and hasattr(self.api, "token") and self.api.token:
+            tok = self.api.token
+        if not tok:
+            tok = self._token()
         r = urllib.request.Request(
             self._base() + path,
             data=json.dumps(data).encode() if data is not None else None,
@@ -243,11 +254,12 @@ class CredentialsTab(QWidget):
         right_lay.addWidget(hdr)
 
         self.tbl = QTableWidget(0, 5)
-        self.tbl.setHorizontalHeaderLabels(["Тип", "ID / UID", "Статус", "Действителен до", "Модель"])
+        self.tbl.setHorizontalHeaderLabels(["Тип", "ID / UID", "Статус", "Действителен до"])
         self.tbl.horizontalHeader().setStretchLastSection(True)
-        self.tbl.setColumnWidth(0, 60)
-        self.tbl.setColumnWidth(1, 140)
-        self.tbl.setColumnWidth(2, 90)
+        self.tbl.setColumnWidth(0, 80)
+        self.tbl.setColumnWidth(1, 160)
+        self.tbl.setColumnWidth(2, 100)
+        self.tbl.setColumnWidth(3, 140)
         right_lay.addWidget(self.tbl, 1)
 
         b_refresh = QPushButton("🔄  Обновить список")
@@ -263,14 +275,9 @@ class CredentialsTab(QWidget):
 
     def _search_client(self):
         q = self.client_search.text().strip()
-        if not q:
+        c = self._client_search.search(q)
+        if not c:
             return
-        r = self._req("GET", "/clients?search=" + urllib.request.quote(q) + "&limit=5")
-        items = r.get("items", []) if isinstance(r, dict) else []
-        if not items:
-            QMessageBox.information(self, "Поиск", "Клиенты не найдены")
-            return
-        c = items[0]
         self._current_client_id = c.get("id")
         ln = c.get("last_name", "")
         fn = c.get("first_name", "")
@@ -297,25 +304,10 @@ class CredentialsTab(QWidget):
                 self.tbl.setItem(i, 1, QTableWidgetItem(str(row.get("credential_value", "—"))[:22]))
                 self.tbl.setItem(i, 2, QTableWidgetItem(str(row.get("status", "—"))))
                 self.tbl.setItem(i, 3, QTableWidgetItem(str(row.get("valid_until", "—"))))
-                self.tbl.setItem(i, 4, QTableWidgetItem(str(row.get("rfid_model", ""))))
+                
 
     def _encode_card(self):
-        self._log(self.log, "🔷 Поднесите носитель для очистки...")
-        r = self._req("POST", "/reader/detect-card")
-        if isinstance(r, dict) and "_err" in r:
-            self._log(self.log, "❌ Носитель не обнаружен")
-            return
-        r2 = self._req("POST", "/reader/write", {
-            "sector": 0,
-            "block": 1,
-            "key_type": "B",
-            "key_hex": KEY_B_ITC,
-            "data_hex": EMPTY_CARD
-        })
-        if isinstance(r2, dict) and "_err" not in r2:
-            self._log(self.log, "✅ Носитель очищен (Пустая карта ITC)")
-        else:
-            self._log(self.log, "❌ Ошибка: " + str(r2.get("_body", str(r2))))
+        self._rfid_card.encode_card()
 
     def _write_credential(self):
         if not self._current_client_id:
@@ -344,10 +336,14 @@ class CredentialsTab(QWidget):
             "block": 1
         })
         if isinstance(r, dict) and "_err" not in r:
-            self._log(self.log, "✅ Привязано: " + vendor + " " + model + ", UID=" + str(uid))
+            self._log(self.log, "✅ Привязано: UID=" + str(uid))
+            # Сохраняем в локальный кэш для виджета
+            client_name = self.lbl_name.text()
+            self._rfid_api.save_to_cache(uid, client_name)
             self.reader_status.setText("🟢  Готово")
             self.reader_status.setStyleSheet("color: #10b981; font-weight: 600;")
             self._load_credentials()
+            self._refresh_widget()
         else:
             err = r.get("_body", {}) if isinstance(r, dict) else {}
             msg = err.get("detail", str(err)) if isinstance(err, dict) else str(err)
@@ -356,22 +352,22 @@ class CredentialsTab(QWidget):
             self.reader_status.setStyleSheet("color: #ef4444; font-weight: 600;")
 
     def _reset_card(self):
-        self._log(self.log, "🗑️ Поднесите носитель для сброса...")
+        self._log(self.log, "🗑️ Поднесите носитель для отвязки...")
         r = self._req("POST", "/reader/detect-card")
         if isinstance(r, dict) and "_err" in r:
             self._log(self.log, "❌ Носитель не обнаружен")
             return
-        r2 = self._req("POST", "/reader/write", {
-            "sector": 0,
-            "block": 3,
-            "key_type": "A",
-            "key_hex": KEY_A_ITC,
-            "data_hex": "ffffffffffffffffffffffff078069ff"
-        })
-        if isinstance(r2, dict) and "_err" not in r2:
-            self._log(self.log, "✅ Носитель сброшен (factory default)")
-        else:
-            self._log(self.log, "❌ Ошибка сброса: " + str(r2.get("_body", str(r2))))
+        uid = r.get("uid")
+        if not uid:
+            self._log(self.log, "❌ UID не считан")
+            return
+        self._log(self.log, f"✅ UID считан: {uid}")
+        # 1. Очищаем данные клиента с карты (блок 1)
+        self._rfid_card.reset_card(uid)
+        # 2. Отвязываем от клиента в базе
+        self._rfid_api.unbind_uid(uid)
+        self._load_credentials()
+        self._log(self.log, "✅ Клиент отвязан, карта очищена")
 
     def _check_reader(self):
         try:
@@ -492,7 +488,6 @@ class CredentialsTab(QWidget):
                 if not 0 <= num <= 15:
                     log.appendPlainText("❌ Сектор " + str(num) + " вне диапазона 0-15")
                     return
-                # РОВНО 32 hex-символа: 0204 + 000000 + XX + 0000000000000000 + 03
                 data_hex = f"0204000000{num:02X}00000000000000000003"
                 block = 1
                 ktype = "B"
@@ -632,3 +627,15 @@ class CredentialsTab(QWidget):
             self.ol_log.appendPlainText("✅ Ключ создан: " + payload["lock_provider"] + " / " + payload["lock_id"])
         else:
             self.ol_log.appendPlainText("❌ Ошибка: " + str(r.get("_body", str(r))))
+
+    def _refresh_widget(self):
+        """Обновляет виджет — сбрасывает _last_uid, чтобы сразу перечитать карту."""
+        try:
+            import rfid_monitor_widget as rw
+            import gc
+            for obj in gc.get_objects():
+                if isinstance(obj, rw.RFIDMonitorWidget):
+                    obj.refresh_card()
+                    break
+        except Exception:
+            pass
