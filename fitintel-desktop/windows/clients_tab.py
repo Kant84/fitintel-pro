@@ -106,8 +106,9 @@ class ClientsTab(QWidget):
         return " ".join(x for x in (c.get("last_name"), c.get("first_name"), c.get("middle_name")) if x) or "—"
 
     def _on_loaded(self, clients: list):
-        self._all_data = clients
-        self._render(clients)
+        # Фильтруем: показываем только активных клиентов
+        self._all_data = [c for c in clients if c.get("is_active", True)]
+        self._render(self._all_data)
 
     def _render(self, rows: list):
         self.table.setRowCount(len(rows))
@@ -152,6 +153,24 @@ class ClientsTab(QWidget):
             QMessageBox.warning(self, "Ошибка", "Заполните обязательные поля: фамилия, имя, телефон, email")
             return
         payload = {k: val for k, val in v.items() if val not in ("", None)}
+
+        # Валидация birth_date: конвертируем ДД.ММ.ГГГГ → ГГГГ-ММ-ДД
+        if "birth_date" in payload:
+            bd = payload["birth_date"].strip()
+            if bd:
+                if "." in bd and len(bd.split(".")) == 3:
+                    try:
+                        d, m, y = bd.split(".")
+                        if len(y) == 4 and len(m) == 2 and len(d) == 2:
+                            payload["birth_date"] = f"{y}-{m}-{d}"
+                        elif len(y) == 2 and len(m) == 2 and len(d) == 2:
+                            payload["birth_date"] = f"20{y}-{m}-{d}"
+                    except Exception:
+                        pass
+                elif "-" not in bd:
+                    QMessageBox.warning(self, "Ошибка", f"Неверный формат даты: {bd}\nИспользуйте ДД.ММ.ГГГГ или ГГГГ-ММ-ДД")
+                    return
+
         try:
             self.api.create_client(payload)
             self.refresh()
@@ -175,6 +194,24 @@ class ClientsTab(QWidget):
         if dlg.exec() != FormDialog.DialogCode.Accepted:
             return
         v = {k: val for k, val in dlg.values().items() if val not in ("", None)}
+
+        # Валидация birth_date
+        if "birth_date" in v:
+            bd = v["birth_date"].strip()
+            if bd:
+                if "." in bd and len(bd.split(".")) == 3:
+                    try:
+                        d, m, y = bd.split(".")
+                        if len(y) == 4 and len(m) == 2 and len(d) == 2:
+                            v["birth_date"] = f"{y}-{m}-{d}"
+                        elif len(y) == 2 and len(m) == 2 and len(d) == 2:
+                            v["birth_date"] = f"20{y}-{m}-{d}"
+                    except Exception:
+                        pass
+                elif "-" not in bd:
+                    QMessageBox.warning(self, "Ошибка", f"Неверный формат даты: {bd}\nИспользуйте ДД.ММ.ГГГГ или ГГГГ-ММ-ДД")
+                    return
+
         try:
             self.api.update_client(str(c["id"]), v)
             self.refresh()
@@ -206,13 +243,16 @@ class ClientsTab(QWidget):
         if reply != QMessageBox.StandardButton.Yes:
             return
         try:
-            self.api.delete_client(str(c["id"]))
+            # Сервер не поддерживает DELETE — деактивируем клиента
+            self.api.update_client(str(c["id"]), {"is_active": False, "status": "INACTIVE"})
+            # Локально удаляем из списка — сразу пропадает из таблицы
+            self._all_data = [x for x in self._all_data if str(x.get("id")) != str(c["id"])]
+            self._render(self._all_data)
             try:
                 from app_logging import log as _log
                 _log.info("Удалён клиент %s (%s)", self._fio(c), c.get("id"))
             except Exception:
                 pass
-            self.refresh()
         except Exception as e:
             QMessageBox.critical(self, "Ошибка удаления", str(e))
 
