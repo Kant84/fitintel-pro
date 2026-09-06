@@ -1,4 +1,3 @@
-from windows.credentials_tab import CredentialsTab
 """FitIntel Pro Desktop — Entry Point
 
 Запуск:
@@ -9,8 +8,8 @@ from windows.credentials_tab import CredentialsTab
 """
 import sys
 import os
+import json
 
-# Добавляем путь к текущей директории для импортов
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from PyQt6.QtWidgets import QApplication
@@ -25,7 +24,6 @@ from windows import LoginWindow, MainWindow
 def main():
     install_excepthook()
     log.info('=== FitIntel Pro Desktop запущен ===')
-    # Включаем поддержку высокого DPI
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
@@ -33,7 +31,6 @@ def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
-    # Глобальный шрифт
     font = QFont("Segoe UI", 10)
     font.setStyleHint(QFont.StyleHint.SansSerif)
     app.setFont(font)
@@ -42,25 +39,51 @@ def main():
 
     login = LoginWindow()
     main_window = None
+    rfid_monitor = None
 
     def on_login_success(user_data: dict, token: str):
         log.info('Вход выполнен: %s', user_data.get('username', '?'))
-        nonlocal main_window
+        nonlocal main_window, rfid_monitor
         api.set_token(token)
-        main_window = MainWindow(api, user_data, token)
-        
-        # === E16: RFID Monitor (всплывает при считывании браслета) ===
+
+        # Сохраняем токен в client_settings.json
         try:
-            from rfid_monitor_widget import RFIDMonitorWidget
-            main_window.rfid_monitor = RFIDMonitorWidget()  # без parent — независимое окно
-            print('E16 RFID Monitor integrated')
+            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "client_settings.json")
+            cfg = {}
+            if os.path.exists(cfg_path):
+                with open(cfg_path, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+            cfg["token"] = token
+            cfg["access_token"] = token
+            with open(cfg_path, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, ensure_ascii=False, indent=2)
+            log.info("Token saved to client_settings.json")
         except Exception as e:
-            print('E16 RFID Monitor FAIL:', e)
-        
+            log.warning("Could not save token: %s", e)
+
+        main_window = MainWindow(api, user_data, token)
+
+        try:
+            from rfid_monitor_widget import RFIDMonitorWidget, set_global_token
+            rfid_monitor = RFIDMonitorWidget(parent=main_window)
+            set_global_token(token)
+            log.info('E16 RFID Monitor integrated')
+        except Exception as e:
+            log.error('E16 RFID Monitor FAIL: %s', e)
+
         main_window.logout_requested.connect(show_login)
         main_window.show()
 
     def show_login():
+        nonlocal rfid_monitor
+        if rfid_monitor is not None:
+            try:
+                rfid_monitor.close()
+                rfid_monitor.deleteLater()
+            except Exception:
+                pass
+            rfid_monitor = None
+
         login.edit_pass.clear()
         login.lbl_status.setText("")
         login.btn_login.setEnabled(True)
@@ -77,6 +100,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
