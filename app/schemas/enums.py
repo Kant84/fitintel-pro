@@ -69,6 +69,7 @@ class AccessMethod(str, Enum):
     BIOMETRIC = "BIOMETRIC"
     OVERRIDE = "OVERRIDE"
     OTHER = "OTHER"
+    RFID = "RFID"
 class AccessDecision(str, Enum):
     ALLOWED = "ALLOWED"
     DENIED = "DENIED"

@@ -40,6 +40,12 @@ def list_visits(
     """Получить список всех визитов"""
     service = VisitService(db)
     visits = service.list_all(limit=limit, offset=offset)
+    # FIX: нормализация статусов для Pydantic enum
+    for _v in visits:
+        if hasattr(_v, "status") and _v.status:
+            _v.status = _v.status.upper()
+        if hasattr(_v, "access_method") and _v.access_method:
+            _v.access_method = _v.access_method.upper()
     return VisitListResponse(items=visits, count=len(visits))
 
 # ==========================================================

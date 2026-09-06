@@ -340,7 +340,7 @@ class SubscriptionService:
             "id": subscription.id,
             "client_id": subscription.client_id,
             "tariff_id": subscription.tariff_id,
-            "status": subscription.status,
+            "status": (subscription.status or "ACTIVE").upper(),
             "start_date": subscription.start_date,
             "end_date": subscription.end_date,
             "price": subscription.price,
