@@ -230,7 +230,10 @@ import requests as _rq
 def _e55_url(self, path):
     base = (getattr(self, "base_url", None) or getattr(self, "base", None)
             or getattr(self, "BASE_URL", None) or "http://localhost:8001")
-    return str(base).rstrip("/") + "/api/v1" + path
+    base = str(base).rstrip("/")
+    if base.endswith("/api/v1"):
+        return base + path
+    return base + "/api/v1" + path
 
 def _e55_sess(self):
     return getattr(self, "session", None) or getattr(self, "_session", None) or _rq
