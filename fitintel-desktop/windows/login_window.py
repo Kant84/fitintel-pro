@@ -2,7 +2,7 @@
 import sys
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QMessageBox, QFrame, QSizePolicy, QSpacerItem, QCheckBox
+    QPushButton, QMessageBox, QFrame, QSizePolicy, QSpacerItem, QCheckBox, QDialog
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QFont, QPixmap, QIcon
@@ -115,7 +115,6 @@ class LoginWindow(QWidget):
         layout.setContentsMargins(40, 40, 40, 40)
         layout.setSpacing(0)
 
-        # Logo / Title
         self.title_lbl = QLabel("FitIntel Pro")
         self.title_lbl.setObjectName("title")
         self.title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -127,14 +126,12 @@ class LoginWindow(QWidget):
         layout.addWidget(self.sub_lbl)
         layout.addSpacing(32)
 
-        # Card
         card = QFrame()
         card.setObjectName("card")
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(24, 24, 24, 24)
         card_layout.setSpacing(16)
 
-        # Login
         lbl_login = QLabel("Логин")
         lbl_login.setObjectName("label")
         card_layout.addWidget(lbl_login)
@@ -143,7 +140,6 @@ class LoginWindow(QWidget):
         self.edit_login.setPlaceholderText("admin")
         card_layout.addWidget(self.edit_login)
 
-        # Password
         lbl_pass = QLabel("Пароль")
         lbl_pass.setObjectName("label")
         card_layout.addWidget(lbl_pass)
@@ -153,12 +149,10 @@ class LoginWindow(QWidget):
         self.edit_pass.setPlaceholderText("••••••")
         card_layout.addWidget(self.edit_pass)
 
-        # Remember me
         self.chk_remember = QCheckBox("Запомнить меня")
         self._load_saved_credentials()
         card_layout.addWidget(self.chk_remember)
 
-        # Button
         card_layout.addSpacing(8)
         self.btn_login = QPushButton("Войти")
         self.btn_login.setObjectName("primary")
@@ -166,7 +160,6 @@ class LoginWindow(QWidget):
         self.btn_login.clicked.connect(self._on_login)
         card_layout.addWidget(self.btn_login)
 
-        # Status
         self.lbl_status = QLabel("")
         self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_status.setStyleSheet("color: #ef4444; font-size: 12px;")
@@ -175,7 +168,6 @@ class LoginWindow(QWidget):
         layout.addWidget(card)
         layout.addStretch()
 
-        # Footer
         footer = QLabel("© 2026 ИП Санакин А.В. | FitIntel Pro v1.3.0")
         footer.setStyleSheet("font-size: 11px; color: #94a3b8;")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -243,7 +235,18 @@ class LoginWindow(QWidget):
             self._on_error("Нет токена в ответе сервера")
             return
 
+        # Устанавливаем токен ДО диалога смены пароля
         self.api.set_token(token)
+
+        # === Проверка: требуется ли смена временного пароля ===
+        if result.get("force_change_password"):
+            from windows.change_password_dialog import ChangePasswordDialog
+            dlg = ChangePasswordDialog(self.api, token, self)
+            if dlg.exec() != QDialog.DialogCode.Accepted:
+                self._on_error("Необходимо сменить временный пароль")
+                return
+        # ======================================================
+
         try:
             user = self.api.me()
         except Exception as e:
