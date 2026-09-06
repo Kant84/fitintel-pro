@@ -94,17 +94,15 @@ def _limits_inner(license_key):
         "usage_percent": round(used / limit * 100, 1) if limit else 0,
     }
 
-
-# === E66: license activation + enforcement mode ===
-from pydantic import BaseModel as _BM
-
-class ModeIn(_BM):
-    mode: str = "soft"  # soft | hard
+class ModeIn(BaseModel):
+    mode: str = "soft"
 
 def _ensure_state():
     with _eng().begin() as c:
         c.execute(text("""CREATE TABLE IF NOT EXISTS license_state (
             id INT PRIMARY KEY, key TEXT, mode VARCHAR(8) DEFAULT 'soft',
+            temp_password TEXT, superadmin_login TEXT DEFAULT 'SuperAdmin',
+            is_first_login BOOLEAN DEFAULT TRUE,
             updated_at TIMESTAMP DEFAULT NOW())"""))
 
 @router.post("/license/activate")
@@ -113,12 +111,35 @@ def activate(body: KeyIn):
     if not v.get("valid"):
         return v
     _ensure_state()
+    
+    with _eng().connect() as c:
+        existing = c.execute(text("SELECT key FROM license_state WHERE id=1")).first()
+        if existing and existing[0] == body.key:
+            return {"activated": True, "already_active": True, "plan": v.get("plan")}
+    
+    import string, secrets
+    temp_pass = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
+    
     with _eng().begin() as c:
-        c.execute(text("""INSERT INTO license_state (id, key, mode, updated_at)
-            VALUES (1, :k, 'soft', NOW())
-            ON CONFLICT (id) DO UPDATE SET key=EXCLUDED.key, updated_at=EXCLUDED.updated_at"""),
-            {"k": body.key})
-    return {"activated": True, "plan": v.get("plan"), "expires": v.get("exp"), "max_clients": v.get("max_clients")}
+        c.execute(text("""INSERT INTO license_state (id, key, mode, temp_password, superadmin_login, is_first_login, updated_at)
+            VALUES (1, :k, 'soft', :tp, 'SuperAdmin', TRUE, NOW())
+            ON CONFLICT (id) DO UPDATE SET 
+                key=EXCLUDED.key, 
+                temp_password=EXCLUDED.temp_password,
+                superadmin_login=EXCLUDED.superadmin_login,
+                is_first_login=TRUE,
+                updated_at=EXCLUDED.updated_at"""),
+            {"k": body.key, "tp": temp_pass})
+    
+    return {
+        "activated": True, 
+        "plan": v.get("plan"), 
+        "expires": v.get("exp"), 
+        "max_clients": v.get("max_clients"),
+        "superadmin_login": "SuperAdmin",
+        "temp_password": temp_pass,
+        "message": "Лицензия активирована. Первый вход: SuperAdmin / " + temp_pass
+    }
 
 @router.get("/license/current")
 def current():
@@ -135,7 +156,7 @@ def current_limit_status():
     try:
         _ensure_state()
         with _eng().connect() as c:
-            row = c.execute(text("SELECT key, mode FROM license_state WHERE id=1")).first()
+            row = c.execute(text("SELECT key, mode, is_first_login, superadmin_login FROM license_state WHERE id=1")).first()
         if not row or not row[0]:
             return {"activated": False}
         v = _validate(row[0])
@@ -143,15 +164,22 @@ def current_limit_status():
             return {"activated": False, "reason": v.get("reason")}
         used = _clients_count()
         limit = int(v.get("max_clients") or 0)
-        return {"activated": True, "plan": v.get("plan"), "expires": v.get("exp"),
-                "mode": row[1], "max_clients": limit, "clients_used": used,
-                "within_limit": used <= limit,
-                "usage_percent": round(used / limit * 100, 1) if limit else 0}
+        return {
+            "activated": True, 
+            "plan": v.get("plan"), 
+            "expires": v.get("exp"),
+            "mode": row[1], 
+            "max_clients": limit, 
+            "clients_used": used,
+            "within_limit": used <= limit,
+            "usage_percent": round(used / limit * 100, 1) if limit else 0,
+            "is_first_login": row[2] if len(row) > 2 else True,
+            "superadmin_login": row[3] if len(row) > 3 else "SuperAdmin"
+        }
     except Exception as e:
         return {"activated": False, "error": str(e)}
 
 def license_block_check():
-    """Возвращает dict с block=True, если создание клиента надо запретить (hard mode + переполнение)."""
     st = current_limit_status()
     if st.get("activated") and not st.get("within_limit") and st.get("mode") == "hard":
         return {"block": True, "used": st.get("clients_used"), "limit": st.get("max_clients")}

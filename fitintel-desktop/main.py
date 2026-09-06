@@ -12,13 +12,14 @@ import json
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QDialog
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
 from app_logging import log, install_excepthook
 from api import ApiClient
 from windows import LoginWindow, MainWindow
+from windows.startup_dialog import StartupDialog
 
 
 def main():
@@ -60,6 +61,24 @@ def main():
             log.info("Token saved to client_settings.json")
         except Exception as e:
             log.warning("Could not save token: %s", e)
+
+        # === Стартовое окно выбора базы (1С-стиль) ===
+        startup = StartupDialog()
+        if startup.exec() != QDialog.DialogCode.Accepted:
+            log.info("Пользователь отменил выбор базы")
+            show_login()
+            return
+        # Перезагружаем api с новыми настройками
+        try:
+            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "client_settings.json")
+            if os.path.exists(cfg_path):
+                with open(cfg_path, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                api.base_url = cfg.get("api_base", api.base_url)
+                log.info("API base updated to: %s", api.base_url)
+        except Exception as e:
+            log.warning("Could not reload API base: %s", e)
+        # ==============================================
 
         main_window = MainWindow(api, user_data, token)
 

@@ -11,6 +11,7 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QSize
 from PyQt6.QtGui import QAction, QFont
 
 from api import ApiClient
+from windows.connections_tab import ConnectionsTab
 from windows import theme
 from windows.clients_tab import ClientsTab
 from windows.subscriptions_tab import SubscriptionsTab
@@ -51,11 +52,12 @@ TAB_REGISTRY = {
     "ui_config":     ("Экраны ролей", UiConfigTab),
     "setup":         ("Мастер установки", SetupTab),
     "settings":      ("Настройки", SettingsTab),
+    "connections":   ("Подключения", ConnectionsTab),
 }
 
 DEFAULT_TABS = ["dashboard", "clients", "subscriptions", "tariffs", "visits",
                 "schedule", "payments", "reports", "documents", "users", "roles",
-                "devices", "face_id", "license", "ui_config", "setup", "settings", "credentials"]
+                "devices", "face_id", "license", "ui_config", "setup", "settings", "credentials", "connections"]
 
 SIDEBAR_LIGHT = """
     QListWidget { background: #ffffff; border: none; border-right: 1px solid #e2e8f0; outline: none; }
@@ -152,6 +154,8 @@ class MainWindow(QMainWindow):
             if codes:
                 if "credentials" not in codes:
                     codes.append("credentials")
+                if "connections" not in codes:
+                    codes.append("connections")
                 return codes
         except Exception:
             pass
