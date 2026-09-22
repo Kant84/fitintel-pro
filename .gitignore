@@ -46,3 +46,5 @@ fitintel-desktop/*.xlsx
 fitintel-desktop/*.json
 
 exports/
+
+data/
