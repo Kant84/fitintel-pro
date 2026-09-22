@@ -105,6 +105,16 @@ def entry(
         qr_payload=payload.qr_payload,
         face_confidence=payload.face_confidence,
     )
+        # E60: трекинг для ML
+    try:
+        from app.ml.event_logger import EventLogger
+        EventLogger(db).log("visit_entry", {
+            "client_id": str(payload.client_id) if payload.client_id else None,
+            "access_method": payload.access_method,
+            "zone": payload.zone,
+        }, user_id=str(current_user.id), source="skud")
+    except Exception:
+        pass
     return service._build_response(visit)
 
 
@@ -241,6 +251,17 @@ def manual_add_visit(
         data=payload,
         actor_user_id=str(current_user.id),
     )
+        # E60: трекинг для ML
+    try:
+        from app.ml.event_logger import EventLogger
+        EventLogger(db).log("visit_entry", {
+            "client_id": str(payload.client_id),
+            "access_method": payload.access_method.value if hasattr(payload.access_method, "value") else str(payload.access_method),
+            "zone": payload.zone,
+            "manual": True,
+        }, user_id=str(current_user.id), source="reception")
+    except Exception:
+        pass
     return service._build_response(visit)
 
 

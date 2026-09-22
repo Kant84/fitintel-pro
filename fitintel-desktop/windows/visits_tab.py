@@ -158,14 +158,14 @@ class VisitsTab(QWidget):
         dlg = FormDialog("Ручной вход клиента", [
             ("client_id", "Клиент *", "combo", options),
             ("access_method", "Способ", "combo",
-             [("Ручной (ресепшен)", "manual"), ("Карта", "card"), ("QR", "qr"), ("Face ID", "face")]),
+             [("Ручной (ресепшен)", "MANUAL"), ("Карта", "RFID"), ("QR", "QR"), ("Face ID", "FACE_ID")]),
             ("zone", "Зона", "text", "main"),
         ], self)
         if dlg.exec() != FormDialog.DialogCode.Accepted:
             return
         v = dlg.values()
         payload = {"client_id": v["client_id"],
-                   "entry_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                   "entry_time": datetime.now().isoformat(),
                    "access_method": v["access_method"], "zone": v["zone"] or "main"}
         try:
             r = self.api.session.post(self.api._url("/visits/manual"), json=payload)
