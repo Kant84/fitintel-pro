@@ -417,3 +417,10 @@ try:
     print("Tariffs Fix OK")
 except Exception as _etf:
     print("Tariffs Fix FAIL:", _etf)
+# === E60-ML: Churn prediction API ===
+try:
+    from app.api.v1.ml import router as ml_router
+    app.include_router(ml_router, prefix="/api/v1", tags=["ml"])
+    print("E60 ML router OK")
+except Exception as _eml:
+    print("E60 ML router FAIL:", _eml)
