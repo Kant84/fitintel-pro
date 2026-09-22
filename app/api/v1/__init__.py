@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import services, auth, users, exports, analytics, devices, dynamic_qr
+from app.api.v1 import services, auth, users, exports, analytics, devices, dynamic_qr, ml
 
 router = APIRouter()
 
