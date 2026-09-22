@@ -75,6 +75,16 @@ def create_payment(
         payment_category=payload.payment_category,
         actor_user_id=str(current_user.id),
     )
+        # E60: трекинг для ML
+    try:
+        from app.ml.event_logger import EventLogger
+        EventLogger(db).log("payment", {
+            "client_id": str(payload.client_id) if payload.client_id else None,
+            "amount": float(payload.amount),
+            "payment_method": payload.payment_method,
+        }, user_id=str(current_user.id), source="api")
+    except Exception:
+        pass
     return service._build_response(payment)
 
 

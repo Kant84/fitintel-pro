@@ -164,6 +164,7 @@ class ManualVisitRequest(BaseModel):
         description="Способ доступа",
     )
     zone: str | None = Field(default=None, max_length=100, description="Зона")
+    notes: str | None = Field(default=None, description="Комментарий")
 
 
 class ManualVisitResponse(VisitResponse):
