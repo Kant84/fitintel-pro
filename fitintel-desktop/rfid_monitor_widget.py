@@ -50,7 +50,7 @@ class RFIDMonitorWidget(QWidget):
         self._build_ui()
         self._poll_timer = QTimer(self)
         self._poll_timer.timeout.connect(self._poll)
-        self._poll_timer.start(500)
+        self._poll_timer.start(1000)
         self.hide()
 
     def _build_ui(self):

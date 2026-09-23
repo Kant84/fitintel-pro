@@ -151,7 +151,6 @@ app.include_router(setup_router, prefix=settings.API_V1_PREFIX)
 app.include_router(fiscal_router, prefix=settings.API_V1_PREFIX)
 app.include_router(accounting_router, prefix=settings.API_V1_PREFIX)
 app.include_router(services_router, prefix=settings.API_V1_PREFIX)
-app.include_router(dynamic_qr_router, prefix=settings.API_V1_PREFIX)
 app.include_router(video_alerts_router, prefix=settings.API_V1_PREFIX)
 app.include_router(feature_flags_adv_router, prefix="/api/v1")
 app.include_router(feature_flags_router, prefix=settings.API_V1_PREFIX + "/feature-flags")
@@ -410,13 +409,7 @@ except Exception as _erfid:
     print("E16 RFID Reader API FAIL:", _erfid)
 
 
-# === Tariffs Fix (code-based delete/update) ===
-try:
-    from app.api.v1.tariffs_fix import router as tariffs_fix_router
-    app.include_router(tariffs_fix_router, prefix="/api/v1")
-    print("Tariffs Fix OK")
-except Exception as _etf:
-    print("Tariffs Fix FAIL:", _etf)
+
 # === E60-ML: Churn prediction API ===
 try:
     from app.api.v1.ml import router as ml_router
