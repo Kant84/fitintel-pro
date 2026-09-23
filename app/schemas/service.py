@@ -20,15 +20,19 @@ class ServiceCreate(ServiceBase):
 
 class ServiceUpdate(BaseModel):
     name: Optional[str] = None
+    category: Optional[ServiceCategory] = None
     price: Optional[float] = None
     is_active: Optional[bool] = None
     schedule: Optional[Dict[str, Any]] = None
     max_capacity: Optional[int] = None
+    duration_minutes: Optional[int] = None
+    trainer_id: Optional[UUID] = None
 
 class ServiceResponse(ServiceBase):
     id: UUID
     is_active: bool
     created_at: datetime
+    category: str  # гибко: старые данные ('Йога-студия', 'wellness') не ломают ответ
     class Config:
         from_attributes = True
 
