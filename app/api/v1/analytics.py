@@ -220,16 +220,6 @@ def _live_snapshot(club_id):
     except Exception as e:
         return {"error": str(e)}
 
-@router.get("/sse/live/{club_id}")
-async def sse_live(club_id: int):
-    async def gen():
-        while True:
-            yield "data: " + json.dumps(_live_snapshot(club_id), ensure_ascii=False) + "\n\n"
-            await asyncio.sleep(30)
-    return StreamingResponse(gen(), media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"})
-
-
 @router.get("/analytics/heatmap")
 def heatmap(club_id: int = Query(1)):
     mp = _mapping()
