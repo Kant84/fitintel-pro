@@ -25,6 +25,7 @@ from windows.users_tab import UsersTab
 from windows.devices_tab import DevicesTab
 from windows.ui_config_tab import UiConfigTab
 from windows.schedule_tab import ScheduleTab
+from windows.services_tab import ServicesTab
 from windows.reports_tab import ReportsTab
 from windows.documents_tab import DocumentsTab
 from windows.roles_tab import RolesTab
@@ -39,6 +40,7 @@ TAB_REGISTRY = {
     "clients":       ("Клиенты", ClientsTab),
     "subscriptions": ("Абонементы", SubscriptionsTab),
     "tariffs":       ("Тарифы", TariffsTab),
+    "services":      ("Услуги", ServicesTab),
     "visits":        ("Входы/Выходы", VisitsTab),
     "schedule":      ("Расписание", ScheduleTab),
     "payments":      ("Платежи", PaymentsTab),
@@ -55,7 +57,7 @@ TAB_REGISTRY = {
     "connections":   ("Подключения", ConnectionsTab),
 }
 
-DEFAULT_TABS = ["dashboard", "clients", "subscriptions", "tariffs", "visits",
+DEFAULT_TABS = ["dashboard", "clients", "subscriptions", "tariffs", "visits", "services",
                 "schedule", "payments", "reports", "documents", "users", "roles",
                 "devices", "face_id", "license", "ui_config", "setup", "settings", "credentials", "connections"]
 
@@ -156,6 +158,8 @@ class MainWindow(QMainWindow):
                     codes.append("credentials")
                 if "connections" not in codes:
                     codes.append("connections")
+                if "services" not in codes: 
+                    codes.append("services")
                 return codes
         except Exception:
             pass
@@ -182,7 +186,8 @@ class MainWindow(QMainWindow):
                 continue
             try:
                 widget = self._make_widget(code)
-            except Exception:
+            except Exception as e:
+                print("TAB BUILD FAIL:", code, "->", e)
                 continue
             widget.setStyleSheet(theme.widget_style())
             title = TAB_REGISTRY[code][0]

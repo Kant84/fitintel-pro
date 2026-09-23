@@ -45,20 +45,36 @@ async def list_services(category: Optional[ServiceCategory] = None, is_active: O
 
 
 
-@router.get("/trainer-schedule", response_model=List[ServiceBookingResponse])
+@router.get("/trainer-schedule")
 async def get_schedule(trainer_id: Optional[UUID] = None, date: Optional[date] = None, db: Session = Depends(get_db)):
-    """Получить расписание тренера"""
+    """Расписание тренировок: записи с именами клиентов, услуг и тренеров"""
+    from app.models.user import User
     query = db.query(ServiceBooking).filter(ServiceBooking.status.in_(["BOOKED", "CONFIRMED"]))
     if trainer_id:
-        # Находим услуги тренера
         trainer_services = db.query(Service.id).filter(Service.trainer_id == trainer_id).all()
-        service_ids = [s[0] for s in trainer_services]
-        query = query.filter(ServiceBooking.service_id.in_(service_ids))
+        query = query.filter(ServiceBooking.service_id.in_([s[0] for s in trainer_services]))
     if date:
         query = query.filter(func.date(ServiceBooking.booking_date) == date)
     bookings = query.order_by(ServiceBooking.booking_date).all()
-    return bookings
 
+    result = []
+    for b in bookings:
+        service = db.query(Service).filter(Service.id == b.service_id).first()
+        client = db.query(Client).filter(Client.id == b.client_id).first()
+        trainer = db.query(User).filter(User.id == service.trainer_id).first() if service and service.trainer_id else None
+        result.append({
+            "id": str(b.id),
+            "booking_date": b.booking_date.isoformat() if b.booking_date else None,
+            "status": b.status,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+            "client_id": str(b.client_id),
+            "client_name": (" ".join(x for x in (getattr(client, "last_name", None), getattr(client, "first_name", None)) if x) or str(b.client_id)) if client else "—",
+            "service_id": str(b.service_id),
+            "service_name": getattr(service, "name", None) if service else "—",
+            "trainer_id": str(service.trainer_id) if service and service.trainer_id else None,
+            "trainer_name": (getattr(trainer, "full_name", None) or getattr(trainer, "username", None)) if trainer else "—",
+        })
+    return result
 @router.get("/{service_id}", response_model=ServiceResponse)
 
 async def get_service(service_id: UUID, db: Session = Depends(get_db)):
