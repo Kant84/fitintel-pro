@@ -1,16 +1,23 @@
-# Секреты и окружение
+# ═══════════════ Секреты и окружение ═══════════════
 .env
+.env.*
+!.env.example
 .venv/
 venv/
 __pycache__/
 *.pyc
+
+# Лицензии и локальное состояние (НЕ в Git!)
+app/.license_key
+app/.license_state
+*.license_key
 
 # Базы данных и медиа
 *.db
 *.sqlite3
 tests/photos/
 
-# Логи и временные
+# ═══════════════ Логи и временные ═══════════════
 *.log
 scripts/temp/
 debug_*.py
@@ -22,33 +29,50 @@ cleanup_*.py
 create_*_manual.py
 дерево.txt
 
-# IDE и система
+# ═══════════════ IDE и система ═══════════════
 .vscode/
 .idea/
 Thumbs.db
+Desktop.ini
+~$*
 
-# Разовые утилиты в корне
+# ═══════════════ Разовые утилиты в корне ═══════════════
 app/main_debug.py
 rebuild_main.py
 restore_*.py
 rewrite_validate.py
 setup_test_config.py
 
+# ═══════════════ Runtime-данные ═══════════════
 uploads/
-
-fitintel-desktop/client_settings.json
-fitintel-desktop/logs/
-
+exports/
+data/
 backups/
+print_output/
+redis/
 
+# ═══════════════ Desktop-приложение ═══════════════
+fitintel-desktop/client_settings.json
+fitintel-desktop/connections.json
+fitintel-desktop/logs/
 fitintel-desktop/*.pdf
 fitintel-desktop/*.xlsx
 fitintel-desktop/*.json
-
-exports/
-
-data/
-
 fitintel-desktop/startup_out.txt
 fitintel-desktop/startup_err.txt
+fitintel-desktop/importtime.log
+# разовые патчеры/фиксеры desktop
+fitintel-desktop/fix_*.py
+fitintel-desktop/find_*.py
+fitintel-desktop/patch_*.py
+fitintel-desktop/*_setup.py
+fitintel-desktop/extend_client.py
+fitintel-desktop/mark_version.py
+
+# ═══════════════ Прочее ═══════════════
 importtime.log
+patch_timeouts.py
+node_modules/
+*.backup*
+*_backup_*
+* — копия.*
