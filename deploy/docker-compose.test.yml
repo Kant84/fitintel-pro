@@ -1,6 +1,4 @@
 # FitIntel Pro — ТЕСТОВЫЙ деплой на VM (plain HTTP, сборка из исходников)
-version: "3.8"
-
 services:
   db:
     image: postgres:16-alpine
@@ -83,6 +81,8 @@ services:
     networks:
       - backend
     restart: unless-stopped
+    healthcheck:
+      disable: true               # healthcheck образа для API, воркеру не нужен
 
 volumes:
   postgres_test:
