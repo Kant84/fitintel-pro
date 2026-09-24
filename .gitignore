@@ -48,3 +48,7 @@ fitintel-desktop/*.json
 exports/
 
 data/
+
+fitintel-desktop/startup_out.txt
+fitintel-desktop/startup_err.txt
+importtime.log
