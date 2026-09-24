@@ -116,6 +116,30 @@ app.include_router(health_router, prefix=settings.API_V1_PREFIX)
 app.include_router(subscription_lifecycle_router, prefix=settings.API_V1_PREFIX)
 app.include_router(visits_router, prefix=settings.API_V1_PREFIX)
 app.include_router(access_router, prefix=settings.API_V1_PREFIX)
+
+# === Prometheus metrics ===
+try:
+    import time as _time
+    from prometheus_client import Counter, Histogram, generate_latest
+    from starlette.responses import Response as _MetricsResponse
+    _REQ_COUNT = Counter("fitnexus_api_requests_total", "Total requests", ["method", "path", "status"])
+    _REQ_TIME = Histogram("fitnexus_api_request_duration_seconds", "Request duration", ["method", "path"])
+
+    @app.middleware("http")
+    async def _metrics_middleware(request, call_next):
+        _t0 = _time.time()
+        response = await call_next(request)
+        _REQ_TIME.labels(request.method, request.url.path).observe(_time.time() - _t0)
+        _REQ_COUNT.labels(request.method, request.url.path, str(response.status_code)).inc()
+        return response
+
+    @app.get("/metrics")
+    def _prometheus_metrics():
+        return _MetricsResponse(generate_latest(), media_type="text/plain; version=0.0.4; charset=utf-8")
+    print("metrics OK")
+except Exception as _em:
+    print("metrics FAIL:", _em)
+
 app.include_router(credentials_router, prefix=settings.API_V1_PREFIX)
 app.include_router(access_cache_router, prefix=settings.API_V1_PREFIX)
 app.include_router(lockers_router, prefix=settings.API_V1_PREFIX)
