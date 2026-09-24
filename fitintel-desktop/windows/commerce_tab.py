@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QLab
                              QLineEdit, QPushButton, QCheckBox, QTableWidget,
                              QTableWidgetItem, QComboBox, QSpinBox, QMessageBox,
                              QFormLayout, QColorDialog)
+from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QColor
 
 PALETTE = [
@@ -122,7 +123,8 @@ class CommerceTab(QWidget):
         self.brand_status = QLabel("")
         lay.addWidget(self.brand_status)
         lay.addStretch(1)
-        self.load_brand()
+        # отложенно: не блокировать старт главного окна сетевым запросом
+        QTimer.singleShot(50, self.load_brand)
         return w
 
     def load_brand(self):
@@ -166,7 +168,8 @@ class CommerceTab(QWidget):
         for b in (b_add, b_tgl, b_ref):
             btns.addWidget(b)
         lay.addLayout(btns)
-        self.load_tenants()
+        # отложенно: не блокировать старт главного окна сетевым запросом
+        QTimer.singleShot(100, self.load_tenants)
         return w
 
     def load_tenants(self):
