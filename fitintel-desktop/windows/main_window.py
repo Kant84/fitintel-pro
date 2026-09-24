@@ -1,4 +1,4 @@
-"""FitIntel Pro — Main Window (боковое меню слева, темы, масштаб)"""
+"""FitIntel Pro — Main Window (боковое меню слева, темы, масштаб, ленивая загрузка вкладок)"""
 import json
 from pathlib import Path
 
@@ -83,6 +83,8 @@ class MainWindow(QMainWindow):
         self.api = api
         self.user = user_data
         self.token = token
+        self._built = {}   # code -> widget (построенные вкладки)
+        self._codes = []   # row -> code
         self.ui_settings = self._load_ui_settings()
         self.setWindowTitle("FitIntel Pro — Система управления [sidebar v2]")
         self.setMinimumSize(1280, 800)
@@ -158,7 +160,7 @@ class MainWindow(QMainWindow):
                     codes.append("credentials")
                 if "connections" not in codes:
                     codes.append("connections")
-                if "services" not in codes: 
+                if "services" not in codes:
                     codes.append("services")
                 return codes
         except Exception:
@@ -171,6 +173,24 @@ class MainWindow(QMainWindow):
             return SettingsTab(self.api, self)
         return cls(self.api)
 
+    def _build_tab(self, code: str):
+        """Ленивое создание вкладки: заменяет placeholder в stack (строится один раз)."""
+        if code in self._built:
+            return self._built[code]
+        row = self._codes.index(code)
+        placeholder = self.stack.widget(row)
+        try:
+            widget = self._make_widget(code)
+        except Exception as e:
+            print("TAB BUILD FAIL:", code, "->", e)
+            widget = QLabel("Не удалось загрузить экран: " + code)
+        widget.setStyleSheet(theme.widget_style())
+        self.stack.removeWidget(placeholder)
+        placeholder.deleteLater()
+        self.stack.insertWidget(row, widget)
+        self._built[code] = widget
+        return widget
+
     def _rebuild_content(self):
         current = self.sidebar.currentRow()
         self.sidebar.blockSignals(True)
@@ -180,32 +200,34 @@ class MainWindow(QMainWindow):
             self.stack.removeWidget(w)
             w.deleteLater()
 
+        self._built = {}
+        self._codes = []
+
         added = set()
         for code in self._visible_screen_codes():
             if code in added or code not in TAB_REGISTRY:
                 continue
-            try:
-                widget = self._make_widget(code)
-            except Exception as e:
-                print("TAB BUILD FAIL:", code, "->", e)
-                continue
-            widget.setStyleSheet(theme.widget_style())
             title = TAB_REGISTRY[code][0]
             item = QListWidgetItem(title)
             item.setSizeHint(QSize(-1, 38))
             item.setData(Qt.ItemDataRole.UserRole, code)
             self.sidebar.addItem(item)
-            self.stack.addWidget(widget)
+            self.stack.addWidget(QWidget())  # placeholder: вкладка создастся при первом клике
+            self._codes.append(code)
             added.add(code)
 
         if self.sidebar.count() == 0:
             self.sidebar.addItem(QListWidgetItem("Клиенты"))
-            self.stack.addWidget(ClientsTab(self.api))
+            w = ClientsTab(self.api)
+            w.setStyleSheet(theme.widget_style())
+            self.stack.addWidget(w)
+            self._codes.append("clients")
+            self._built["clients"] = w
 
         self.sidebar.blockSignals(False)
         row = current if 0 <= current < self.sidebar.count() else 0
         self.sidebar.setCurrentRow(row)
-        self.stack.setCurrentIndex(row)
+        self._on_nav(row)  # построить первую (текущую) вкладку сразу
 
     def _build_ui(self):
         central = QWidget()
@@ -282,8 +304,16 @@ class MainWindow(QMainWindow):
         view_menu.addAction(act_zo)
 
     def _on_nav(self, row: int):
-        if 0 <= row < self.stack.count():
-            self.stack.setCurrentIndex(row)
+        if not (0 <= row < len(self._codes)):
+            return
+        code = self._codes[row]
+        if code not in self._built:
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            try:
+                self._build_tab(code)
+            finally:
+                QApplication.restoreOverrideCursor()
+        self.stack.setCurrentIndex(row)
 
     def _start_health_check(self):
         self.timer = QTimer(self)
