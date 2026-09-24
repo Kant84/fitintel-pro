@@ -107,12 +107,36 @@ def _get_active_sub(db, client_id: str):
 
 def _check_locker_exit(db, client_id: str) -> tuple:
     """
-    Контроль выхода:
-    - Арендованный (rented): выход всегда разрешен
-    - Бесплатный (free) и status=occupied (закрыт/занят): нельзя выходить — клиент забыл открыть!
-    - Бесплатный (free) и status=available (открыт) или нет записи: можно выходить
+    Контроль выхода (ORM, схема E11):
+    - Арендованный шкафчик (locker.requires_privilege=True): выход всегда разрешён
+    - Бесплатный с активной сессией (закрыт/занят): нельзя выходить — клиент забыл открыть!
+    - Иначе: можно выходить
     Returns: (can_exit: bool, message: str)
     """
+    from uuid import UUID
+    from app.models.locker import Locker
+    from app.models.locker_session import LockerSession
+
+    try:
+        cid = UUID(str(client_id))
+    except (ValueError, AttributeError):
+        cid = client_id
+
+    active_sessions = (
+        db.query(LockerSession)
+        .join(Locker, LockerSession.locker_id == Locker.id)
+        .filter(LockerSession.client_id == cid, LockerSession.status == "ACTIVE")
+        .all()
+    )
+    for s in active_sessions:
+        locker = s.locker
+        if locker is None:
+            continue
+        if getattr(locker, "requires_privilege", False):
+            return True, ""  # арендованный — выход всегда можно
+        return False, f"Откройте шкафчик №{locker.number} перед выходом!"
+
+    return True, ""  # нет активных сессий — можно выходить    """
     # 1. Арендованный шкафчик — выход всегда разрешен
     rented = db.execute(text("""
         SELECT locker_number FROM lockers
