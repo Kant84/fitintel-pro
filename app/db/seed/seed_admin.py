@@ -1,4 +1,6 @@
 # app\db\seed\seed_admin.py
+import os
+
 # импорт модели пользователя
 from app.models.user import User
 
@@ -12,10 +14,10 @@ from app.models.user_role import UserRole
 from app.core.security import get_password_hash
 
 
-# стартовые данные администратора
-DEFAULT_ADMIN_EMAIL = "admin@fitnexus.ru"
-DEFAULT_ADMIN_USERNAME = "admin"
-DEFAULT_ADMIN_PASSWORD = "Admin123!ChangeMe"
+# стартовые данные администратора (переопределяются переменными окружения SEED_ADMIN_*)
+DEFAULT_ADMIN_EMAIL    = os.environ.get("SEED_ADMIN_EMAIL",    "admin@fitnexus.ru")
+DEFAULT_ADMIN_USERNAME = os.environ.get("SEED_ADMIN_USERNAME", "admin")
+DEFAULT_ADMIN_PASSWORD = os.environ.get("SEED_ADMIN_PASSWORD", "Admin123!ChangeMe")
 
 
 # функция создаёт первичного администратора
@@ -82,13 +84,13 @@ def seed_admin(db) -> None:
 
 
 if __name__ == "__main__":
-    # автономный запуск: python app/db/seed/seed_admin.py
-    # (работает и в контейнере: POSTGRES_HOST=db, и локально на Windows)
+    # автономный запуск: python -m app.db.seed.seed_admin
+    # креды задаются переменными окружения SEED_ADMIN_EMAIL / SEED_ADMIN_USERNAME / SEED_ADMIN_PASSWORD
     from app.db.session import SessionLocal
 
     db = SessionLocal()
     try:
         seed_admin(db)
-        print("OK: admin готов -> логин: admin / Admin123!ChangeMe (смените после входа!)")
+        print(f"OK: admin готов -> логин: {DEFAULT_ADMIN_USERNAME} (пароль задан, смените после входа!)")
     finally:
         db.close()
