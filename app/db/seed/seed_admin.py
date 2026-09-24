@@ -79,3 +79,16 @@ def seed_admin(db) -> None:
 
     # фиксируем изменения
     db.commit()
+
+
+if __name__ == "__main__":
+    # автономный запуск: python app/db/seed/seed_admin.py
+    # (работает и в контейнере: POSTGRES_HOST=db, и локально на Windows)
+    from app.db.session import SessionLocal
+
+    db = SessionLocal()
+    try:
+        seed_admin(db)
+        print("OK: admin готов -> логин: admin / Admin123!ChangeMe (смените после входа!)")
+    finally:
+        db.close()
