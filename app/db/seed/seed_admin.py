@@ -13,7 +13,7 @@ from app.core.security import get_password_hash
 
 
 # стартовые данные администратора
-DEFAULT_ADMIN_EMAIL = "admin@fitnexus.local"
+DEFAULT_ADMIN_EMAIL = "admin@fitnexus.ru"
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD = "Admin123!ChangeMe"
 
