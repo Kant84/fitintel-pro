@@ -88,7 +88,6 @@ class AcsAcr1252uDriver(BaseDeviceDriver):
 
     async def read_card(self) -> str | None:
         """Прочитать UID карты (MIFARE Classic/Ultralight)"""
-        print(f"[DEBUG] read_card called, connected={self._connected}, last_uid={self._last_uid}")
         
         try:
             from smartcard.util import toHexString
@@ -100,7 +99,6 @@ class AcsAcr1252uDriver(BaseDeviceDriver):
             # Retry: несколько попыток чтения с connect/disconnect
             for attempt in range(3):
                 try:
-                    print(f"[DEBUG] Attempt {attempt+1}: connecting...")
                     
                     # Подключаемся заново
                     if hasattr(self, '_connection') and self._connection:
@@ -119,12 +117,9 @@ class AcsAcr1252uDriver(BaseDeviceDriver):
                             break
                     
                     if not self._connected:
-                        print(f"[DEBUG] Reader not found")
                         return None
                     
-                    print(f"[DEBUG] Transmitting GET_UID...")
                     response, sw1, sw2 = self._connection.transmit(GET_UID)
-                    print(f"[DEBUG] Response: SW1={hex(sw1)}, SW2={hex(sw2)}")
                     
                     if sw1 == 0x90 and sw2 == 0x00:
                         uid = toHexString(response)
@@ -139,12 +134,10 @@ class AcsAcr1252uDriver(BaseDeviceDriver):
                     elif sw1 == 0x63 and sw2 == 0x00:
                         # Карта не обнаружена
                         if attempt < 2:
-                            print(f"[DEBUG] Card not present, retrying...")
                             await asyncio.sleep(0.2)
                             continue
                         else:
                             self._last_uid = None
-                            print(f"[DEBUG] Card not present after retries")
                             return None
                     else:
                         print(f"[ACS {self.device_id}] Read error: SW1={hex(sw1)}, SW2={hex(sw2)}")
@@ -154,12 +147,10 @@ class AcsAcr1252uDriver(BaseDeviceDriver):
                     err_msg = str(e)
                     if "извлечена" in err_msg or "0x80100069" in err_msg:
                         if attempt < 2:
-                            print(f"[DEBUG] Card not present (error), retrying...")
                             await asyncio.sleep(0.2)
                             continue
                         else:
                             self._last_uid = None
-                            print(f"[DEBUG] Card not present after retries (error)")
                             return None
                     else:
                         raise

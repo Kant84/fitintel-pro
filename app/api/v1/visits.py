@@ -69,12 +69,6 @@ def entry(
     - Списывает один визит из абонемента (если есть)
     - Проверяет лимиты и срок действия
     """
-    # DEBUG
-    print(f"DEBUG payload type: {type(payload)}")
-    print(f"DEBUG payload dict: {payload.model_dump()}")
-    print(f"DEBUG face_id repr: {repr(payload.face_id)}")
-    print(f"DEBUG face_id is None: {payload.face_id is None}")
-    print(f"DEBUG face_id == '': {payload.face_id == ''}")
     
     # Проверяем, что указан хотя бы один идентификатор
     has_id = any([
@@ -83,7 +77,6 @@ def entry(
         payload.face_id,
         payload.qr_payload,
     ])
-    print(f"DEBUG has_id={has_id}")
     if not has_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -160,7 +153,6 @@ def check_in(
     """
     Алиас для /entry — регистрация входа клиента.
     """
-    print(f"DEBUG check_in STARTED: {payload.model_dump()}")
     service = VisitService(db)
     visit = service.entry(
         client_id=str(payload.client_id) if payload.client_id else None,

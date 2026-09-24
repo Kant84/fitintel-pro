@@ -285,7 +285,6 @@ class VisitService:
         Returns:
             Созданное посещение
         """
-        print(f"DEBUG entry: client_id={client_id}, card_id={card_id}, face_id={face_id}, qr_payload={qr_payload}")
         # Определяем client_id по предоставленным идентификаторам
         resolved_client_id = self._resolve_client_id(
             client_id=client_id,
