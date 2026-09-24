@@ -30,7 +30,7 @@ COPY app/ ./app/
 COPY migrations/ ./migrations/
 COPY alembic.ini .
 COPY celery_app.py .
-COPY scripts/create_admin.py ./scripts/create_admin.py
+COPY scripts/create_admin.py scripts/bootstrap_db.py ./scripts/
 
 # Non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
