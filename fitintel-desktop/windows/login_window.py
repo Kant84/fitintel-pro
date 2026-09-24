@@ -1,5 +1,8 @@
 """FitIntel Pro — Login Window"""
 import sys
+import json
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QMessageBox, QFrame, QSizePolicy, QSpacerItem, QCheckBox, QDialog
@@ -7,6 +10,15 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QFont, QPixmap, QIcon
 from api import ApiClient
+
+SETTINGS_PATH = Path(__file__).parents[1] / "client_settings.json"
+
+
+def _load_settings() -> dict:
+    try:
+        return json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
 
 
 class LoginWorker(QThread):
@@ -32,7 +44,9 @@ class LoginWindow(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.api = ApiClient()
+        # API base из client_settings.json — ВАЖНО: при ошибке чтения будет localhost!
+        _cfg = _load_settings()
+        self.api = ApiClient(base_url=_cfg.get("api_base", "http://localhost:8001/api/v1"))
         self.setWindowTitle("FitIntel Pro — Авторизация")
         self.setFixedSize(480, 560)
         self.setStyleSheet(self._stylesheet())
@@ -198,9 +212,7 @@ class LoginWindow(QWidget):
 
     def _load_saved_credentials(self):
         try:
-            import json as _json
-            from pathlib import Path as _P
-            st = _json.loads((_P(__file__).parents[1] / "client_settings.json").read_text(encoding="utf-8"))
+            st = _load_settings()
             if st.get("remember_login"):
                 self.edit_login.setText(st.get("saved_login", ""))
                 self.edit_pass.setText(st.get("saved_password", ""))
@@ -210,13 +222,7 @@ class LoginWindow(QWidget):
 
     def _save_credentials(self):
         try:
-            import json as _json
-            from pathlib import Path as _P
-            path = _P(__file__).parents[1] / "client_settings.json"
-            try:
-                st = _json.loads(path.read_text(encoding="utf-8"))
-            except Exception:
-                st = {}
+            st = _load_settings()
             if self.chk_remember.isChecked():
                 st["remember_login"] = True
                 st["saved_login"] = self.edit_login.text().strip()
@@ -225,7 +231,7 @@ class LoginWindow(QWidget):
                 st["remember_login"] = False
                 st.pop("saved_login", None)
                 st.pop("saved_password", None)
-            path.write_text(_json.dumps(st, ensure_ascii=False), encoding="utf-8")
+            SETTINGS_PATH.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
         except Exception:
             pass
 
@@ -235,17 +241,14 @@ class LoginWindow(QWidget):
             self._on_error("Нет токена в ответе сервера")
             return
 
-        # Устанавливаем токен ДО диалога смены пароля
         self.api.set_token(token)
 
-        # === Проверка: требуется ли смена временного пароля ===
         if result.get("force_change_password"):
             from windows.change_password_dialog import ChangePasswordDialog
             dlg = ChangePasswordDialog(self.api, token, self)
             if dlg.exec() != QDialog.DialogCode.Accepted:
                 self._on_error("Необходимо сменить временный пароль")
                 return
-        # ======================================================
 
         try:
             user = self.api.me()
