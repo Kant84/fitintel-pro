@@ -89,7 +89,14 @@ def main():
     font.setStyleHint(QFont.StyleHint.SansSerif)
     app.setFont(font)
 
-    api = ApiClient()
+    # Базовый URL из client_settings.json (если файл есть), иначе localhost по умолчанию
+    try:
+        _cfg_path = Path(__file__).parent / "client_settings.json"
+        _cfg = json.loads(_cfg_path.read_text(encoding="utf-8"))
+        api = ApiClient(base_url=_cfg.get("api_base", "http://localhost:8001/api/v1"))
+        log.info("API base (старт): %s", api.base_url)
+    except Exception:
+        api = ApiClient()
 
     login = LoginWindow()
     main_window = None
