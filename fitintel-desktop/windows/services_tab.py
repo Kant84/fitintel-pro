@@ -51,7 +51,7 @@ class ServicesWorker(QThread):
                 r3 = self.api.session.get(self.api._url("/users"))
                 users = r3.json() if r3.status_code == 200 else []
                 if isinstance(users, dict):
-                    users = users.get("items", [])
+                    users = users.get("items", []) 
             except Exception:
                 users = []
             self.finished.emit(services if isinstance(services, list) else [],
@@ -173,7 +173,6 @@ class ServiceDialog(QDialog):
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))
 
-
 class TrainerDialog(QDialog):
     """Создание профиля тренера для существующего пользователя"""
 
@@ -255,8 +254,6 @@ class TrainerDialog(QDialog):
                 QMessageBox.warning(self, "Не создано", f"{resp.status_code}: {detail}")
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))
-
-
 class ServicesTab(QWidget):
     def __init__(self, api: ApiClient):
         super().__init__()
@@ -278,10 +275,10 @@ class ServicesTab(QWidget):
              "QPushButton { background: #059669; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; }"),
             ("✎ Назначить тренера", self._edit,
              "QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }"),
-            ("👤 Новый тренер", self._new_trainer,
-             "QPushButton { background: #eef2ff; border: 1px solid #a5b4fc; color: #3730a3; border-radius: 6px; padding: 8px 16px; font-weight: 600; }"),
             ("🗑 Удалить", self._delete,
              "QPushButton { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; border-radius: 6px; padding: 8px 16px; font-weight: 600; }"),
+            ("👤 Новый тренер", self._new_trainer,
+             "QPushButton { background: #eef2ff; border: 1px solid #a5b4fc; color: #3730a3; border-radius: 6px; padding: 8px 16px; font-weight: 600; }"),
         ):
             b = QPushButton(text)
             b.setStyleSheet(style)
@@ -367,13 +364,6 @@ class ServicesTab(QWidget):
             return
         dlg = ServiceDialog(self.api, self._trainers, self._users, service=s, parent=self)
         if dlg.exec() and dlg.ok:
-            self.refresh()
-
-    def _new_trainer(self):
-        existing = {str(p.get("user_id")) for p in self._trainers}
-        dlg = TrainerDialog(self.api, self._users, existing, parent=self)
-        if dlg.exec() and dlg.ok:
-            QMessageBox.information(self, "Тренеры", "Профиль тренера создан")
             self.refresh()
 
     def _delete(self):

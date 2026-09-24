@@ -9,6 +9,8 @@
 import sys
 import os
 import json
+from pathlib import Path
+from PyQt6.QtGui import QIcon
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -21,15 +23,32 @@ from api import ApiClient
 from windows import LoginWindow, MainWindow
 from windows.startup_dialog import StartupDialog
 
+ICON_PATH = Path(__file__).parent / "assets" / "FitIntel_icon.ico"
+
 
 def main():
     install_excepthook()
+
+    # Windows: собственная иконка в панели задач (иначе показывает python.exe)
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("FitIntel.Pro.Desktop")
+    except Exception:
+        pass
+
     log.info('=== FitIntel Pro Desktop запущен ===')
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
 
     app = QApplication(sys.argv)
+
+    # Иконка приложения: заголовок окна, панель задач, Alt+Tab
+    if ICON_PATH.exists():
+        app.setWindowIcon(QIcon(str(ICON_PATH)))
+    else:
+        log.warning("Иконка не найдена: %s", ICON_PATH)
+
     app.setStyle("Fusion")
 
     font = QFont("Segoe UI", 10)
