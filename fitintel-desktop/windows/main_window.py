@@ -80,6 +80,11 @@ class MainWindow(QMainWindow):
 
     def __init__(self, api: ApiClient, user_data: dict, token: str):
         super().__init__()
+        from pathlib import Path as _Path
+        from PyQt6.QtGui import QIcon as _QIcon
+        _icon = _Path(__file__).parents[1] / "assets" / "FitIntel_icon.ico"
+        if _icon.exists():
+            self.setWindowIcon(_QIcon(str(_icon)))
         self.api = api
         self.user = user_data
         self.token = token
