@@ -18,6 +18,14 @@ class ApiClient:
         except Exception:
             pass
 
+        # Таймаут по умолчанию (10 сек) для ВСЕХ запросов сессии.
+        # Без этого зависшие запросы висят вечно и копятся в фоновых потоках.
+        _orig_request = self.session.request
+        def _request_with_timeout(method, url, **kwargs):
+            kwargs.setdefault("timeout", 10)
+            return _orig_request(method, url, **kwargs)
+        self.session.request = _request_with_timeout
+
     def set_token(self, token: str):
         self.token = token
         self.session.headers["Authorization"] = f"Bearer {token}"
