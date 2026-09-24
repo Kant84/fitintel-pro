@@ -24,6 +24,40 @@ from windows import LoginWindow, MainWindow
 from windows.startup_dialog import StartupDialog
 
 ICON_PATH = Path(__file__).parent / "assets" / "FitIntel_icon.ico"
+APP_DIR = Path(__file__).parent
+
+
+def _auto_connect_if_single() -> dict | None:
+    """Если профиль подключения ровно один — применить его без диалога.
+
+    Возвращает cfg или None (тогда показываем StartupDialog).
+    Чтобы вернуть диалог — добавьте второй профиль (экран «Подключения»).
+    """
+    conn_path = APP_DIR / "connections.json"
+    if not conn_path.exists():
+        return None  # файла нет — диалог сам создаст дефолтный профиль
+    try:
+        conns = json.loads(conn_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(conns, list) or len(conns) != 1:
+        return None
+    conn = conns[0]
+    cfg_path = APP_DIR / "client_settings.json"
+    cfg = {}
+    if cfg_path.exists():
+        try:
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        except Exception:
+            cfg = {}
+    cfg["api_base"] = conn.get("web_url", "http://localhost:8001/api/v1")
+    cfg["saved_login"] = conn.get("web_login", "")
+    cfg["saved_password"] = conn.get("web_pass", "")
+    try:
+        cfg_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        log.warning("Could not auto-save connection: %s", e)
+    return cfg
 
 
 def main():
@@ -68,7 +102,7 @@ def main():
 
         # Сохраняем токен в client_settings.json
         try:
-            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "client_settings.json")
+            cfg_path = str(APP_DIR / "client_settings.json")
             cfg = {}
             if os.path.exists(cfg_path):
                 with open(cfg_path, "r", encoding="utf-8") as f:
@@ -81,15 +115,19 @@ def main():
         except Exception as e:
             log.warning("Could not save token: %s", e)
 
-        # === Стартовое окно выбора базы (1С-стиль) ===
-        startup = StartupDialog()
-        if startup.exec() != QDialog.DialogCode.Accepted:
-            log.info("Пользователь отменил выбор базы")
-            show_login()
-            return
-        # Перезагружаем api с новыми настройками
+        # === Выбор базы: авто-подключение при единственном профиле ===
+        auto_cfg = _auto_connect_if_single()
+        if auto_cfg is None:
+            startup = StartupDialog()
+            if startup.exec() != QDialog.DialogCode.Accepted:
+                log.info("Пользователь отменил выбор базы")
+                show_login()
+                return
+        else:
+            log.info("Авто-подключение к единственной базе: %s", auto_cfg.get("api_base"))
+        # Перезагружаем api с актуальными настройками
         try:
-            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "client_settings.json")
+            cfg_path = str(APP_DIR / "client_settings.json")
             if os.path.exists(cfg_path):
                 with open(cfg_path, "r", encoding="utf-8") as f:
                     cfg = json.load(f)
