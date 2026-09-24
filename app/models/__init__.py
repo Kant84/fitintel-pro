@@ -15,6 +15,12 @@ from app.models.tariff import Tariff
 from app.models.subscription import Subscription
 from app.models.subscription_event import SubscriptionEvent
 
+# Trainers (E17)
+from app.models.trainer import (
+    TrainerProfile, TrainerSchedule, TrainerBooking,
+    TrainerAttendanceLog, TrainerSale, TrainerKpiMonthly,
+)
+
 # Access & Visits
 from app.models.visit import Visit
 from app.models.access_log import AccessLog

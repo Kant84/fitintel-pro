@@ -45,7 +45,7 @@ class FaceRecognitionLog(Base):
 class EmployeeShift(Base):
     __tablename__ = "employee_shifts"
     id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    employee_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     shift_start = Column(DateTime(timezone=True), nullable=False)
     shift_end = Column(DateTime(timezone=True), nullable=False)
     status = Column(String(20), nullable=False, default="scheduled")
@@ -53,7 +53,7 @@ class EmployeeShift(Base):
     actual_end = Column(DateTime(timezone=True), nullable=True)
     location = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     employee = relationship("User", foreign_keys=[employee_id], back_populates="shifts")
