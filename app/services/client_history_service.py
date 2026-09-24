@@ -34,7 +34,6 @@ class ClientHistoryService:
             actor_user_id=actor_user_id,
         )
         return self.repo.add(event)
-        print(f"🔍 DEBUG: add_event called: client_id={client_id}, event_type={event_type}")
         
     def get_client_timeline(
         self,
