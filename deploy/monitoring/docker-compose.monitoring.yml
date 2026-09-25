@@ -1,4 +1,4 @@
-# FitIntel Pro — Monitoring (тестовый стек)
+# FitIntel Pro — Monitoring + Logs
 services:
   prometheus:
     image: prom/prometheus:v2.51.0
@@ -28,6 +28,7 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     ports:
       - "3000:3000"
@@ -35,6 +36,34 @@ services:
       - monitoring
     depends_on:
       - prometheus
+      - loki
+
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: fitintel-loki
+    restart: unless-stopped
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/tmp/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - monitoring
+    command: -config.file=/etc/loki/local-config.yaml
+
+  promtail:
+    image: grafana/promtail:2.9.8
+    container_name: fitintel-promtail
+    restart: unless-stopped
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - monitoring
+    depends_on:
+      - loki
+    command: -config.file=/etc/promtail/config.yml
 
   node-exporter:
     image: prom/node-exporter:v1.7.0
@@ -88,3 +117,4 @@ networks:
 volumes:
   prometheus-data:
   grafana-data:
+  loki-data:
