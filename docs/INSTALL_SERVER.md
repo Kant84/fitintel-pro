@@ -169,3 +169,19 @@ docker compose -f docker-compose.test.yml down -v
 
 ---
 *FitIntel Pro v1.5.x | Инструкция: 2026-09-24*
+
+## 12. Мониторинг и логи
+
+    cd ~/fitintel-pro/deploy/monitoring
+    docker compose -f docker-compose.monitoring.yml up -d
+
+Grafana: http://<IP>:3000 (admin/admin) — дашборды подгружаются автоматически.
+Логи всех контейнеров: Grafana -> Explore -> Loki -> {container="deploy-api-1"}.
+
+## 13. Автобэкап БД (03:00 ежедневно)
+
+    bash ~/fitintel-pro/scripts/backup/install_cron.sh
+
+Одна команда создаёт конфиг и ставит cron. Хранилища в backup.env:
+LOCAL_DIR / HDD_ENABLE+HDD_MOUNT / CLOUD_ENABLE+rclone.
+Лог: /var/log/fitintel-backup.log
