@@ -1,6 +1,26 @@
-# FitIntel Pro — Установка и настройка сервера (Linux)
+# FitIntel Pro — Установка и настройка сервера (полное руководство)
 
 Проверено на: **Ubuntu 24.04** (также подходит Debian 11+). Сборка из исходников через Docker.
+Актуально для: **FitIntel Pro v1.5.x**
+
+---
+
+## Содержание
+
+1. [Требования](#1-Требования)
+2. [Установка Docker](#2-Установка-Docker)
+3. [Получение кода](#3-Получение-кода-приватный-репозиторий)
+4. [Конфигурация (опционально)](#4-Конфигурация-опционально)
+5. [Первый запуск (сборка)](#5-Первый-запуск-сборка-10–30-мин)
+6. [Инициализация базы данных](#6-Инициализация-базы-данных)
+7. [Создание администратора](#7-Создание-администратора-свои-логин--пароль--email)
+8. [Проверка сервера](#8-Проверка-сервера)
+9. [Подключение desktop (Windows)](#9-Подключение-desktop-windows)
+10. [Обновление сервера](#10-Обновление-сервера)
+11. [Полезные команды](#11-Полезные-команды)
+12. [Мониторинг, логи и дашборды](#12-Мониторинг-логи-и-дашборды-всё-автоматически)
+13. [Автобэкап БД](#13-Автобэкап-БД-0300-ежедневно)
+14. [Чек-лист после установки](#14-Чек-лист-после-установки-2-минуты)
 
 ---
 
@@ -8,8 +28,9 @@
 
 - Ubuntu 20.04+ / Debian 11+ (чистая машина или VM)
 - Минимум: 2 CPU, 4 GB RAM, 20 GB диск
-- Открытые порты: **80** (nginx), **22** (SSH)
-- Доступ в интернет
+- Открытые порты: **80** (nginx/API), **22** (SSH)
+- Для мониторинга дополнительно: **3000** (Grafana), **9090** (Prometheus) — только для админов
+- Доступ в интернет (загрузка образов и пакетов)
 
 ## 2. Установка Docker
 
@@ -52,7 +73,7 @@ POSTGRES_PASSWORD=СложныйПарольБД
 SECRET_KEY=ДлиннаяСлучайнаяСтрокаМинимум32Символа
 ```
 
-## 5. Первый запуск (сборка 10–30 мин — компилируется dlib!)
+## 5. Первый запуск (сборка 10–30 мин)
 
 ```bash
 cd ~/fitintel-pro/deploy
@@ -61,6 +82,7 @@ docker compose -f docker-compose.test.yml ps
 ```
 
 Все 5 контейнеров должны быть `running`: db (healthy), redis, api (healthy), nginx, celery-worker.
+При первой сборке компилируется dlib — это долго, **не прерывайте**.
 
 ## 6. Инициализация базы данных
 
@@ -88,12 +110,12 @@ docker compose -f docker-compose.test.yml exec \
   api python -m app.db.seed.seed_admin
 ```
 
-- Используйте **латиницу** в логине и пароле.
-- Пароль — минимум 8 символов.
+- Логин и пароль — **латиницей**, пароль минимум 8 символов.
 - Email — с реальным доменом (НЕ .local/.test/.invalid — валидатор их отвергает).
-- Повторный запуск с другими `-e` НЕ меняет данные существующего админа (сидер пропускает существующего). Чтобы сменить креды уже созданному админу — через desktop («Пользователи») или SQL:
+- Повторный запуск с другими `-e` НЕ меняет данные существующего админа. Смена кредов существующему — через desktop («Пользователи») или SQL:
   ```bash
-  docker compose -f docker-compose.test.yml exec db psql -U fitnexus_user -d fitnexus_ai -c "UPDATE users SET email='новая@почта.ru' WHERE username='admin';"
+  docker compose -f docker-compose.test.yml exec db psql -U fitnexus_user -d fitnexus_ai \
+    -c "UPDATE users SET email='новая@почта.ru' WHERE username='admin';"
   ```
 
 ## 8. Проверка сервера
@@ -107,7 +129,7 @@ curl -s http://localhost/api/v1/health/
 
 1. Узнать IP сервера: `ip a | grep "inet " | grep -v 127.0.0.1`
 2. С Windows-ПК: `curl.exe -s http://<IP>/api/v1/health/` — должен вернуть тот же JSON
-3. В `fitintel-desktop\client_settings.json` указать:
+3. В файле `fitintel-desktop\client_settings.json` указать:
    ```json
    "api_base": "http://<IP>/api/v1"
    ```
@@ -136,12 +158,77 @@ docker compose -f docker-compose.test.yml restart api
 # Консоль внутри контейнера
 docker compose -f docker-compose.test.yml exec api bash
 # SQL напрямую
-docker compose -f docker-compose.test.yml exec db psql -U fitnexus_user -d fitnexus_ai -c "SELECT username, email FROM users;"
-# Бэкап БД
-docker compose -f docker-compose.test.yml exec db pg_dump -U fitnexus_user fitnexus_ai | gzip > backup_$(date +%F).sql.gz
+docker compose -f docker-compose.test.yml exec db psql -U fitnexus_user -d fitnexus_ai \
+  -c "SELECT username, email FROM users;"
 # ПОЛНЫЙ сброс (ВСЕ ДАННЫЕ УДАЛЯТСЯ!): затем шаги 5–7 заново
 docker compose -f docker-compose.test.yml down -v
 ```
+
+---
+
+## 12. Мониторинг, логи и дашборды (всё автоматически)
+
+```bash
+cd ~/fitintel-pro/deploy/monitoring
+docker compose -f docker-compose.monitoring.yml up -d
+```
+
+Поднимается 7 контейнеров: Prometheus, Grafana, Loki, Promtail, node-exporter,
+cAdvisor, Alertmanager. **Дашборды и источники данных подгружаются автоматически**
+(провиженинг из репозитория) — ничего настраивать вручную не нужно.
+
+| Сервис | Адрес | Назначение |
+|---|---|---|
+| Grafana | http://<IP>:3000 (admin/admin) | дашборды и просмотр логов |
+| Prometheus | http://<IP>:9090/targets | метрики, состояние таргетов |
+| Loki | http://<IP>:3100 | хранилище логов (Promtail шлёт автоматически) |
+
+**Дашборды** (Grafana → Dashboards → папка «FitIntel Pro»):
+- **«FitIntel API»** — запросов/сек, ошибки 5xx %, p95 латентность, запросы по статусам,
+  топ-5 медленных путей, панель логов Loki
+- **«FitIntel System»** — CPU/RAM/диск сервера, таргеты up, топ-5 контейнеров по CPU/RAM
+
+**Логи:** Grafana → Explore → источник «Loki» → запрос `{container="deploy-api-1"}`.
+Promtail собирает логи **всех** контейнеров автоматически. Посмотреть список:
+```bash
+curl -s http://localhost:3100/loki/api/v1/label/container/values
+```
+
+**Алерты:** правила в `prometheus/rules/fitintel.yml` (HighErrorRate, APIDown, DiskSpaceLow и др.).
+Alertmanager слушает на :9093. Для отправки уведомлений отредактируйте
+`alertmanager/alertmanager.yml` (добавьте receiver: email/Telegram/webhook).
+
+## 13. Автобэкап БД (03:00 ежедневно)
+
+```bash
+bash ~/fitintel-pro/scripts/backup/install_cron.sh
+```
+
+Одна команда: создаёт `backup.env` и добавляет задание в cron (идемпотентно —
+повторный запуск не дублирует запись). Бэкап: дамп PostgreSQL → gzip → хранилища →
+ротация (по умолчанию хранятся 14 дней). Лог: `/var/log/fitintel-backup.log`.
+
+**Выбор хранилища** — редактируется в `~/fitintel-pro/scripts/backup/backup.env`:
+
+| Хранилище | Настройка |
+|---|---|
+| **Простое** (по умолчанию) | `LOCAL_DIR=$HOME/fitintel-backups` — пишется всегда |
+| **Внешний HDD** | `HDD_ENABLE=1`, примонтировать диск и указать точку: `sudo mkdir /mnt/hdd && sudo mount /dev/sdX1 /mnt/hdd`, `HDD_MOUNT=/mnt/hdd` |
+| **Облако** (Яндекс.Диск, S3, Google Drive...) | `CLOUD_ENABLE=1`; установить rclone: `curl https://rclone.org/install.sh \| sudo bash`; настроить remote: `rclone config` (создать, напр. `yandex` → Yandex Disk → пройти по ссылке авторизации); `RCLONE_REMOTE=yandex` |
+
+**Восстановление:**
+```bash
+gunzip -c db_ДАТА.sql.gz | docker compose -f deploy/docker-compose.test.yml exec -T db \
+  psql -U fitnexus_user -d fitnexus_ai
+```
+
+## 14. Чек-лист после установки (2 минуты)
+
+- [ ] Сменить пароль admin (desktop → «Пользователи»)
+- [ ] Сменить пароль Grafana (administration → Users → admin; дефолт admin/admin)
+- [ ] Firewall: `sudo ufw allow 80,3000,9090/tcp && sudo ufw enable`
+- [ ] Настроить backup.env (HDD/облако) — по желанию
+- [ ] Открыть дашборды Grafana и проверить логи Loki
 
 ---
 
@@ -151,37 +238,23 @@ docker compose -f docker-compose.test.yml down -v
 |---|---|
 | `No matching distribution found for pywin32` | Уже исправлено в репо (маркер `sys_platform == "win32"`) |
 | Сборка падает на dlib/face-recognition | Уже исправлено (gcc/g++/cmake в Dockerfile) |
-| `alembic` лезет на 127.0.0.1 | Уже исправлено (URL из переменных окружения) |
+| `alembic` лезет на 127.0.0.1 | Уже исправлено (URL БД из переменных окружения) |
 | `ModuleNotFoundError: No module named 'app'` | Запускать `python -m scripts.x`, не `python scripts/x.py` |
 | `relation "..." does not exist` | Выполнить `python -m scripts.bootstrap_db` |
-| `500` на /auth/me, «special-use or reserved name» в email | Email с реальным доменом (не .local/.test) |
-| `celery-worker (unhealthy)` | Уже исправлено (`healthcheck: disable`) |
+| `500` на /auth/me, «special-use or reserved name» | Email с реальным доменом (не .local/.test) |
 | `DatatypeMismatch: integer and uuid` | Уже исправлено (модели приведены к UUID) |
-| Desktop не может войти | Проверить `api_base` в client_settings.json и что порт 80 открыт |
+| Desktop не может войти | Проверить `api_base` в client_settings.json и доступность порта 80 |
+| Loki перезапускается | Уже исправлено в репо (`user: "0"` в compose) |
+| Порядок URL: 307 Redirect | Использовать слэш в конце пути (`/clients/`, `/tariffs/`) или `python -m` |
 
 ## Безопасность (перед боевым продом!)
 
-1. Сменить ВСЕ пароли по умолчанию (БД, admin)
-2. Свой `SECRET_KEY` в `.env`
-3. Firewall: `sudo ufw allow 80,443/tcp && sudo ufw enable`
+1. Сменить ВСЕ пароли по умолчанию (БД, admin, Grafana)
+2. Свой `SECRET_KEY` в `deploy/.env`
+3. Firewall: только 80/443 наружу, Grafana/Prometheus — внутри сети или за VPN
 4. SSL: `docker-compose.prod.yml` + сертификаты в `deploy/nginx/ssl/`
-5. Регулярные бэкапы БД (команда выше) + выгрузка на другой носитель
+5. Регулярные бэкапы БД (раздел 13) + выгрузка на другой носитель
+6. Токен GitHub после клонирования — удалить; обновления — через новый токен
 
 ---
-*FitIntel Pro v1.5.x | Инструкция: 2026-09-24*
-
-## 12. Мониторинг и логи
-
-    cd ~/fitintel-pro/deploy/monitoring
-    docker compose -f docker-compose.monitoring.yml up -d
-
-Grafana: http://<IP>:3000 (admin/admin) — дашборды подгружаются автоматически.
-Логи всех контейнеров: Grafana -> Explore -> Loki -> {container="deploy-api-1"}.
-
-## 13. Автобэкап БД (03:00 ежедневно)
-
-    bash ~/fitintel-pro/scripts/backup/install_cron.sh
-
-Одна команда создаёт конфиг и ставит cron. Хранилища в backup.env:
-LOCAL_DIR / HDD_ENABLE+HDD_MOUNT / CLOUD_ENABLE+rclone.
-Лог: /var/log/fitintel-backup.log
+*FitIntel Pro v1.5.x | Руководство обновлено: 2026-09-25*
