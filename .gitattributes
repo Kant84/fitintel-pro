@@ -1,0 +1,6 @@
+# Unix-окончания строк — критично для конфигов Docker-контейнеров на Linux
+*.sh    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
