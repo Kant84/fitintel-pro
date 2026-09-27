@@ -25,7 +25,7 @@ def run():
             db.add(User(
                 id=str(uuid4()),
                 username="superadmin",
-                email="superadmin@fitintel.local",
+                email="superadmin@fitintel.ru",
                 password_hash=pwd,
                 is_active=True,
                 is_superuser=True,
