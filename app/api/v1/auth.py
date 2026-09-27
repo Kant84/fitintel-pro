@@ -118,10 +118,21 @@ def change_password(
     if hasattr(current_user, "is_first_login"):
         current_user.is_first_login = False
 
+    # UPSERT: создаём строку license_state, если её нет
+    # (простой UPDATE молча обновлял 0 строк -> вечный круг смены пароля)
     try:
-        db.execute(text("UPDATE license_state SET is_first_login=FALSE WHERE id=1"))
+        db.execute(text(
+            "INSERT INTO license_state (id, is_first_login, updated_at) "
+            "VALUES (1, FALSE, now()) "
+            "ON CONFLICT (id) DO UPDATE SET is_first_login = FALSE, updated_at = now()"
+        ))
     except Exception:
-        pass
+        try:
+            db.execute(text(
+                "UPDATE license_state SET is_first_login = FALSE, updated_at = now() WHERE id = 1"
+            ))
+        except Exception:
+            pass
 
     db.commit()
     return {"ok": True, "message": "Пароль изменён"}
