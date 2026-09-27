@@ -15,7 +15,7 @@ from app.api.dependencies import (
 from app.core.security import ACCESS_TOKEN_EXPIRE_MINUTES, decode_token, get_password_hash
 from app.db.session import get_db
 from app.schemas.auth import (
-    CurrentUserResponse, LoginRequest, RegisterRequest, 
+    CurrentUserResponse, LoginRequest, RegisterRequest,
     TokenResponse, TokenCheckResponse, ChangePasswordRequest
 )
 from app.services.auth_service import AuthService
@@ -29,25 +29,25 @@ def register(
     db: Session = Depends(get_db),
 ):
     auth_service = AuthService(db)
-    
+
     existing = auth_service.get_user_by_login(payload.login)
     if existing:
         raise HTTPException(status_code=409, detail="User already exists")
-    
+
     if payload.email:
         existing_email = auth_service.get_user_by_email(payload.email)
         if existing_email:
             raise HTTPException(status_code=409, detail="Email already exists")
-    
+
     user = auth_service.create_user(payload.login, payload.password, payload.email)
 
     if getattr(payload, "phone", None):
         user.phone = payload.phone
         db.commit()
-    
+
     access_token = auth_service.create_user_access_token(user)
     refresh_token = auth_service.create_user_access_token(user)
-    
+
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -105,25 +105,25 @@ def change_password(
 ):
     """Смена пароля + сброс флага is_first_login"""
     auth_service = AuthService(db)
-    
+
     if not auth_service.authenticate_user(current_user.username, body.current_password):
         raise HTTPException(status_code=400, detail="Неверный текущий пароль")
-    
-      current_user.password_hash = get_password_hash(body.new_password)
-      current_user.failed_login_count = 0
-      current_user.locked_until = None
-      # сбрасываем ВСЕ флаги принудительной смены пароля
-      if hasattr(current_user, "force_password_change"):
-          current_user.force_password_change = False
-      if hasattr(current_user, "is_first_login"):
-          current_user.is_first_login = False
-      
-      try:
-          db.execute(text("UPDATE license_state SET is_first_login=FALSE WHERE id=1"))
-      except Exception:
-          pass
-      
-      db.commit()
+
+    current_user.password_hash = get_password_hash(body.new_password)
+    current_user.failed_login_count = 0
+    current_user.locked_until = None
+    # сбрасываем ВСЕ флаги принудительной смены пароля
+    if hasattr(current_user, "force_password_change"):
+        current_user.force_password_change = False
+    if hasattr(current_user, "is_first_login"):
+        current_user.is_first_login = False
+
+    try:
+        db.execute(text("UPDATE license_state SET is_first_login=FALSE WHERE id=1"))
+    except Exception:
+        pass
+
+    db.commit()
     return {"ok": True, "message": "Пароль изменён"}
 
 
@@ -232,21 +232,21 @@ def refresh_token(
 ):
     auth_service = AuthService(db)
     user = auth_service.authenticate_user(payload.login, payload.password)
-    
+
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Неверный логин или пароль",
         )
-    
+
     if not auth_service.is_user_active(user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Пользователь неактивен",
         )
-    
+
     access_token = auth_service.create_user_access_token(user)
-    
+
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
