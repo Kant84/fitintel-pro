@@ -119,16 +119,17 @@ class UserRepository:
 
     # метод ищет пользователя по login
     def get_by_login(self, login: str) -> User | None:
-        # собираем условия поиска
+        # собираем условия поиска (регистронезависимо)
+        from sqlalchemy import func
         conditions = []
 
         # если есть email — добавляем поиск по email
         if hasattr(User, "email"):
-            conditions.append(User.email == login)
+            conditions.append(func.lower(User.email) == login.lower())
 
         # если есть username — добавляем поиск по username
         if hasattr(User, "username"):
-            conditions.append(User.username == login)
+            conditions.append(func.lower(User.username) == login.lower())
 
         # если условий нет, возвращаем None
         if not conditions:
