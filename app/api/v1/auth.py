@@ -109,15 +109,21 @@ def change_password(
     if not auth_service.authenticate_user(current_user.username, body.current_password):
         raise HTTPException(status_code=400, detail="Неверный текущий пароль")
     
-    current_user.password_hash = get_password_hash(body.new_password)
-    current_user.failed_login_count = 0
-    current_user.locked_until = None
-    try:
-        db.execute(text("UPDATE license_state SET is_first_login=FALSE WHERE id=1"))
-    except Exception:
-        pass
-    
-    db.commit()
+      current_user.password_hash = get_password_hash(body.new_password)
+      current_user.failed_login_count = 0
+      current_user.locked_until = None
+      # сбрасываем ВСЕ флаги принудительной смены пароля
+      if hasattr(current_user, "force_password_change"):
+          current_user.force_password_change = False
+      if hasattr(current_user, "is_first_login"):
+          current_user.is_first_login = False
+      
+      try:
+          db.execute(text("UPDATE license_state SET is_first_login=FALSE WHERE id=1"))
+      except Exception:
+          pass
+      
+      db.commit()
     return {"ok": True, "message": "Пароль изменён"}
 
 
