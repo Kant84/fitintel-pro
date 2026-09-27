@@ -150,7 +150,79 @@ SYSTEM_PERMISSIONS = [
         "module": "subscriptions",
         "description": "Право на просмотр истории абонемента",
     },
-    
+        # ==========================================================
+    # УСТРОЙСТВА (DEVICES)
+    # ==========================================================
+
+    {"code": "devices.read", "name": "Read devices", "module": "devices",
+     "description": "Просмотр устройств"},
+
+    {"code": "devices.create", "name": "Create devices", "module": "devices",
+     "description": "Добавление устройств"},
+
+    {"code": "devices.update", "name": "Update devices", "module": "devices",
+     "description": "Изменение устройств"},
+
+    {"code": "devices.delete", "name": "Delete devices", "module": "devices",
+     "description": "Удаление устройств"},
+
+    # ==========================================================
+    # МАСТЕР УСТАНОВКИ (SETUP)
+    # ==========================================================
+
+    {"code": "setup.read", "name": "Read setup", "module": "setup",
+     "description": "Просмотр шагов мастера установки"},
+
+    {"code": "setup.write", "name": "Write setup", "module": "setup",
+     "description": "Выполнение шагов мастера установки"},
+
+    # ==========================================================
+    # УСЛУГИ (SERVICES)
+    # ==========================================================
+    {"code": "services.read", "name": "Read services", "module": "services",
+     "description": "Просмотр услуг"},
+
+    {"code": "services.create", "name": "Create services", "module": "services",
+     "description": "Создание услуг"},
+
+    {"code": "services.update", "name": "Update services", "module": "services",
+     "description": "Изменение услуг"},
+
+    {"code": "services.delete", "name": "Delete services", "module": "services",
+     "description": "Удаление услуг"},
+
+    # ==========================================================
+    # ДОКУМЕНТЫ (DOCUMENTS)
+    # ==========================================================
+
+    {"code": "documents.read", "name": "Read documents", "module": "documents",
+     "description": "Просмотр документов"},
+
+    {"code": "documents.create", "name": "Create documents", "module": "documents",
+     "description": "Генерация документов"},
+
+    {"code": "documents.delete", "name": "Delete documents", "module": "documents",
+     "description": "Удаление документов"},
+
+    # ==========================================================
+    # FACE ID
+    # ==========================================================
+
+    {"code": "face.read", "name": "Read face templates", "module": "face_id",
+     "description": "Просмотр шаблонов лиц"},
+
+    {"code": "face.manage", "name": "Manage face templates", "module": "face_id",
+     "description": "Управление шаблонами лиц"},
+
+    # ==========================================================
+    # UI-КОНФИГ (ЭКРАНЫ РОЛЕЙ)
+    # ==========================================================
+    {"code": "ui-config.read", "name": "Read UI config", "module": "ui_config",
+     "description": "Просмотр настройки экранов ролей"},
+
+    {"code": "ui-config.update", "name": "Update UI config", "module": "ui_config",
+     "description": "Настройка экранов ролей"},
+
     # ==========================================================
     # ПРАВА ДЛЯ ПОСЕЩЕНИЙ (VISITS)
     # ==========================================================

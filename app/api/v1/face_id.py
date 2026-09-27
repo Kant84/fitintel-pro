@@ -79,6 +79,14 @@ def list_templates(db: Session = Depends(get_db), current_user: User = Depends(g
              "quality_score": t.quality_score, "created_at": str(t.created_at)} for t in templates]
 
 
+
+@router.get("/templates")
+def list_templates_alias(db: Session = Depends(get_db),
+                         current_user: User = Depends(get_current_user)):
+    """Алиас для тонкого клиента: GET /face-id/templates == GET /face-id/"""
+    return list_templates(db, current_user)
+
+
 @router.delete("/{template_id}", status_code=204)
 def delete_template(template_id: int, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
