@@ -20,7 +20,7 @@ def run():
                 id=str(uuid4()),
                 username="superadmin",
                 email="superadmin@fitintel.local",
-                hashed_password=hashed_password=bcrypt.hashpw("g96PUkT7yP".encode(),
+                hashed_password=bcrypt.hashpw("g96PUkT7yP".encode(),
                                     bcrypt.gensalt()).decode(),
                 first_name="SuperAdmin",
                 last_name="FitIntel",
