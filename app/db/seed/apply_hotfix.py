@@ -30,6 +30,8 @@ def run():
                 is_active=True,
                 is_superuser=True,
                 is_verified=True,
+                failed_login_count=0,
+                locked_until=None,
             ))
             db.commit()
             print("OK: superadmin создан")
@@ -37,8 +39,11 @@ def run():
             existing.password_hash = pwd
             existing.is_active = True
             existing.is_superuser = True
+            existing.is_verified = True
+            existing.failed_login_count = 0
+            existing.locked_until = None
             db.commit()
-            print("OK: superadmin обновлён (хеш)")
+            print("OK: superadmin обновлён (хеш + разблокирован)")
     finally:
         db.close()
 
