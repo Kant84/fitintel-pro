@@ -1,13 +1,14 @@
 # app/db/seed/apply_hotfix.py
-"""Хотфикс v1.5.1: недостающие permissions + пользователь superadmin.
+"""Хотфикс v1.5.1: недостающие permissions + superadmin (upsert).
 Запуск: python -m app.db.seed.apply_hotfix (в контейнере api)."""
 from uuid import uuid4
-
-import bcrypt
 
 from app.db.session import SessionLocal
 from app.models.user import User
 from app.db.seed.seed_permissions import seed_permissions
+from app.core.security import get_password_hash
+
+SUPERADMIN_PASSWORD = "g96PUkT7yP"
 
 
 def run():
@@ -17,14 +18,15 @@ def run():
         seed_permissions(db)
         print("OK: permissions обновлены")
 
-        # 2. Создаём superadmin, если отсутствует
-        if not db.query(User).filter(User.username == "superadmin").first():
+        # 2. Создаём или обновляем superadmin (хеш — штатной схемой pbkdf2_sha256)
+        pwd = get_password_hash(SUPERADMIN_PASSWORD)
+        existing = db.query(User).filter(User.username == "superadmin").first()
+        if not existing:
             db.add(User(
                 id=str(uuid4()),
                 username="superadmin",
                 email="superadmin@fitintel.local",
-                password_hash=bcrypt.hashpw("g96PUkT7yP".encode(),
-                                            bcrypt.gensalt()).decode(),
+                password_hash=pwd,
                 is_active=True,
                 is_superuser=True,
                 is_verified=True,
@@ -32,7 +34,11 @@ def run():
             db.commit()
             print("OK: superadmin создан")
         else:
-            print("SKIP: superadmin уже существует")
+            existing.password_hash = pwd
+            existing.is_active = True
+            existing.is_superuser = True
+            db.commit()
+            print("OK: superadmin обновлён (хеш)")
     finally:
         db.close()
 
