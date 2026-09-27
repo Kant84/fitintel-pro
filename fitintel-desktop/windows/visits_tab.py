@@ -1,4 +1,4 @@
-"""FitIntel Pro — Visits Tab (с ФИО и телефоном клиента)"""
+"""FitIntel Pro — Visits Tab (с ФИО, телефоном и кнопками впуска/выпуска)"""
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit
@@ -42,6 +42,7 @@ class VisitsTab(QWidget):
         super().__init__()
         self.api = api
         self._all_data = []
+        self._visible = []   # ← визиты, видимые в таблице (синхронно со строками)
         self._cmap = {}
         self._build_ui()
         QThread.msleep(0)
@@ -68,10 +69,27 @@ class VisitsTab(QWidget):
         self.edit_filter.textChanged.connect(self._filter)
         cards.addWidget(self.edit_filter)
 
-        btn_in = QPushButton("Ручной вход")
+        # === КНОПКИ ОПЕРАТОРА ===
+        btn_in = QPushButton("🟢 Впустить")
+        btn_in.setToolTip("Открыть вход: создать визит (ресепшен). "
+                          "Команда на турникет — с v1.6")
         btn_in.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         btn_in.clicked.connect(self._checkin)
         cards.addWidget(btn_in)
+
+        btn_out = QPushButton("🔴 Выпустить")
+        btn_out.setToolTip("Открыть выход: закрыть выбранный активный визит")
+        btn_out.setStyleSheet("QPushButton { background: #ef4444; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        btn_out.clicked.connect(self._checkout)
+        cards.addWidget(btn_out)
+
+        btn_close = QPushButton("Завершить")
+        btn_close.setToolTip("Принудительно закрыть выбранный визит (без открытия турникета)")
+        btn_close.setStyleSheet(self._btn_secondary())
+        btn_close.clicked.connect(self._complete_selected)
+        cards.addWidget(btn_close)
+        # =======================
+
         btn = QPushButton("Обновить")
         btn.setStyleSheet(self._btn_secondary())
         btn.clicked.connect(self.refresh)
@@ -85,6 +103,7 @@ class VisitsTab(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setStyleSheet(theme.table_style())
         layout.addWidget(self.table)
 
@@ -119,6 +138,7 @@ class VisitsTab(QWidget):
         self._render(visits)
 
     def _render(self, rows: list):
+        self._visible = rows
         self.table.setRowCount(len(rows))
         for i, row in enumerate(rows):
             fio, phone = self._cmap.get(str(row.get("client_id")), ("—", ""))
@@ -150,12 +170,34 @@ class VisitsTab(QWidget):
                 filtered.append(r)
         self._render(filtered)
 
+    # ============ ВЫБРАННЫЙ ВИЗИТ ============
+    def _selected_visit(self):
+        row = self.table.currentRow()
+        if row < 0 or row >= len(self._visible):
+            return None
+        return self._visible[row]
+
+    def _fio_of(self, visit: dict) -> str:
+        return self._cmap.get(str(visit.get("client_id")), ("—", ""))[0]
+
+    # ============ КОМАНДА НА ТУРНИКЕТ (v1.6, пока заглушка-вывоз) ============
+    def _open_turnstile(self, direction: str):
+        """Отправить команду открытия на терминал. Эндпоинт /skud/open появится в v1.6 —
+        до тех пор просто молча пропускаем, визитная логика работает без него."""
+        try:
+            self.api.session.post(self.api._url("/skud/open"),
+                                  json={"direction": direction, "source": "desktop"},
+                                  timeout=3)
+        except Exception:
+            pass  # терминал недоступен / эндпоинт ещё не добавлен — не критично
+
+    # ============ ВПУСТИТЬ (вход) ============
     def _checkin(self):
         if not self._cmap:
             QMessageBox.warning(self, "Нет данных", "Список клиентов пуст")
             return
         options = [(f"{v[0]} ({v[1]})", k) for k, v in list(self._cmap.items())[:200]]
-        dlg = FormDialog("Ручной вход клиента", [
+        dlg = FormDialog("Впустить клиента (вход)", [
             ("client_id", "Клиент *", "combo", options),
             ("access_method", "Способ", "combo",
              [("Ручной (ресепшен)", "MANUAL"), ("Карта", "RFID"), ("QR", "QR"), ("Face ID", "FACE_ID")]),
@@ -170,9 +212,68 @@ class VisitsTab(QWidget):
         try:
             r = self.api.session.post(self.api._url("/visits/manual"), json=payload)
             r.raise_for_status()
+            self._open_turnstile("entry")   # открыть турникет на вход (с v1.6)
             self.refresh()
         except Exception as e:
             QMessageBox.critical(self, "Ошибка входа", str(e))
+
+    # ============ ВЫПУСТИТЬ (выход: закрыть визит + турникет) ============
+    def _checkout(self):
+        visit = self._selected_visit()
+        if not visit:
+            QMessageBox.warning(self, "Не выбран визит",
+                                "Выделите в таблице строку с активным визитом")
+            return
+        if str(visit.get("status")) != "ACTIVE":
+            QMessageBox.warning(self, "Визит не активен",
+                                "«Выпустить» можно только для визита со статусом ACTIVE")
+            return
+        fio = self._fio_of(visit)
+        ret = QMessageBox.question(
+            self, "Выпустить клиента",
+            f"Открыть выход для: <b>{fio}</b>?\nВизит будет закрыт.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if ret != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            payload = {"visit_id": visit["id"],
+                       "exit_time": datetime.now().isoformat()}
+            r = self.api.session.post(
+                self.api._url(f"/visits/{visit['id']}/complete"), json=payload)
+            r.raise_for_status()
+            self._open_turnstile("exit")    # открыть турникет на выход (с v1.6)
+            QMessageBox.information(self, "Готово", f"{fio} выпущен, визит закрыт")
+            self.refresh()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка выхода", str(e))
+
+    # ============ ЗАВЕРШИТЬ (без турникета) ============
+    def _complete_selected(self):
+        visit = self._selected_visit()
+        if not visit:
+            QMessageBox.warning(self, "Не выбран визит",
+                                "Выделите в таблице строку с визитом")
+            return
+        if str(visit.get("status")) != "ACTIVE":
+            QMessageBox.warning(self, "Визит не активен",
+                                "Этот визит уже закрыт")
+            return
+        fio = self._fio_of(visit)
+        ret = QMessageBox.question(
+            self, "Завершить визит",
+            f"Принудительно закрыть визит: <b>{fio}</b>?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if ret != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            payload = {"visit_id": visit["id"],
+                       "exit_time": datetime.now().isoformat()}
+            r = self.api.session.post(
+                self.api._url(f"/visits/{visit['id']}/complete"), json=payload)
+            r.raise_for_status()
+            self.refresh()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", str(e))
 
     def _on_error(self, msg: str):
         self.table.setRowCount(1)
