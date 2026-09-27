@@ -36,6 +36,7 @@ def run():
             db.commit()
             print("OK: superadmin создан")
         else:
+            existing.email = "superadmin@fitintel.ru"   # ← ОБНОВЛЯЕМ EMAIL (был .local — ломал /auth/me)
             existing.password_hash = pwd
             existing.is_active = True
             existing.is_superuser = True
@@ -43,7 +44,7 @@ def run():
             existing.failed_login_count = 0
             existing.locked_until = None
             db.commit()
-            print("OK: superadmin обновлён (хеш + разблокирован)")
+            print("OK: superadmin обновлён (email + хеш + разблокирован)")
     finally:
         db.close()
 
