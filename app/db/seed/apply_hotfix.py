@@ -3,7 +3,7 @@
 Запуск: python -m app.db.seed.apply_hotfix (в контейнере api)."""
 from uuid import uuid4
 from datetime import datetime, timezone
-from passlib.context import CryptContext
+import bcrypt
 
 from app.db.session import SessionLocal
 from app.models.user import User
@@ -20,8 +20,8 @@ def run():
                 id=str(uuid4()),
                 username="superadmin",
                 email="superadmin@fitintel.local",
-                hashed_password=CryptContext(schemes=["bcrypt"], deprecated="auto")
-                                    .hash("g96PUkT7yP"),
+                hashed_password=hashed_password=bcrypt.hashpw("g96PUkT7yP".encode(),
+                                    bcrypt.gensalt()).decode(),
                 first_name="SuperAdmin",
                 last_name="FitIntel",
                 is_active=True,
