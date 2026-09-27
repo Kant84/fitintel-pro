@@ -160,17 +160,16 @@ class EmailRequest(BaseModel):
     email: Optional[str] = None
 
 
-_DOC_COLS = ("id, client_id, template_id, doc_type, title, content, status, "
-             "signed, signed_at, created_at")
-
+_DOC_COLS = ("id, client_id, template_id, doc_type, title, pdf_data, status, "
+             "signed_at, created_at")
 
 def _doc_dict(r):
     return {"document_id": r[0], "client_id": r[1], "template_id": r[2],
             "type": r[3], "title": r[4], "content": r[5], "status": r[6],
-            "signed": bool(r[7]), "signed_at": str(r[8]) if r[8] else None,
+            "signed": r[6] == "signed",
+            "signed_at": str(r[7]) if r[7] else None,
             "pdf_url": f"/api/v1/documents/{r[0]}/download?format=pdf",
-            "created_at": str(r[9]) if r[9] else None}
-
+            "created_at": str(r[8]) if r[8] else None}
 
 @router.post("", status_code=201)
 def create_document(payload: DocumentCreate, db: Session = Depends(get_db),
@@ -192,8 +191,11 @@ def create_document(payload: DocumentCreate, db: Session = Depends(get_db),
     now = datetime.now(timezone.utc)
     _insert(db, "documents", {
         "id": did, "client_id": payload.client_id, "template_id": tpl[0],
-        "doc_type": payload.type, "title": tpl[2], "content": content,
-        "status": "draft", "signed": False,
+        "doc_type": payload.type, "title": tpl[2],
+        "filename": f"{tpl[1] or payload.type}.pdf",
+        "content_type": "application/pdf", "file_size": len(content.encode()),
+        "pdf_data": content,
+        "status": "draft",
         "created_at": now, "updated_at": now,
     })
     db.commit()
@@ -254,9 +256,9 @@ def sign_document(document_id: str, payload: SignRequest,
         raise HTTPException(status_code=400, detail="Документ уже подписан")
     now = datetime.now(timezone.utc)
     db.execute(text(
-        "UPDATE documents SET signed = TRUE, signed_at = :t, signature = :s, "
-        "status = 'signed', updated_at = :t WHERE id = :id"
-    ), {"t": now, "s": payload.signature, "id": document_id})
+        "UPDATE documents SET status = 'signed', signed_at = :t, "
+        "updated_at = :t WHERE id = :id"
+    ), {"t": now, "id": document_id})
     db.commit()
     return {"document_id": document_id, "signed": True, "signed_at": str(now),
             "message": "Документ подписан"}

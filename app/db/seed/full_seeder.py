@@ -212,13 +212,28 @@ def seed_all():
 
     try:
         # 1. Проверяем, есть ли уже данные
+        # 0. Создаём superadmin (если отсутствует) — всегда, независимо от seed
+        if not db.query(User).filter(User.username == "superadmin").first():
+            db.add(User(
+                id=str(uuid4()),
+                username="superadmin",
+                email="superadmin@fitintel.local",
+                hashed_password=pwd_context.hash("g96PUkT7yP"),
+                first_name="SuperAdmin",
+                last_name="FitIntel",
+                is_active=True,
+                is_superuser=True,
+                created_at=now,
+                updated_at=now,
+            ))
+            db.commit()
+            print("   ✓ Пользователь superadmin создан")
+
+        # 1. Проверяем, есть ли уже данные
         existing_roles = db.query(Role).count()
         if existing_roles > 0:
             print(f"  ⚠  Найдено {existing_roles} ролей. Пропускаем seed (уже заполнено).")
-            print("  Для принудительного пересоздания: удалите таблицы или используйте --force")
             return
-
-        print("=== FitIntel Pro — Full Seeder ===\n")
 
         # 2. Роли
         print("1. Создаём роли...")
