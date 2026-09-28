@@ -1,6 +1,7 @@
-"""License validation + limits (Ed25519, pairs with License Studio).
+""""License validation + limits (Ed25519, pairs with License Studio).
 На сервере ТОЛЬКО публичный ключ (app/core/license_public.pem) — он не секрет.
-Приватный ключ существует только у владельца (License Studio)."""
+Приватный ключ существует только у владельца (License Studio).
+Пароль клиента живёт ВНУТРИ подписанного ключа — activate ставит ровно его."""
 import os, json, base64, logging
 from datetime import date, datetime
 from fastapi import APIRouter, Query
@@ -112,39 +113,50 @@ def _ensure_state():
             updated_at TIMESTAMP DEFAULT NOW())"""))
 
 
-@router.post("/license/activate")
-def activate(body: KeyIn):
-    v = _validate(body.key)
-    if not v.get("valid"):
-        return v
-    _ensure_state()
-    with _eng().connect() as c:
-        existing = c.execute(
-            text("SELECT key FROM license_state WHERE id=1")).first()
-        if existing and existing[0] == body.key:
-            return {"activated": True, "already_active": True, "plan": v.get("plan")}
-    import string, secrets
-    temp_pass = ''.join(secrets.choice(string.ascii_letters + string.digits)
-                        for _ in range(10))
-    with _eng().begin() as c:
-        c.execute(text(
-            "INSERT INTO license_state (id, key, mode, temp_password, superadmin_login, is_first_login, updated_at) "
-            "VALUES (1, :k, 'soft', :tp, 'SuperAdmin', TRUE, NOW()) "
-            "ON CONFLICT (id) DO UPDATE SET key=EXCLUDED.key, temp_password=EXCLUDED.temp_password, "
-            "superadmin_login=EXCLUDED.superadmin_login, is_first_login=TRUE, updated_at=EXCLUDED.updated_at"),
-            {"k": body.key, "tp": temp_pass})
-    # Синхронизируем пароль superadmin с временным паролем лицензии —
-    # иначе «лицензия с паролем» не работает (пароль Studio ≠ паролю на сервере)
+def _sync_superadmin_password(temp_pass: str):
+    """Ставит пароль из лицензии пользователю superadmin (сброс блокировок)."""
     from app.core.security import get_password_hash
     with _eng().begin() as c:
         c.execute(text(
             "UPDATE users SET password_hash=:ph, failed_login_count=0, "
             "locked_until=NULL, is_active=TRUE WHERE username='superadmin'"
         ), {"ph": get_password_hash(temp_pass)})
+
+
+@router.post("/license/activate")
+def activate(body: KeyIn):
+    v = _validate(body.key)
+    if not v.get("valid"):
+        return v
+    # Пароль ВЗЯТ ИЗ КЛЮЧА (подписан License Studio) — клиент входит ровно по нему
+    temp_pass = v.get("temp_password")
+    if not temp_pass:
+        import string, secrets as _s
+        temp_pass = ''.join(_s.choice(string.ascii_letters + string.digits)
+                            for _ in range(10))
+    sadmin = v.get("superadmin_login") or "SuperAdmin"
+    _ensure_state()
+    with _eng().connect() as c:
+        existing = c.execute(
+            text("SELECT key FROM license_state WHERE id=1")).first()
+        if existing and existing[0] == body.key:
+            # ключ уже активен — всё равно синхронизируем пароль (клиент мог забыть)
+            _sync_superadmin_password(temp_pass)
+            return {"activated": True, "already_active": True,
+                    "plan": v.get("plan"), "superadmin_login": sadmin,
+                    "temp_password": temp_pass}
+    with _eng().begin() as c:
+        c.execute(text(
+            "INSERT INTO license_state (id, key, mode, temp_password, superadmin_login, is_first_login, updated_at) "
+            "VALUES (1, :k, 'soft', :tp, :sa, TRUE, NOW()) "
+            "ON CONFLICT (id) DO UPDATE SET key=EXCLUDED.key, temp_password=EXCLUDED.temp_password, "
+            "superadmin_login=EXCLUDED.superadmin_login, is_first_login=TRUE, updated_at=EXCLUDED.updated_at"),
+            {"k": body.key, "tp": temp_pass, "sa": sadmin})
+    _sync_superadmin_password(temp_pass)
     return {"activated": True, "plan": v.get("plan"), "expires": v.get("exp"),
             "max_clients": v.get("max_clients"),
-            "superadmin_login": "SuperAdmin", "temp_password": temp_pass,
-            "message": "Лицензия активирована. Первый вход: SuperAdmin / " + temp_pass}
+            "superadmin_login": sadmin, "temp_password": temp_pass,
+            "message": f"Лицензия активирована. Первый вход: {sadmin} / {temp_pass}"}
 
 
 @router.get("/license/current")
