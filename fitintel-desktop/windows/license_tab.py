@@ -162,7 +162,8 @@ try:
             res = _L64("—"); res.setWordWrap(True)
             v.addWidget(res)
             def _check():
-                key = ed.text().strip()
+                import re as _re
+                key = _re.sub(r'[^A-Za-z0-9.\-_]', '', ed.text())  # убрать пробелы, 
                 if not key:
                     return
                 api = getattr(self, "api", None)
@@ -215,7 +216,8 @@ try:
                 except Exception:
                     pass
                 def _check65():
-                    key = key_ed.text().strip()
+                    import re as _re
+                    key = _re.sub(r'[^A-Za-z0-9.\-_]', '', ed.text())  # убрать пробелы, 
                     api = getattr(self, "api", None)
                     base = getattr(api, "base_url", None) or getattr(api, "base", None) or "http://localhost:8001/api/v1"
                     try:

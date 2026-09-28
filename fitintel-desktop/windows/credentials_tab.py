@@ -86,6 +86,13 @@ class CredentialsTab(QWidget):
         except Exception:
             return None
 
+    def _reader_base(self):
+        try:
+            cfg = json.load(open("client_settings.json", encoding="utf-8"))
+            return (cfg.get("reader_base") or "http://127.0.0.1:8001/api/v1").rstrip("/")
+        except Exception:
+            return "http://127.0.0.1:8001/api/v1"
+
     def _req(self, method, path, data=None):
         # Сначала берём токен из api (если пользователь уже вошёл в приложение)
         tok = None
@@ -93,8 +100,10 @@ class CredentialsTab(QWidget):
             tok = self.api.token
         if not tok:
             tok = self._token()
+        # /reader/* — локальный агент считывателя; остальное — клубной сервер
+        base = self._reader_base() if path.startswith("/reader/") else self._base()
         r = urllib.request.Request(
-            self._base() + path,
+            base + path,
             data=json.dumps(data).encode() if data is not None else None,
             headers={"Content-Type": "application/json"}, method=method)
         if tok:

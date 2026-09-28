@@ -146,24 +146,13 @@ def main():
 
         main_window = MainWindow(api, user_data, token)
 
-        try:
-            from rfid_monitor_widget import RFIDMonitorWidget, set_global_token
-            rfid_monitor = RFIDMonitorWidget(parent=main_window)   # ← было
-            set_global_token(token)
-            rfid_monitor.show()                                    # ← было
-            rfid_monitor.raise_()                                  # ← было
-            log.info('E16 RFID Monitor integrated')
-        except Exception as e:
-            log.error('E16 RFID Monitor FAIL: %s', e)
 
         main_window.logout_requested.connect(show_login)
 
         try:
             from rfid_monitor_widget import RFIDMonitorWidget, set_global_token
-            rfid_monitor = RFIDMonitorWidget(parent=main_window)
+            rfid_monitor = RFIDMonitorWidget(parent=None)
             set_global_token(token)
-            rfid_monitor.show()
-            rfid_monitor.raise_() 
             log.info('E16 RFID Monitor integrated')
         except Exception as e:
             log.error('E16 RFID Monitor FAIL: %s', e)
@@ -186,21 +175,6 @@ def main():
         login.btn_login.setEnabled(True)
         login.btn_login.setText("Войти")
         login.show()
-    # === E69: первый запуск — экран активации лицензии до логина ===
-    try:
-        import urllib.request
-        req = urllib.request.Request(api.base_url + "/license/status")
-        with urllib.request.urlopen(req, timeout=10) as r:
-            _lic = json.loads(r.read().decode())
-        if not _lic.get("activated"):
-            from windows.activation_dialog import ActivationDialog
-            dlg = ActivationDialog(api.base_url)
-            if dlg.exec() == QDialog.DialogCode.Accepted and dlg.token:
-                login.hide()
-                on_login_success(dlg.user_data or {"username": "SuperAdmin"}, dlg.token)
-    except Exception as e:
-        log.warning("E69 activation check skipped: %s", e)
-    # ================================================================
     login.login_success.connect(on_login_success)
 
     # === E69: первый запуск — активация ДО показа окна входа ===
@@ -223,6 +197,7 @@ def main():
     if not activation_done:
         login.show()
     # ============================================================
+
     code = app.exec()
     log.info('=== Клиент завершил работу ===')
     sys.exit(code)

@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-"""RFID Монитор — плавающее окно: появляется при карте на считывателе,
-прячется когда карту сняли. Перетаскивается мышкой, позицию запоминает.
-Адрес API берётся из client_settings.json."""
-import sys, json, urllib.request, time, os
+"""RFID Монитор — плавающее окно.
+- Опрос считывателя в ОТДЕЛЬНОМ ПОТОКЕ (GUI не фризит)
+- /reader/* → локальный агент на этом ПК (USB-считыватель), ключ reader_base в client_settings.json
+- /rfid/scan → клубной сервер (там база клиентов)
+- Появляется при карте, прячется без карты; drag мышкой; позиция запоминается."""
+import sys, json, urllib.request, os
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
-from PyQt6.QtCore import QTimer, Qt, QPoint
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 
 KEY_B_ITC = "666666666666"
@@ -19,25 +21,33 @@ def set_global_token(tok):
     _GLOBAL_TOKEN = tok
 
 
-def _api_base():
+def _cfg():
     try:
-        cfg = json.load(open("client_settings.json", encoding="utf-8"))
-        return (cfg.get("api_base") or "http://localhost:8001/api/v1").rstrip("/")
+        return json.load(open("client_settings.json", encoding="utf-8"))
     except Exception:
-        return "http://localhost:8001/api/v1"
+        return {}
 
 
-def api_post(endpoint, payload):
+def _api_base():
+    """Клубной сервер (база клиентов)."""
+    return (_cfg().get("api_base") or "http://localhost:8001/api/v1").rstrip("/")
+
+
+def _reader_base():
+    """Локальный агент считывателя (USB на этом ПК)."""
+    return (_cfg().get("reader_base") or "http://127.0.0.1:8001/api/v1").rstrip("/")
+
+
+def api_post(endpoint, payload, timeout=3, base=None):
     try:
         headers = {"Content-Type": "application/json"}
         if _GLOBAL_TOKEN:
             headers["Authorization"] = "Bearer " + _GLOBAL_TOKEN
         req = urllib.request.Request(
-            _api_base() + endpoint,
+            (base or _api_base()) + endpoint,
             data=json.dumps(payload).encode(),
-            headers=headers,
-            method="POST")
-        with urllib.request.urlopen(req, timeout=4) as resp:
+            headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode())
     except Exception as e:
         return {"_err": str(e)}
@@ -46,11 +56,41 @@ def api_post(endpoint, payload):
 def _load_cache():
     if os.path.exists(CACHE_FILE):
         try:
-            with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+            return json.load(open(CACHE_FILE, encoding="utf-8"))
         except Exception:
             pass
     return {}
+
+
+class PollThread(QThread):
+    """Фоновый опрос: карта появилась/исчезла → сигнал. GUI не блокируется."""
+    card = pyqtSignal(dict)   # {"uid":...} — карта поднесена; {} — карту сняли
+
+    def run(self):
+        last = None
+        while not self.isInterruptionRequested():
+            det = api_post("/reader/detect-card", {}, base=_reader_base())
+            uid = det.get("uid") if "_err" not in det else None
+            if uid != last:
+                last = uid
+                if uid:
+                    info = {"uid": uid}
+                    r = api_post("/reader/read-sector",
+                                 {"sector": 0, "key_type": "B", "key_hex": KEY_B_ITC},
+                                 base=_reader_base())
+                    if "_err" not in r and "blocks" in r:
+                        info["block1"] = r.get("blocks", {}).get("block_1", "")
+                    name = _load_cache().get(uid.upper())
+                    if not name:
+                        scan = api_post("/rfid/scan",
+                                        {"card_uid": uid, "device_id": "ACS-ACR1252-001"})
+                        if "_err" not in scan and scan.get("found"):
+                            name = scan.get("full_name", "")
+                    info["client"] = name
+                    self.card.emit(info)
+                else:
+                    self.card.emit({})
+            self.msleep(1000)
 
 
 class RFIDMonitorWidget(QWidget):
@@ -62,15 +102,19 @@ class RFIDMonitorWidget(QWidget):
         self.setStyleSheet(
             "background-color: #0f172a; color: #e2e8f0;"
             " border-radius: 12px; border: 2px solid #334155;")
-        self._last_uid = None
         self._drag_pos = None
         self._build_ui()
-        self._poll_timer = QTimer(self)
-        self._poll_timer.timeout.connect(self._poll)
-        self._poll_timer.start(1000)
+        self._thread = PollThread(self)
+        self._thread.card.connect(self._on_card)
+        self._thread.start()
         self.hide()
 
-    # ---------- перетаскивание мышкой ----------
+    def closeEvent(self, ev):
+        self._thread.requestInterruption()
+        self._thread.wait(2000)
+        super().closeEvent(ev)
+
+    # ---------- drag ----------
     def mousePressEvent(self, ev):
         if ev.button() == Qt.MouseButton.LeftButton:
             self._drag_pos = ev.globalPosition().toPoint() - self.frameGeometry().topLeft()
@@ -105,7 +149,7 @@ class RFIDMonitorWidget(QWidget):
         self.lbl_uid.setStyleSheet("color: #f59e0b;")
         lay.addWidget(self.lbl_uid)
 
-        self.lbl_sector = QLabel("Сектор: —")
+        self.lbl_sector = QLabel("Сектор: 0")
         self.lbl_sector.setFont(QFont("Segoe UI", 12))
         self.lbl_sector.setStyleSheet("color: #94a3b8;")
         lay.addWidget(self.lbl_sector)
@@ -132,37 +176,37 @@ class RFIDMonitorWidget(QWidget):
         lay.addWidget(self.lbl_raw)
 
     # ---------- логика ----------
-    def _poll(self):
-        det = api_post("/reader/detect-card", {})
-        uid = det.get("uid") if "_err" not in det else None
-        if uid:
-            if uid != self._last_uid:
-                self._last_uid = uid
-                self._show_card(uid)
+    def _on_card(self, info: dict):
+        if not info:
+            self.hide()
+            return
+        uid = info.get("uid", "")
+        block1 = info.get("block1", "")
+        if block1:
+            card_type, locker_num = self._parse(block1)
         else:
-            if self._last_uid is not None:
-                self._last_uid = None
-                self.hide()
+            card_type, locker_num = ("Неизвестный формат", None)
+        client_name = info.get("client")
 
-    def clear_client(self):
-        """Вызывается при отвязке клиента. Очищает кэш и сбрасывает состояние."""
-        if self._last_uid:
-            try:
-                if os.path.exists(CACHE_FILE):
-                    with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                        cache = json.load(f)
-                    if self._last_uid.upper() in cache:
-                        del cache[self._last_uid.upper()]
-                        with open(CACHE_FILE, "w", encoding="utf-8") as f:
-                            json.dump(cache, f, ensure_ascii=False, indent=2)
-            except Exception:
-                pass
-        self._last_uid = None
-        self.hide()
+        self.lbl_uid.setText("UID: " + uid)
+        self.lbl_type.setText("Тип карты: " + card_type)
+        if locker_num:
+            self.lbl_locker.setText("🔒 Шкафчик №" + str(locker_num))
+            self.lbl_locker.setStyleSheet("color: #f472b6;")
+        else:
+            self.lbl_locker.setText("🔓 Шкафчик не назначен")
+            self.lbl_locker.setStyleSheet("color: #64748b;")
+        if client_name:
+            self.lbl_client.setText("Клиент: " + client_name)
+            self.lbl_client.setStyleSheet("color: #10b981;")
+        else:
+            self.lbl_client.setText("Клиент: Неизвестный")
+            self.lbl_client.setStyleSheet("color: #ef4444;")
+        self.lbl_raw.setText("block_1: " + block1)
 
-    def refresh_card(self):
-        """Вызывается при привязке клиента. Сбрасывает _last_uid для перечитывания."""
-        self._last_uid = None
+        self._restore_or_default_pos()
+        self.show()
+        self.raise_()
 
     def _restore_or_default_pos(self):
         if os.path.exists(POS_FILE):
@@ -176,64 +220,25 @@ class RFIDMonitorWidget(QWidget):
         self.move(screen.x() + screen.width() - 440,
                   screen.y() + screen.height() - 320)
 
-    def _show_card(self, uid):
-        r = api_post("/reader/read-sector", {
-            "sector": 0,
-            "key_type": "B",
-            "key_hex": KEY_B_ITC
-        })
-        block1 = ""
-        card_type = "—"
-        locker_num = None
-        sector = 0
-        if "_err" not in r and "blocks" in r:
-            blocks = r.get("blocks", {})
-            block1 = blocks.get("block_1", "")
-            card_type, locker_num = self._parse(block1)
-        else:
-            card_type = "Неизвестный формат"
+    def clear_client(self):
+        """При отвязке клиента: очистить кэш и скрыть."""
+        try:
+            if os.path.exists(CACHE_FILE):
+                json.dump({}, open(CACHE_FILE, "w", encoding="utf-8"))
+        except Exception:
+            pass
+        self.hide()
 
-        cache = _load_cache()
-        client_name = cache.get(uid.upper())
-
-        if not client_name:
-            scan = api_post("/rfid/scan", {"card_uid": uid, "device_id": "ACS-ACR1252-001"})
-            if "_err" not in scan and scan.get("found"):
-                client_name = scan.get("full_name", "")
-
-        self.lbl_uid.setText("UID: " + uid)
-        self.lbl_sector.setText("Сектор: " + str(sector))
-        self.lbl_type.setText("Тип карты: " + card_type)
-
-        if locker_num:
-            self.lbl_locker.setText("🔒 Шкафчик №" + str(locker_num))
-            self.lbl_locker.setStyleSheet("color: #f472b6;")
-        else:
-            self.lbl_locker.setText("🔓 Шкафчик не назначен")
-            self.lbl_locker.setStyleSheet("color: #64748b;")
-
-        if client_name:
-            self.lbl_client.setText("Клиент: " + client_name)
-            self.lbl_client.setStyleSheet("color: #10b981;")
-        else:
-            self.lbl_client.setText("Клиент: Неизвестный")
-            self.lbl_client.setStyleSheet("color: #ef4444;")
-
-        self.lbl_raw.setText("block_1: " + block1)
-
-        self._restore_or_default_pos()
-        self.show()
-        self.raise_()
+    def refresh_card(self):
+        """При привязке клиента: форсируем перечитывание (сброс состояния)."""
+        pass
 
     def _parse(self, b1: str):
-        b1 = b1.strip().upper()
-
+        b1 = (b1 or "").strip().upper()
         if len(b1) < 12:
             return "Неизвестный формат", None
-
         if all(c == "0" for c in b1):
             return "Пустая карта", None
-
         if b1 == "025D000000000000000000000000005F":
             return "Пустая карта", None
         if b1 == "02000000000000000000000001000003":
@@ -261,14 +266,10 @@ class RFIDMonitorWidget(QWidget):
                     return "Карта клиента", n6
             except Exception:
                 pass
-            tail = b1[14:] if len(b1) >= 32 else b1[14:]
-            is_all_zero = all(c == "0" for c in tail)
-            ends_with_03 = tail.endswith("03")
-            if is_all_zero or ends_with_03:
-                if prefix == "0201":
-                    return "Индивидуальный режим", None
-                else:
-                    return "Режим удаления", None
+            tail = b1[14:]
+            if all(c == "0" for c in tail) or tail.endswith("03"):
+                return ("Индивидуальный режим" if prefix == "0201"
+                        else "Режим удаления"), None
             return "Неизвестный формат", None
 
         if prefix == "0203":
@@ -284,7 +285,7 @@ class RFIDMonitorWidget(QWidget):
         if prefix == "0200":
             if len(b1) >= 32:
                 tail = b1[16:]
-                bytes_tail = [tail[i:i+2] for i in range(0, len(tail), 2)]
+                bytes_tail = [tail[i:i + 2] for i in range(0, len(tail), 2)]
                 if all(b == "00" for b in bytes_tail):
                     return "Сервисная карта", None
                 b11 = b1[22:24] if len(b1) >= 24 else "00"
@@ -296,8 +297,7 @@ class RFIDMonitorWidget(QWidget):
             return "Сервисная карта", None
 
         for i in range(5, 11):
-            s = i * 2
-            e = s + 2
+            s, e = i * 2, i * 2 + 2
             if len(b1) >= e:
                 try:
                     v = int(b1[s:e], 16)
@@ -305,5 +305,4 @@ class RFIDMonitorWidget(QWidget):
                         return "Карта клиента", v
                 except Exception:
                     pass
-
         return "Неизвестный формат", None
