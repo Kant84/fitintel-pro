@@ -99,3 +99,4 @@ yookassa==3.12.1
 pyarrow          # Parquet-демпы E60
 scikit-learn     # Feature Store / модели
 xgboost          # Churn-модель
+cryptography

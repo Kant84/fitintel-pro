@@ -1,12 +1,27 @@
-"""License validation + limits (pairs with License Studio)."""
-import os, json, hmac, hashlib, base64, logging
+"""License validation + limits (Ed25519, pairs with License Studio).
+На сервере ТОЛЬКО публичный ключ (app/core/license_public.pem) — он не секрет.
+Приватный ключ существует только у владельца (License Studio)."""
+import os, json, base64, logging
 from datetime import date, datetime
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from sqlalchemy import text
+from cryptography.hazmat.primitives.serialization import load_pem_public_key
+from cryptography.exceptions import InvalidSignature
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+_PUB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "core", "license_public.pem")
+_PUB = None
+
+
+def _pub():
+    global _PUB
+    if _PUB is None:
+        _PUB = load_pem_public_key(open(_PUB_PATH, "rb").read())
+    return _PUB
+
 
 _engine = None
 def _eng():
@@ -23,34 +38,24 @@ def _eng():
         raise RuntimeError("DB engine not found")
     return _engine
 
-def _secret():
-    s = os.environ.get("LICENSE_SECRET", "").strip()
-    if not s:
-        try:
-            for line in open(".env", encoding="utf-8", errors="ignore"):
-                if line.startswith("LICENSE_SECRET="):
-                    s = line.split("=", 1)[1].strip()
-        except Exception:
-            pass
-    return s
 
 def _validate(key):
-    secret = _secret()
-    if not secret:
-        return {"valid": False, "reason": "LICENSE_SECRET не задан на сервере"}
     try:
         token = key.replace("FIPRO-", "").replace("-", "").strip()
         raw, sig = token.rsplit(".", 1)
-        good = hmac.new(secret.encode(), raw.encode(), hashlib.sha256).hexdigest()[:20].upper()
-        if not hmac.compare_digest(good, sig):
-            return {"valid": False, "reason": "invalid signature"}
+        try:
+            _pub().verify(base64.urlsafe_b64decode(sig + "=" * (-len(sig) % 4)),
+                          raw.encode())
+        except InvalidSignature:
+            return {"valid": False, "reason": "Подпись не совпадает — ключ недействителен"}
         payload = json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)).decode())
         payload["valid"] = datetime.strptime(payload["exp"], "%Y-%m-%d").date() >= date.today()
         if not payload["valid"]:
-            payload["reason"] = "Истекла " + payload["exp"]
+            payload["reason"] = "Истёк " + payload["exp"]
         return payload
     except Exception as e:
         return {"valid": False, "reason": str(e)}
+
 
 def _clients_count():
     for tbl in ("clients", "users"):
@@ -61,20 +66,23 @@ def _clients_count():
             continue
     return 0
 
+
 class KeyIn(BaseModel):
     key: str
+
 
 @router.post("/license/validate")
 def validate(body: KeyIn):
     return _validate(body.key)
 
+
 @router.get("/license/limits")
 def limits(license_key: str = Query(...)):
-    import traceback
     try:
         return _limits_inner(license_key)
     except Exception:
         return {"valid": False, "reason": "bad key format"}
+
 
 def _limits_inner(license_key):
     v = _validate(license_key)
@@ -83,19 +91,17 @@ def _limits_inner(license_key):
     used = _clients_count()
     limit = int(v.get("max_clients") or 0)
     return {
-        "valid": True,
-        "plan": v.get("plan"),
-        "expires": v.get("exp"),
-        "club": v.get("club"),
-        "max_clients": limit,
-        "clients_used": used,
+        "valid": True, "plan": v.get("plan"), "expires": v.get("exp"),
+        "club": v.get("club"), "max_clients": limit, "clients_used": used,
         "clients_remaining": max(limit - used, 0),
         "within_limit": used <= limit,
         "usage_percent": round(used / limit * 100, 1) if limit else 0,
     }
 
+
 class ModeIn(BaseModel):
     mode: str = "soft"
+
 
 def _ensure_state():
     with _eng().begin() as c:
@@ -105,58 +111,54 @@ def _ensure_state():
             is_first_login BOOLEAN DEFAULT TRUE,
             updated_at TIMESTAMP DEFAULT NOW())"""))
 
+
 @router.post("/license/activate")
 def activate(body: KeyIn):
     v = _validate(body.key)
     if not v.get("valid"):
         return v
     _ensure_state()
-    
     with _eng().connect() as c:
-        existing = c.execute(text("SELECT key FROM license_state WHERE id=1")).first()
+        existing = c.execute(
+            text("SELECT key FROM license_state WHERE id=1")).first()
         if existing and existing[0] == body.key:
             return {"activated": True, "already_active": True, "plan": v.get("plan")}
-    
     import string, secrets
-    temp_pass = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
-    
+    temp_pass = ''.join(secrets.choice(string.ascii_letters + string.digits)
+                        for _ in range(10))
     with _eng().begin() as c:
-        c.execute(text("""INSERT INTO license_state (id, key, mode, temp_password, superadmin_login, is_first_login, updated_at)
-            VALUES (1, :k, 'soft', :tp, 'SuperAdmin', TRUE, NOW())
-            ON CONFLICT (id) DO UPDATE SET 
-                key=EXCLUDED.key, 
-                temp_password=EXCLUDED.temp_password,
-                superadmin_login=EXCLUDED.superadmin_login,
-                is_first_login=TRUE,
-                updated_at=EXCLUDED.updated_at"""),
+        c.execute(text(
+            "INSERT INTO license_state (id, key, mode, temp_password, superadmin_login, is_first_login, updated_at) "
+            "VALUES (1, :k, 'soft', :tp, 'SuperAdmin', TRUE, NOW()) "
+            "ON CONFLICT (id) DO UPDATE SET key=EXCLUDED.key, temp_password=EXCLUDED.temp_password, "
+            "superadmin_login=EXCLUDED.superadmin_login, is_first_login=TRUE, updated_at=EXCLUDED.updated_at"),
             {"k": body.key, "tp": temp_pass})
-    
-    return {
-        "activated": True, 
-        "plan": v.get("plan"), 
-        "expires": v.get("exp"), 
-        "max_clients": v.get("max_clients"),
-        "superadmin_login": "SuperAdmin",
-        "temp_password": temp_pass,
-        "message": "Лицензия активирована. Первый вход: SuperAdmin / " + temp_pass
-    }
+    return {"activated": True, "plan": v.get("plan"), "expires": v.get("exp"),
+            "max_clients": v.get("max_clients"),
+            "superadmin_login": "SuperAdmin", "temp_password": temp_pass,
+            "message": "Лицензия активирована. Первый вход: SuperAdmin / " + temp_pass}
+
 
 @router.get("/license/current")
 def current():
     return current_limit_status()
 
+
 @router.post("/license/mode")
 def set_mode(body: ModeIn):
     _ensure_state()
     with _eng().begin() as c:
-        c.execute(text("UPDATE license_state SET mode=:m WHERE id=1"), {"m": "hard" if body.mode == "hard" else "soft"})
+        c.execute(text("UPDATE license_state SET mode=:m WHERE id=1"),
+                  {"m": "hard" if body.mode == "hard" else "soft"})
     return {"ok": True, "mode": body.mode}
+
 
 def current_limit_status():
     try:
         _ensure_state()
         with _eng().connect() as c:
-            row = c.execute(text("SELECT key, mode, is_first_login, superadmin_login FROM license_state WHERE id=1")).first()
+            row = c.execute(text(
+                "SELECT key, mode, is_first_login, superadmin_login FROM license_state WHERE id=1")).first()
         if not row or not row[0]:
             return {"activated": False}
         v = _validate(row[0])
@@ -164,23 +166,20 @@ def current_limit_status():
             return {"activated": False, "reason": v.get("reason")}
         used = _clients_count()
         limit = int(v.get("max_clients") or 0)
-        return {
-            "activated": True, 
-            "plan": v.get("plan"), 
-            "expires": v.get("exp"),
-            "mode": row[1], 
-            "max_clients": limit, 
-            "clients_used": used,
-            "within_limit": used <= limit,
-            "usage_percent": round(used / limit * 100, 1) if limit else 0,
-            "is_first_login": row[2] if len(row) > 2 else True,
-            "superadmin_login": row[3] if len(row) > 3 else "SuperAdmin"
-        }
+        return {"activated": True, "plan": v.get("plan"), "expires": v.get("exp"),
+                "mode": row[1], "max_clients": limit, "clients_used": used,
+                "within_limit": used <= limit,
+                "usage_percent": round(used / limit * 100, 1) if limit else 0,
+                "is_first_login": row[2] if len(row) > 2 else True,
+                "superadmin_login": row[3] if len(row) > 3 else "SuperAdmin"}
     except Exception as e:
         return {"activated": False, "error": str(e)}
+
 
 def license_block_check():
     st = current_limit_status()
     if st.get("activated") and not st.get("within_limit") and st.get("mode") == "hard":
-        return {"block": True, "used": st.get("clients_used"), "limit": st.get("max_clients")}
-    return {"block": False, "over_limit": st.get("activated") and not st.get("within_limit")}
+        return {"block": True, "used": st.get("clients_used"),
+                "limit": st.get("max_clients")}
+    return {"block": False,
+            "over_limit": st.get("activated") and not st.get("within_limit")}

@@ -12,6 +12,15 @@ app/.license_key
 app/.license_state
 *.license_key
 
+# ═══════════════ LICENSE STUDIO — только у владельца! ═══════════════
+license_private.key
+license_private*.key
+license_master.key
+license_public.key
+license_studio.py
+licenses_issued.json
+License Studio/
+
 # Базы данных и медиа
 *.db
 *.sqlite3
@@ -61,7 +70,6 @@ fitintel-desktop/*.json
 fitintel-desktop/startup_out.txt
 fitintel-desktop/startup_err.txt
 fitintel-desktop/importtime.log
-# разовые патчеры/фиксеры desktop
 fitintel-desktop/fix_*.py
 fitintel-desktop/find_*.py
 fitintel-desktop/patch_*.py
