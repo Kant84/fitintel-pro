@@ -148,6 +148,18 @@ def main():
 
         try:
             from rfid_monitor_widget import RFIDMonitorWidget, set_global_token
+            rfid_monitor = RFIDMonitorWidget(parent=main_window)   # ← было
+            set_global_token(token)
+            rfid_monitor.show()                                    # ← было
+            rfid_monitor.raise_()                                  # ← было
+            log.info('E16 RFID Monitor integrated')
+        except Exception as e:
+            log.error('E16 RFID Monitor FAIL: %s', e)
+
+        main_window.logout_requested.connect(show_login)
+
+        try:
+            from rfid_monitor_widget import RFIDMonitorWidget, set_global_token
             rfid_monitor = RFIDMonitorWidget(parent=main_window)
             set_global_token(token)
             rfid_monitor.show()

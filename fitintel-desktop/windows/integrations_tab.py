@@ -28,6 +28,8 @@ class IntegrationsTab(QWidget):
     def _token(self):
         try:
             cfg = json.load(open("client_settings.json", encoding="utf-8"))
+            if cfg.get("token"):
+                return cfg["token"]
             r = urllib.request.Request(self._base() + "/auth/login",
                 data=json.dumps({"login": cfg.get("saved_login"), "password": cfg.get("saved_password")}).encode(),
                 headers={"Content-Type": "application/json"})
