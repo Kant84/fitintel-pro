@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """E69: Активация лицензии при первом запуске — до логина.
-Клиент вводит ключ + пароль из письма → activate (без токена) → автовход."""
+Только лицензионный ключ: логин/пароль извлекаются из payload ключа."""
 import json
+import base64 as b64
 import urllib.request
 import urllib.error
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
@@ -19,18 +20,15 @@ class ActivationDialog(QDialog):
         self.setMinimumWidth(480)
         lay = QVBoxLayout(self)
         title = QLabel("<b>Первый запуск системы.</b><br>"
-                       "Введите данные из письма с лицензией.<br>"
-                       "Логин главного администратора: <b>SuperAdmin</b>")
+                       "Введите лицензионный ключ из письма.<br>"
+                       "Логин главного администратора: <b>SuperAdmin</b>, "
+                       "пароль — тот, что указан в письме.")
         title.setTextFormat(Qt.TextFormat.RichText)
         title.setWordWrap(True)
         lay.addWidget(title)
         self.ed_key = QLineEdit()
         self.ed_key.setPlaceholderText("Лицензионный ключ (FIPRO-...)")
         lay.addWidget(self.ed_key)
-        self.ed_pass = QLineEdit()
-        self.ed_pass.setPlaceholderText("Пароль из письма")
-        self.ed_pass.setEchoMode(QLineEdit.EchoMode.Password)
-        lay.addWidget(self.ed_pass)
         row = QHBoxLayout()
         b_act = QPushButton("Активировать и войти")
         b_act.setStyleSheet(
@@ -58,12 +56,20 @@ class ActivationDialog(QDialog):
 
     def _activate(self):
         key = self.ed_key.text().strip()
-        pw = self.ed_pass.text().strip()
         if not key.startswith("FIPRO-"):
             self.lbl.setText("Ключ должен начинаться с FIPRO-")
             return
-        if len(pw) < 6:
-            self.lbl.setText("Введите пароль из письма")
+        # Логин и пароль — из payload ключа (подпись защищает от подделки)
+        try:
+            raw = key[len("FIPRO-"):].rsplit(".", 1)[0]
+            payload = json.loads(b64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
+            login = payload.get("superadmin_login") or "SuperAdmin"
+            pw = payload.get("temp_password", "")
+        except Exception:
+            self.lbl.setText("Ключ повреждён при копировании — выделите поле целиком (Ctrl+A → Ctrl+C)")
+            return
+        if not pw:
+            self.lbl.setText("В ключе нет пароля — сгенерируйте лицензию новой версией Studio")
             return
         try:
             r = self._post("/license/activate", {"key": key})
@@ -76,19 +82,15 @@ class ActivationDialog(QDialog):
         if not r.get("activated"):
             self.lbl.setText("Ключ не принят: " + str(r.get("reason", r))[:180])
             return
-        # Активация прошла → сервер уже установил пароль из ключа.
-        # Входим под SuperAdmin с паролем из письма.
-        login = r.get("superadmin_login") or "SuperAdmin"
         try:
             lr = self._post("/auth/login", {"login": login, "password": pw})
             self.token = lr.get("access_token")
             self.user_data = lr.get("user") or {"username": login}
             self.accept()
-        except Exception as e:
+        except Exception:
             self.lbl.setText("Лицензия активирована ✅ Нажмите «У меня уже есть доступ» "
-                             "и войдите: SuperAdmin / пароль из письма.")
+                             "и войдите с паролем из письма.")
 
-    # Enter в полях = активация
     def keyPressEvent(self, ev):
         if ev.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self._activate()
