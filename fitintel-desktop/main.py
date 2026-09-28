@@ -172,7 +172,21 @@ def main():
         login.btn_login.setEnabled(True)
         login.btn_login.setText("Войти")
         login.show()
-
+    # === E69: первый запуск — экран активации лицензии до логина ===
+    try:
+        import urllib.request
+        req = urllib.request.Request(api.base_url + "/license/status")
+        with urllib.request.urlopen(req, timeout=10) as r:
+            _lic = json.loads(r.read().decode())
+        if not _lic.get("activated"):
+            from windows.activation_dialog import ActivationDialog
+            dlg = ActivationDialog(api.base_url)
+            if dlg.exec() == QDialog.DialogCode.Accepted and dlg.token:
+                login.hide()
+                on_login_success(dlg.user_data or {"username": "SuperAdmin"}, dlg.token)
+    except Exception as e:
+        log.warning("E69 activation check skipped: %s", e)
+    # ================================================================
     login.login_success.connect(on_login_success)
     login.show()
 

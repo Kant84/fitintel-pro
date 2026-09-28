@@ -203,3 +203,12 @@ def license_block_check():
                 "limit": st.get("max_clients")}
     return {"block": False,
             "over_limit": st.get("activated") and not st.get("within_limit")}
+            
+@router.get("/license/status")
+def status():
+    """ПУБЛИЧНЫЙ статус активации — desktop спрашивает при первом запуске (без токена)."""
+    try:
+        st = current_limit_status()
+        return {"activated": bool(st.get("activated"))}
+    except Exception:
+        return {"activated": False}          
