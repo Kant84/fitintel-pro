@@ -133,6 +133,14 @@ def activate(body: KeyIn):
             "ON CONFLICT (id) DO UPDATE SET key=EXCLUDED.key, temp_password=EXCLUDED.temp_password, "
             "superadmin_login=EXCLUDED.superadmin_login, is_first_login=TRUE, updated_at=EXCLUDED.updated_at"),
             {"k": body.key, "tp": temp_pass})
+    # Синхронизируем пароль superadmin с временным паролем лицензии —
+    # иначе «лицензия с паролем» не работает (пароль Studio ≠ паролю на сервере)
+    from app.core.security import get_password_hash
+    with _eng().begin() as c:
+        c.execute(text(
+            "UPDATE users SET password_hash=:ph, failed_login_count=0, "
+            "locked_until=NULL, is_active=TRUE WHERE username='superadmin'"
+        ), {"ph": get_password_hash(temp_pass)})
     return {"activated": True, "plan": v.get("plan"), "expires": v.get("exp"),
             "max_clients": v.get("max_clients"),
             "superadmin_login": "SuperAdmin", "temp_password": temp_pass,
