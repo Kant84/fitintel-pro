@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
-"""RFID Монитор — плавающее окно.
-- Опрос считывателя в ОТДЕЛЬНОМ ПОТОКЕ (GUI не фризит)
-- /reader/* → локальный агент на этом ПК (USB-считыватель), ключ reader_base в client_settings.json
-- /rfid/scan → клубной сервер (там база клиентов)
-- Появляется при карте, прячется без карты; drag мышкой; позиция запоминается."""
-import sys, json, urllib.request, os
+"""RFID Монитор — прямой доступ к считывателю (pyscard), опрос в потоке.
+Появляется при карте, прячется без карты. Drag, позиция запоминается."""
+import json, os
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
@@ -21,33 +18,25 @@ def set_global_token(tok):
     _GLOBAL_TOKEN = tok
 
 
-def _cfg():
-    try:
-        return json.load(open("client_settings.json", encoding="utf-8"))
-    except Exception:
-        return {}
-
-
 def _api_base():
-    """Клубной сервер (база клиентов)."""
-    return (_cfg().get("api_base") or "http://localhost:8001/api/v1").rstrip("/")
+    try:
+        cfg = json.load(open("client_settings.json", encoding="utf-8"))
+        return (cfg.get("api_base") or "http://localhost:8001/api/v1").rstrip("/")
+    except Exception:
+        return "http://localhost:8001/api/v1"
 
 
-def _reader_base():
-    """Локальный агент считывателя (USB на этом ПК)."""
-    return (_cfg().get("reader_base") or "http://127.0.0.1:8001/api/v1").rstrip("/")
-
-
-def api_post(endpoint, payload, timeout=3, base=None):
+def api_post(endpoint, payload, timeout=3):
     try:
         headers = {"Content-Type": "application/json"}
         if _GLOBAL_TOKEN:
             headers["Authorization"] = "Bearer " + _GLOBAL_TOKEN
         req = urllib.request.Request(
-            (base or _api_base()) + endpoint,
+            _api_base() + endpoint,
             data=json.dumps(payload).encode(),
             headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        import urllib.request as _u
+        with _u.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode())
     except Exception as e:
         return {"_err": str(e)}
@@ -63,23 +52,24 @@ def _load_cache():
 
 
 class PollThread(QThread):
-    """Фоновый опрос: карта появилась/исчезла → сигнал. GUI не блокируется."""
-    card = pyqtSignal(dict)   # {"uid":...} — карта поднесена; {} — карту сняли
+    """Опрос считывателя в фоне — GUI не фризит."""
+    card = pyqtSignal(dict)   # {"uid":...} — карта; {} — сняли
 
     def run(self):
+        try:
+            from rfid.direct_reader import DirectReader
+        except Exception:
+            return
+        rd = DirectReader()
         last = None
         while not self.isInterruptionRequested():
-            det = api_post("/reader/detect-card", {}, base=_reader_base())
-            uid = det.get("uid") if "_err" not in det else None
+            uid = rd.detect_uid()
             if uid != last:
                 last = uid
                 if uid:
                     info = {"uid": uid}
-                    r = api_post("/reader/read-sector",
-                                 {"sector": 0, "key_type": "B", "key_hex": KEY_B_ITC},
-                                 base=_reader_base())
-                    if "_err" not in r and "blocks" in r:
-                        info["block1"] = r.get("blocks", {}).get("block_1", "")
+                    blocks = rd.read_sector(0, "B", KEY_B_ITC)
+                    info["block1"] = blocks.get("block_1", "")
                     name = _load_cache().get(uid.upper())
                     if not name:
                         scan = api_post("/rfid/scan",
@@ -114,7 +104,6 @@ class RFIDMonitorWidget(QWidget):
         self._thread.wait(2000)
         super().closeEvent(ev)
 
-    # ---------- drag ----------
     def mousePressEvent(self, ev):
         if ev.button() == Qt.MouseButton.LeftButton:
             self._drag_pos = ev.globalPosition().toPoint() - self.frameGeometry().topLeft()
@@ -133,7 +122,6 @@ class RFIDMonitorWidget(QWidget):
                 pass
         super().mouseMoveEvent(ev)
 
-    # ---------- UI ----------
     def _build_ui(self):
         lay = QVBoxLayout(self)
         lay.setSpacing(6)
@@ -175,17 +163,13 @@ class RFIDMonitorWidget(QWidget):
         self.lbl_raw.setWordWrap(True)
         lay.addWidget(self.lbl_raw)
 
-    # ---------- логика ----------
     def _on_card(self, info: dict):
         if not info:
             self.hide()
             return
         uid = info.get("uid", "")
         block1 = info.get("block1", "")
-        if block1:
-            card_type, locker_num = self._parse(block1)
-        else:
-            card_type, locker_num = ("Неизвестный формат", None)
+        card_type, locker_num = self._parse(block1) if block1 else ("Неизвестный формат", None)
         client_name = info.get("client")
 
         self.lbl_uid.setText("UID: " + uid)
@@ -221,7 +205,6 @@ class RFIDMonitorWidget(QWidget):
                   screen.y() + screen.height() - 320)
 
     def clear_client(self):
-        """При отвязке клиента: очистить кэш и скрыть."""
         try:
             if os.path.exists(CACHE_FILE):
                 json.dump({}, open(CACHE_FILE, "w", encoding="utf-8"))
@@ -230,7 +213,6 @@ class RFIDMonitorWidget(QWidget):
         self.hide()
 
     def refresh_card(self):
-        """При привязке клиента: форсируем перечитывание (сброс состояния)."""
         pass
 
     def _parse(self, b1: str):
@@ -247,7 +229,6 @@ class RFIDMonitorWidget(QWidget):
             return "Карта доступа", None
 
         prefix = b1[:4]
-
         if prefix == "020B":
             b5 = b1[10:12] if len(b1) >= 12 else "00"
             try:
@@ -257,7 +238,6 @@ class RFIDMonitorWidget(QWidget):
             except Exception:
                 pass
             return "Номер шкафчика", None
-
         if prefix in ("0201", "0202"):
             b6 = b1[12:14] if len(b1) >= 14 else "00"
             try:
@@ -271,7 +251,6 @@ class RFIDMonitorWidget(QWidget):
                 return ("Индивидуальный режим" if prefix == "0201"
                         else "Режим удаления"), None
             return "Неизвестный формат", None
-
         if prefix == "0203":
             b6 = b1[12:14] if len(b1) >= 14 else "00"
             try:
@@ -281,7 +260,6 @@ class RFIDMonitorWidget(QWidget):
             except Exception:
                 pass
             return "Сброс замка", None
-
         if prefix == "0200":
             if len(b1) >= 32:
                 tail = b1[16:]
@@ -295,7 +273,6 @@ class RFIDMonitorWidget(QWidget):
                     return "Не обслуживается", None
                 return "Карта администратора", None
             return "Сервисная карта", None
-
         for i in range(5, 11):
             s, e = i * 2, i * 2 + 2
             if len(b1) >= e:
