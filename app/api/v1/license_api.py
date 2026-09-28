@@ -42,7 +42,7 @@ def _eng():
 
 def _validate(key):
     try:
-        token = key.replace("FIPRO-", "").replace("-", "").strip()
+        token = key.replace("FIPRO-", "").strip()
         raw, sig = token.rsplit(".", 1)
         try:
             _pub().verify(base64.urlsafe_b64decode(sig + "=" * (-len(sig) % 4)),
