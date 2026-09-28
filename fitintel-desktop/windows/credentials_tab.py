@@ -86,24 +86,20 @@ class CredentialsTab(QWidget):
         except Exception:
             return None
 
-    def _reader_base(self):
-        try:
-            cfg = json.load(open("client_settings.json", encoding="utf-8"))
-            return (cfg.get("reader_base") or "http://127.0.0.1:8001/api/v1").rstrip("/")
-        except Exception:
-            return "http://127.0.0.1:8001/api/v1"
+    
 
     def _req(self, method, path, data=None):
-        # Сначала берём токен из api (если пользователь уже вошёл в приложение)
+        data = data or {}
+        # /reader/* — НАПРЯМУЮ к USB-считывателю (pyscard), без всяких сервисов
+        if path.startswith("/reader/"):
+            return self._reader_local(path, data)
         tok = None
         if self.api and hasattr(self.api, "token") and self.api.token:
             tok = self.api.token
         if not tok:
             tok = self._token()
-        # /reader/* — локальный агент считывателя; остальное — клубной сервер
-        base = self._reader_base() if path.startswith("/reader/") else self._base()
         r = urllib.request.Request(
-            base + path,
+            self._base() + path,
             data=json.dumps(data).encode() if data is not None else None,
             headers={"Content-Type": "application/json"}, method=method)
         if tok:
@@ -116,6 +112,33 @@ class CredentialsTab(QWidget):
                 return {"_err": e.code, "_body": json.loads(body)}
             except Exception:
                 return {"_err": e.code, "_body": body}
+
+    def _reader_local(self, path, data):
+        try:
+            from rfid.direct_reader import DirectReader
+        except Exception:
+            return {"_err": "pyscard не установлен"}
+        if not hasattr(self, "_direct"):
+            self._direct = DirectReader()
+        rd = self._direct
+        if path == "/reader/status":
+            return rd.status()
+        if path == "/reader/detect-card":
+            uid = rd.detect_uid()
+            return {"uid": uid} if uid else {"_err": "no card"}
+        if path == "/reader/read-sector":
+            blocks = rd.read_sector(data.get("sector", 0),
+                                    data.get("key_type", "B"),
+                                    data.get("key_hex", KEY_B_ITC))
+            return {"blocks": blocks} if blocks else {"_err": "read failed"}
+        if path == "/reader/write":
+            ok = rd.write_block(data.get("sector", 0),
+                                data.get("block", 1),
+                                data.get("key_type", "B"),
+                                data.get("key_hex", KEY_B_ITC),
+                                data.get("data_hex", ""))
+            return {"ok": True} if ok else {"_err": "write failed"}
+        return {"_err": "unknown reader endpoint"}
 
     def _log(self, widget, msg):
         widget.appendPlainText(msg)
