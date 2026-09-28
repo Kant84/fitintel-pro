@@ -106,19 +106,19 @@ class ClientSearch:
             QMessageBox.information(self.tab, "Поиск", f"Ошибка сервера: {r.get('_err')}")
             return None
 
-        all_items = r.get("items", []) if isinstance(r, dict) else []
+        all_items = r if isinstance(r, list) else r.get("items", [])
         self._log(self.tab.log, f"📋 Всего клиентов в базе: {len(all_items)}")
 
         # Фильтруем сами — минимум 3 начальные буквы совпадают
         query_lower = query.lower()
         filtered = []
         for c in all_items:
-            ln = c.get("last_name", "").lower()
-            fn = c.get("first_name", "").lower()
-            mn = c.get("middle_name", "").lower()
+            ln = str(c.get("last_name") or "").lower()
+            fn = str(c.get("first_name") or "").lower()
+            mn = str(c.get("middle_name") or "").lower()
             full = f"{ln} {fn} {mn}".strip()
-            phone = str(c.get("phone", "")).lower()
-            cid = str(c.get("id", "")).lower()
+            phone = str(c.get("phone") or "").lower()
+            cid = str(c.get("id") or "").lower()
 
             # Проверяем: запрос должен быть подстрокой ФИО/телефона/ID
             if (query_lower in full or 
