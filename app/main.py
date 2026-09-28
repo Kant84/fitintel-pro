@@ -169,7 +169,7 @@ app.include_router(chats_ws_router)
 app.include_router(telegram_router, prefix=settings.API_V1_PREFIX)
 app.include_router(max_bot_router, prefix=settings.API_V1_PREFIX)
 app.include_router(yookassa_router, prefix=settings.API_V1_PREFIX)
-app.include_router(license_router)
+# app.include_router(license_router)   # отключено: старый license-роутер дублировал пути
 app.include_router(verify_router, prefix=settings.API_V1_PREFIX)
 app.include_router(setup_router, prefix=settings.API_V1_PREFIX)
 app.include_router(fiscal_router, prefix=settings.API_V1_PREFIX)
