@@ -111,6 +111,8 @@ def _ensure_state():
             temp_password TEXT, superadmin_login TEXT DEFAULT 'SuperAdmin',
             is_first_login BOOLEAN DEFAULT TRUE,
             updated_at TIMESTAMP DEFAULT NOW())"""))
+        c.execute(text(
+            "ALTER TABLE license_state ADD COLUMN IF NOT EXISTS install_fp VARCHAR(64)"))
 
 
 def _sync_superadmin_password(temp_pass: str):
@@ -121,14 +123,23 @@ def _sync_superadmin_password(temp_pass: str):
             "UPDATE users SET password_hash=:ph, failed_login_count=0, "
             "locked_until=NULL, is_active=TRUE WHERE username='superadmin'"
         ), {"ph": get_password_hash(temp_pass)})
-
+def _fingerprint():
+    """Отпечаток установки — одноразовость лицензии (привязка к серверу)."""
+    import hashlib
+    for p in ("/etc/machine-id", "/var/lib/dbus/machine-id"):
+        try:
+            mid = open(p).read().strip()
+            if mid:
+                return hashlib.sha256(mid.encode()).hexdigest()[:32]
+        except Exception:
+            continue
+    return None
 
 @router.post("/license/activate")
 def activate(body: KeyIn):
     v = _validate(body.key)
     if not v.get("valid"):
         return v
-    # Пароль ВЗЯТ ИЗ КЛЮЧА (подписан License Studio) — клиент входит ровно по нему
     temp_pass = v.get("temp_password")
     if not temp_pass:
         import string, secrets as _s
@@ -136,22 +147,28 @@ def activate(body: KeyIn):
                             for _ in range(10))
     sadmin = v.get("superadmin_login") or "SuperAdmin"
     _ensure_state()
+    fp = _fingerprint()
     with _eng().connect() as c:
         existing = c.execute(
-            text("SELECT key FROM license_state WHERE id=1")).first()
-        if existing and existing[0] == body.key:
-            # ключ уже активен — всё равно синхронизируем пароль (клиент мог забыть)
-            _sync_superadmin_password(temp_pass)
-            return {"activated": True, "already_active": True,
-                    "plan": v.get("plan"), "superadmin_login": sadmin,
-                    "temp_password": temp_pass}
+            text("SELECT key, install_fp FROM license_state WHERE id=1")).first()
+    if existing and existing[0] == body.key:
+        # тот же сервер, тот же ключ — повторная активация (сброс пароля)
+        _sync_superadmin_password(temp_pass)
+        return {"activated": True, "already_active": True,
+                "plan": v.get("plan"), "superadmin_login": sadmin,
+                "temp_password": temp_pass}
+    if existing and existing[1] and fp and existing[1] != fp:
+        return {"activated": False,
+                "reason": "Лицензия уже активирована на другом сервере. "
+                          "Для переноса выпустите новый ключ в License Studio."}
     with _eng().begin() as c:
         c.execute(text(
-            "INSERT INTO license_state (id, key, mode, temp_password, superadmin_login, is_first_login, updated_at) "
-            "VALUES (1, :k, 'soft', :tp, :sa, TRUE, NOW()) "
+            "INSERT INTO license_state (id, key, mode, temp_password, superadmin_login, is_first_login, install_fp, updated_at) "
+            "VALUES (1, :k, 'soft', :tp, :sa, TRUE, :fp, NOW()) "
             "ON CONFLICT (id) DO UPDATE SET key=EXCLUDED.key, temp_password=EXCLUDED.temp_password, "
-            "superadmin_login=EXCLUDED.superadmin_login, is_first_login=TRUE, updated_at=EXCLUDED.updated_at"),
-            {"k": body.key, "tp": temp_pass, "sa": sadmin})
+            "superadmin_login=EXCLUDED.superadmin_login, is_first_login=TRUE, "
+            "install_fp=EXCLUDED.install_fp, updated_at=EXCLUDED.updated_at"),
+            {"k": body.key, "tp": temp_pass, "sa": sadmin, "fp": fp})
     _sync_superadmin_password(temp_pass)
     return {"activated": True, "plan": v.get("plan"), "expires": v.get("exp"),
             "max_clients": v.get("max_clients"),
