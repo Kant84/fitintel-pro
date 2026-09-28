@@ -189,7 +189,7 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print("TAB BUILD FAIL:", code, "->", e)
             widget = QLabel("Не удалось загрузить экран: " + code)
-        widget.setStyleSheet(theme.widget_style())
+        
         self.stack.removeWidget(placeholder)
         placeholder.deleteLater()
         self.stack.insertWidget(row, widget)
@@ -224,7 +224,7 @@ class MainWindow(QMainWindow):
         if self.sidebar.count() == 0:
             self.sidebar.addItem(QListWidgetItem("Клиенты"))
             w = ClientsTab(self.api)
-            w.setStyleSheet(theme.widget_style())
+            #w.setStyleSheet(theme.widget_style())
             self.stack.addWidget(w)
             self._codes.append("clients")
             self._built["clients"] = w

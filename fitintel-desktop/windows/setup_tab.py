@@ -96,6 +96,16 @@ class SetupTab(QWidget):
 
     def _on_loaded(self, data: dict):
         lic = bool(data.get("is_licensed"))
+        # E69: сверка с реальным статусом лицензии (license_state)
+        try:
+            import json as _j, urllib.request as _u
+            api = getattr(self, "api", None)
+            base = getattr(api, "base_url", None) or "http://localhost:8001/api/v1"
+            with _u.urlopen(str(base).rstrip("/") + "/license/status", timeout=5) as r:
+                if _j.load(r).get("activated"):
+                    lic = True
+        except Exception:
+            pass
         comp = bool(data.get("is_complete"))
         self._set_card(self.c_lic, "Лицензия", "Активна" if lic else "НЕТ", lic)
         self._set_card(self.c_complete, "Установка", "Завершена" if comp else "Требуется", comp)
