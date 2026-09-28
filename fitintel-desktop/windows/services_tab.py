@@ -385,3 +385,11 @@ class ServicesTab(QWidget):
                 QMessageBox.warning(self, "Не удалено", f"Код: {resp.status_code}")
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))
+            
+            
+    def _new_trainer(self):
+        existing = {str(p.get("user_id") or p.get("id")) for p in self._trainers}
+        dlg = TrainerDialog(self.api, self._users, existing, parent=self)
+        if dlg.exec() and getattr(dlg, "ok", False):
+            QMessageBox.information(self, "Тренеры", "Профиль тренера создан")
+            self.refresh()      

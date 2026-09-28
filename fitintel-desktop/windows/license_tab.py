@@ -410,7 +410,12 @@ def _e68_wire(tab):
             else:
                 res.setText("❌ " + str(r)[:200])
         except Exception as e:
-            res.setText(f"❌ Ошибка активации: {str(e)[:150]}")
+            body = ""
+            try:
+                body = e.read().decode()[:300]
+            except Exception:
+                pass
+            res.setText(f"❌ Ошибка: {str(e)[:120]}\nОтвет сервера: {body}")
 
     try:
         btn.clicked.disconnect()
