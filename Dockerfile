@@ -1,14 +1,11 @@
 # FitIntel Pro — Dockerfile (Linux: Ubuntu/Debian, x86_64)
-# Один requirements.txt для всех платформ: pywin32 помечен маркером win32-only
-FROM python:3.12-slim
+# Быстрая сборка: тяжёлые зависимости (dlib/face-recognition) — в requirements-base.txt
+# (слой кэшируется, меняется редко). Лёгкие — в requirements.txt.
 
+FROM python:3.12-slim AS base
 WORKDIR /app
 
-# System deps:
-#   gcc/g++/cmake/make — сборка dlib (face-recognition)
-#   libpq-dev          — psycopg (PostgreSQL)
-#   libpcsclite-dev    — pyscard (считыватели RFID)
-#   libopenblas/liblapack — ускорение dlib
+# System deps (build tools + ускорение dlib + pyscard)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
@@ -20,10 +17,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     liblapack-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Python deps (единый файл: pywin32 ставится только на Windows — маркер в requirements.txt)
-COPY requirements.txt .
+# ТЯЖЁЛЫЕ зависимости — отдельный слой (кэш ~вечный)
+COPY requirements-base.txt .
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir -r requirements-base.txt
+
+# ЛЁГКИЕ зависимости — быстрый слой (изменения = 1-2 мин, dlib не трогается)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # App code
 COPY app/ ./app/
@@ -36,11 +37,9 @@ COPY scripts/create_admin.py scripts/bootstrap_db.py ./scripts/
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Health check — реальный endpoint (не корень!)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/')" || exit 1
 
 EXPOSE 8000
 
-# 2 воркера (uvicorn под root запрещён — appuser уже задан)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
