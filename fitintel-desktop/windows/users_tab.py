@@ -86,8 +86,8 @@ class UsersTab(QWidget):
             item.setForeground(QColor("#059669" if active else "#ef4444"))
             self.table.setItem(i, 4, item)
 
-        def _load_roles(self):
-        """Роли из RBAC (исключая системные client/device и superadmin)."""
+    def _load_roles(self):
+        #Роли из RBAC (исключая системные client/device и superadmin).
         try:
             resp = self.api.session.get(self.api._url("/rbac/roles-matrix"))
             resp.raise_for_status()
