@@ -19,6 +19,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan, title=settings.APP_NAME, version=settings.APP_VERSION)
 
 # === ROUTERS ===
+from app.api.v1.reports_ops import router as reports_ops_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.audit import router as audit_router
 from app.api.v1.users import router as users_router
