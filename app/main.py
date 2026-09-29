@@ -118,7 +118,7 @@ app.include_router(health_router, prefix=settings.API_V1_PREFIX)
 app.include_router(subscription_lifecycle_router, prefix=settings.API_V1_PREFIX)
 app.include_router(visits_router, prefix=settings.API_V1_PREFIX)
 app.include_router(access_router, prefix=settings.API_V1_PREFIX)
-
+app.include_router(reports_ops_router, prefix=settings.API_V1_PREFIX)
 # === Prometheus metrics ===
 try:
     import time as _time
