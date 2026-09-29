@@ -26,6 +26,8 @@ services:
 
   api:
     build: ..                      # <-- собираем из исходников, не из registry
+    env_file:
+      - .env
     image: fitintel:test
     environment:
       APP_ENV: prod
