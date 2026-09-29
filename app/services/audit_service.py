@@ -198,7 +198,49 @@ class AuditService:
 
         # Возвращаем созданную запись.
         return audit_log
+        
+    # ============================================================
+    # УДОБНЫЕ МЕТОДЫ ДЛЯ БИЗНЕС-СУЩНОСТЕЙ (клиенты, платежи, пользователи...)
+    # ============================================================
 
+    def created(self, *, actor_user_id, entity_type, entity_id, message=None, after_data=None):
+        """Логирует создание сущности. Вызов ПОСЛЕ успешного commit операции."""
+        return self.log(
+            action=f"{entity_type}.created",
+            status="success",
+            actor_user_id=actor_user_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            message=message,
+            after_data=after_data,
+        )
+
+    def updated(self, *, actor_user_id, entity_type, entity_id, message=None,
+                before_data=None, after_data=None):
+        """Логирует изменение сущности."""
+        return self.log(
+            action=f"{entity_type}.updated",
+            status="success",
+            actor_user_id=actor_user_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            message=message,
+            before_data=before_data,
+            after_data=after_data,
+        )
+
+    def deleted(self, *, actor_user_id, entity_type, entity_id, message=None, before_data=None):
+        """Логирует удаление/деактивацию сущности."""
+        return self.log(
+            action=f"{entity_type}.deleted",
+            status="success",
+            actor_user_id=actor_user_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            message=message,
+            before_data=before_data,
+        )
+    
     # ============================================================
     # СПЕЦИАЛЬНЫЕ МЕТОДЫ АУДИТА
     # ============================================================

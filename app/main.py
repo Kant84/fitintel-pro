@@ -20,6 +20,7 @@ app = FastAPI(lifespan=lifespan, title=settings.APP_NAME, version=settings.APP_V
 
 # === ROUTERS ===
 from app.api.v1.auth import router as auth_router
+from app.api.v1.audit import router as audit_router
 from app.api.v1.users import router as users_router
 from app.api.v1.roles import router as roles_router
 from app.api.v1.permissions import router as permissions_router
@@ -101,6 +102,7 @@ from app.api.v1.ui_config import router as ui_config_router
 
 # === ROUTES ===
 app.include_router(dynamic_qr_router, prefix=settings.API_V1_PREFIX)
+app.include_router(audit_router, prefix=settings.API_V1_PREFIX)
 app.include_router(face_id_router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 app.include_router(users_router, prefix=settings.API_V1_PREFIX)

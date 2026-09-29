@@ -238,7 +238,15 @@ def create_user(
 
     # Перечитываем пользователя из БД вместе с ролями и правами.
     created_user = user_service.get_user_by_id(str(user.id))
-
+    
+    from app.services.audit_service import AuditService
+    AuditService(db).created(
+        actor_user_id=current_user.id,
+        entity_type="user",
+        entity_id=user.id,
+        message=f"Создан пользователь {payload.username} ({payload.email})",
+    )
+    
     # Возвращаем готовый ответ.
     return user_service.build_user_response(created_user)
 
@@ -385,6 +393,16 @@ def assign_role(
     )
 
     updated_user = user_service.get_user_by_id(str(user.id))
+    
+    from app.services.audit_service import AuditService
+    AuditService(db).updated(
+        actor_user_id=current_user.id,
+        entity_type="user",
+        entity_id=user.id,
+        message=f"Назначена роль {payload.role_code} пользователю {user.username}",
+        after_data={"role_code": payload.role_code},
+    )
+    
     return user_service.build_user_response(updated_user)
 
 # ============================================================
@@ -441,6 +459,13 @@ def delete_user(
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     user_service.delete_user(user)
+    from app.services.audit_service import AuditService
+    AuditService(db).deleted(
+        actor_user_id=current_user.id,
+        entity_type="user",
+        entity_id=user.id,
+        message=f"Удалён (деактивирован) пользователь {user.username}",
+    )
     return {"message": "Пользователь удалён"}
 
 
