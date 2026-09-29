@@ -298,9 +298,20 @@ class UserService:
     # метод строит словарь ответа пользователя
     
     def delete_user(self, user):
-        """Удаление пользователя"""
-        self.db.delete(user)
-        self.db.commit()
+        """Безопасное удаление: деактивация + снятие ролей + обезличивание.
+        История (визиты, платежи, документы, продажи) сохраняется —
+        на users ссылаются 24 таблицы, физическое удаление невозможно без
+        потери истории. Вход после удаления невозможен (пароль сброшен)."""
+        import uuid as _uuid
+        from sqlalchemy import text as _text
+        from app.core.security import get_password_hash
+        uid = str(user.id)
+        self.db.execute(_text("DELETE FROM user_roles WHERE user_id = :uid"),
+                        {"uid": uid})
+        user.is_active = False
+        user.username = f"deleted_{uid[:8]}"
+        user.email = f"deleted_{uid[:8]}@deleted.local"
+        user.password_hash = get_password_hash(_uuid.uuid4().hex)
         self.db.commit()
 
     def build_user_response(self, user) -> dict:
