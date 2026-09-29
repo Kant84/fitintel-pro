@@ -247,7 +247,7 @@ def _e55_sess(self):
     return getattr(self, "session", None) or getattr(self, "_session", None) or _rq
 
 def _e55_get(self, path, params=None):
-    r = _e55_sess(self).get(_e55_url(self, path), params=params or {})
+    r = _e55_sess(self).get(_e55_url(self, path), params=params or {}, timeout=60)
     r.raise_for_status()
     try: return r.json()
     except Exception: return r.text
@@ -255,9 +255,9 @@ def _e55_get(self, path, params=None):
 def _e55_post(self, path, payload=None, files=None, data=None):
     s = _e55_sess(self)
     if files is not None:
-        r = s.post(_e55_url(self, path), files=files, data=data or {})
+        r = s.post(_e55_url(self, path), files=files, data=data or {}, timeout=180)
     else:
-        r = s.post(_e55_url(self, path), json=payload or {})
+        r = s.post(_e55_url(self, path), json=payload or {}, timeout=180)
     r.raise_for_status()
     try: return r.json()
     except Exception: return r.text
