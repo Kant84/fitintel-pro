@@ -161,16 +161,16 @@ class MainWindow(QMainWindow):
             data = self.api.get_ui_my()
             codes = [s["code"] for s in data.get("screens", [])]
             if codes:
-                if "credentials" not in codes:
-                    codes.append("credentials")
-                if "connections" not in codes:
-                    codes.append("connections")
-                if "services" not in codes:
-                    codes.append("services")
+                # служебные вкладки — только у суперадмина
+                if str(self.user.get("username", "")).lower() == "superadmin":
+                    for extra in ("credentials", "connections", "services"):
+                        if extra not in codes:
+                            codes.append(extra)
                 return codes
         except Exception:
             pass
-        return list(DEFAULT_TABS)
+        # fail-closed: при ошибке или пустой матрице — только Главная
+        return ["dashboard"]
 
     def _make_widget(self, code: str):
         cls = TAB_REGISTRY[code][1]

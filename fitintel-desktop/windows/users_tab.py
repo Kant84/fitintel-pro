@@ -91,6 +91,12 @@ class UsersTab(QWidget):
             ("username", "Логин *"),
             ("email", "Email *"),
             ("password", "Пароль *"),
+            ("role", "Роль *", "combo", [
+                ("Менеджер", "manager"),
+                ("Тренер", "trainer"),
+                ("Ресепшен", "reception"),
+                ("Администратор", "admin"),
+            ]),
         ], self)
         if dlg.exec() != FormDialog.DialogCode.Accepted:
             return
@@ -99,11 +105,21 @@ class UsersTab(QWidget):
             QMessageBox.warning(self, "Ошибка", "Логин и пароль обязательны")
             return
         try:
-            r = self.api.session.post(self.api._url("/users/"), json=v)
+            r = self.api.session.post(self.api._url("/users/"), json={
+                "username": v["username"],
+                "email": v["email"],
+                "password": v["password"],
+            })
             r.raise_for_status()
+            uid = r.json().get("id")
+            if uid and v.get("role"):
+                r2 = self.api.session.post(
+                    self.api._url(f"/users/{uid}/roles/assign"),
+                    json={"role_code": v["role"]})
+                r2.raise_for_status()
             self.refresh()
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", str(e))
+            QMessageBox.critical(self, "Ошибка создания", str(e))
 
     def _on_error(self, msg: str):
         self.table.setRowCount(1)
