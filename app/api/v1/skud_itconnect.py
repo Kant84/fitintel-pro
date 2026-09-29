@@ -12,6 +12,11 @@ from app.models.client import Client
 from app.models.subscription import Subscription
 from app.ml.event_logger import EventLogger
 
+import os
+
+ITC_USER = os.environ.get("ITC_BASIC_USER", "itc")
+ITC_PASSWORD = os.environ.get("ITC_BASIC_PASSWORD", "itc_secret_2026")
+
 router = APIRouter(prefix="/skud", tags=["SKUD / ITC Integration"])
 security = HTTPBasic(auto_error=False)
 
@@ -95,7 +100,7 @@ class CheckAccessErrorRequest(BaseModel):
 def verify_basic(credentials: HTTPBasicCredentials = Depends(security)):
     if not credentials:
         raise HTTPException(status_code=401, detail="Basic Auth required")
-    if credentials.username != "itc" or credentials.password != "itc_secret_2026":
+    if credentials.username != ITC_USER or credentials.password != ITC_PASSWORD:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return credentials
 
