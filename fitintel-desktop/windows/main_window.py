@@ -481,3 +481,13 @@ try:
     print("E15 credentials tab OK")
 except Exception as _e15ui:
     print("E15 credentials tab FAIL:", _e15ui)
+    
+# === E71_AUDIT_TAB ===
+try:
+    from windows.audit_tab import AuditTab
+    if "audit" not in TAB_REGISTRY:
+        TAB_REGISTRY["audit"] = ("История", AuditTab)
+        print("E71 audit tab OK")
+except Exception as _e71:
+    print("E71 audit tab FAIL:", _e71)    
+    
