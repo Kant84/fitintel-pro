@@ -33,6 +33,10 @@ ROLE_LABELS = {
     "manager": "Менеджер",
     "trainer": "Тренер",
     "reception": "Ресепшен",
+    "cashier": "Кассир",
+    "accountant": "Бухгалтер",
+    "support": "Поддержка",
+    "owner": "Владелец",
 }
 
 
@@ -53,10 +57,9 @@ class UiConfigTab(QWidget):
         top = QHBoxLayout()
         top.addWidget(QLabel("Роль:"))
         self.cmb_role = QComboBox()
-        for r in ("superadmin", "admin", "manager", "trainer", "reception"):
-            self.cmb_role.addItem(ROLE_LABELS.get(r, r), r)
+        # список ролей заполняется в _on_loaded из данных сервера
         self.cmb_role.currentIndexChanged.connect(self._render_table)
-        self.cmb_role.setStyleSheet("padding: 6px; min-width: 180px;")
+        self.cmb_role.setStyleSheet("padding: 6px; min-width: 200px;")
         top.addWidget(self.cmb_role)
         top.addStretch()
 
@@ -76,8 +79,10 @@ class UiConfigTab(QWidget):
         top.addWidget(btn_refresh)
         layout.addLayout(top)
 
-        self.lbl_hint = QLabel("Отметьте экраны, которые будут видны выбранной роли в тонком клиенте")
+        self.lbl_hint = QLabel("Отметьте экраны, которые будут видны выбранной роли. "
+                               "Не отмеченное роль не видит вообще.")
         self.lbl_hint.setStyleSheet("color: #64748b; font-size: 12px;")
+        self.lbl_hint.setWordWrap(True)
         layout.addWidget(self.lbl_hint)
 
         self.table = QTableWidget()
@@ -97,9 +102,20 @@ class UiConfigTab(QWidget):
     def _on_loaded(self, screens: list, roles: dict):
         self._screens = screens
         self._matrix = roles.get("roles", {})
+        # заполняем список ролей из матрицы сервера (все роли автоматически)
+        self.cmb_role.blockSignals(True)
+        prev = self.cmb_role.currentData()
+        self.cmb_role.clear()
+        for r in sorted(self._matrix.keys()):
+            self.cmb_role.addItem(ROLE_LABELS.get(r, r), r)
+        idx = self.cmb_role.findData(prev) if prev else 0
+        self.cmb_role.setCurrentIndex(idx if idx >= 0 else 0)
+        self.cmb_role.blockSignals(False)
         self._render_table()
 
     def _current_visibility(self, role: str) -> set:
+        if not role:
+            return set()
         return {s["screen_code"] for s in self._matrix.get(role, []) if s.get("is_visible")}
 
     def _render_table(self):
@@ -132,6 +148,9 @@ class UiConfigTab(QWidget):
 
     def _save(self):
         role = self.cmb_role.currentData()
+        if not role:
+            QMessageBox.warning(self, "Сохранение", "Список ролей ещё не загружен — нажмите «Обновить»")
+            return
         try:
             res = self.api.set_ui_role_screens(role, self._collect_visible())
             QMessageBox.information(self, "Сохранено",
@@ -142,6 +161,8 @@ class UiConfigTab(QWidget):
 
     def _reset(self):
         role = self.cmb_role.currentData()
+        if not role:
+            return
         reply = QMessageBox.question(self, "Сброс",
             f"Сбросить экраны роли {ROLE_LABELS.get(role, role)} к умолчаниям?")
         if reply != QMessageBox.StandardButton.Yes:

@@ -46,6 +46,10 @@ class UsersTab(QWidget):
         b_add.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_add.clicked.connect(self._add)
         row.addWidget(b_add)
+        b_del = QPushButton("Удалить")
+        b_del.setStyleSheet("QPushButton { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        b_del.clicked.connect(self._delete)
+        row.addWidget(b_del)
         btn = QPushButton("Обновить")
         btn.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn.clicked.connect(self.refresh)
@@ -71,7 +75,9 @@ class UsersTab(QWidget):
     def _on_loaded(self, users: list):
         self.table.setRowCount(len(users))
         for i, u in enumerate(users):
-            self.table.setItem(i, 0, QTableWidgetItem(str(u.get("username") or "—")))
+            item0 = QTableWidgetItem(str(u.get("username") or "—"))
+            item0.setData(Qt.ItemDataRole.UserRole, str(u.get("id") or ""))
+            self.table.setItem(i, 0, item0)
             self.table.setItem(i, 1, QTableWidgetItem(str(u.get("email") or "—")))
             roles = u.get("roles") or []
             if isinstance(roles, list):
@@ -87,7 +93,7 @@ class UsersTab(QWidget):
             self.table.setItem(i, 4, item)
 
     def _load_roles(self):
-        #Роли из RBAC (исключая системные client/device и superadmin).
+        """Роли из RBAC (без системных client/device и superadmin)."""
         try:
             resp = self.api.session.get(self.api._url("/rbac/roles-matrix"))
             resp.raise_for_status()
@@ -141,6 +147,33 @@ class UsersTab(QWidget):
             self.refresh()
         except Exception as e:
             QMessageBox.critical(self, "Ошибка создания", str(e))
+
+    def _delete(self):
+        row = self.table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "Удаление", "Сначала выберите пользователя в таблице")
+            return
+        item = self.table.item(row, 0)
+        uid = item.data(Qt.ItemDataRole.UserRole) if item else None
+        login = item.text() if item else "?"
+        if not uid:
+            QMessageBox.warning(self, "Удаление", "ID пользователя не найден — нажмите «Обновить»")
+            return
+        if login.lower() == "superadmin":
+            QMessageBox.warning(self, "Удаление", "superadmin нельзя удалить")
+            return
+        if QMessageBox.question(
+                self, "Удаление пользователя",
+                f"Удалить пользователя «{login}» безвозвратно?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            r = self.api.session.delete(self.api._url(f"/users/{uid}"))
+            r.raise_for_status()
+            self.refresh()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка удаления", str(e))
 
     def _on_error(self, msg: str):
         self.table.setRowCount(1)
