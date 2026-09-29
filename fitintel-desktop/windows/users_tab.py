@@ -86,17 +86,38 @@ class UsersTab(QWidget):
             item.setForeground(QColor("#059669" if active else "#ef4444"))
             self.table.setItem(i, 4, item)
 
+        def _load_roles(self):
+        """Роли из RBAC (исключая системные client/device и superadmin)."""
+        try:
+            resp = self.api.session.get(self.api._url("/rbac/roles-matrix"))
+            resp.raise_for_status()
+            body = resp.json()
+            rows = body.get("roles", body) if isinstance(body, dict) else body
+            skip = {"client", "device", "superadmin"}
+            labels = {"admin": "Администратор", "manager": "Менеджер",
+                      "trainer": "Тренер", "reception": "Ресепшен",
+                      "cashier": "Кассир", "accountant": "Бухгалтер",
+                      "support": "Поддержка", "owner": "Владелец"}
+            out = []
+            for r in rows if isinstance(rows, list) else []:
+                code = str(r.get("role_code") or r.get("code") or "").lower()
+                if not code or code in skip:
+                    continue
+                name = labels.get(code, r.get("role_name") or code)
+                out.append((name, code))
+            if out:
+                return out
+        except Exception:
+            pass
+        return [("Менеджер", "manager"), ("Тренер", "trainer"),
+                ("Ресепшен", "reception"), ("Администратор", "admin")]
+
     def _add(self):
         dlg = FormDialog("Новый пользователь", [
             ("username", "Логин *"),
             ("email", "Email *"),
             ("password", "Пароль *"),
-            ("role", "Роль *", "combo", [
-                ("Менеджер", "manager"),
-                ("Тренер", "trainer"),
-                ("Ресепшен", "reception"),
-                ("Администратор", "admin"),
-            ]),
+            ("role", "Роль *", "combo", self._load_roles()),
         ], self)
         if dlg.exec() != FormDialog.DialogCode.Accepted:
             return

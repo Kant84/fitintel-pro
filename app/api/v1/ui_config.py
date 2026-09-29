@@ -28,8 +28,8 @@ for mod in ("app.db.session", "app.core.database", "app.database"):
 
 router = APIRouter(prefix="/ui-config", tags=["UI Config"])
 
-ROLES = ["superadmin", "admin", "manager", "trainer", "reception"]
-
+ROLES = ["superadmin", "admin", "manager", "trainer", "reception",
+         "cashier", "accountant", "support", "owner"]
 DEFAULT_PROFILES = {
     "superadmin": ["dashboard", "clients", "subscriptions", "visits", "schedule",
                    "payments", "reports", "analytics", "documents", "devices",
@@ -43,6 +43,10 @@ DEFAULT_PROFILES = {
     "trainer": ["dashboard", "schedule", "visits", "clients"],
     "reception": ["dashboard", "clients", "visits", "subscriptions",
                   "payments", "face_id"],
+        "cashier": ["dashboard", "clients", "subscriptions", "payments", "visits"],
+    "accountant": ["dashboard", "payments", "reports", "documents", "analytics"],
+    "support": ["dashboard", "clients", "visits"],
+    "owner": ["dashboard", "analytics", "reports", "payments"],
 }
 
 PROTECTED_SUPERADMIN_SCREEN = "ui_config"
