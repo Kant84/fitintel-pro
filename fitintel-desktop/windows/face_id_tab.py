@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
-"""Face ID v2 — карточка клиента с фото: поиск, регистрация шаблона, список шаблонов."""
+"""Face ID v3 — карточка клиента с фото: поиск, съёмка с камеры/загрузка,
+регистрация шаблона, список шаблонов, симуляции."""
 import base64
 import json
-from PyQt6.QtCore import QThread, pyqtSignal, Qt
+import os
+import tempfile
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QTimer
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QLineEdit, QPlainTextEdit, QTableWidget, QTableWidgetItem,
-    QHeaderView, QMessageBox, QFileDialog, QSplitter, QGroupBox, QFormLayout)
-from PyQt6.QtGui import QPixmap, QFont
+    QHeaderView, QMessageBox, QFileDialog, QSplitter, QGroupBox, QFormLayout,
+    QDialog)
+from PyQt6.QtGui import QPixmap, QImage
 from . import theme
 
 TEST_PHOTO = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
@@ -40,6 +44,84 @@ class Worker(QThread):
             self.done.emit(self._fn())
         except Exception as e:
             self.fail.emit(str(e))
+
+
+class CameraDialog(QDialog):
+    """Предпросмотр веб-камеры + съёмка кадра."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("📷 Съёмка фото — FitIntel Face ID")
+        self.resize(680, 560)
+        self.photo_path = None
+        self._frame = None
+        self.cap = None
+
+        v = QVBoxLayout(self)
+        self.lbl = QLabel("Запуск камеры…")
+        self.lbl.setMinimumSize(640, 480)
+        self.lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl.setStyleSheet("background: #0f172a; color: #94a3b8;")
+        v.addWidget(self.lbl, 1)
+
+        bar = QHBoxLayout()
+        self.b_shot = QPushButton("📸 Снять")
+        self.b_shot.setEnabled(False)
+        self.b_shot.setStyleSheet("QPushButton { background: #059669; color: white; border: none; border-radius: 6px; padding: 10px 28px; font-weight: 700; }")
+        self.b_shot.clicked.connect(self._shot)
+        bar.addStretch(1)
+        bar.addWidget(self.b_shot)
+        b_cancel = QPushButton("Отмена")
+        b_cancel.clicked.connect(self.reject)
+        bar.addWidget(b_cancel)
+        bar.addStretch(1)
+        v.addLayout(bar)
+
+        try:
+            import cv2
+            self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+            if not self.cap.isOpened():
+                self.cap = cv2.VideoCapture(0)
+        except Exception:
+            self.cap = None
+        if not self.cap or not self.cap.isOpened():
+            self.lbl.setText("Камера не найдена.\nПроверьте подключение и что камера не занята другим приложением.")
+            return
+        self.b_shot.setEnabled(True)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._update)
+        self._timer.start(40)
+
+    def _update(self):
+        import cv2
+        ok, frame = self.cap.read()
+        if not ok or frame is None:
+            return
+        self._frame = frame
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb.shape
+        img = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
+        self.lbl.setPixmap(QPixmap.fromImage(img).scaled(
+            self.lbl.width(), self.lbl.height(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation))
+
+    def _shot(self):
+        import cv2
+        if self._frame is None:
+            return
+        self.photo_path = os.path.join(tempfile.gettempdir(), "fitintel_face.jpg")
+        cv2.imwrite(self.photo_path, self._frame)
+        self.accept()
+
+    def closeEvent(self, ev):
+        try:
+            self._timer.stop()
+        except Exception:
+            pass
+        if self.cap is not None:
+            self.cap.release()
+        super().closeEvent(ev)
 
 
 class FaceIdTab(QWidget):
@@ -85,7 +167,11 @@ class FaceIdTab(QWidget):
         lv.addWidget(self.card)
 
         row = QHBoxLayout()
-        b_load = QPushButton("📂 Загрузить фото и зарегистрировать")
+        b_cam = QPushButton("📷 Снять с камеры")
+        b_cam.setStyleSheet("QPushButton { background: #2563eb; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        b_cam.clicked.connect(self.capture_from_camera)
+        row.addWidget(b_cam)
+        b_load = QPushButton("📂 Загрузить файл")
         b_load.setStyleSheet("QPushButton { background: #059669; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_load.clicked.connect(self.register_photo)
         row.addWidget(b_load)
@@ -182,7 +268,19 @@ class FaceIdTab(QWidget):
         s = sorted(mine, key=lambda x: str(x.get("end_date") or ""), reverse=True)[0]
         self.lbl_sub.setText("%s (до %s)" % (s.get("status"), s.get("end_date")))
 
-    # ---------- фото / регистрация ----------
+    # ---------- фото: камера / файл ----------
+    def capture_from_camera(self):
+        if not self._current:
+            QMessageBox.information(self, "Face ID", "Сначала найдите и выберите клиента")
+            return
+        dlg = CameraDialog(self)
+        if dlg.exec() != QDialog.DialogCode.Accepted or not dlg.photo_path:
+            return
+        self.lbl_photo.setPixmap(QPixmap(dlg.photo_path).scaled(
+            180, 180, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation))
+        self._register_path(dlg.photo_path)
+
     def register_photo(self):
         if not self._current:
             QMessageBox.information(self, "Face ID", "Сначала найдите и выберите клиента")
@@ -191,34 +289,35 @@ class FaceIdTab(QWidget):
             self, "Фото клиента", "", "Изображения (*.jpg *.jpeg *.png *.bmp)")
         if not path:
             return
+        self.lbl_photo.setPixmap(QPixmap(path).scaled(
+            180, 180, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation))
+        self._register_path(path)
+
+    def _register_path(self, path):
         try:
             with open(path, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
         except Exception as e:
             QMessageBox.critical(self, "Фото", str(e))
             return
-        self.lbl_photo.setPixmap(QPixmap(path).scaled(
-            180, 180, Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation))
         cid = str(self._current.get("id"))
         self._run(lambda: self.api.face_register(cid, b64), self._on_registered)
 
     def _on_registered(self, r):
         try:
-            self.details.setPlainText(json.dumps(r, ensure_ascii=False, indent=2, default=str)[:1500])
+            txt = json.dumps(r, ensure_ascii=False, indent=2, default=str)[:1500]
         except Exception:
-            self.details.setPlainText(str(r))
+            txt = str(r)
         ok = False
         if isinstance(r, dict):
             ok = bool(r.get("ok") or r.get("success") or r.get("id")
                       or r.get("template_id") or r.get("template"))
+        self._show(("✅ Шаблон зарегистрирован:\n" if ok else "⚠️ Ответ сервера:\n") + txt)
         if ok:
-            self._show("✅ Шаблон зарегистрирован:\n" + self.details.toPlainText())
             self.load_templates()
-        else:
-            self._show("⚠️ Ответ сервера (проверьте):\n" + self.details.toPlainText())
 
-    # ---------- шаблоны ----------
+    # ---------- шаблоны / сервис ----------
     def load_templates(self):
         self._run(self.api.face_templates, self._fill_templates)
 
@@ -234,9 +333,7 @@ class FaceIdTab(QWidget):
                     str(t.get("quality_score") or t.get("quality") or "")]
             for j, v in enumerate(vals):
                 self.tbl.setItem(i, j, QTableWidgetItem(v))
-        self._show("Шаблонов: %d" % len(rows))
 
-    # ---------- сервис ----------
     def engine_info(self):
         self._run(self.api.face_engine_info,
                   lambda r: self._show(json.dumps(r, ensure_ascii=False, indent=2, default=str)[:1200]))
@@ -248,7 +345,7 @@ class FaceIdTab(QWidget):
         ok = isinstance(res, dict) and any(
             res.get(k) is True for k in ("verified", "access_granted", "match", "success", "allowed"))
         txt = json.dumps(res, ensure_ascii=False, indent=2, default=str)[:1200]
-        self._show(("✅ Доступ РАЗРЕШЁН\n" if ok else "⛔ Отказ / нет совпадения\n") + txt, ok=ok)
+        self._show(("✅ Доступ РАЗРЕШЁН\n" if ok else "⛔ Отказ / нет совпадения\n") + txt)
 
 
 FaceIDTab = FaceIdTab  # алиас для совместимости с main_window
