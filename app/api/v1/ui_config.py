@@ -58,6 +58,10 @@ ROLE_ALIASES = {
 
 
 def _user_role(user: Any) -> str:
+    # Суперадминистратор — всегда с полным доступом, независимо от связей ролей
+    uname = str(getattr(user, "username", "") or "").lower()
+    if uname == "superadmin":
+        return "superadmin"
     for attr in ("role", "role_name"):
         r = getattr(user, attr, None)
         if r is None:
@@ -77,8 +81,7 @@ def _user_role(user: Any) -> str:
                 return ROLE_ALIASES.get(str(name).lower(), str(name).lower())
         except Exception:
             pass
-    return "admin"
-
+    return ""   # ← без роли пользователь НЕ ВИДИТ НИ ОДНОГО экрана (строгая модель)
 
 def _all_screens(db: Session) -> list[dict]:
     rows = db.execute(text("""
@@ -229,8 +232,11 @@ def my_screens(
     db: Session = Depends(get_db),
     user: Any = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Видимые экраны текущего пользователя — тонкий клиент строит меню."""
+    """Видимые экраны текущего пользователя — строго по ui_role_screens.
+    Ничего не отмечено для роли = ничего не видно (никаких профилей по умолчанию)."""
     role = _user_role(user)
+    if not role:
+        return {"role": "", "screens": []}
     rows = db.execute(text("""
         SELECT s.code, s.name, s.path, s.icon, s.sort_order
         FROM ui_role_screens rs
@@ -238,11 +244,4 @@ def my_screens(
         WHERE rs.role = :role AND rs.is_visible AND s.is_active
         ORDER BY s.sort_order, s.code
     """), {"role": role}).mappings().all()
-    screens = [dict(r) for r in rows]
-    if not screens:
-        defaults = set(DEFAULT_PROFILES.get(role, []))
-        screens = [s for s in _all_screens(db)
-                   if s["code"] in defaults and s["is_active"]]
-        for s in screens:
-            s.pop("is_active", None)
-    return {"role": role, "screens": screens}
+    return {"role": role, "screens": [dict(r) for r in rows]}
