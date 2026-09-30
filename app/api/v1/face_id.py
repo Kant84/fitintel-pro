@@ -164,7 +164,7 @@ def register_face(data: FaceRegisterRequest, db: Session = Depends(get_db),
             photo_stored = True
     from app.services.audit_service import AuditService
     AuditService(db).created(
-        actor_user_id=current_user.id, entity_type="face_template",
+        actor_user_id=current_user.id, entity_type="face_template", entity_id=None,
         message=(f"Зарегистрирован шаблон Face ID: {client.last_name} {client.first_name} "
                  f"(качество {round(quality, 1)}{', фото сохранено' if photo_stored else ''})"))
     return {"face_template_id": template.id, "client_id": str(template.client_id),
