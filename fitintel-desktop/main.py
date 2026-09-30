@@ -4,7 +4,7 @@
     python main.py
 
 Сборка .exe:
-    python build.py
+    build_exe.bat (pyinstaller onefile)
 """
 import sys
 import os
@@ -98,6 +98,36 @@ def main():
     except Exception:
         api = ApiClient()
 
+    # === E72: первый запуск — спросить адрес сервера (одна сборка на все клубы) ===
+    try:
+        _cfg_path = APP_DIR / "client_settings.json"
+        _cfg = {}
+        if _cfg_path.exists():
+            _cfg = json.loads(_cfg_path.read_text(encoding="utf-8"))
+        _has_profiles = (APP_DIR / "connections.json").exists()
+        if not _cfg.get("api_base") and not _has_profiles:
+            from PyQt6.QtWidgets import QInputDialog
+            url, ok = QInputDialog.getText(
+                None, "FitIntel Pro — Подключение к серверу",
+                "Введите адрес сервера вашего клуба.\n\n"
+                "Примеры:\n"
+                "   http://192.168.0.10\n"
+                "   http://fit.yourclub.ru\n\n"
+                "Адрес сохранится на этом компьютере.",
+                text="http://")
+            if ok and url.strip():
+                url = url.strip().rstrip("/")
+                if not url.endswith("/api/v1"):
+                    url += "/api/v1"
+                _cfg["api_base"] = url
+                _cfg_path.write_text(json.dumps(_cfg, ensure_ascii=False, indent=2),
+                                     encoding="utf-8")
+                api.base_url = url
+                log.info("E72: адрес сервера сохранён при первом запуске: %s", url)
+    except Exception as e:
+        log.warning("E72 first-run prompt skipped: %s", e)
+    # ==============================================================================
+
     login = LoginWindow()
     main_window = None
     rfid_monitor = None
@@ -145,8 +175,6 @@ def main():
         # ==============================================
 
         main_window = MainWindow(api, user_data, token)
-
-
         main_window.logout_requested.connect(show_login)
 
         try:
@@ -157,7 +185,6 @@ def main():
         except Exception as e:
             log.error('E16 RFID Monitor FAIL: %s', e)
 
-        main_window.logout_requested.connect(show_login)
         main_window.show()
 
     def show_login():
@@ -175,6 +202,7 @@ def main():
         login.btn_login.setEnabled(True)
         login.btn_login.setText("Войти")
         login.show()
+
     login.login_success.connect(on_login_success)
 
     # === E69: первый запуск — активация ДО показа окна входа ===
