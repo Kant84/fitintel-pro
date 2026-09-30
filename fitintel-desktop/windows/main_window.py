@@ -32,7 +32,7 @@ from windows.roles_tab import RolesTab
 from windows.setup_tab import SetupTab
 from windows.tariffs_tab import TariffsTab
 
-SETTINGS_PATH = Path(__file__).parents[1] / "client_settings.json"
+from paths import SETTINGS as SETTINGS_PATH
 
 TAB_REGISTRY = {
     "dashboard":     ("Главная", DashboardTab),

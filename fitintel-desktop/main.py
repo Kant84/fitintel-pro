@@ -24,7 +24,7 @@ from windows import LoginWindow, MainWindow
 from windows.startup_dialog import StartupDialog
 
 ICON_PATH = Path(__file__).parent / "assets" / "FitIntel_icon.ico"
-APP_DIR = Path(__file__).parent
+from paths import APP_DIR, SETTINGS as _SETTINGS_PATH, CONNECTIONS as _CONN_PATH
 
 
 def _auto_connect_if_single() -> dict | None:
@@ -100,11 +100,10 @@ def main():
 
     # === E72: первый запуск — спросить адрес сервера (одна сборка на все клубы) ===
     try:
-        _cfg_path = APP_DIR / "client_settings.json"
         _cfg = {}
-        if _cfg_path.exists():
-            _cfg = json.loads(_cfg_path.read_text(encoding="utf-8"))
-        _has_profiles = (APP_DIR / "connections.json").exists()
+        if _SETTINGS_PATH.exists():
+            _cfg = json.loads(_SETTINGS_PATH.read_text(encoding="utf-8"))
+        _has_profiles = _CONN_PATH.exists()
         if not _cfg.get("api_base") and not _has_profiles:
             from PyQt6.QtWidgets import QInputDialog
             url, ok = QInputDialog.getText(
@@ -120,12 +119,13 @@ def main():
                 if not url.endswith("/api/v1"):
                     url += "/api/v1"
                 _cfg["api_base"] = url
-                _cfg_path.write_text(json.dumps(_cfg, ensure_ascii=False, indent=2),
-                                     encoding="utf-8")
+                _SETTINGS_PATH.write_text(json.dumps(_cfg, ensure_ascii=False, indent=2),
+                                          encoding="utf-8")
                 api.base_url = url
                 log.info("E72: адрес сервера сохранён при первом запуске: %s", url)
     except Exception as e:
         log.warning("E72 first-run prompt skipped: %s", e)
+    # ==============================================================================
     # ==============================================================================
 
     login = LoginWindow()

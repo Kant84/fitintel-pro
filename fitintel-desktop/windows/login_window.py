@@ -11,8 +11,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QFont, QPixmap, QIcon
 from api import ApiClient
 
-SETTINGS_PATH = Path(__file__).parents[1] / "client_settings.json"
-
+from paths import SETTINGS as SETTINGS_PATH
 
 def _load_settings() -> dict:
     try:
