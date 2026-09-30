@@ -1,4 +1,4 @@
-#define MyAppVersion "1.5.2"
+﻿#define MyAppVersion "1.5.2"
 
 [Setup]
 AppName=FitIntel Pro Desktop
@@ -23,7 +23,7 @@ Name: "{group}\FitIntel Desktop"; Filename: "{app}\FitIntelDesktop.exe"
 Name: "{autodesktop}\FitIntel Desktop"; Filename: "{app}\FitIntelDesktop.exe"; Tasks: desktopicon
 
 [Tasks]
-Name: "desktopicon"; Description: "????? ?? ??????? ?????"; GroupDescription: "?????????????:"
+Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Дополнительные задачи:"
 
 [Run]
-Filename: "{app}\FitIntelDesktop.exe"; Description: "????????? FitIntel Desktop"; Flags: postinstall skipifsilent
+Filename: "{app}\FitIntelDesktop.exe"; Description: "Запустить FitIntel Desktop"; Flags: postinstall skipifsilent
