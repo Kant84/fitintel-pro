@@ -23,8 +23,9 @@ from api import ApiClient
 from windows import LoginWindow, MainWindow
 from windows.startup_dialog import StartupDialog
 
-ICON_PATH = Path(__file__).parent / "assets" / "FitIntel_icon.ico"
 from paths import APP_DIR, SETTINGS as _SETTINGS_PATH, CONNECTIONS as _CONN_PATH
+
+ICON_PATH = APP_DIR / "assets" / "FitIntel_icon.ico"
 
 
 def _auto_connect_if_single() -> dict | None:
@@ -91,9 +92,11 @@ def main():
 
     # Базовый URL из client_settings.json (если файл есть), иначе localhost по умолчанию
     try:
-        _cfg_path = Path(__file__).parent / "client_settings.json"
-        _cfg = json.loads(_cfg_path.read_text(encoding="utf-8"))
-        api = ApiClient(base_url=_cfg.get("api_base", "http://localhost:8001/api/v1"))
+        if _SETTINGS_PATH.exists():
+            _cfg = json.loads(_SETTINGS_PATH.read_text(encoding="utf-8"))
+            api = ApiClient(base_url=_cfg.get("api_base", "http://localhost:8001/api/v1"))
+        else:
+            api = ApiClient()
         log.info("API base (старт): %s", api.base_url)
     except Exception:
         api = ApiClient()
@@ -121,11 +124,18 @@ def main():
                 _cfg["api_base"] = url
                 _SETTINGS_PATH.write_text(json.dumps(_cfg, ensure_ascii=False, indent=2),
                                           encoding="utf-8")
+                # один профиль подключения — старый диалог базы не перекроет адрес
+                _CONN_PATH.write_text(json.dumps([{
+                    "name": "Сервер клуба",
+                    "type": "web",
+                    "web_url": url,
+                    "web_login": "",
+                    "web_pass": "",
+                }], ensure_ascii=False, indent=2), encoding="utf-8")
                 api.base_url = url
                 log.info("E72: адрес сервера сохранён при первом запуске: %s", url)
     except Exception as e:
         log.warning("E72 first-run prompt skipped: %s", e)
-    # ==============================================================================
     # ==============================================================================
 
     login = LoginWindow()

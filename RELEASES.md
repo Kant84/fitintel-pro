@@ -8,8 +8,8 @@
 | fitintel-pro_v1.5.2.zip | код сервера: compose.prod, scripts (install/backup/update), миграции, docs | 4CE475F781F167847378C86E32E1494201B56E335443F65AE3D8CA5ED139B8A0 |
                                                                                                           
 | fitintel-prod_v1.5.2.tar (884 МБ) | готовый docker-образ fitintel:prod (`docker load -i`) | c8093134395c3c6cf3dc196a18f520299bd14a47f9182fd0e879c0e7b885a6a4 |
-| FitIntelDesktop.exe | desktop-клиент, портабельный (onefile, иконка бренда) | DA6055EA99D1D5E658F6C1D30C352C10066C56BFA1322F0FD5911EE98DC282C4 |
-| FitIntelDesktop-Setup_v1.5.2.exe (≈107 МБ) | установщик desktop (ярлык с логотипом, деинсталлятор) | 84745366FE21907E7D502991149C7E3C5550E6BC82A8F190B5BDA93DA63DCD96 |
+| FitIntelDesktop.exe | desktop-клиент, портабельный (onefile, иконка бренда) | 7F70B15698A097F9D05775F887ADE2825413C852015E079E4670F22AFA2376BD |
+| FitIntelDesktop-Setup_v1.5.2.exe (≈107 МБ) | установщик desktop (ярлык с логотипом, деинсталлятор) | E188F3FFACC65D738619DB9726227D884C7ECB2F4AB6B2A61CBC7E236E4B83AD |
 
 - Сервер клуба: docs/INSTALL_CLUB.md (5 команд; install.sh генерирует .env с секретами)
 - Desktop: Setup.exe (или exe). При первом запуске спрашивает адрес сервера клуба и сохраняет его локально. Одна сборка на все клубы.
