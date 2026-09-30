@@ -15,10 +15,12 @@ import gzip
 from datetime import datetime, timedelta
 from pathlib import Path
 
-BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", "/app/data/backups"))
-RETENTION_DAYS = int(os.environ.get("BACKUP_RETENTION_DAYS", "30"))
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
+_IN_CONTAINER = Path("/.dockerenv").exists()
+BACKUP_DIR = Path(os.environ.get(
+    "BACKUP_DIR",
+    "/app/data/backups" if _IN_CONTAINER else str(REPO_ROOT / "backups")))
+RETENTION_DAYS = int(os.environ.get("BACKUP_RETENTION_DAYS", "30"))
 
 
 def _env(k, d=""):
