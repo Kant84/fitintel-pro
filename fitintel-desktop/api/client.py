@@ -511,7 +511,7 @@ def _e70_relogin(self) -> bool:
     try:
         cfg = {}
         try:
-            _p = _e70_Path(__file__).resolve().parents[1] / "client_settings.json"
+            from paths import SETTINGS as _p
             cfg = _e70_json.loads(_p.read_text(encoding="utf-8"))
         except Exception:
             pass

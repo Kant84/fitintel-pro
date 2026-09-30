@@ -4,6 +4,8 @@
 AppName=FitIntel Pro Desktop
 AppVersion={#MyAppVersion}
 AppPublisher=FitIntel Systems
+SetupIconFile=assets\FitIntel_icon.ico
+UninstallDisplayIcon={app}\FitIntelDesktop.exe
 DefaultDirName={autopf}\FitIntel Desktop
 DefaultGroupName=FitIntel Pro
 OutputDir=installer_out
@@ -19,8 +21,8 @@ PrivilegesRequired=lowest
 Source: "dist\FitIntelDesktop.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\FitIntel Desktop"; Filename: "{app}\FitIntelDesktop.exe"
-Name: "{autodesktop}\FitIntel Desktop"; Filename: "{app}\FitIntelDesktop.exe"; Tasks: desktopicon
+Name: "{group}\FitIntel Desktop"; Filename: "{app}\FitIntelDesktop.exe"; IconFilename: "{app}\FitIntelDesktop.exe"
+Name: "{autodesktop}\FitIntel Desktop"; Filename: "{app}\FitIntelDesktop.exe"; IconFilename: "{app}\FitIntelDesktop.exe"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Дополнительные задачи:"
