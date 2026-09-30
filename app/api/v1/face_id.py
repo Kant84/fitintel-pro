@@ -1,6 +1,8 @@
 import base64
 import io
+import os
 import threading
+import time
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text as _sql_text
@@ -38,19 +40,22 @@ router = APIRouter(prefix="/face-id", tags=["Face ID"])
 def _face_settings(db) -> dict:
     try:
         row = db.execute(_sql_text(
-            "SELECT threshold, min_quality, max_templates FROM face_settings WHERE id=1")).first()
+            "SELECT threshold, min_quality, max_templates, store_photos "
+            "FROM face_settings WHERE id=1")).first()
         if row:
             return {"threshold": float(row[0]), "min_quality": float(row[1]),
-                    "max_templates": int(row[2])}
+                    "max_templates": int(row[2]), "store_photos": bool(row[3])}
     except Exception:
         pass
-    return {"threshold": 0.6, "min_quality": 40.0, "max_templates": 5}
+    return {"threshold": 0.6, "min_quality": 40.0, "max_templates": 5,
+            "store_photos": False}
 
 
 class FaceSettingsIn(BaseModel):
     threshold: float = 0.6
     min_quality: float = 40.0
     max_templates: int = 5
+    store_photos: bool = False
 
 
 @router.get("/settings")
@@ -63,15 +68,46 @@ def get_face_settings(db: Session = Depends(get_db),
 def set_face_settings(data: FaceSettingsIn, db: Session = Depends(get_db),
                       current_user: User = Depends(get_current_user)):
     db.execute(_sql_text(
-        "INSERT INTO face_settings (id, threshold, min_quality, max_templates) "
-        "VALUES (1, :t, :q, :m) ON CONFLICT (id) DO UPDATE SET "
+        "INSERT INTO face_settings (id, threshold, min_quality, max_templates, store_photos) "
+        "VALUES (1, :t, :q, :m, :s) ON CONFLICT (id) DO UPDATE SET "
         "threshold=EXCLUDED.threshold, min_quality=EXCLUDED.min_quality, "
-        "max_templates=EXCLUDED.max_templates"),
+        "max_templates=EXCLUDED.max_templates, store_photos=EXCLUDED.store_photos"),
         {"t": max(0.1, min(1.5, data.threshold)),
          "q": max(1.0, data.min_quality),
-         "m": max(1, min(20, data.max_templates))})
+         "m": max(1, min(20, data.max_templates)),
+         "s": bool(data.store_photos)})
     db.commit()
     return _face_settings(db)
+
+
+# ---------------------------------------------------------------------------
+# Хранилище фото (опционально — включает клуб; по умолчанию выкл, 152-ФЗ)
+# ---------------------------------------------------------------------------
+FACE_PHOTOS_DIR = "/app/data/face_photos"
+
+
+def _store_photo(photo_b64: str, template_id, client_id) -> str | None:
+    """Сохранить фото лица на диск (только если клуб включил хранение).
+    Возвращает имя файла или None. Права 600 — только владелец."""
+    try:
+        os.makedirs(FACE_PHOTOS_DIR, exist_ok=True)
+        fname = f"tpl{template_id}_c{str(client_id)[:8]}_{int(time.time())}.jpg"
+        path = os.path.join(FACE_PHOTOS_DIR, fname)
+        with open(path, "wb") as f:
+            f.write(base64.b64decode(photo_b64))
+        os.chmod(path, 0o600)
+        return fname
+    except Exception:
+        return None
+
+
+def _remove_photo(fname: str | None):
+    if not fname:
+        return
+    try:
+        os.remove(os.path.join(FACE_PHOTOS_DIR, fname))
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -119,13 +155,21 @@ def register_face(data: FaceRegisterRequest, db: Session = Depends(get_db),
                             detail=f"Лимит шаблонов ({settings['max_templates']}) для клиента исчерпан")
     service = FaceIDService(db)
     template = service.register_face(data.client_id, encoding, quality_score=quality)
+    photo_stored = False
+    if settings.get("store_photos"):
+        fname = _store_photo(data.photo, template.id, data.client_id)
+        if fname:
+            template.photo_path = fname
+            db.commit()
+            photo_stored = True
     from app.services.audit_service import AuditService
     AuditService(db).created(
-        actor_user_id=current_user.id, entity_type="face_template", entity_id=template.id,
+        actor_user_id=current_user.id, entity_type="face_template",
         message=(f"Зарегистрирован шаблон Face ID: {client.last_name} {client.first_name} "
-                 f"(качество {round(quality, 1)})"))
+                 f"(качество {round(quality, 1)}{', фото сохранено' if photo_stored else ''})"))
     return {"face_template_id": template.id, "client_id": str(template.client_id),
             "embedding_size": len(encoding), "quality_score": round(quality, 1),
+            "photo_stored": photo_stored,
             "created_at": str(template.created_at)}
 
 
@@ -167,6 +211,7 @@ def delete_template(template_id: int, db: Session = Depends(get_db),
     template = db.query(FaceTemplate).filter(FaceTemplate.id == template_id).first()
     if not template:
         raise HTTPException(status_code=404, detail="Шаблон не найден")
+    _remove_photo(getattr(template, "photo_path", None))
     from app.services.audit_service import AuditService
     AuditService(db).deleted(
         actor_user_id=current_user.id, entity_type="face_template",
@@ -192,6 +237,12 @@ def update_template(template_id: int, data: FaceUpdateRequest, db: Session = Dep
     template.face_encoding = encoding
     template.quality_score = quality
     db.commit()
+    if settings.get("store_photos"):
+        fname = _store_photo(data.photo, template.id, template.client_id)
+        if fname:
+            _remove_photo(getattr(template, "photo_path", None))
+            template.photo_path = fname
+            db.commit()
     return {"id": template.id, "client_id": str(template.client_id), "updated": True,
             "quality_score": round(quality, 1)}
 

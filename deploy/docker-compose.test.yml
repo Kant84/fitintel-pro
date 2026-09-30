@@ -49,6 +49,8 @@ services:
       OPENBLAS_NUM_THREADS: "1"
       OMP_NUM_THREADS: "1"
       MKL_NUM_THREADS: "1"
+    volumes:
+      - face_photos:/app/data/face_photos   # опциональное хранение фото лиц (если клуб включил)
     depends_on:
       db:
         condition: service_healthy
@@ -99,6 +101,7 @@ services:
 
 volumes:
   postgres_test:
+  face_photos:
 
 networks:
   backend:
