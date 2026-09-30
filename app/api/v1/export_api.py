@@ -22,7 +22,7 @@ def _valid_token(token: str) -> bool:
     if not token:
         return False
     try:
-        req = urllib.request.Request("http://localhost:8001/api/v1/ui-config/my")
+        req = urllib.request.Request("http://localhost:8000/api/v1/ui-config/my")
         req.add_header("Authorization", "Bearer " + token)
         urllib.request.urlopen(req, timeout=5)
         return True
@@ -163,7 +163,8 @@ def export_index():
 # === E19_JOBS: асинхронные задачи экспорта + JWT-ссылка 24ч + all-my-data ZIP ===
 import time as _time, uuid as _uuid, zipfile as _zip, hmac as _hmac, hashlib as _hash
 from pathlib import Path as _Path
-from app.api.v1.license_api import _secret
+import os as _os
+_secret = _os.environ.get("EXPORT_LINK_SECRET", _os.environ.get("SECRET_KEY", "change-me-export"))
 
 EXPORT_DIR = _Path("exports")
 EXPORT_DIR.mkdir(exist_ok=True)
