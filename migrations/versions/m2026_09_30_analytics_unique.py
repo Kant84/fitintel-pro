@@ -13,7 +13,7 @@ down_revision = "m2026_09_30_face_photos"
 branch_labels = None
 depends_on = None
 
-TABLE = "daily_metrics"   # если запрос показал другое имя — впишите сюда
+TABLE = "analytics_daily"
 
 
 def upgrade():
