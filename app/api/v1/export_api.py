@@ -164,7 +164,8 @@ def export_index():
 import time as _time, uuid as _uuid, zipfile as _zip, hmac as _hmac, hashlib as _hash
 from pathlib import Path as _Path
 import os as _os
-_secret = _os.environ.get("EXPORT_LINK_SECRET", _os.environ.get("SECRET_KEY", "change-me-export"))
+def _secret():
+    return _os.environ.get("EXPORT_LINK_SECRET", _os.environ.get("SECRET_KEY", "change-me-export"))
 
 EXPORT_DIR = _Path("exports")
 EXPORT_DIR.mkdir(exist_ok=True)
