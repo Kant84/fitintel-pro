@@ -72,7 +72,6 @@ from app.api.v1.services import router as services_router
 from app.api.v1.dynamic_qr import router as dynamic_qr_router
 from app.api.v1.face_id import router as face_id_router
 from app.api.v1.video_alerts import router as video_alerts_router
-from app.api.v1.reports import router as reports_router
 from app.api.v1.print import router as print_router
 from app.api.v1.trainers import router as trainers_router
 from app.api.v1.warehouse import router as warehouse_router
@@ -181,7 +180,6 @@ app.include_router(services_router, prefix=settings.API_V1_PREFIX)
 app.include_router(video_alerts_router, prefix=settings.API_V1_PREFIX)
 app.include_router(feature_flags_adv_router, prefix="/api/v1")
 app.include_router(feature_flags_router, prefix=settings.API_V1_PREFIX + "/feature-flags")
-app.include_router(reports_router, prefix=settings.API_V1_PREFIX + "/reports")
 app.include_router(print_router, prefix=settings.API_V1_PREFIX + "/print")
 app.include_router(trainers_router, prefix=settings.API_V1_PREFIX)
 app.include_router(warehouse_router, prefix=settings.API_V1_PREFIX)
