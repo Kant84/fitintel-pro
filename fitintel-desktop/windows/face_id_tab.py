@@ -202,6 +202,9 @@ class FaceIdTab(QWidget):
         b_ref.clicked.connect(self.load_templates)
         bar.addWidget(b_ref)
         b_eng = QPushButton("Движок Face ID")
+        b_set = QPushButton("Настройки движка…")
+        b_set.clicked.connect(self.engine_settings)
+        bar.addWidget(b_set)
         b_eng.clicked.connect(self.engine_info)
         bar.addWidget(b_eng)
         b_sim = QPushButton("▶ Симуляция: verify")
@@ -337,6 +340,41 @@ class FaceIdTab(QWidget):
     def engine_info(self):
         self._run(self.api.face_engine_info,
                   lambda r: self._show(json.dumps(r, ensure_ascii=False, indent=2, default=str)[:1200]))
+                  
+    def engine_settings(self):
+        from PyQt6.QtWidgets import QInputDialog
+        try:
+            cur = self.api.session.get(self.api._url("/face-id/settings"), timeout=30).json()
+        except Exception as e:
+            QMessageBox.warning(self, "Настройки", str(e)[:150])
+            return
+        t, ok = QInputDialog.getDouble(
+            self, "Порог уверенности",
+            "Евклидово расстояние dlib (меньше = строже; 0.6 — стандарт):",
+            float(cur.get("threshold", 0.6)), 0.1, 1.5, 2)
+        if not ok:
+            return
+        q, ok = QInputDialog.getDouble(
+            self, "Мин. качество фото",
+            "Порог резкости (Лапласиан; стандарт 40):",
+            float(cur.get("min_quality", 40.0)), 1.0, 10000.0, 0)
+        if not ok:
+            return
+        m, ok = QInputDialog.getInt(
+            self, "Лимит шаблонов",
+            "Максимум шаблонов на одного клиента:",
+            int(cur.get("max_templates", 5)), 1, 20)
+        if not ok:
+            return
+        try:
+            r = self.api.session.put(self.api._url("/face-id/settings"),
+                                     json={"threshold": t, "min_quality": q,
+                                           "max_templates": m}, timeout=30)
+            r.raise_for_status()
+            self._show("Настройки движка сохранены: "
+                       + json.dumps(r.json(), ensure_ascii=False))
+        except Exception as e:
+            QMessageBox.warning(self, "Настройки", str(e)[:150])             
 
     def sim_verify(self):
         self._run(lambda: self.api.verify_face(TEST_PHOTO), self._on_verify)

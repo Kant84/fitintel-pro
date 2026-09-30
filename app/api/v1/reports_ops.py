@@ -54,3 +54,41 @@ def operational_report(
         "SELECT COALESCE(SUM(total_amount),0) FROM sales WHERE status='COMPLETED' AND created_at::date BETWEEN :df AND :dt",
     ], p)
     return r
+    
+@router.get("/hourly")
+def attendance_by_hour(
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Загруженность по часам (0–23) за период — для оптимизации расписания."""
+    rows = _rows(db, [
+        "SELECT EXTRACT(HOUR FROM entry_time)::int AS hour, COUNT(*) AS visits "
+        "FROM visits WHERE entry_time::date BETWEEN :df AND :dt "
+        "GROUP BY 1 ORDER BY 1",
+    ], {"df": str(date_from), "dt": str(date_to)})
+    return {"rows": rows}
+
+
+@router.get("/shifts")
+def staff_shifts(
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """График работы персонала (смены) за период."""
+    rows = _rows(db, [
+        "SELECT (COALESCE(u.full_name, u.username)) AS employee, "
+        "s.shift_date::text AS date, s.start_time::text AS start, "
+        "s.end_time::text AS \"end\", s.status "
+        "FROM employee_shifts s JOIN users u ON u.id = s.user_id "
+        "WHERE s.shift_date::date BETWEEN :df AND :dt ORDER BY s.shift_date, s.start_time LIMIT 500",
+        "SELECT (COALESCE(u.full_name, u.username)) AS employee, "
+        "s.start_time::date::text AS date, s.start_time::text AS start, "
+        "s.end_time::text AS \"end\", s.status "
+        "FROM employee_shifts s JOIN users u ON u.id = s.user_id "
+        "WHERE s.start_time::date BETWEEN :df AND :dt ORDER BY 2, 3 LIMIT 500",
+    ], {"df": str(date_from), "dt": str(date_to)})
+    return {"rows": rows}    
