@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Face ID v3 — карточка клиента с фото: поиск, съёмка с камеры/загрузка,
-регистрация шаблона, список шаблонов, симуляции."""
+регистрация шаблона, список шаблонов, настройки движка (вкл. хранение фото)."""
 import base64
 import json
 import os
@@ -9,7 +9,7 @@ from PyQt6.QtCore import QThread, pyqtSignal, Qt, QTimer
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QLineEdit, QPlainTextEdit, QTableWidget, QTableWidgetItem,
     QHeaderView, QMessageBox, QFileDialog, QSplitter, QGroupBox, QFormLayout,
-    QDialog)
+    QDialog, QInputDialog)
 from PyQt6.QtGui import QPixmap, QImage
 from . import theme
 
@@ -201,10 +201,10 @@ class FaceIdTab(QWidget):
         b_ref = QPushButton("Обновить список")
         b_ref.clicked.connect(self.load_templates)
         bar.addWidget(b_ref)
-        b_eng = QPushButton("Движок Face ID")
         b_set = QPushButton("Настройки движка…")
         b_set.clicked.connect(self.engine_settings)
         bar.addWidget(b_set)
+        b_eng = QPushButton("Движок Face ID")
         b_eng.clicked.connect(self.engine_info)
         bar.addWidget(b_eng)
         b_sim = QPushButton("▶ Симуляция: verify")
@@ -315,7 +315,7 @@ class FaceIdTab(QWidget):
         ok = False
         if isinstance(r, dict):
             ok = bool(r.get("ok") or r.get("success") or r.get("id")
-                      or r.get("template_id") or r.get("template"))
+                      or r.get("template_id") or r.get("face_template_id"))
         self._show(("✅ Шаблон зарегистрирован:\n" if ok else "⚠️ Ответ сервера:\n") + txt)
         if ok:
             self.load_templates()
@@ -340,9 +340,8 @@ class FaceIdTab(QWidget):
     def engine_info(self):
         self._run(self.api.face_engine_info,
                   lambda r: self._show(json.dumps(r, ensure_ascii=False, indent=2, default=str)[:1200]))
-                  
+
     def engine_settings(self):
-        from PyQt6.QtWidgets import QInputDialog
         try:
             cur = self.api.session.get(self.api._url("/face-id/settings"), timeout=30).json()
         except Exception as e:
@@ -366,22 +365,33 @@ class FaceIdTab(QWidget):
             int(cur.get("max_templates", 5)), 1, 20)
         if not ok:
             return
+        sp, ok = QInputDialog.getItem(
+            self, "Хранение фото лиц",
+            "Сохранять сами фотографии на сервере?\n"
+            "(по умолчанию — нет: только математические шаблоны; 152-ФЗ)",
+            ["Нет", "Да, хранить фото"],
+            1 if cur.get("store_photos") else 0, False)
+        if not ok:
+            return
+        store_photos = sp.startswith("Да")
         try:
             r = self.api.session.put(self.api._url("/face-id/settings"),
                                      json={"threshold": t, "min_quality": q,
-                                           "max_templates": m}, timeout=30)
+                                           "max_templates": m,
+                                           "store_photos": store_photos},
+                                     timeout=30)
             r.raise_for_status()
             self._show("Настройки движка сохранены: "
                        + json.dumps(r.json(), ensure_ascii=False))
         except Exception as e:
-            QMessageBox.warning(self, "Настройки", str(e)[:150])             
+            QMessageBox.warning(self, "Настройки", str(e)[:150])
 
     def sim_verify(self):
         self._run(lambda: self.api.verify_face(TEST_PHOTO), self._on_verify)
 
     def _on_verify(self, res):
         ok = isinstance(res, dict) and any(
-            res.get(k) is True for k in ("verified", "access_granted", "match", "success", "allowed"))
+            res.get(k) is True for k in ("verified", "access_granted", "match", "success", "allowed", "matched"))
         txt = json.dumps(res, ensure_ascii=False, indent=2, default=str)[:1200]
         self._show(("✅ Доступ РАЗРЕШЁН\n" if ok else "⛔ Отказ / нет совпадения\n") + txt)
 
