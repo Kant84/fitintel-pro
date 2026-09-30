@@ -131,7 +131,12 @@ class AuditService:
                 entity_id = permission_id
             elif target_user_id is not None:
                 entity_id = target_user_id
-
+        # entity_id — только UUID; у части сущностей int-PK (face_template) — тогда None
+        if entity_id is not None:
+            try:
+                entity_id = UUID(str(entity_id))
+            except (ValueError, TypeError, AttributeError):
+                entity_id = None
         # Делаем before_data безопасным для JSON.
         safe_before_data = self._make_json_safe(before_data)
 
