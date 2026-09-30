@@ -42,6 +42,11 @@ services:
       SECRET_KEY: ${SECRET_KEY:-test-secret-key-change-me}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
+      # лимиты BLAS-потоков: на слабых VM многопоточный OpenBLAS в 2 воркерах
+      # устраивает thread-thrash и 10-60-секундные запросы (face/dlib, numpy)
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
     depends_on:
       db:
         condition: service_healthy
@@ -76,6 +81,9 @@ services:
       SECRET_KEY: ${SECRET_KEY:-test-secret-key-change-me}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
     command: celery -A celery_app worker --loglevel=info --concurrency=2
     depends_on:
       - db
