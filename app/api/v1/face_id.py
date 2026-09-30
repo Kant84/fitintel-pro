@@ -1,8 +1,11 @@
 import base64
 import io
+import threading
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import text as _sql_text
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from app.api.dependencies import get_db, get_current_user
 from app.models.client import Client
@@ -11,10 +14,69 @@ from app.models.user import User
 from app.schemas.face_id import FaceRegisterRequest, FaceVerifyRequest, FaceUpdateRequest, FaceTurnstileRequest
 from app.services.face_id_service import FaceIDService
 
+
+def _warmup_face_models():
+    """Прогрев dlib/ResNet в фоне при старте — иначе первый запрос грузит модель 10-60 сек."""
+    try:
+        import numpy as np
+        import face_recognition
+        img = np.zeros((96, 96, 3), dtype=np.uint8)
+        face_recognition.face_encodings(img)   # загружает ResNet в память процесса
+    except Exception:
+        pass
+
+
+threading.Thread(target=_warmup_face_models, daemon=True).start()
+
 router = APIRouter(prefix="/face-id", tags=["Face ID"])
 
-MIN_PHOTO_QUALITY = 40.0  # Вариация Лапласиана: < 40 = слишком размыто
 
+# ---------------------------------------------------------------------------
+# Настройки движка — ПОД КЛУБ (хранятся в БД, правятся с экрана «Face ID»)
+# ---------------------------------------------------------------------------
+
+def _face_settings(db) -> dict:
+    try:
+        row = db.execute(_sql_text(
+            "SELECT threshold, min_quality, max_templates FROM face_settings WHERE id=1")).first()
+        if row:
+            return {"threshold": float(row[0]), "min_quality": float(row[1]),
+                    "max_templates": int(row[2])}
+    except Exception:
+        pass
+    return {"threshold": 0.6, "min_quality": 40.0, "max_templates": 5}
+
+
+class FaceSettingsIn(BaseModel):
+    threshold: float = 0.6
+    min_quality: float = 40.0
+    max_templates: int = 5
+
+
+@router.get("/settings")
+def get_face_settings(db: Session = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    return _face_settings(db)
+
+
+@router.put("/settings")
+def set_face_settings(data: FaceSettingsIn, db: Session = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    db.execute(_sql_text(
+        "INSERT INTO face_settings (id, threshold, min_quality, max_templates) "
+        "VALUES (1, :t, :q, :m) ON CONFLICT (id) DO UPDATE SET "
+        "threshold=EXCLUDED.threshold, min_quality=EXCLUDED.min_quality, "
+        "max_templates=EXCLUDED.max_templates"),
+        {"t": max(0.1, min(1.5, data.threshold)),
+         "q": max(1.0, data.min_quality),
+         "m": max(1, min(20, data.max_templates))})
+    db.commit()
+    return _face_settings(db)
+
+
+# ---------------------------------------------------------------------------
+# Ядро
+# ---------------------------------------------------------------------------
 
 def extract_face_encoding(photo_b64: str):
     """Извлечь эмбеддинг + оценка резкости. Возвращает (encoding, error, quality)."""
@@ -43,13 +105,25 @@ def register_face(data: FaceRegisterRequest, db: Session = Depends(get_db),
     client = db.query(Client).filter(Client.id == data.client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Клиент не найден")
+    settings = _face_settings(db)
     encoding, error, quality = extract_face_encoding(data.photo)
     if error:
         raise HTTPException(status_code=400, detail=error)
-    if quality < MIN_PHOTO_QUALITY:
+    if quality < settings["min_quality"]:
         raise HTTPException(status_code=400, detail="Низкое качество фото")
+    existing = db.query(FaceTemplate).filter(
+        FaceTemplate.client_id == data.client_id,
+        FaceTemplate.is_active == True).count()
+    if existing >= settings["max_templates"]:
+        raise HTTPException(status_code=400,
+                            detail=f"Лимит шаблонов ({settings['max_templates']}) для клиента исчерпан")
     service = FaceIDService(db)
     template = service.register_face(data.client_id, encoding, quality_score=quality)
+    from app.services.audit_service import AuditService
+    AuditService(db).created(
+        actor_user_id=current_user.id, entity_type="face_template", entity_id=template.id,
+        message=(f"Зарегистрирован шаблон Face ID: {client.last_name} {client.first_name} "
+                 f"(качество {round(quality, 1)})"))
     return {"face_template_id": template.id, "client_id": str(template.client_id),
             "embedding_size": len(encoding), "quality_score": round(quality, 1),
             "created_at": str(template.created_at)}
@@ -57,12 +131,13 @@ def register_face(data: FaceRegisterRequest, db: Session = Depends(get_db),
 
 @router.post("/verify")
 def verify_face(data: FaceVerifyRequest, db: Session = Depends(get_db)):
+    settings = _face_settings(db)
     encoding, error, quality = extract_face_encoding(data.photo)
     if error:
         return {"matched": False, "confidence": 0.0, "reason": error}
     service = FaceIDService(db)
-    template, confidence = service.find_best_match(encoding)
-    if quality < MIN_PHOTO_QUALITY:
+    template, confidence = service.find_best_match(encoding, threshold=settings["threshold"])
+    if quality < settings["min_quality"]:
         return {"matched": False, "confidence": round(confidence, 4),
                 "reason": "Низкое качество фото"}
     if not template:
@@ -79,7 +154,6 @@ def list_templates(db: Session = Depends(get_db), current_user: User = Depends(g
              "quality_score": t.quality_score, "created_at": str(t.created_at)} for t in templates]
 
 
-
 @router.get("/templates")
 def list_templates_alias(db: Session = Depends(get_db),
                          current_user: User = Depends(get_current_user)):
@@ -93,6 +167,11 @@ def delete_template(template_id: int, db: Session = Depends(get_db),
     template = db.query(FaceTemplate).filter(FaceTemplate.id == template_id).first()
     if not template:
         raise HTTPException(status_code=404, detail="Шаблон не найден")
+    from app.services.audit_service import AuditService
+    AuditService(db).deleted(
+        actor_user_id=current_user.id, entity_type="face_template",
+        entity_id=template.id,
+        message=f"Удалён шаблон Face ID клиента {template.client_id}")
     db.delete(template)
     db.commit()
     return None
@@ -104,10 +183,11 @@ def update_template(template_id: int, data: FaceUpdateRequest, db: Session = Dep
     template = db.query(FaceTemplate).filter(FaceTemplate.id == template_id).first()
     if not template:
         raise HTTPException(status_code=404, detail="Шаблон не найден")
+    settings = _face_settings(db)
     encoding, error, quality = extract_face_encoding(data.photo)
     if error:
         raise HTTPException(status_code=400, detail=error)
-    if quality < MIN_PHOTO_QUALITY:
+    if quality < settings["min_quality"]:
         raise HTTPException(status_code=400, detail="Низкое качество фото")
     template.face_encoding = encoding
     template.quality_score = quality
@@ -118,14 +198,15 @@ def update_template(template_id: int, data: FaceUpdateRequest, db: Session = Dep
 
 @router.post("/turnstile")
 def face_turnstile(data: FaceTurnstileRequest, db: Session = Depends(get_db)):
+    settings = _face_settings(db)
     encoding, error, quality = extract_face_encoding(data.photo)
     if error:
         return {"access_granted": False, "turnstile_open": False, "reason": error}
     service = FaceIDService(db)
-    if quality < MIN_PHOTO_QUALITY:
+    if quality < settings["min_quality"]:
         service.log_recognition(None, data.device_id, "denied", "Низкое качество фото", 0.0)
         return {"access_granted": False, "turnstile_open": False, "reason": "Низкое качество фото"}
-    template, confidence = service.find_best_match(encoding)
+    template, confidence = service.find_best_match(encoding, threshold=settings["threshold"])
     if not template:
         service.log_recognition(None, data.device_id, "denied", "Лицо не распознано", confidence)
         return {"access_granted": False, "turnstile_open": False,

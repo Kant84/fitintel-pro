@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from app.models.face_id import FaceTemplate, FaceRecognitionLog
 from app.models.subscription import Subscription
 
-MATCH_THRESHOLD = 0.6  # Порог dlib (евклидово расстояние)
+MATCH_THRESHOLD = 0.6  # дефолт dlib (евклидово расстояние); переопределяется настройками клуба
+
 
 class FaceIDService:
     def __init__(self, db: Session):
@@ -15,7 +16,9 @@ class FaceIDService:
     def distance(a, b) -> float:
         return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
 
-    def find_best_match(self, face_encoding: list) -> Tuple[Optional[FaceTemplate], float]:
+    def find_best_match(self, face_encoding: list,
+                        threshold: float = None) -> Tuple[Optional[FaceTemplate], float]:
+        threshold = float(threshold) if threshold else MATCH_THRESHOLD
         templates = self.db.query(FaceTemplate).filter(FaceTemplate.is_active == True).all()
         best_match, best_dist = None, float('inf')
         for t in templates:
@@ -26,7 +29,7 @@ class FaceIDService:
                 best_dist = d
                 best_match = t
         confidence = max(0.0, 1.0 - best_dist) if best_match else 0.0
-        if best_match and best_dist < MATCH_THRESHOLD:
+        if best_match and best_dist < threshold:
             return best_match, confidence
         return None, confidence
 

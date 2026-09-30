@@ -51,6 +51,11 @@ class UsersTab(QWidget):
         b_del.clicked.connect(self._delete)
         row.addWidget(b_del)
         btn = QPushButton("Обновить")
+        self.chk_show_deleted = QPushButton("Показать удалённых")
+        self.chk_show_deleted.setCheckable(True)
+        self.chk_show_deleted.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        self.chk_show_deleted.toggled.connect(lambda _c: self.refresh())
+        row.addWidget(self.chk_show_deleted)
         btn.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn.clicked.connect(self.refresh)
         row.addWidget(btn)
@@ -73,6 +78,11 @@ class UsersTab(QWidget):
         self.worker.start()
 
     def _on_loaded(self, users: list):
+        show_del = self.chk_show_deleted.isChecked()
+        if not show_del:
+            users = [u for u in users
+                     if not (str(u.get("username") or "").startswith("deleted_")
+                             and not u.get("is_active"))]
         self.table.setRowCount(len(users))
         for i, u in enumerate(users):
             item0 = QTableWidgetItem(str(u.get("username") or "—"))

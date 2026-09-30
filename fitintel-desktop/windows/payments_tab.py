@@ -184,7 +184,7 @@ class PaymentsTab(QWidget):
         cid = self._cid()
         if cid is None:
             return
-        dlg = FormDialog([
+        dlg = FormDialog("Провести платёж", [
             ("amount", "Сумма", "text", None),
             ("method", "Способ оплаты", "combo", METHODS),
             ("direction", "Направление", "combo", ["", "INCOMING", "OUTGOING"]),
@@ -220,7 +220,7 @@ class PaymentsTab(QWidget):
         pid = self._selected_pid()
         if pid is None:
             return
-        dlg = FormDialog([
+        dlg = FormDialog("Возврат платежа", [
             ("amount", "Сумма возврата (пусто = полная)", "text", None),
             ("reason", "Причина возврата", "text", None)], self)
         if not dlg.exec():
