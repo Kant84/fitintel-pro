@@ -6,6 +6,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-fitnexus_ai}
       POSTGRES_USER: ${POSTGRES_USER:-fitnexus_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fitintel_test_pass}
+      TZ: Europe/Moscow
     volumes:
       - postgres_test:/var/lib/postgresql/data
     healthcheck:
@@ -42,6 +43,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-test-secret-key-change-me}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
+      TZ: Europe/Moscow
       # лимиты BLAS-потоков: на слабых VM многопоточный OpenBLAS в 2 воркерах
       # устраивает thread-thrash и 10-60-секундные запросы (face/dlib, numpy)
       OPENBLAS_NUM_THREADS: "1"
@@ -81,6 +83,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-test-secret-key-change-me}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
+      TZ: Europe/Moscow
       OPENBLAS_NUM_THREADS: "1"
       OMP_NUM_THREADS: "1"
       MKL_NUM_THREADS: "1"
