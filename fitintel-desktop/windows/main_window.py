@@ -298,6 +298,11 @@ class MainWindow(QMainWindow):
         act_dark = QAction("Тёмная тема", self)
         act_dark.triggered.connect(lambda: self.apply_appearance(theme_name="dark"))
         view_menu.addAction(act_dark)
+        act_clock = QAction("🕐 Табло с часами (полный экран)", self)
+        act_clock.setShortcut("F11")
+        act_clock.setToolTip("Полноэкранные часы для ресепшена/входа. Esc — выход.")
+        act_clock.triggered.connect(self._open_clock_board)
+        view_menu.addAction(act_clock)
         view_menu.addSeparator()
         act_zi = QAction("Увеличить шрифт", self)
         act_zi.setShortcut("Ctrl++")
@@ -350,7 +355,23 @@ class MainWindow(QMainWindow):
             self.logout_requested.emit()
             self.close()
 
-
+    
+    def _open_clock_board(self):
+        try:
+            from windows.clock_board import ClockBoardDialog
+            old = getattr(self, "_clock_board", None)
+            if old is not None:
+                try:
+                    old.close()
+                except Exception:
+                    pass
+            club = str(self.user.get("club_name", "") or "")
+            dlg = ClockBoardDialog(self, club_name=club)
+            self._clock_board = dlg   # ссылка — иначе окно съест сборщик мусора
+            dlg.show()                # БЕЗ exec(): немодально, desktop работает
+        except Exception as e:
+            QMessageBox.warning(self, "Табло", str(e)[:150])
+            
 # ============================ E56_WIRED ============================
 try:
     from windows.integrations_tab import IntegrationsTab
