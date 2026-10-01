@@ -34,6 +34,7 @@ RU_C = {"SUBSCRIPTION": "Абонемент", "SERVICE": "Услуга",
         "PRODUCT": "Товар", "OTHER": "Прочее"}
 RU_S = {"PENDING": "Ожидает", "COMPLETED": "Завершён", "FAILED": "Ошибка",
         "CANCELLED": "Отменён", "REFUNDED": "Возвращён"}
+RU_DRV = {"atol": "АТОЛ", "shtrih": "Штрих-М"}       
 
 def _ru(mapping, key):
     return mapping.get((key or "").strip().upper(), key or "")
@@ -53,7 +54,7 @@ def _fio(c):
 
 class Worker(QThread):
     done = pyqtSignal(object)
-    fail = pyqtSignal(object)          # теперь передаём само исключение
+    fail = pyqtSignal(object)          # передаём само исключение (для _err_text)
     def __init__(self, fn, parent=None):
         super().__init__(parent)
         self._fn = fn
@@ -75,6 +76,7 @@ def _err_text(e):
             pass
         return "Ошибка сервера %s: %s" % (resp.status_code, resp.text[:150])
     return str(e)
+
 def _money(v):
     try:
         return "%.2f ₽" % float(v or 0)
@@ -131,7 +133,10 @@ class PaymentsTab(QWidget):
         b_wd.clicked.connect(self.cash_withdrawal)
         b_check = QPushButton("Обновить статус")
         b_check.clicked.connect(self._shift_status)
-        for b in (b_open, b_close, b_wd, b_check):
+        b_set = QPushButton("⚙ Настройки кассы")
+        b_set.setToolTip("Адрес АТОЛ, логин/пароль ДТО, ОФД — вместо ручных команд на сервере")
+        b_set.clicked.connect(self.fiscal_settings)
+        for b in (b_open, b_close, b_wd, b_check, b_set):
             bar2.addWidget(b)
         bar2.addStretch(1)
         v.addLayout(bar2)
@@ -142,7 +147,7 @@ class PaymentsTab(QWidget):
 
         hint = QLabel("Отмена = возврат полной суммы (отдельного endpoint "
                       "отмены в API нет). Возврат — полный или частичный. "
-                      "Фискальный чек пробивается только при открытой смене.")
+                      "Фискальный чек пробивается автоматически при «✓ Подтвердить».")
         hint.setStyleSheet("color: #888;")
         v.addWidget(hint)
 
@@ -229,6 +234,47 @@ class PaymentsTab(QWidget):
                 % (_money(d.get("withdrawn_cash")), _money(d.get("withdrawn_card"))))
             self._shift_status()
         self._run(_do, _done)
+
+    def fiscal_settings(self):
+        """Окно настроек фискального регистратора: читает GET /fiscal/settings,
+        сохраняет POST /fiscal/settings. Пустые поля = оставить прежние значения."""
+        def _load():
+            r = self.api.session.get(self._fiscal_url("/settings"), timeout=15)
+            r.raise_for_status()
+            return r.json()
+        def _ask(cur):
+            cur = cur if isinstance(cur, dict) else {}
+            st = cur.get("settings") or {}
+            ofd = cur.get("ofd_provider") or "ofd-ru"
+            self._show("Сейчас: драйвер %s | адрес %s | ОФД %s. "
+                       "Пустые поля = без изменений."
+                       % (cur.get("driver"), st.get("dto_url") or "—", ofd))
+            dlg = FormDialog("Настройки кассы (АТОЛ)", [
+                ("driver", "Драйвер", "combo", list(RU_DRV.values())),
+                ("dto_url", "Адрес кассы http://IP:порт", "text", None),
+                ("dto_login", "Логин ДТО", "text", None),
+                ("dto_password", "Пароль ДТО", "text", None),
+                ("ofd", "ОФД", "combo", ["ofd-ru", "taxcom", "первый-офд", "yandex"]),
+            ], self)
+            if not dlg.exec():
+                return
+            v = dlg.values()
+            def _do():
+                settings = {
+                    "dto_url": (v.get("dto_url") or "").strip() or st.get("dto_url") or "",
+                    "dto_login": (v.get("dto_login") or "").strip() or st.get("dto_login") or "",
+                    "dto_password": (v.get("dto_password") or "").strip() or st.get("dto_password") or "",
+                }
+                r = self.api.session.post(self._fiscal_url("/settings"), json={
+                    "driver": _ru_back(RU_DRV, v.get("driver") or RU_DRV["atol"]),
+                    "port": "TCP",
+                    "settings": settings,
+                    "ofd_provider": v.get("ofd") or ofd,
+                }, timeout=15)
+                r.raise_for_status()
+                return r.json()
+            self._run(_do, lambda _r: self._show("Настройки кассы сохранены."))
+        self._run(_load, _ask)
 
     def _shift_status(self):
         """Тихий опрос: ошибку показываем только в подписи, без баннера."""
@@ -352,8 +398,8 @@ class PaymentsTab(QWidget):
         if pid is None:
             return
         self._run(lambda: self.api.complete_payment(pid),
-                  lambda _r: (self._show("Платёж подтверждён."),
-                              self.load_payments()))
+                  lambda _r: (self._show("Платёж подтверждён, чек пробит."),
+                              self.load_payments(), self._shift_status()))
 
     def refund_payment(self):
         pid = self._selected_pid()
@@ -372,7 +418,7 @@ class PaymentsTab(QWidget):
         amount = (v.get("amount") or "").strip() or None
         self._run(lambda: self.api.refund_payment(pid, reason, amount),
                   lambda _r: (self._show("Возврат оформлен."),
-                              self.load_payments()))
+                              self.load_payments(), self._shift_status()))
 
     def cancel_payment(self):
         pid = self._selected_pid()
@@ -386,7 +432,7 @@ class PaymentsTab(QWidget):
             return
         self._run(lambda: self.api.refund_payment(pid, "Отмена платежа"),
                   lambda _r: (self._show("Платёж отменён (возврат полной суммы)."),
-                              self.load_payments()))
+                              self.load_payments(), self._shift_status()))
 
     def export_csv(self):
         path, _f = QFileDialog.getSaveFileName(self, "Экспорт платежей",
