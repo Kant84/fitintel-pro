@@ -82,6 +82,31 @@ def _fiscalize(db: Session, driver: str, receipt_type: str, amount: float,
 
     settings = _get_settings(db)
     fn, sign = _fn(), _sign()
+    dto_url = (settings.get("settings") or {}).get("dto_url")
+    if dto_url and driver == "atol":
+        try:
+            st = settings.get("settings") or {}
+            items = (payload or {}).get("items") or [{
+                "name": (payload or {}).get("service") or "Услуга FitIntel",
+                "price": amount, "quantity": 1}]
+            body = {"username": st.get("dto_login") or "",
+                    "password": st.get("dto_password") or "",
+                    "requests": [{
+                        "type": "sell" if receipt_type == "sale" else "sellReturn",
+                        "id": receipt_id,
+                        "items": items}]}
+            r = requests.post(dto_url.rstrip("/") + "/requests", json=body, timeout=15)
+            r.raise_for_status()
+            res = (r.json().get("results") or [{}])[0]
+            if res.get("error"):
+                raise HTTPException(502, f"Касса вернула ошибку: {res.get('error')}")
+            fp = res.get("fiscalParams") or {}
+            fn = str(fp.get("fiscalDocumentNumber") or fn)
+            sign = str(fp.get("fiscalDocumentSign") or sign)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(502, f"Касса недоступна: {str(e)[:200]}")
     now = datetime.now(timezone.utc)
     _insert(db, "fiscal_receipts", {
         "id": str(uuid.uuid4()), "receipt_id": receipt_id, "driver": driver,
