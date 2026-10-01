@@ -405,23 +405,28 @@ def close_shift(db: Session = Depends(get_db), user=Depends(get_current_user)):
 
 @router.post("/cash-withdrawal")
 def cash_withdrawal(db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """E33 — снятие кассы (остатка прошлых смен). Только бухгалтер/админ.
-    Остаток обнуляется; суммы возвращаются для чека/подтверждения."""
+    """E33 — снятие кассы (остатка прошлых смен). Только бухгалтер/админ."""
     _ensure_schema(db)
-    role = (getattr(user, "role", "") or "").lower()
-    if role not in ("admin", "superadmin", "accountant", "бухгалтер"):
+    role = str(getattr(user, "role", "") or getattr(user, "user_role", "")
+               or getattr(user, "role_name", "") or "").lower()
+    login = str(getattr(user, "login", "") or getattr(user, "username", "")
+                or getattr(user, "email", "") or "").lower()
+    is_super = bool(getattr(user, "is_superuser", False)
+                    or getattr(user, "is_admin", False))
+    allowed = (is_super or login == "superadmin"
+               or role in ("admin", "superadmin", "accountant", "бухгалтер"))
+    if not allowed:
         raise HTTPException(status_code=403,
                             detail="Снятие кассы доступно только бухгалтеру или администратору")
     w_cash, w_card = _pending(db)
     db.execute(text(
         "UPDATE fiscal_pending SET cash = 0, card = 0, withdrawn_at = :n,"
         " withdrawn_by = :u WHERE id = 1"
-    ), {"n": datetime.now(timezone.utc), "u": str(getattr(user, "login", user))})
+    ), {"n": datetime.now(timezone.utc), "u": login or "unknown"})
     db.commit()
     return {"withdrawn_cash": w_cash, "withdrawn_card": w_card,
             "message": "Остаток снят. Наличные: %.2f, безналичные: %.2f"
                        % (w_cash, w_card)}
-
 
 @router.get("/shift")
 def shift_status(db: Session = Depends(get_db), user=Depends(get_current_user)):
