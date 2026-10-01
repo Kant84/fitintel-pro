@@ -49,7 +49,8 @@ def _get_settings(db: Session) -> dict:
     if not row:
         return {"driver": "atol", "port": "COM3", "settings": {}, "ofd_provider": "ofd-ru"}
     try:
-        extra = json.loads(row[2]) if row[2] else {}
+        raw = row[2]
+        extra = json.loads(raw) if isinstance(raw, str) else (raw or {})
     except Exception:
         extra = {}
     return {"driver": row[0], "port": row[1], "settings": extra, "ofd_provider": row[3]}
