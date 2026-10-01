@@ -64,6 +64,9 @@ def sync_entity(db, connector_id: str, entity: str, rows: list) -> dict:
                 if not cid:
                     skipped += 1
                     continue
+                if not r.get("start_date") or not r.get("end_date"):
+                    skipped += 1
+                    continue
                 tname = r.get("tariff_name") or "Импорт 1С"
                 tid = db.execute(text(
                     "SELECT id FROM tariffs WHERE name=:n LIMIT 1"), {"n": tname}).first()
@@ -77,7 +80,7 @@ def sync_entity(db, connector_id: str, entity: str, rows: list) -> dict:
                 exists = db.execute(text(
                     "SELECT id FROM subscriptions WHERE client_id=:c AND tariff_id=:t "
                     "AND start_date=:s LIMIT 1"),
-                    {"c": cid, "t": str(tid[0]), "s": r.get("start_date") or None}).first()
+                    {"c": cid, "t": str(tid[0]), "s": r.get("start_date")}).first()
                 if exists:
                     db.execute(text(
                         "UPDATE subscriptions SET end_date=:e, status=:st WHERE id=:id"),
@@ -87,11 +90,14 @@ def sync_entity(db, connector_id: str, entity: str, rows: list) -> dict:
                 else:
                     db.execute(text(
                         "INSERT INTO subscriptions (id, client_id, tariff_id, start_date, end_date, "
-                        "status, price, currency, created_at, updated_at) "
-                        "VALUES (gen_random_uuid(), :c, :t, :s, :e, :st, 0, 'RUB', now(), now())"),
+                        "status, price, currency, visits_used, is_unlimited, is_active, auto_renew, "
+                        "created_at, updated_at) "
+                        "VALUES (gen_random_uuid(), :c, :t, :s, :e, :st, 0, 'RUB', 0, "
+                        "TRUE, TRUE, FALSE, now(), now())"),
                         {"c": cid, "t": str(tid[0]), "s": r.get("start_date"),
                          "e": r.get("end_date"), "st": _norm_status(r.get("status"))})
                     created += 1
+
         elif entity == "visits":
             for r in rows:
                 cid = _find_client(db, r.get("client_phone") or "",
