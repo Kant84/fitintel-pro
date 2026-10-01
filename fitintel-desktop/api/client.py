@@ -354,6 +354,8 @@ _NAMES = ["verify_face","face_engine_info","face_templates","face_register",
 _g = globals()
 for _n in _NAMES:
     setattr(ApiClient, _n, _g[_n])
+for _n in ["_e55_get", "_e55_post", "_e55_url", "_e55_sess", "_e55_list"]:
+    setattr(ApiClient, _n, _g[_n])   
 # ========================== E55_EXT END ==========================
 
 # ============================ E56_EXT ============================
