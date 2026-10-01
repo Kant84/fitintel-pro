@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Платежи: провести, подтвердить, возврат, отмена, экспорт + проводки."""
+"""Платежи: провести, подтвердить, возврат, отмена, экспорт + проводки + кассовая смена."""
 import json
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -78,8 +78,27 @@ class PaymentsTab(QWidget):
             bar.addWidget(b)
         v.addLayout(bar)
 
+        # === Кассовая смена (E31) ===
+        bar2 = QHBoxLayout()
+        self.lbl_shift = QLabel("Смена: —")
+        bar2.addWidget(self.lbl_shift)
+        b_open = QPushButton("🔓 Открыть смену")
+        b_open.setToolTip("Открыть смену на фискальном регистраторе (АТОЛ ДТО)")
+        b_open.clicked.connect(lambda: self._shift("open"))
+        b_close = QPushButton("🔒 Закрыть смену")
+        b_close.setToolTip("Закрыть смену на фискальном регистраторе")
+        b_close.clicked.connect(lambda: self._shift("close"))
+        b_check = QPushButton("Обновить статус")
+        b_check.clicked.connect(self._shift_status)
+        for b in (b_open, b_close, b_check):
+            bar2.addWidget(b)
+        bar2.addStretch(1)
+        v.addLayout(bar2)
+        # ============================
+
         hint = QLabel("Отмена = возврат полной суммы (отдельного endpoint "
-                      "отмены в API нет). Возврат — полный или частичный.")
+                      "отмены в API нет). Возврат — полный или частичный. "
+                      "Чек фискализируется, только если смена открыта.")
         hint.setStyleSheet("color: %s;" % (_t("fg") and "#888" or "#888"))
         v.addWidget(hint)
 
@@ -92,6 +111,7 @@ class PaymentsTab(QWidget):
 
         self.cmb_client.currentIndexChanged.connect(lambda _i: self.load_payments())
         self.reload_all()
+        self._shift_status()
 
     def _mk_table(self, cols):
         t = QTableWidget(0, len(cols))
@@ -120,6 +140,38 @@ class PaymentsTab(QWidget):
     def reload_all(self):
         self._run(self.api.get_clients, self._fill_clients)
         self._run(self.api.get_accounting_entries, self._fill_entries)
+
+    # ---------- fiscal shift (E31) ----------
+    def _fiscal_url(self, path):
+        base = (getattr(self.api, "base_url", "") or "").rstrip("/")
+        return base + "/fiscal" + path
+
+    def _shift(self, action):
+        def _do():
+            r = self.api.session.post(self._fiscal_url("/%s-shift" % action),
+                                      timeout=30)
+            r.raise_for_status()
+            return r.json()
+        def _done(_r):
+            self._show("Смена открыта." if action == "open" else "Смена закрыта.")
+            self._shift_status()
+        self._run(_do, _done)
+
+    def _shift_status(self):
+        """Тихий опрос: ошибку показываем только в подписи, без баннера."""
+        def _do():
+            r = self.api.session.get(self._fiscal_url("/shift"), timeout=15)
+            r.raise_for_status()
+            return r.json()
+        w = Worker(_do, self)
+        w.done.connect(lambda d: self.lbl_shift.setText(
+            "Смена: открыта ✅" if isinstance(d, dict) and d.get("is_open")
+            else "Смена: закрыта ❌"))
+        w.fail.connect(lambda _m: self.lbl_shift.setText("Смена: ? (нет связи)"))
+        self._workers.append(w)
+        w.finished.connect(lambda: self._workers.remove(w)
+                           if w in self._workers else None)
+        w.start()
 
     # ---------- clients / payments ----------
     def _fill_clients(self, data):
