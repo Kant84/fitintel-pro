@@ -15,6 +15,7 @@ class IntegrationsTab(QWidget):
         tabs.setMovable(True)
         tabs.addTab(self._aa_tab(), "🔗 A&A")
         tabs.addTab(self._1c_tab(), "🔄 1С Fitness")
+        tabs.addTab(self._connectors_tab(), "🔗 Внешние системы")
         lay.addWidget(tabs)
 
     # === BASE / TOKEN ===
@@ -273,3 +274,7 @@ class IntegrationsTab(QWidget):
         lay.addWidget(QLabel("⚠️ Режим mock — реальное подключение требует настройки на стороне 1С"))
         lay.addStretch(1)
         return w
+    
+    def _connectors_tab(self):
+        from windows.connectors_tab import ConnectorsTab
+        return ConnectorsTab(self.api, self)
