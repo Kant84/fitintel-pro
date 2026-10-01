@@ -1,6 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_submodules
 
+BASE = 'C:/Users/PC/Desktop/2026/FitNexus AI/FitIntel AI/fitintel-desktop'
+
 hiddenimports = ['PyQt6.sip', 'cv2', 'smartcard']
 hiddenimports += collect_submodules('cv2')
 hiddenimports += collect_submodules('smartcard')
@@ -8,8 +10,8 @@ hiddenimports += collect_submodules('PyQt6.QtMultimedia')
 
 
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    [BASE + '/main.py'],
+    pathex=[BASE],
     binaries=[],
     datas=[],
     hiddenimports=hiddenimports,
@@ -41,5 +43,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['assets/FitIntel_icon.ico'],
+    icon=[BASE + '/assets/FitIntel_icon.ico'],
 )
