@@ -469,20 +469,30 @@ class PaymentsTab(QWidget):
 
     # ---------- accounting entries ----------
     def _fill_entries(self, data):
-        rows = data if isinstance(data, list) else []
+        """Проводки: API отдаёт {\"entries\": [...], \"total\": N}; amount одна —
+        показываем её в обеих колонках (Дт = Кт по правилу двойной записи)."""
+        if isinstance(data, dict):
+            rows = data.get("entries") or []
+        elif isinstance(data, list):
+            rows = data
+        else:
+            rows = []
         self.tbl_e.setRowCount(0)
         for e in rows:
             r = self.tbl_e.rowCount()
             self.tbl_e.insertRow(r)
-            vals = [str(e.get("id") or "")[:8],
+            amt = e.get("amount")
+            amt_s = "%.2f" % float(amt) if amt is not None else ""
+            vals = [str(e.get("entry_id") or e.get("id") or "")[:8],
                     str(e.get("entry_date") or e.get("created_at") or "")[:19],
                     e.get("debit_account") or "",
                     e.get("credit_account") or "",
-                    str(e.get("debit") or ""),
-                    str(e.get("credit") or ""),
+                    amt_s,
+                    amt_s,
                     e.get("description") or ""]
             for j, val in enumerate(vals):
                 self.tbl_e.setItem(r, j, QTableWidgetItem(str(val)))
+        self._show("Проводок: %d" % len(rows))
 
 
 # === E63_PRINT ===
