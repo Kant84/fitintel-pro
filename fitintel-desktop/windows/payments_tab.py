@@ -107,15 +107,20 @@ class PaymentsTab(QWidget):
         self.cmb_client.setEditable(True)
         self.cmb_client.setMinimumWidth(340)
         bar.addWidget(self.cmb_client, 1)
-        for text, slot in [("Обновить", self.reload_all),
-                           ("＋ Провести платёж", self.add_payment),
-                           ("✓ Подтвердить", self.complete_payment),
-                           ("↩ Возврат", self.refund_payment),
-                           ("✕ Отмена платежа", self.cancel_payment),
-                           ("⇩ Экспорт CSV", self.export_csv)]:
+        # Независимость подвкладок: кнопки платежей блокируются на «Проводках»
+        self._pay_action_btns = []
+        for text, slot, is_pay_action in [
+                ("Обновить", self.reload_all, False),
+                ("＋ Провести платёж", self.add_payment, False),
+                ("✓ Подтвердить", self.complete_payment, True),
+                ("↩ Возврат", self.refund_payment, True),
+                ("✕ Отмена платежа", self.cancel_payment, True),
+                ("⇩ Экспорт CSV", self.export_csv, False)]:
             b = QPushButton(text)
             b.clicked.connect(slot)
             bar.addWidget(b)
+            if is_pay_action:
+                self._pay_action_btns.append(b)
         v.addLayout(bar)
 
         # === Кассовая смена (E31) + балансы (E33) ===
@@ -156,6 +161,7 @@ class PaymentsTab(QWidget):
         self.tbl_e = self._mk_table(self.ECOLS)
         self.sub.addTab(self.tbl, "Платежи клиента")
         self.sub.addTab(self.tbl_e, "Проводки (бухгалтерия)")
+        self.sub.currentChanged.connect(self._on_sub_changed)
         v.addWidget(self.sub, 1)
 
         self.cmb_client.currentIndexChanged.connect(lambda _i: self.load_payments())
@@ -170,6 +176,12 @@ class PaymentsTab(QWidget):
         t.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         t.setStyleSheet(_t("table_style"))
         return t
+
+    def _on_sub_changed(self, idx):
+        """Независимость подвкладок: кнопки платежей работают только
+        на «Платежи клиента», на «Проводках» — неактивны (серые)."""
+        for b in getattr(self, "_pay_action_btns", []):
+            b.setEnabled(idx == 0)
 
     # ---------- infra ----------
     def _run(self, fn, cb):
@@ -315,6 +327,7 @@ class PaymentsTab(QWidget):
             if i >= 0:
                 self.cmb_client.setCurrentIndex(i)
         self.cmb_client.blockSignals(False)
+        self.sub.setCurrentIndex(0)   # при смене клиента — на «Платежи клиента»
         self.load_payments()
 
     def _cid(self):
