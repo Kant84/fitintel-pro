@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Платежи: провести, подтвердить, возврат, отмена, экспорт + проводки + кассовая смена."""
+"""Платежи: провести, подтвердить, возврат, отмена, экспорт + проводки + кассовая смена (E31/E33)."""
 import json
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -11,18 +11,25 @@ from .form_dialog import FormDialog
 METHODS = ["CASH", "CARD", "SBP", "TRANSFER", "ONLINE", "SUBSCRIPTION",
            "QR", "BALANCE", "OTHER"]
 
-def _t(name, *args):
-    f = getattr(theme, name, None)
-    if not callable(f):
-        return ""
-    for a in (args, ()):
-        try:
-            return f(*a)
-        except TypeError:
-            continue
-        except Exception:
-            return ""
-    return ""
+# === Кириллица (E33) ===
+RU_M = {"CASH": "Наличные", "CARD": "Карта", "SBP": "СБП (по QR)",
+        "TRANSFER": "Перевод", "ONLINE": "Онлайн-оплата",
+        "SUBSCRIPTION": "Абонемент (зачёт)", "QR": "QR-код",
+        "BALANCE": "Внутренний баланс", "OTHER": "Другое"}
+RU_D = {"INCOMING": "Приход", "OUTGOING": "Расход"}
+RU_C = {"SUBSCRIPTION": "Абонемент", "SERVICE": "Услуга",
+        "PRODUCT": "Товар", "OTHER": "Прочее"}
+RU_S = {"PENDING": "Ожидает", "COMPLETED": "Завершён", "FAILED": "Ошибка",
+        "CANCELLED": "Отменён", "REFUNDED": "Возвращён"}
+
+def _ru(mapping, key):
+    return mapping.get((key or "").strip().upper(), key or "")
+
+def _ru_back(mapping, value):
+    for k, v in mapping.items():
+        if v == value:
+            return k
+    return value
 
 def _fio(c):
     f = c.get("fio") or c.get("full_name") or ""
@@ -42,6 +49,12 @@ class Worker(QThread):
             self.done.emit(self._fn())
         except Exception as e:
             self.fail.emit(str(e))
+
+def _money(v):
+    try:
+        return "%.2f ₽" % float(v or 0)
+    except Exception:
+        return "0.00 ₽"
 
 class PaymentsTab(QWidget):
     COLS = ["ID", "Дата", "Сумма", "Метод", "Статус",
@@ -78,28 +91,34 @@ class PaymentsTab(QWidget):
             bar.addWidget(b)
         v.addLayout(bar)
 
-        # === Кассовая смена (E31) ===
+        # === Кассовая смена (E31) + балансы (E33) ===
         bar2 = QHBoxLayout()
         self.lbl_shift = QLabel("Смена: —")
         bar2.addWidget(self.lbl_shift)
-        b_open = QPushButton("🔓 Открыть смену")
+        b_open = QPushButton("\U0001f513 Открыть смену")
         b_open.setToolTip("Открыть смену на фискальном регистраторе (АТОЛ ДТО)")
         b_open.clicked.connect(lambda: self._shift("open"))
-        b_close = QPushButton("🔒 Закрыть смену")
-        b_close.setToolTip("Закрыть смену на фискальном регистраторе")
+        b_close = QPushButton("\U0001f512 Закрыть смену")
+        b_close.setToolTip("Закрыть смену: будет показан отчёт (нал / безнал)")
         b_close.clicked.connect(lambda: self._shift("close"))
+        b_wd = QPushButton("\U0001f4b5 Снятие кассы")
+        b_wd.setToolTip("Бухгалтер снимает остаток прошлых смен (обнуляет)")
+        b_wd.clicked.connect(self.cash_withdrawal)
         b_check = QPushButton("Обновить статус")
         b_check.clicked.connect(self._shift_status)
-        for b in (b_open, b_close, b_check):
+        for b in (b_open, b_close, b_wd, b_check):
             bar2.addWidget(b)
         bar2.addStretch(1)
         v.addLayout(bar2)
-        # ============================
+
+        self.lbl_bal = QLabel("")
+        v.addWidget(self.lbl_bal)
+        # ============================================
 
         hint = QLabel("Отмена = возврат полной суммы (отдельного endpoint "
                       "отмены в API нет). Возврат — полный или частичный. "
-                      "Чек фискализируется, только если смена открыта.")
-        hint.setStyleSheet("color: %s;" % (_t("fg") and "#888" or "#888"))
+                      "Фискальный чек пробивается только при открытой смене.")
+        hint.setStyleSheet("color: #888;")
         v.addWidget(hint)
 
         self.sub = QTabWidget()
@@ -141,7 +160,7 @@ class PaymentsTab(QWidget):
         self._run(self.api.get_clients, self._fill_clients)
         self._run(self.api.get_accounting_entries, self._fill_entries)
 
-    # ---------- fiscal shift (E31) ----------
+    # ---------- fiscal shift (E31/E33) ----------
     def _fiscal_url(self, path):
         base = (getattr(self.api, "base_url", "") or "").rstrip("/")
         return base + "/fiscal" + path
@@ -152,8 +171,37 @@ class PaymentsTab(QWidget):
                                       timeout=30)
             r.raise_for_status()
             return r.json()
-        def _done(_r):
-            self._show("Смена открыта." if action == "open" else "Смена закрыта.")
+        def _done(res):
+            d = res if isinstance(res, dict) else {}
+            if action == "close":
+                QMessageBox.information(self, "Смена закрыта",
+                    "Закрытая смена:\n"
+                    "  Наличные: %s\n  Безнал: %s\n\n"
+                    "Остаток на кассе (не снят бухгалтером):\n"
+                    "  Наличные: %s\n  Безнал: %s"
+                    % (_money(d.get("cash_total")), _money(d.get("card_total")),
+                       _money(d.get("prev_cash")), _money(d.get("prev_card"))))
+            else:
+                self._show("Смена открыта.")
+            self._shift_status()
+        self._run(_do, _done)
+
+    def cash_withdrawal(self):
+        if QMessageBox.question(self, "Снятие кассы",
+                "Снять весь остаток прошлых смен?\n"
+                "(наличные и безналичные обнулятся, операция запишется)",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+            return
+        def _do():
+            r = self.api.session.post(self._fiscal_url("/cash-withdrawal"),
+                                      timeout=30)
+            r.raise_for_status()
+            return r.json()
+        def _done(d):
+            QMessageBox.information(self, "Снятие кассы",
+                "Снято:\n  Наличные: %s\n  Безнал: %s"
+                % (_money(d.get("withdrawn_cash")), _money(d.get("withdrawn_card"))))
             self._shift_status()
         self._run(_do, _done)
 
@@ -163,11 +211,22 @@ class PaymentsTab(QWidget):
             r = self.api.session.get(self._fiscal_url("/shift"), timeout=15)
             r.raise_for_status()
             return r.json()
+        def _ok(d):
+            open_ = isinstance(d, dict) and bool(d.get("is_open"))
+            self.lbl_shift.setText(
+                "Смена: открыта ✅" if open_
+                else "Смена: закрыта ❌")
+            if isinstance(d, dict):
+                self.lbl_bal.setText(
+                    "Текущая смена — нал: %s | безнал: %s  ||  "
+                    "Остаток прошлых смен (не снят): нал %s | безнал %s"
+                    % (_money(d.get("cash_total")), _money(d.get("card_total")),
+                       _money(d.get("prev_cash")), _money(d.get("prev_card"))))
         w = Worker(_do, self)
-        w.done.connect(lambda d: self.lbl_shift.setText(
-            "Смена: открыта ✅" if isinstance(d, dict) and d.get("is_open")
-            else "Смена: закрыта ❌"))
-        w.fail.connect(lambda _m: self.lbl_shift.setText("Смена: ? (нет связи)"))
+        w.done.connect(_ok)
+        w.fail.connect(lambda _m: (self.lbl_shift.setText(
+            "Смена: ? (нет связи)"),
+            self.lbl_bal.setText("")))
         self._workers.append(w)
         w.finished.connect(lambda: self._workers.remove(w)
                            if w in self._workers else None)
@@ -211,10 +270,10 @@ class PaymentsTab(QWidget):
             vals = [str(pid)[:8],
                     str(p.get("created_at") or p.get("payment_date") or "")[:19],
                     str(p.get("amount") or ""),
-                    p.get("payment_method") or p.get("method") or "",
-                    p.get("status") or "",
-                    p.get("payment_direction") or "",
-                    p.get("payment_category") or "",
+                    _ru(RU_M, p.get("payment_method") or p.get("method")),
+                    _ru(RU_S, p.get("status")),
+                    _ru(RU_D, p.get("payment_direction")),
+                    _ru(RU_C, p.get("payment_category")),
                     p.get("notes") or ""]
             for j, val in enumerate(vals):
                 it = QTableWidgetItem(str(val))
@@ -238,10 +297,9 @@ class PaymentsTab(QWidget):
             return
         dlg = FormDialog("Провести платёж", [
             ("amount", "Сумма", "text", None),
-            ("method", "Способ оплаты", "combo", METHODS),
-            ("direction", "Направление", "combo", ["", "INCOMING", "OUTGOING"]),
-            ("category", "Категория", "combo",
-             ["", "SUBSCRIPTION", "SERVICE", "PRODUCT", "OTHER"]),
+            ("method", "Способ оплаты", "combo", list(RU_M.values())),
+            ("direction", "Направление", "combo", ["Приход", "Расход"]),
+            ("category", "Категория", "combo", [""] + list(RU_C.values())),
             ("notes", "Комментарий", "text", None)], self)
         if not dlg.exec():
             return
@@ -253,11 +311,13 @@ class PaymentsTab(QWidget):
         except ValueError:
             self._show("Сумма должна быть положительным числом.", ok=False)
             return
+        method = _ru_back(RU_M, v.get("method") or RU_M["CASH"])
+        direction = _ru_back(RU_D, v.get("direction")) or None
+        category = _ru_back(RU_C, v.get("category")) or None
         self._run(lambda: self.api.create_payment(
-            amount, v.get("method") or "CASH", client_id=cid,
+            amount, method, client_id=cid,
             notes=v.get("notes") or None,
-            direction=v.get("direction") or None,
-            category=v.get("category") or None),
+            direction=direction, category=category),
             lambda _r: (self._show("Платёж проведён."), self.load_payments()))
 
     def complete_payment(self):
