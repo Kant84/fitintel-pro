@@ -19,6 +19,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan, title=settings.APP_NAME, version=settings.APP_VERSION)
 
 # === ROUTERS ===
+from app.api.v1.connectors import router as connectors_router
 from app.api.v1.reports_ops import router as reports_ops_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.audit import router as audit_router
@@ -101,6 +102,7 @@ from app.api.v1.ui_config import router as ui_config_router
 # from app.routers.license import router as license_router   # СТАРЫЙ роутер отключён (дубль /license/*) — используется app.api.v1.license_api ниже
 
 # === ROUTES ===
+app.include_router(connectors_router, prefix=settings.API_V1_PREFIX)
 app.include_router(dynamic_qr_router, prefix=settings.API_V1_PREFIX)
 app.include_router(audit_router, prefix=settings.API_V1_PREFIX)
 app.include_router(face_id_router, prefix=settings.API_V1_PREFIX)
