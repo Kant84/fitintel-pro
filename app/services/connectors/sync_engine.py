@@ -87,8 +87,8 @@ def sync_entity(db, connector_id: str, entity: str, rows: list) -> dict:
                 else:
                     db.execute(text(
                         "INSERT INTO subscriptions (id, client_id, tariff_id, start_date, end_date, "
-                        "status, created_at, updated_at) "
-                        "VALUES (gen_random_uuid(), :c, :t, :s, :e, :st, now(), now())"),
+                        "status, price, created_at, updated_at) "
+                        "VALUES (gen_random_uuid(), :c, :t, :s, :e, :st, 0, now(), now())"),
                         {"c": cid, "t": str(tid[0]), "s": r.get("start_date"),
                          "e": r.get("end_date"), "st": _norm_status(r.get("status"))})
                     created += 1
