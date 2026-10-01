@@ -99,6 +99,7 @@ from app.api.v1.dal import router as dal_router
 from app.api.v1.reporting import router as reporting_router
 from app.api.v1.ops import router as ops_router
 from app.api.v1.ui_config import router as ui_config_router
+from app.api.v1.music import router as music_router
 # from app.routers.license import router as license_router   # СТАРЫЙ роутер отключён (дубль /license/*) — используется app.api.v1.license_api ниже
 
 # === ROUTES ===
@@ -121,6 +122,7 @@ app.include_router(subscription_lifecycle_router, prefix=settings.API_V1_PREFIX)
 app.include_router(visits_router, prefix=settings.API_V1_PREFIX)
 app.include_router(access_router, prefix=settings.API_V1_PREFIX)
 app.include_router(reports_ops_router, prefix=settings.API_V1_PREFIX)
+app.include_router(music_router, prefix=settings.API_V1_PREFIX)
 # === Prometheus metrics ===
 try:
     import time as _time
