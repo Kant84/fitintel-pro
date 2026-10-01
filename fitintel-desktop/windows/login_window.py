@@ -181,7 +181,7 @@ class LoginWindow(QWidget):
         layout.addWidget(card)
         layout.addStretch()
 
-        footer = QLabel("© 2026 ИП Санакин А.В. | FitIntel Pro v1.3.0")
+        footer = QLabel("© 2026 ИП Санакин А.В. | FitIntel Pro v1.5.3")
         footer.setStyleSheet("font-size: 11px; color: #94a3b8;")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(footer)

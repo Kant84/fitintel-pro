@@ -92,7 +92,7 @@ class LicenseTab(QWidget):
         layout.addStretch()
 
         # Footer
-        footer = QLabel("© 2026 ИП Санакин А.В. | Лицензирование через API v1.3.0")
+        footer = QLabel("© 2026 ИП Санакин А.В. | Лицензирование через API v1.5.3")
         footer.setStyleSheet("font-size: 11px; color: #94a3b8;")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(footer)
