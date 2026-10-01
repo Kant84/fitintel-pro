@@ -486,10 +486,5 @@ def z_report(db: Session = Depends(get_db), user=Depends(get_current_user)):
 # ---------- Тестовый переключатель драйверов (E31.2) ----------
 
 @router.post("/test/drivers")
-def test_drivers(payload: DriversRequest, user=Depends(get_current_user)):
+def test_drivers(payload: DriversRequest, user=Depends(require_roles("admin"))):
     """Эмуляция доступности драйверов ФР (только для тестов!)"""
-    if payload.atol is not None:
-        _DRIVERS["atol"] = payload.atol
-    if payload.shtrih is not None:
-        _DRIVERS["shtrih"] = payload.shtrih
-    return {"drivers": _DRIVERS}
