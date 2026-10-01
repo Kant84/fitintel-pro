@@ -339,3 +339,9 @@ def test_drivers(payload: DriversRequest, user=Depends(get_current_user)):
     if payload.shtrih is not None:
         _DRIVERS["shtrih"] = payload.shtrih
     return {"drivers": _DRIVERS}
+
+@router.get("/shift")
+def shift_status(db: Session = Depends(get_db), user=Depends(get_current_user)):
+    row = db.execute(text(
+        "SELECT is_open FROM fiscal_shift ORDER BY updated_at DESC LIMIT 1")).first()
+    return {"is_open": bool(row[0]) if row else False}
