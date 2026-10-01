@@ -1,4 +1,4 @@
-# # app/services/connectors/sync_engine.py — синхронизация в БД FitIntel с дедупликацией
+# app/services/connectors/sync_engine.py — синхронизация в БД FitIntel с дедупликацией
 from sqlalchemy import text
 
 
@@ -69,9 +69,9 @@ def sync_entity(db, connector_id: str, entity: str, rows: list) -> dict:
                     "SELECT id FROM tariffs WHERE name=:n LIMIT 1"), {"n": tname}).first()
                 if not tid:
                     tid = db.execute(text(
-                        "INSERT INTO tariffs (id, code, name, price, duration_days, is_unlimited, "
-                        "is_active, created_at, updated_at) "
-                        "VALUES (gen_random_uuid(), :c, :n, 0, 30, TRUE, TRUE, now(), now()) "
+                        "INSERT INTO tariffs (id, code, name, price, currency, duration_days, "
+                        "is_unlimited, is_active, created_at, updated_at) "
+                        "VALUES (gen_random_uuid(), :c, :n, 0, 'RUB', 30, TRUE, TRUE, now(), now()) "
                         "RETURNING id"),
                         {"c": ("IMP_" + str(abs(hash(tname)) % 100000)), "n": tname}).first()
                 exists = db.execute(text(
@@ -108,9 +108,9 @@ def sync_entity(db, connector_id: str, entity: str, rows: list) -> dict:
                     skipped += 1
                     continue
                 db.execute(text(
-                    "INSERT INTO visits (id, client_id, entry_time, access_method, status, "
-                    "created_at, updated_at) "
-                    "VALUES (gen_random_uuid(), :c, :e, :m, 'active', now(), now())"),
+                    "INSERT INTO visits (id, client_id, entry_time, access_method, "
+                    "access_granted, status, created_at, updated_at) "
+                    "VALUES (gen_random_uuid(), :c, :e, :m, TRUE, 'active', now(), now())"),
                     {"c": cid, "e": et, "m": r.get("access_method") or "API"})
                 created += 1
 
