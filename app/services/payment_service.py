@@ -145,6 +145,53 @@ class PaymentService:
             "updated_at": payment.updated_at,
         }
     
+    def _create_accounting_entry(self, payment, kind="sale"):
+        """E33: автопроводка двойной записи из платежа.
+        kind="sale" — оплата, kind="refund" — сторно возврата.
+        Наличные → счёт 50, безнал → 57; приход → Кт 90.1, расход → Дт 91.2.
+        Имя таблицы — константа в начале метода (проверьте по своей схеме!)."""
+        TABLE = "accounting_entries"
+        try:
+            from sqlalchemy import text
+            import uuid as _uuid
+            from datetime import datetime as _dt
+            method = (payment.payment_method or "").upper()
+            direction = (payment.payment_direction or "INCOMING").upper()
+            cash_acct = "50" if method == "CASH" else "57"
+            if kind == "refund":
+                d, c = "90.1", cash_acct
+                desc = "Сторно возврата: %s" % (payment.notes or payment.id)
+            elif direction in ("OUTGOING", "EXPENSE"):
+                d, c = "91.2", cash_acct
+                desc = "Расход (%s): %s" % (method, payment.notes or payment.id)
+            else:
+                d, c = cash_acct, "90.1"
+                desc = "Оплата (%s): %s" % (method, payment.notes or payment.id)
+            cols = {r[0] for r in self.db.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = :t"), {"t": TABLE}).fetchall()}
+            if not cols:
+                return
+            data = {"id": str(_uuid.uuid4()), "entry_date": _dt.now(),
+                    "debit_account": d, "credit_account": c,
+                    "debit": float(payment.amount), "credit": float(payment.amount),
+                    "description": desc[:500], "created_at": _dt.now(),
+                    "client_id": str(payment.client_id) if payment.client_id else None,
+                    "payment_id": str(payment.id)}
+            data = {k: v for k, v in data.items() if k in cols and v is not None}
+            for attempt in (data, {k: v for k, v in data.items() if k != "id"}):
+                try:
+                    self.db.execute(text(
+                        "INSERT INTO %s (%s) VALUES (%s)"
+                        % (TABLE, ", ".join(attempt), ", ".join(":" + k for k in attempt))),
+                        attempt)
+                    self.db.commit()
+                    return
+                except Exception:
+                    self.db.rollback()
+        except Exception:
+            pass  # проводка — не должна ломать платёж
+
     # ==========================================================
     # ОСНОВНЫЕ ОПЕРАЦИИ
     # ==========================================================
@@ -286,6 +333,7 @@ class PaymentService:
             payment.external_payment_id = external_payment_id
         
         updated_payment = self.repository.save(payment)
+        self._create_accounting_entry(updated_payment, kind="sale")
         
         self.audit.log(
             action="payment.completed",
@@ -435,6 +483,7 @@ class PaymentService:
         )
         self.db.add(receipt)
         self.db.commit()
+        self._create_accounting_entry(refund_payment, kind="refund")
         
         self.audit.log(
             action="payment.refunded",
