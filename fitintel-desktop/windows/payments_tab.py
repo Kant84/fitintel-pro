@@ -28,7 +28,8 @@ RU_M = {"CASH": "Наличные", "CARD": "Карта", "SBP": "СБП (по Q
         "TRANSFER": "Перевод", "ONLINE": "Онлайн-оплата",
         "SUBSCRIPTION": "Абонемент (зачёт)", "QR": "QR-код",
         "BALANCE": "Внутренний баланс", "OTHER": "Другое"}
-RU_D = {"INCOMING": "Приход", "OUTGOING": "Расход"}
+RU_D = {"INCOMING": "Приход", "OUTGOING": "Расход",
+        "INCOME": "Приход", "EXPENSE": "Расход", "OUTCOME": "Расход"}
 RU_C = {"SUBSCRIPTION": "Абонемент", "SERVICE": "Услуга",
         "PRODUCT": "Товар", "OTHER": "Прочее"}
 RU_S = {"PENDING": "Ожидает", "COMPLETED": "Завершён", "FAILED": "Ошибка",
@@ -52,7 +53,7 @@ def _fio(c):
 
 class Worker(QThread):
     done = pyqtSignal(object)
-    fail = pyqtSignal(str)
+    fail = pyqtSignal(object)          # теперь передаём само исключение
     def __init__(self, fn, parent=None):
         super().__init__(parent)
         self._fn = fn
@@ -60,8 +61,20 @@ class Worker(QThread):
         try:
             self.done.emit(self._fn())
         except Exception as e:
-            self.fail.emit(str(e))
+            self.fail.emit(e)
 
+def _err_text(e):
+    """Человекочитаемый текст ошибки HTTP из detail ответа сервера."""
+    resp = getattr(e, "response", None)
+    if resp is not None:
+        try:
+            detail = resp.json().get("detail")
+            if detail:
+                return str(detail)
+        except Exception:
+            pass
+        return "Ошибка сервера %s: %s" % (resp.status_code, resp.text[:150])
+    return str(e)
 def _money(v):
     try:
         return "%.2f ₽" % float(v or 0)
@@ -157,7 +170,7 @@ class PaymentsTab(QWidget):
     def _run(self, fn, cb):
         w = Worker(fn, self)
         w.done.connect(cb)
-        w.fail.connect(lambda msg: self._show(msg, ok=False))
+        w.fail.connect(lambda e: self._show(_err_text(e), ok=False))
         self._workers.append(w)
         w.finished.connect(lambda: self._workers.remove(w)
                            if w in self._workers else None)
