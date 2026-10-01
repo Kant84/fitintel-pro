@@ -152,7 +152,6 @@ class PaymentService:
         TABLE = "accounting_entries"
         try:
             from sqlalchemy import text
-            import uuid as _uuid
             from datetime import datetime as _dt
             method = (payment.payment_method or "").upper()
             direction = (payment.payment_direction or "INCOMING").upper()
@@ -171,11 +170,9 @@ class PaymentService:
                 "WHERE table_name = :t"), {"t": TABLE}).fetchall()}
             if not cols:
                 return
-            # Только реальные колонки accounting_entries:
-            # id uuid, entry_date date, debit/credit_account, amount numeric,
-            # description, source, is_closing, created_at (default now())
-            data = {"id": str(_uuid.uuid4()),
-                    "entry_date": _dt.now().date(),
+            # id НЕ передаём — генерирует БД (gen_random_uuid()).
+            # created_at НЕ передаём — default now().
+            data = {"entry_date": _dt.now().date(),
                     "debit_account": d,
                     "credit_account": c,
                     "amount": float(payment.amount),
@@ -189,6 +186,8 @@ class PaymentService:
             self.db.commit()
         except Exception:
             self.db.rollback()  # проводка — не должна ломать платёж
+            import traceback
+            traceback.print_exc()  # ошибка будет видна в логах api
 
     # ==========================================================
     # ОСНОВНЫЕ ОПЕРАЦИИ
