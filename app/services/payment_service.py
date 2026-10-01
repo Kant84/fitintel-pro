@@ -146,10 +146,9 @@ class PaymentService:
         }
     
     def _create_accounting_entry(self, payment, kind="sale"):
-        """E33: автопроводка двойной записи из платежа.
+        """E33: автопроводка двойной записи из платежа (таблица accounting_entries).
         kind="sale" — оплата, kind="refund" — сторно возврата.
-        Наличные → счёт 50, безнал → 57; приход → Кт 90.1, расход → Дт 91.2.
-        Имя таблицы — константа в начале метода (проверьте по своей схеме!)."""
+        Наличные → счёт 50, безнал → 57; приход → Кт 90.1, расход → Дт 91.2."""
         TABLE = "accounting_entries"
         try:
             from sqlalchemy import text
@@ -172,25 +171,24 @@ class PaymentService:
                 "WHERE table_name = :t"), {"t": TABLE}).fetchall()}
             if not cols:
                 return
-            data = {"id": str(_uuid.uuid4()), "entry_date": _dt.now(),
-                    "debit_account": d, "credit_account": c,
-                    "debit": float(payment.amount), "credit": float(payment.amount),
-                    "description": desc[:500], "created_at": _dt.now(),
-                    "client_id": str(payment.client_id) if payment.client_id else None,
-                    "payment_id": str(payment.id)}
+            # Только реальные колонки accounting_entries:
+            # id uuid, entry_date date, debit/credit_account, amount numeric,
+            # description, source, is_closing, created_at (default now())
+            data = {"id": str(_uuid.uuid4()),
+                    "entry_date": _dt.now().date(),
+                    "debit_account": d,
+                    "credit_account": c,
+                    "amount": float(payment.amount),
+                    "description": desc[:500],
+                    "source": "payment",
+                    "is_closing": False}
             data = {k: v for k, v in data.items() if k in cols and v is not None}
-            for attempt in (data, {k: v for k, v in data.items() if k != "id"}):
-                try:
-                    self.db.execute(text(
-                        "INSERT INTO %s (%s) VALUES (%s)"
-                        % (TABLE, ", ".join(attempt), ", ".join(":" + k for k in attempt))),
-                        attempt)
-                    self.db.commit()
-                    return
-                except Exception:
-                    self.db.rollback()
+            self.db.execute(text(
+                "INSERT INTO %s (%s) VALUES (%s)"
+                % (TABLE, ", ".join(data), ", ".join(":" + k for k in data))), data)
+            self.db.commit()
         except Exception:
-            pass  # проводка — не должна ломать платёж
+            self.db.rollback()  # проводка — не должна ломать платёж
 
     # ==========================================================
     # ОСНОВНЫЕ ОПЕРАЦИИ
