@@ -1,8 +1,5 @@
-# app/services/connectors/sync_engine.py — синхронизация в БД FitIntel с дедупликацией
+# # app/services/connectors/sync_engine.py — синхронизация в БД FitIntel с дедупликацией
 from sqlalchemy import text
-from datetime import datetime
-
-METHODS = {"API", "1C", "HIT"}
 
 
 def _log(db, connector_id, entity, count, status, message=""):
@@ -41,20 +38,22 @@ def sync_entity(db, connector_id: str, entity: str, rows: list) -> dict:
                 if cid:
                     db.execute(text(
                         "UPDATE clients SET last_name=:ln, first_name=:fn, middle_name=:mn, "
-                        "email=COALESCE(NULLIF(:em,''), email), birth_date=COALESCE(:bd, birth_date) "
+                        "email=COALESCE(NULLIF(:em,''), email), "
+                        "birth_date=COALESCE(NULLIF(:bd,'')::date, birth_date) "
                         "WHERE id=:id"),
                         {"ln": r.get("last_name"), "fn": r.get("first_name"),
                          "mn": r.get("middle_name"), "em": r.get("email") or "",
-                         "bd": r.get("birth_date"), "id": cid})
+                         "bd": r.get("birth_date") or "", "id": cid})
                     updated += 1
                 else:
                     db.execute(text(
                         "INSERT INTO clients (id, last_name, first_name, middle_name, phone, email, "
-                        "gender, birth_date, status, is_active, created_at, updated_at) "
-                        "VALUES (gen_random_uuid(), :ln, :fn, :mn, :p, :em, :g, :bd, 'ACTIVE', :a, now(), now())"),
+                        "gender, birth_date, client_category, status, is_active, created_at, updated_at) "
+                        "VALUES (gen_random_uuid(), :ln, :fn, :mn, :p, :em, :g, "
+                        "NULLIF(:bd,'')::date, 'НЕ_УКАЗАНА', 'ACTIVE', :a, now(), now())"),
                         {"ln": r.get("last_name"), "fn": r.get("first_name"),
                          "mn": r.get("middle_name"), "p": phone, "em": r.get("email") or "",
-                         "g": r.get("gender") or "НЕ_УКАЗАН", "bd": r.get("birth_date"),
+                         "g": r.get("gender") or "НЕ_УКАЗАН", "bd": r.get("birth_date") or "",
                          "a": bool(r.get("is_active", True))})
                     created += 1
 
@@ -72,7 +71,8 @@ def sync_entity(db, connector_id: str, entity: str, rows: list) -> dict:
                     tid = db.execute(text(
                         "INSERT INTO tariffs (id, code, name, price, duration_days, is_unlimited, "
                         "is_active, created_at, updated_at) "
-                        "VALUES (gen_random_uuid(), :c, :n, 0, 30, TRUE, TRUE, now(), now()) RETURNING id"),
+                        "VALUES (gen_random_uuid(), :c, :n, 0, 30, TRUE, TRUE, now(), now()) "
+                        "RETURNING id"),
                         {"c": ("IMP_" + str(abs(hash(tname)) % 100000)), "n": tname}).first()
                 exists = db.execute(text(
                     "SELECT id FROM subscriptions WHERE client_id=:c AND tariff_id=:t "
@@ -100,7 +100,7 @@ def sync_entity(db, connector_id: str, entity: str, rows: list) -> dict:
                 if not cid or not r.get("entry_time"):
                     skipped += 1
                     continue
-                et = r["entry_time"].replace("T", " ")[:19]
+                et = str(r["entry_time"]).replace("T", " ")[:19]
                 dup = db.execute(text(
                     "SELECT id FROM visits WHERE client_id=:c AND entry_time=:e LIMIT 1"),
                     {"c": cid, "e": et}).first()
@@ -109,7 +109,8 @@ def sync_entity(db, connector_id: str, entity: str, rows: list) -> dict:
                     continue
                 db.execute(text(
                     "INSERT INTO visits (id, client_id, entry_time, access_method, status, "
-                    "created_at, updated_at) VALUES (gen_random_uuid(), :c, :e, :m, 'active', now(), now())"),
+                    "created_at, updated_at) "
+                    "VALUES (gen_random_uuid(), :c, :e, :m, 'active', now(), now())"),
                     {"c": cid, "e": et, "m": r.get("access_method") or "API"})
                 created += 1
 
@@ -125,7 +126,8 @@ def sync_entity(db, connector_id: str, entity: str, rows: list) -> dict:
     except Exception as e:
         db.rollback()
         db.execute(text(
-            "UPDATE connectors SET last_sync_at=now(), last_status='error', last_message=:m WHERE id=:id"),
+            "UPDATE connectors SET last_sync_at=now(), last_status='error', "
+            "last_message=:m WHERE id=:id"),
             {"m": str(e)[:400], "id": connector_id})
         _log(db, connector_id, entity, 0, "error", str(e)[:400])
         db.commit()
