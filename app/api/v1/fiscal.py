@@ -17,7 +17,6 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-# вверху файла, к остальным импортам:
 from app.services.auth_service import AuthService
 from app.api.dependencies import get_current_user, require_roles
 from app.db.session import get_db
@@ -82,6 +81,7 @@ def _ensure_schema(db: Session):
         "ALTER TABLE fiscal_shift ADD COLUMN IF NOT EXISTS card_total NUMERIC(12,2) DEFAULT 0",
         "ALTER TABLE fiscal_shift ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP",
         "ALTER TABLE fiscal_shift ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP",
+        "ALTER TABLE payments ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP",
         "CREATE TABLE IF NOT EXISTS fiscal_pending ("
         "  id INT PRIMARY KEY DEFAULT 1, cash NUMERIC(12,2) DEFAULT 0,"
         "  card NUMERIC(12,2) DEFAULT 0,"
@@ -108,7 +108,8 @@ def _latest_shift(db: Session):
 
 def _shift_totals(db: Session, opened_at) -> tuple:
     """Обороты смены: наличные и безналичные ОТДЕЛЬНО (не суммируются).
-    Приход минус расход, только подтверждённые (COMPLETED) платежи."""
+    Приход минус расход, только подтверждённые (COMPLETED) платежи,
+    по моменту зачисления completed_at (fallback — created_at)."""
     r = db.execute(text("""
         SELECT
           COALESCE(SUM(CASE WHEN COALESCE(payment_method,'CASH') = 'CASH'
@@ -122,7 +123,8 @@ def _shift_totals(db: Session, opened_at) -> tuple:
                             WHEN COALESCE(payment_method,'CASH') <> 'CASH'
                             THEN -amount ELSE 0 END), 0) AS card
         FROM payments
-        WHERE status = 'COMPLETED' AND created_at >= :opened_at
+        WHERE status = 'COMPLETED'
+          AND COALESCE(completed_at, created_at) >= :opened_at
     """), {"opened_at": opened_at}).first()
     return float(r[0] or 0), float(r[1] or 0)
 
@@ -428,6 +430,7 @@ def cash_withdrawal(db: Session = Depends(get_db), user=Depends(get_current_user
     return {"withdrawn_cash": w_cash, "withdrawn_card": w_card,
             "message": "Остаток снят. Наличные: %.2f, безналичные: %.2f"
                        % (w_cash, w_card)}
+
 
 @router.get("/shift")
 def shift_status(db: Session = Depends(get_db), user=Depends(get_current_user)):
