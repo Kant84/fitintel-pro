@@ -176,7 +176,11 @@ class FaceIdTab(QWidget):
         b_load.clicked.connect(self.register_photo)
         row.addWidget(b_load)
         lv.addLayout(row)
-
+        b_me = QPushButton("✅ Проверить меня")
+        b_me.setStyleSheet("QPushButton { background: #7c3aed; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        b_me.clicked.connect(self.verify_me)
+        
+        row.addWidget(b_me)
         self.details = QPlainTextEdit()
         self.details.setReadOnly(True)
         self.details.setMaximumHeight(150)
@@ -304,8 +308,18 @@ class FaceIdTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Фото", str(e))
             return
+        self._last_b64 = b64   # ← добавить: запоминаем кадр для «Проверить меня»
         cid = str(self._current.get("id"))
         self._run(lambda: self.api.face_register(cid, b64), self._on_registered)
+
+    def verify_me(self):
+        """Проверка распознавания: текущий кадр → /face-id/verify."""
+        b64 = getattr(self, "_last_b64", None)
+        if not b64:
+            QMessageBox.information(self, "Face ID",
+                "Сначала снимите фото («📷 Снять с камеры» или «📂 Загрузить файл»)")
+            return
+        self._run(lambda: self.api.verify_face(b64), self._on_verify)
 
     def _on_registered(self, r):
         try:

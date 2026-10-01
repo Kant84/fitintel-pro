@@ -76,7 +76,10 @@ fitintel-desktop/patch_*.py
 fitintel-desktop/*_setup.py
 fitintel-desktop/extend_client.py
 fitintel-desktop/mark_version.py
-
+fitintel-desktop/build/
+fitintel-desktop/dist/
+fitintel-desktop/installer_out/
+fitintel-desktop/test_write_card.py
 # ═══════════════ Прочее ═══════════════
 importtime.log
 patch_timeouts.py
