@@ -4,7 +4,7 @@ Fiscal API E31 — фискализация чеков (АТОЛ / Штрих-М
 ОФД (в т.ч. Taxcom), настройки ФР, X/Z-отчёты, смены.
 Драйверы эмулируются; боевые — через app/services/fiscal/universal_fiscal.py.
 """
-
+import requests
 import json
 import secrets
 import uuid
