@@ -115,8 +115,8 @@ def sync_entity(db, connector_id: str, entity: str, rows: list) -> dict:
                 db.execute(text(
                     "INSERT INTO visits (id, client_id, entry_time, access_method, "
                     "access_granted, status, created_at, updated_at) "
-                    "VALUES (gen_random_uuid(), :c, :e, :m, TRUE, 'active', now(), now())"),
-                    {"c": cid, "e": et, "m": r.get("access_method") or "API"})
+                    "VALUES (gen_random_uuid(), :c, :e, 'MANUAL', TRUE, 'ACTIVE', now(), now())"),
+                    {"c": cid, "e": et})
                 created += 1
 
         db.execute(text(
