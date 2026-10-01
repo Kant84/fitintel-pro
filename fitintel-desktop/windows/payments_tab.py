@@ -10,7 +10,19 @@ from .form_dialog import FormDialog
 
 METHODS = ["CASH", "CARD", "SBP", "TRANSFER", "ONLINE", "SUBSCRIPTION",
            "QR", "BALANCE", "OTHER"]
-
+def _t(name, *args):
+    f = getattr(theme, name, None)
+    if not callable(f):
+        return ""
+    for a in (args, ()):
+        try:
+            return f(*a)
+        except TypeError:
+            continue
+        except Exception:
+            return ""
+    return ""
+    
 # === Кириллица (E33) ===
 RU_M = {"CASH": "Наличные", "CARD": "Карта", "SBP": "СБП (по QR)",
         "TRANSFER": "Перевод", "ONLINE": "Онлайн-оплата",
@@ -293,6 +305,10 @@ class PaymentsTab(QWidget):
         cid = self._cid()
         if cid is None:
             return
+        # Предупреждение при закрытой смене: платёж проведём, но чек не пробьётся
+        if "закрыта" in self.lbl_shift.text():
+            self._show("Внимание: смена закрыта — фискальный чек не пробьётся, "
+                       "пока не нажата «Открыть смену».", ok=False)
         dlg = FormDialog("Провести платёж", [
             ("amount", "Сумма", "text", None),
             ("method", "Способ оплаты", "combo", list(RU_M.values())),
