@@ -2,7 +2,9 @@
 
 from uuid import UUID
 from decimal import Decimal
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query, status, HTTPException
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import require_permission, get_current_user
@@ -131,18 +133,23 @@ def complete_payment(
     payment = service.get_payment(str(payment_id))
     if str(payment.status) != "PENDING":
         raise HTTPException(status_code=400, detail="Платёж уже подтверждён или недоступен")
-    # 1. Сначала чек на кассу: при закрытой смене здесь будет 400, платёж останется «Ожидает»
+    # 1. Сначала чек на кассу: при закрытой смене здесь 400, платёж останется «Ожидает»
     items = [{"name": payment.payment_category or "Оплата FitIntel",
               "price": float(payment.amount), "quantity": 1}]
     _fiscalize(db, _get_settings(db)["driver"], "sale",
                float(payment.amount),
                payload={"items": items, "payment_id": str(payment.id)})
-    # 2. Чек пробит — теперь подтверждаем платёж (попадает в баланс смены)
+    # 2. Чек пробит — подтверждаем платёж (попадает в баланс смены)
     payment = service.complete_payment(
         payment_id=str(payment_id),
         actor_user_id=str(current_user.id),
     )
+    # 3. Фиксируем момент зачисления — баланс смены считается по нему
+    db.execute(text("UPDATE payments SET completed_at = :n WHERE id = :id"),
+               {"n": datetime.now(timezone.utc), "id": str(payment.id)})
+    db.commit()
     return service._build_response(payment)
+
 
 @router.post("/{payment_id}/refund", response_model=PaymentRefundResponse)
 def refund_payment(
