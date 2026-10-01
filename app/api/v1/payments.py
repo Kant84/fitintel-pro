@@ -125,14 +125,24 @@ def complete_payment(
     current_user: User = Depends(require_permission("payments.update")),
     db: Session = Depends(get_db),
 ):
-    """Подтвердить платёж"""
+    """Подтвердить платёж (E33: сначала фискальный чек, потом статус «Завершён»)"""
+    from app.api.v1.fiscal import _fiscalize, _get_settings
     service = PaymentService(db)
+    payment = service.get_payment(str(payment_id))
+    if str(payment.status) != "PENDING":
+        raise HTTPException(status_code=400, detail="Платёж уже подтверждён или недоступен")
+    # 1. Сначала чек на кассу: при закрытой смене здесь будет 400, платёж останется «Ожидает»
+    items = [{"name": payment.payment_category or "Оплата FitIntel",
+              "price": float(payment.amount), "quantity": 1}]
+    _fiscalize(db, _get_settings(db)["driver"], "sale",
+               float(payment.amount),
+               payload={"items": items, "payment_id": str(payment.id)})
+    # 2. Чек пробит — теперь подтверждаем платёж (попадает в баланс смены)
     payment = service.complete_payment(
         payment_id=str(payment_id),
         actor_user_id=str(current_user.id),
     )
     return service._build_response(payment)
-
 
 @router.post("/{payment_id}/refund", response_model=PaymentRefundResponse)
 def refund_payment(
