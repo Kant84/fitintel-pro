@@ -74,7 +74,7 @@ class SettingsTab(QWidget):
         # ── О программе ──
         box3 = QGroupBox("О программе")
         fl3 = QFormLayout(box3)
-        fl3.addRow("Версия:", QLabel("FitIntel Pro Desktop v1.3.1"))
+        fl3.addRow("Версия:", QLabel("FitIntel Pro Desktop v1.5.3"))
         fl3.addRow("Платформа:", QLabel("PyQt6 thin client"))
         layout.addWidget(box3)
 
