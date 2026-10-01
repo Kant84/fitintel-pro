@@ -95,13 +95,13 @@ class PaymentsTab(QWidget):
         bar2 = QHBoxLayout()
         self.lbl_shift = QLabel("Смена: —")
         bar2.addWidget(self.lbl_shift)
-        b_open = QPushButton("\U0001f513 Открыть смену")
+        b_open = QPushButton("🔓 Открыть смену")
         b_open.setToolTip("Открыть смену на фискальном регистраторе (АТОЛ ДТО)")
         b_open.clicked.connect(lambda: self._shift("open"))
-        b_close = QPushButton("\U0001f512 Закрыть смену")
+        b_close = QPushButton("🔒 Закрыть смену")
         b_close.setToolTip("Закрыть смену: будет показан отчёт (нал / безнал)")
         b_close.clicked.connect(lambda: self._shift("close"))
-        b_wd = QPushButton("\U0001f4b5 Снятие кассы")
+        b_wd = QPushButton("💵 Снятие кассы")
         b_wd.setToolTip("Бухгалтер снимает остаток прошлых смен (обнуляет)")
         b_wd.clicked.connect(self.cash_withdrawal)
         b_check = QPushButton("Обновить статус")
@@ -214,8 +214,7 @@ class PaymentsTab(QWidget):
         def _ok(d):
             open_ = isinstance(d, dict) and bool(d.get("is_open"))
             self.lbl_shift.setText(
-                "Смена: открыта ✅" if open_
-                else "Смена: закрыта ❌")
+                "Смена: открыта ✅" if open_ else "Смена: закрыта ❌")
             if isinstance(d, dict):
                 self.lbl_bal.setText(
                     "Текущая смена — нал: %s | безнал: %s  ||  "
@@ -225,8 +224,7 @@ class PaymentsTab(QWidget):
         w = Worker(_do, self)
         w.done.connect(_ok)
         w.fail.connect(lambda _m: (self.lbl_shift.setText(
-            "Смена: ? (нет связи)"),
-            self.lbl_bal.setText("")))
+            "Смена: ? (нет связи)"), self.lbl_bal.setText("")))
         self._workers.append(w)
         w.finished.connect(lambda: self._workers.remove(w)
                            if w in self._workers else None)
