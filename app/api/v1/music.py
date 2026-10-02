@@ -288,10 +288,9 @@ def dj_get(zid: str, db=Depends(get_db)):
 @router.post("/zones/{zid}/dj")
 def dj_set(zid: str, body: DjStateIn, db=Depends(get_db)):
     """Состояние пульта: треки на деках, активный дек, кроссфейд, мастер-громкость.
-    Агент применяет только изменения (по сигнатуре), авто-микс деками управляет сам."""
+    local_agent — применяет DJ-агент; external — пуш на бокс провайдера
+    (контракт команд настраивается в provider_config, TODO: под реальную коробку)."""
     zone = _get_zone(db, zid)
-    if zone["provider_type"] != "local_agent":
-        raise HTTPException(400, "DJ-пульт только для зон local_agent")
     if body.active_deck not in ("A", "B"):
         raise HTTPException(400, "active_deck: A | B")
     d = {"deck_a": body.deck_a.model_dump() if body.deck_a else None,
@@ -302,8 +301,15 @@ def dj_set(zid: str, body: DjStateIn, db=Depends(get_db)):
     db.execute(text("UPDATE music_zones SET dj_state=:d, updated_at=now() WHERE id=:z"),
                {"d": json.dumps(d, ensure_ascii=False), "z": zid})
     db.commit()
+    if zone["provider_type"] == "external":
+        # Контракт для бокса провайдера: dj_load / dj_crossfade / dj_master.
+        # Реальный формат команд подгоним под конкретную коробку (provider_config).
+        _push_external(zone, "dj_load", {"deck": "A", "track": d["deck_a"]})
+        _push_external(zone, "dj_load", {"deck": "B", "track": d["deck_b"]})
+        _push_external(zone, "dj_crossfade", {"active": d["active_deck"],
+                                              "seconds": d["crossfade_seconds"]})
+        _push_external(zone, "dj_master", {"level": d["master_volume"]})
     return {"ok": True, "zone": zid, **d}
-
 
 # ---------------------------------------------------------------- плейлисты
 @router.get("/playlists")
