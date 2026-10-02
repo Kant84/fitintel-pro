@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-FitIntel DJ Agent v2 — локальный плеер музыкальной зоны.
+FitIntel DJ Agent v3 — локальный плеер музыкальной зоны.
   Два дека (mpv + JSON IPC): Deck A / Deck B, кроссфейд, авто-микс, мастер-громкость.
-  Режим DJ включается, когда сервер отдаёт dj.deck_a / dj.deck_b.
-  Без dj-блока работает как простой плеер v1 (playlist play/stop).
+  Сэмплер: третий экземпляр mpv (PAD), one-shot по событиям из очереди /agent/pads.
+  Без dj-блока работает как простой плеер (playlist play/stop).
 
-  --dry-run      только лог, без mpv и звука (проверка логики)
-  --lib DIR      папка с MP3/FLAC/OGG (пути треков резолвятся от неё)
+  --dry-run      только лог, без mpv и звука
+  --lib DIR      папка с MP3/FLAC/OGG (пути резолвятся от неё)
   --interval N   опрос сервера, сек (по умолчанию 3)
 
-mpv (движок): https://mpv.io  |  winget install mpv
-IPC: Linux — unix-сокет; Windows — named pipe \\.\pipe\fitintel_deck_*
+mpv: https://mpv.io | winget install mpv
+IPC: Linux — unix-сокет; Windows — named pipe \\.\pipe\fitintel_*
 """
 import argparse
 import json
@@ -23,20 +23,18 @@ import time
 import urllib.request
 
 
-# --------------------------------------------------------------------------- Deck
 class Deck:
     """Один дек = один процесс mpv со своим IPC-сокетом."""
 
     def __init__(self, name, ipc, lib, dry_run=False):
-        self.name = name            # "A" / "B"
+        self.name = name
         self.ipc = ipc
         self.lib = lib
         self.dry = dry_run
         self.proc = None
-        self.track = None           # {"title","path"} — что загружено
+        self.track = None
         self.req = 0
 
-    # --- процесс ---
     def start(self):
         if self.dry or self.proc:
             return
@@ -63,7 +61,6 @@ class Deck:
                 pass
             self.proc = None
 
-    # --- IPC ---
     def _conn(self):
         if self.ipc.startswith("\\\\.\\pipe\\"):
             return open(self.ipc, "r+b", buffering=0)
@@ -73,7 +70,6 @@ class Deck:
         return s.makefile("rwb")
 
     def cmd(self, *args):
-        """Отправить команду mpv, дождаться ответа по request_id."""
         if self.dry:
             return {}
         self.req += 1
@@ -107,7 +103,6 @@ class Deck:
         except Exception:
             return default
 
-    # --- музыкальные операции ---
     def resolve(self, track):
         p = track.get("path", "")
         if self.lib and not os.path.isabs(p):
@@ -115,7 +110,6 @@ class Deck:
         return p
 
     def load_paused(self, track):
-        """Загрузить трек на дек и поставить на паузу с нулевой громкостью."""
         self.track = track
         if self.dry:
             print("DECK %s | загружен (пауза, vol 0): %s" % (self.name, track.get("title")))
@@ -126,7 +120,6 @@ class Deck:
         self.cmd("set_property", "volume", 0)
 
     def play(self, volume):
-        self.track = self.track  # unchanged
         if self.dry:
             print("DECK %s | PLAY vol=%s: %s" % (self.name, volume,
                                                  (self.track or {}).get("title")))
@@ -141,7 +134,6 @@ class Deck:
         self.cmd("set_property", "pause", True)
 
     def fade_to(self, target, seconds):
-        """Плавно изменить громкость (в фоновом потоке)."""
         if self.dry:
             print("DECK %s | FADE -> %s за %.1fs" % (self.name, target, seconds))
             return
@@ -166,7 +158,6 @@ class Deck:
         threading.Thread(target=_ramp, daemon=True).start()
 
     def remaining(self):
-        """Секунд до конца трека (None если неизвестно)."""
         dur = self.prop("duration")
         pos = self.prop("time-pos")
         if dur and pos is not None:
@@ -176,53 +167,74 @@ class Deck:
     def eof(self):
         return bool(self.prop("eof-reached", False))
 
+    def play_oneshot(self, path, volume):
+        """Сэмплер: проиграть файл один раз, не трогая эфирные деки."""
+        if self.dry:
+            print("PAD | ONE-SHOT vol=%s: %s" % (volume, path))
+            return
+        self.cmd("set_property", "volume", volume)
+        self.cmd("loadfile", path, "replace")
+        self.cmd("set_property", "pause", False)
 
-# --------------------------------------------------------------------------- Agent
+
 class Agent:
     def __init__(self, args):
         self.a = args
         is_win = sys.platform.startswith("win")
         if is_win:
-            base = r"\\.\pipe\fitintel_deck_"
-            ia, ib = base + "a", base + "b"
+            base = r"\\.\pipe\fitintel_"
+            ia, ib, ip = base + "deck_a", base + "deck_b", base + "pad"
         else:
-            base = "/tmp/fitintel_deck_"
-            ia, ib = base + "a.sock", base + "b.sock"
+            base = "/tmp/fitintel_"
+            ia, ib, ip = base + "deck_a.sock", base + "deck_b.sock", base + "pad.sock"
         self.decks = {"A": Deck("A", ia, args.lib, args.dry_run),
-                      "B": Deck("B", ib, args.lib, args.dry_run)}
+                      "B": Deck("B", ib, args.lib, args.dry_run),
+                      "PAD": Deck("PAD", ip, args.lib, args.dry_run)}
         self.active = "A"
         self.master = 70
-        self.applied_sig = None     # сигнатура dj-состояния, уже применённого сервера
+        self.applied_sig = None
         self.mixing = False
-        self.base_key = None        # ключ фонового режима (state+playlist+volume)
+        self.base_key = None
+        self.fired = set()      # event_id, уже сыгранные (защита от повторов)
         self.poll = args.interval
 
     # --- сеть ---
-    def fetch(self):
-        url = self.a.server.rstrip("/") + "/music/agent/state?token=" + self.a.token
+    def fetch(self, path):
+        url = self.a.server.rstrip("/") + path
+        if "?" not in url:
+            url += ("&" if "?" in path else "?") + "token=" + self.a.token
         with urllib.request.urlopen(url, timeout=10) as r:
+            return json.load(r)
+
+    def post(self, path, body):
+        url = self.a.server.rstrip("/") + path
+        data = json.dumps(body).encode()
+        req = urllib.request.Request(url, data=data,
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=10) as r:
             return json.load(r)
 
     # --- основной цикл ---
     def run(self):
-        print("FitIntel DJ Agent v2 | dry-run=%s | poll %.1fs | lib=%s"
+        print("FitIntel DJ Agent v3 | dry-run=%s | poll %.1fs | lib=%s"
               % (self.a.dry_run, self.poll, self.a.lib or "—"))
         if not self.a.dry_run:
-            self.decks["A"].start()
-            self.decks["B"].start()
+            for d in self.decks.values():
+                d.start()
         while True:
             try:
-                st = self.fetch()
+                st = self.fetch("/music/agent/state")
                 dj = st.get("dj") or {}
                 if dj.get("deck_a") or dj.get("deck_b"):
                     self.handle_dj(st, dj)
                 else:
                     self.handle_simple(st)
+                self.handle_pads()
             except Exception as e:
                 print("ERR:", e)
             time.sleep(self.poll)
 
-    # --- режим 1: простой плеер (как v1) ---
+    # --- режим 1: простой плеер ---
     def handle_simple(self, st):
         pl = st.get("playlist")
         key = (st["state"], (pl or {}).get("id"), st["volume"])
@@ -246,7 +258,6 @@ class Agent:
         want_active = dj.get("active_deck", "A")
         self.master = int(dj.get("master_volume") or 70)
 
-        # Применяем серверное состояние только если оно изменилось
         sig = json.dumps(dj, sort_keys=True, ensure_ascii=False)
         if sig != self.applied_sig:
             self.applied_sig = sig
@@ -262,13 +273,10 @@ class Agent:
             print("DJ | применено: активный дек %s | мастер %s | кроссфейд %.1fs"
                   % (want_active, self.master, cf))
 
-        # Контроль активного дека: если трек закончился — рестарт (подстраховка)
         act = self.decks[self.active]
         if act.eof() and not self.mixing:
             print("DJ | трек на деке %s завершён, тишина (ждём команду пульта)" % self.active)
-            time.sleep(self.poll)
 
-        # Авто-микс: приближается конец трека -> сведение на свободный дек
         rem = act.remaining()
         idle_name = "B" if self.active == "A" else "A"
         idle = self.decks[idle_name]
@@ -277,7 +285,6 @@ class Agent:
             self.auto_mix(idle_name, cf)
 
     def switch_to(self, name, cf, immediate=False):
-        """Свести эфир на дек name. immediate=True — без фейда (первая подача)."""
         idle = self.decks[name]
         old = self.decks[self.active]
         if immediate:
@@ -293,8 +300,6 @@ class Agent:
         print("DJ | эфир: дек %s | %s" % (name, (idle.track or {}).get("title")))
 
     def auto_mix(self, idle_name, cf):
-        """Авто-микс: сводим на свободный дек; следующий трек — из текущего
-        плейлиста сервера (или повтор текущего, если плейлиста нет)."""
         self.mixing = True
         idle = self.decks[idle_name]
         nxt = self.next_track(idle.track)
@@ -303,16 +308,13 @@ class Agent:
         print("DJ | AUTO-MIX: дек %s -> %s | след.: %s | фейд %.1fs"
               % (self.active, idle_name, (nxt or {}).get("title"), cf))
         self.switch_to(idle_name, cf, immediate=False)
-        # освободившийся (старый) дек готовим следующим: грузим туда next+1 на паузу
         old = self.decks[self.active]
         old.fade_to(0, 0.5)
         self.mixing = False
-        _ = old  # следующий трек подгрузит сервер или повторный auto_mix
 
     def next_track(self, current):
-        """Следующий трек: из последнего известного плейлиста, иначе повтор."""
         try:
-            st = self.fetch()
+            st = self.fetch("/music/agent/state")
             pl = st.get("playlist")
             if pl and pl.get("tracks"):
                 tracks = pl["tracks"]
@@ -325,9 +327,41 @@ class Agent:
             pass
         return current
 
+    # --- сэмплер ---
+    def handle_pads(self):
+        try:
+            data = self.fetch("/music/agent/pads")
+        except Exception as e:
+            print("PAD | ERR:", e)
+            return
+        events = data.get("events") or []
+        acked = []
+        for ev in events:
+            eid = ev.get("event_id")
+            if not eid or eid in self.fired:
+                continue
+            self.fired.add(eid)
+            path = ev.get("path", "")
+            if self.a.lib and not os.path.isabs(path):
+                path = os.path.join(self.a.lib, path)
+            print("PAD | %-20s | %s" % (ev.get("name"), path))
+            try:
+                self.decks["PAD"].play_oneshot(path, int(ev.get("volume") or 80))
+                acked.append(eid)
+            except Exception as e:
+                print("PAD | PLAY FAIL:", e)
+        if acked:
+            try:
+                self.post("/music/agent/pads/ack", {"event_ids": acked})
+            except Exception as e:
+                print("PAD | ACK FAIL:", e)
+        # чистка локального кэша id, чтобы не рос бесконечно
+        if len(self.fired) > 5000:
+            self.fired = set(list(self.fired)[-1000:])
+
 
 def main():
-    ap = argparse.ArgumentParser(description="FitIntel DJ Agent v2")
+    ap = argparse.ArgumentParser(description="FitIntel DJ Agent v3")
     ap.add_argument("--server", required=True, help="http://192.168.101.182/api/v1")
     ap.add_argument("--token", required=True)
     ap.add_argument("--dry-run", action="store_true")

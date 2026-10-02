@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Music control API v2 — FitIntel Pro.
-Автоматизация фона (зоны, плейлисты, расписание, energize от СКУД) + DJ-пульт
-(Deck A/B, кроссфейд, мастер-громкость) для локальных зон.
-  provider_type = "local_agent" — агент на ПК в зале опрашивает /agent/state
+Music control API v3 — FitIntel Pro.
+Автоматизация фона (зоны, плейлисты, расписание, energize от СКУД)
++ DJ-пульт (Deck A/B, кроссфейд, мастер-громкость)
++ Сэмплер (пады 1-8: библиотека сэмплов, очередь событий с подтверждением).
+  provider_type = "local_agent" — агент на ПК в зале опрашивает /agent/state и /agent/pads
   provider_type = "external"    — сервер пушит команды на бокс провайдера
 DDL ленивый (CREATE TABLE / ALTER ... IF NOT EXISTS), миграции не нужны.
 TODO(MVP): admin-эндпоинты без auth — только для тестовой сети!
@@ -60,6 +61,25 @@ _DDL = [
     )
     """,
     "ALTER TABLE music_zones ADD COLUMN IF NOT EXISTS dj_state JSON",
+    """
+    CREATE TABLE IF NOT EXISTS music_sfx (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        path VARCHAR(255) NOT NULL,
+        volume INTEGER NOT NULL DEFAULT 80,
+        sort INTEGER NOT NULL DEFAULT 0
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS music_pad_events (
+        id VARCHAR(36) PRIMARY KEY,
+        zone_id VARCHAR(36) NOT NULL,
+        sfx_id VARCHAR(36),
+        status VARCHAR(10) NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP NOT NULL DEFAULT now(),
+        acked_at TIMESTAMP
+    )
+    """,
 ]
 
 
@@ -182,6 +202,21 @@ class DjStateIn(BaseModel):
     active_deck: str = "A"           # A | B — какой дек в эфире
     crossfade_seconds: float = Field(8.0, ge=0.0, le=30.0)
     master_volume: int = Field(70, ge=0, le=100)
+
+
+class SfxIn(BaseModel):
+    name: str
+    path: str
+    volume: int = Field(80, ge=0, le=100)
+    sort: int = 0
+
+
+class PadFireIn(BaseModel):
+    sfx_id: str
+
+
+class PadsAckIn(BaseModel):
+    event_ids: list
 
 
 # ---------------------------------------------------------------- зоны
@@ -311,6 +346,7 @@ def dj_set(zid: str, body: DjStateIn, db=Depends(get_db)):
         _push_external(zone, "dj_master", {"level": d["master_volume"]})
     return {"ok": True, "zone": zid, **d}
 
+
 # ---------------------------------------------------------------- плейлисты
 @router.get("/playlists")
 def pl_list(db=Depends(get_db)):
@@ -375,6 +411,50 @@ def sched_del(sid: str, db=Depends(get_db)):
     return None
 
 
+# ---------------------------------------------------------------- сэмплер (пады 1-8)
+@router.get("/sfx")
+def sfx_list(db=Depends(get_db)):
+    _ensure(db)
+    return [_row(r) for r in db.execute(text("SELECT * FROM music_sfx ORDER BY sort, name")).fetchall()]
+
+
+@router.post("/sfx", status_code=201)
+def sfx_create(body: SfxIn, db=Depends(get_db)):
+    _ensure(db)
+    sid = str(uuid.uuid4())
+    db.execute(text("INSERT INTO music_sfx (id,name,path,volume,sort) VALUES (:i,:n,:p,:v,:s)"),
+               {"i": sid, "n": body.name, "p": body.path, "v": body.volume, "s": body.sort})
+    db.commit()
+    return {"id": sid}
+
+
+@router.delete("/sfx/{sid}", status_code=204)
+def sfx_delete(sid: str, db=Depends(get_db)):
+    _ensure(db)
+    db.execute(text("DELETE FROM music_sfx WHERE id=:i"), {"i": sid})
+    db.commit()
+    return None
+
+
+@router.post("/zones/{zid}/pad-fire")
+def pad_fire(zid: str, body: PadFireIn, db=Depends(get_db)):
+    """Один-шот сэмпл: событие в очередь (local) или пуш на бокс (external)."""
+    zone = _get_zone(db, zid)
+    r = db.execute(text("SELECT * FROM music_sfx WHERE id=:i"), {"i": body.sfx_id}).first()
+    if not r:
+        raise HTTPException(404, "сэмпл не найден")
+    sfx = _row(r)
+    if zone["provider_type"] == "external":
+        _push_external(zone, "pad_fire",
+                       {"sfx": {"name": sfx["name"], "path": sfx["path"], "volume": sfx["volume"]}})
+        return {"ok": True, "zone": zid, "sfx": sfx["name"], "mode": "external"}
+    eid = str(uuid.uuid4())
+    db.execute(text("INSERT INTO music_pad_events (id,zone_id,sfx_id) VALUES (:i,:z,:s)"),
+               {"i": eid, "z": zid, "s": body.sfx_id})
+    db.commit()
+    return {"ok": True, "event_id": eid, "zone": zid, "sfx": sfx["name"]}
+
+
 # ---------------------------------------------------------------- агент
 @router.get("/agent/state")
 def agent_state(token: str = Query(...), db=Depends(get_db)):
@@ -402,3 +482,30 @@ def agent_state(token: str = Query(...), db=Depends(get_db)):
             "state": zone["desired_state"], "volume": zone["volume"],
             "playlist": playlist, "dj": dj or {},
             "server_time": datetime.datetime.now().isoformat(timespec="seconds")}
+
+
+@router.get("/agent/pads")
+def agent_pads(token: str = Query(...), db=Depends(get_db)):
+    _ensure(db)
+    r = db.execute(text("SELECT * FROM music_zones WHERE agent_token=:t"),
+                   {"t": token}).first()
+    if not r:
+        raise HTTPException(403, "bad token")
+    zone = _row(r)
+    rows = db.execute(text(
+        "SELECT e.id AS event_id, e.sfx_id, s.name, s.path, s.volume"
+        " FROM music_pad_events e JOIN music_sfx s ON s.id=e.sfx_id"
+        " WHERE e.zone_id=:z AND e.status='pending' ORDER BY e.created_at"),
+        {"z": zone["id"]}).fetchall()
+    return {"events": [_row(x) for x in rows]}
+
+
+@router.post("/agent/pads/ack")
+def agent_pads_ack(body: PadsAckIn, db=Depends(get_db)):
+    for eid in body.event_ids:
+        db.execute(text("UPDATE music_pad_events SET status='acked', acked_at=now() WHERE id=:i"),
+                   {"i": eid})
+    db.execute(text("DELETE FROM music_pad_events WHERE status='acked'"
+                    " AND acked_at < now() - interval '1 day'"))
+    db.commit()
+    return {"ok": True, "acked": len(body.event_ids)}
