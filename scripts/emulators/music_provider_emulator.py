@@ -33,6 +33,8 @@ class H(BaseHTTPRequestHandler):
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b'{"ok":true}')
+        elif action == "pad_fire":
+                print("BOX | zona %-12s | PAD_FIRE %s" % (zone, pl.get("sfx")), flush=True)   
         else:
             self.send_response(404)
             self.end_headers()
