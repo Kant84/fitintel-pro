@@ -21,7 +21,7 @@ import sys
 import threading
 import time
 import urllib.request
-
+from mic_duck import VoiceDucker
 
 class Deck:
     """Один дек = один процесс mpv со своим IPC-сокетом."""
