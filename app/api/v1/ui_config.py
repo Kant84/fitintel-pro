@@ -32,11 +32,11 @@ ROLES = ["superadmin", "admin", "manager", "trainer", "reception",
          "cashier", "accountant", "support", "owner"]
 DEFAULT_PROFILES = {
     "superadmin": ["dashboard", "clients", "subscriptions", "visits", "schedule",
-                   "payments", "reports", "analytics", "documents", "devices",
+                   "payments", "music", "reports", "analytics", "documents", "devices",
                    "users", "roles", "face_id", "license", "settings",
                    "ui_config", "setup"],
     "admin": ["dashboard", "clients", "subscriptions", "visits", "schedule",
-              "payments", "reports", "analytics", "documents", "devices",
+              "payments", "music", "reports", "analytics", "documents", "devices",
               "users", "roles", "face_id", "license", "settings"],
     "manager": ["dashboard", "clients", "subscriptions", "visits", "schedule",
                 "payments", "reports", "documents"],
@@ -46,7 +46,7 @@ DEFAULT_PROFILES = {
         "cashier": ["dashboard", "clients", "subscriptions", "payments", "visits"],
     "accountant": ["dashboard", "payments", "reports", "documents", "analytics"],
     "support": ["dashboard", "clients", "visits"],
-    "owner": ["dashboard", "analytics", "reports", "payments"],
+    "owner": ["dashboard", "analytics", "reports", "payments", "music"],
 }
 
 PROTECTED_SUPERADMIN_SCREEN = "ui_config"
