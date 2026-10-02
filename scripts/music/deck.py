@@ -104,6 +104,7 @@ class Deck:
         self.cmd("set_property", "volume", 0)
 
     def play(self, volume):
+        self._loaded_at = time.time()      # отсчёт «длительности трека» с момента выхода в эфир
         if self.dry:
             print("DECK %s | PLAY vol=%s: %s" % (self.name, volume,
                                                  (self.track or {}).get("title")))
@@ -143,10 +144,11 @@ class Deck:
 
     def remaining(self):
         if self.dry:
-            # dry-run: трек «длится» 12 секунд — чтобы увидеть AUTO-MIX без mpv
+            # dry-run: трек «длится» 12 секунд с момента play() — для проверки AUTO-MIX
             if not self.track:
                 return None
-            return max(0.0, 12.0 - (time.time() - getattr(self, "_loaded_at", time.time())))
+            start = getattr(self, "_loaded_at", None) or time.time()
+            return max(0.0, 12.0 - (time.time() - start))
         dur = self.prop("duration")
         pos = self.prop("time-pos")
         if dur and pos is not None:

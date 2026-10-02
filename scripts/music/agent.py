@@ -141,7 +141,7 @@ class Agent:
         idle_name = "B" if self.active == "A" else "A"
         idle = self.decks[idle_name]
         if (not self.mixing and rem is not None
-                and 0 < rem <= cf + 1.0 and idle.track):
+                and rem <= cf + 1.0 and idle.track):
             self.auto_mix(idle_name, cf)
 
     def switch_to(self, name, cf, immediate=False):
