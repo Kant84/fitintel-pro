@@ -21,6 +21,7 @@ from windows.license_tab import LicenseTab
 from windows.settings_tab import SettingsTab
 from windows.dashboard_tab import DashboardTab
 from windows.payments_tab import PaymentsTab
+from windows.music_tab import MusicTab
 from windows.users_tab import UsersTab
 from windows.devices_tab import DevicesTab
 from windows.ui_config_tab import UiConfigTab
@@ -44,6 +45,7 @@ TAB_REGISTRY = {
     "visits":        ("Входы/Выходы", VisitsTab),
     "schedule":      ("Расписание", ScheduleTab),
     "payments":      ("Платежи", PaymentsTab),
+    "music":         ("🎧 Музыка/DJ", MusicTab),
     "reports":       ("Отчёты", ReportsTab),
     "documents":     ("Документы", DocumentsTab),
     "users":         ("Пользователи", UsersTab),
@@ -58,7 +60,7 @@ TAB_REGISTRY = {
 }
 
 DEFAULT_TABS = ["dashboard", "clients", "subscriptions", "tariffs", "visits", "services",
-                "schedule", "payments", "reports", "documents", "users", "roles",
+                "schedule", "payments", "music", "reports", "documents", "users", "roles",
                 "devices", "face_id", "license", "ui_config", "setup", "settings", "credentials", "connections"]
 
 SIDEBAR_LIGHT = """
@@ -166,6 +168,8 @@ class MainWindow(QMainWindow):
                     for extra in ("credentials", "connections", "services"):
                         if extra not in codes:
                             codes.append(extra)
+                    if "music" not in codes:      # <-- добавить
+                        codes.append("music")     # <-- добавить
                 return codes
         except Exception:
             pass
