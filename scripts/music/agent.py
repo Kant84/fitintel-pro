@@ -17,6 +17,7 @@ import json
 import sys
 import time
 import urllib.request
+import threading
 
 from deck import Deck
 from duck import VoiceDucker
@@ -100,6 +101,8 @@ class Agent:
 
     # --- режим 2: DJ-пульт ---
     def handle_dj(self, st, dj):
+        if self.mixing:
+            return                  # идёт сведение — не мешаем
         cf = float(dj.get("crossfade_seconds") or 8.0)
         want_active = dj.get("active_deck", "A")
         self.master = int(dj.get("master_volume") or 70)
@@ -142,17 +145,24 @@ class Agent:
         if immediate:
             old.pause()
             idle.play(self.master)
-        else:
+            self.active = name
+            print("DJ | эфир: дек %s | %s" % (name, (idle.track or {}).get("title")))
+            return
+        self.mixing = True          # главный цикл на время сведения не трогает деки
+
+        def _fade():
             idle.play(0)
             idle.fade_to(self.master, cf)
             old.fade_to(0, cf)
             time.sleep(cf + 0.3)
             old.pause()
-        self.active = name
-        print("DJ | эфир: дек %s | %s" % (name, (idle.track or {}).get("title")))
+            self.active = name
+            self.mixing = False
+            print("DJ | эфир: дек %s | %s" % (name, (idle.track or {}).get("title")))
+
+        threading.Thread(target=_fade, daemon=True).start()
 
     def auto_mix(self, idle_name, cf):
-        self.mixing = True
         idle = self.decks[idle_name]
         nxt = self.next_track(idle.track)
         if nxt and nxt.get("path") != (idle.track or {}).get("path"):
@@ -160,9 +170,6 @@ class Agent:
         print("DJ | AUTO-MIX: дек %s -> %s | след.: %s | фейд %.1fs"
               % (self.active, idle_name, (nxt or {}).get("title"), cf))
         self.switch_to(idle_name, cf, immediate=False)
-        old = self.decks[self.active]
-        old.fade_to(0, 0.5)
-        self.mixing = False
 
     def next_track(self, current):
         try:
