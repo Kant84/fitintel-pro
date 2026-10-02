@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Музыка/DJ-пульт (экран 29): зоны, деки A/B, кроссфейд, мастер, пады 1-8,
-энерджи-режим, статус лицензии на фоновую музыку."""
+"""Музыка/DJ-пульт (экран 29): зоны, деки A/B, кроссфейд, мастер, эквалайзер,
+пады 1-8, энерджи-режим, статус лицензии на фоновую музыку."""
 import json
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -126,6 +126,30 @@ class MusicTab(QWidget):
         g.addWidget(b_mute, 5, 0, 1, 3)
         self.sld_master.valueChanged.connect(lambda v: self.lbl_master.setText(str(v)))
         v.addWidget(dj_box)
+
+        # ---- эквалайзер ----
+        eq_box = QGroupBox("Эквалайзер (дБ, −12…+12)")
+        eg = QGridLayout(eq_box)
+        self.eq_sliders = {}
+        bands = [("bass", "Бас"), ("mid", "Середина"), ("treble", "Верха")]
+        for col, (_key, title) in enumerate(bands):
+            eg.addWidget(QLabel(title), 0, col + 1)
+        for row, deck in enumerate(("A", "B"), start=1):
+            eg.addWidget(QLabel("Дек %s" % deck), row, 0)
+            for col, (key, _title) in enumerate(bands):
+                s = QSlider(Qt.Orientation.Horizontal)
+                s.setRange(-12, 12)
+                s.setValue(0)
+                s.setTickPosition(QSlider.TickPosition.TicksBelow)
+                s.valueChanged.connect(lambda _v: self._eq_label_update())
+                eg.addWidget(s, row, col + 1)
+                self.eq_sliders[(deck, key)] = s
+        self.lbl_eq = QLabel("A: 0/0/0 | B: 0/0/0")
+        eg.addWidget(self.lbl_eq, 3, 0, 1, 4)
+        b_eq = QPushButton("Применить EQ")
+        b_eq.clicked.connect(self.apply_dj)
+        eg.addWidget(b_eq, 4, 0, 1, 4)
+        v.addWidget(eq_box)
 
         # ---- пады ----
         pads_box = QGroupBox("Сэмплер (пады 1-8)")
@@ -262,6 +286,17 @@ class MusicTab(QWidget):
             self.sld_master.setValue(int(dj["master_volume"]))
         if dj.get("crossfade_seconds") is not None:
             self.spin_cf.setValue(int(dj["crossfade_seconds"]))
+        # эквалайзер: подтягиваем положения ползунков с сервера
+        eq = dj.get("eq") or {}
+        for deck in ("A", "B"):
+            e = eq.get(deck) or {}
+            for key in ("bass", "mid", "treble"):
+                s = self.eq_sliders.get((deck, key))
+                if s and key in e:
+                    s.blockSignals(True)
+                    s.setValue(int(e[key]))
+                    s.blockSignals(False)
+        self._eq_label_update()
         self.lbl_status.setText("Зона: %s | состояние: %s | громкость: %s" % (
             d.get("zone"), d.get("state"), d.get("volume")))
 
@@ -335,7 +370,8 @@ class MusicTab(QWidget):
         body = {"deck_a": self._deck_a, "deck_b": self._deck_b,
                 "active_deck": active or self._current_active(),
                 "crossfade_seconds": float(self.spin_cf.value()),
-                "master_volume": int(self.sld_master.value())}
+                "master_volume": int(self.sld_master.value()),
+                "eq": {"A": self._eq_values("A"), "B": self._eq_values("B")}}
         def _do():
             return self.api.session.post(self._url("/zones/%s/dj" % zid),
                                          json=body, timeout=15).json()
@@ -345,6 +381,17 @@ class MusicTab(QWidget):
     def _current_active(self):
         txt = self.lbl_onair.text()
         return "B" if "Deck B" in txt else "A"
+
+    def _eq_values(self, deck):
+        return {"bass": self.eq_sliders[(deck, "bass")].value(),
+                "mid": self.eq_sliders[(deck, "mid")].value(),
+                "treble": self.eq_sliders[(deck, "treble")].value()}
+
+    def _eq_label_update(self):
+        a = self._eq_values("A")
+        b = self._eq_values("B")
+        self.lbl_eq.setText("A: %s/%s/%s | B: %s/%s/%s" % (
+            a["bass"], a["mid"], a["treble"], b["bass"], b["mid"], b["treble"]))
 
     def mute_all(self):
         self.sld_master.setValue(0)

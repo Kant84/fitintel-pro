@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-FitIntel DJ Agent v4 — пакетная версия.
+FitIntel DJ Agent v4.1 — пакетная версия.
   Деки A/B (mpv IPC), кроссфейд, авто-микс, мастер-громкость.
+  Эквалайзер: bass/mid/treble на дек (-12..+12 дБ, lavfi equalizer).
   Сэмплер: PAD-канал one-shot по очереди /agent/pads.
   Дакинг: микрофон -> музыка вниз (duck.py).
   Без dj-блока — простой плеер (playlist play/stop).
 
   --dry-run   только лог, без mpv/звука
+  --debug     подробный лог каждого опроса
   --lib DIR   папка с MP3/FLAC/OGG
   --mic       авто-дакинг (pip install sounddevice)
 
@@ -15,9 +17,9 @@ mpv: https://mpv.io | winget install mpv
 import argparse
 import json
 import sys
+import threading
 import time
 import urllib.request
-import threading
 
 from deck import Deck
 from duck import VoiceDucker
@@ -58,7 +60,7 @@ class Agent:
 
     # --- основной цикл ---
     def run(self):
-        print("FitIntel DJ Agent v4 | dry-run=%s | mic=%s | poll %.1fs | lib=%s"
+        print("FitIntel DJ Agent v4.1 | dry-run=%s | mic=%s | poll %.1fs | lib=%s"
               % (self.a.dry_run, self.a.mic, self.poll, self.a.lib or "—"))
         if not self.a.dry_run:
             for d in self.decks.values():
@@ -126,6 +128,11 @@ class Agent:
                 self.decks["A"].load_paused(da)
             if db and (self.decks["B"].track or {}).get("path") != db.get("path"):
                 self.decks["B"].load_paused(db)
+            # Эквалайзер деков (применяется на лету, без перерыва трека)
+            eq = dj.get("eq") or {}
+            for name in ("A", "B"):
+                e = eq.get(name) or {}
+                self.decks[name].set_eq(e.get("bass", 0), e.get("mid", 0), e.get("treble", 0))
             if want_active in ("A", "B"):
                 # Треки те же, сменился только активный дек -> плавное сведение;
                 # треки новые -> первичная подача без фейда
@@ -215,7 +222,7 @@ class Agent:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="FitIntel DJ Agent v4")
+    ap = argparse.ArgumentParser(description="FitIntel DJ Agent v4.1")
     ap.add_argument("--server", required=True, help="http://192.168.101.182/api/v1")
     ap.add_argument("--token", required=True)
     ap.add_argument("--dry-run", action="store_true")

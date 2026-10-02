@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Один дек = один процесс mpv со своим IPC-сокетом (unix-socket / named pipe)."""
+"""Один дек = один процесс mpv со своим IPC-сокетом (unix-socket / named pipe).
+EQ: бас/середина/верха через lavfi equalizer, пересчёт на лету без перерыва."""
 import json
 import os
 import socket
@@ -17,6 +18,7 @@ class Deck:
         self.proc = None
         self.track = None
         self.req = 0
+        self.eq = (0, 0, 0)         # (bass, mid, treble) в дБ
 
     def start(self):
         if self.dry or self.proc:
@@ -142,9 +144,27 @@ class Deck:
 
         threading.Thread(target=_ramp, daemon=True).start()
 
+    def set_eq(self, bass=0, mid=0, treble=0):
+        """Эквалайзер дека: bass/mid/treble в дБ (-12..+12), lavfi equalizer."""
+        bass, mid, treble = int(bass), int(mid), int(treble)
+        self.eq = (bass, mid, treble)
+        if self.dry:
+            print("DECK %s | EQ bass=%+d mid=%+d treble=%+d" % (self.name, bass, mid, treble))
+            return
+        try:
+            if bass == 0 and mid == 0 and treble == 0:
+                self.cmd("set_property", "af", "")
+            else:
+                f = ("equalizer=f=80:width_type=h:w=160:g=%d,"
+                     "equalizer=f=1200:width_type=h:w=1000:g=%d,"
+                     "equalizer=f=6500:width_type=h:w=4500:g=%d" % (bass, mid, treble))
+                self.cmd("set_property", "af", f)
+        except Exception as e:
+            print("DECK %s | EQ FAIL: %s" % (self.name, e))
+
     def remaining(self):
         if self.dry:
-            # dry-run: трек «длится» 12 секунд с момента play() — для проверки AUTO-MIX
+            # dry-run: трек «длится» 45 секунд с момента play() — для проверки AUTO-MIX
             if not self.track:
                 return None
             start = getattr(self, "_loaded_at", None) or time.time()
@@ -154,6 +174,7 @@ class Deck:
         if dur and pos is not None:
             return float(dur) - float(pos)
         return None
+
     def eof(self):
         return bool(self.prop("eof-reached", False))
 
