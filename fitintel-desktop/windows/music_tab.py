@@ -9,6 +9,22 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 from . import theme
 from .form_dialog import FormDialog
 
+
+BTN_STYLE = (
+    "QPushButton { background: #164e63; color: #a5f3fc; border: 1px solid #0891b2;"
+    " border-radius: 6px; padding: 6px 10px; font-weight: 600; }"
+    "QPushButton:hover { background: #0e7490; }"
+    "QPushButton:pressed { background: #155e75; }"
+    "QPushButton:disabled { background: #1e293b; color: #475569; border-color: #334155; }"
+)
+
+MUTE_STYLE = (
+    "QPushButton { background: #b91c1c; color: white; font-weight: bold;"
+    " border: 1px solid #ef4444; border-radius: 6px; padding: 6px 10px; }"
+    "QPushButton:hover { background: #dc2626; }"
+    "QPushButton:pressed { background: #991b1b; }"
+)
+
 def _t(name, *args):
     f = getattr(theme, name, None)
     if not callable(f):
@@ -56,6 +72,7 @@ class MusicTab(QWidget):
         self._sfx = []
         self._deck_a = None   # {"title","path"}
         self._deck_b = None
+        self._btn_mute = None
         self.setStyleSheet(_t("widget_style"))
         v = QVBoxLayout(self)
 
@@ -121,7 +138,8 @@ class MusicTab(QWidget):
         b_apply.clicked.connect(self.apply_dj)
         g.addWidget(b_apply, 4, 2)
         b_mute = QPushButton("🔇 MUTE ALL")
-        b_mute.setStyleSheet("background: #b91c1c; color: white; font-weight: bold;")
+        b_mute.setStyleSheet(MUTE_STYLE)
+        self._btn_mute = b_mute
         b_mute.clicked.connect(self.mute_all)
         g.addWidget(b_mute, 5, 0, 1, 3)
         self.sld_master.valueChanged.connect(lambda v: self.lbl_master.setText(str(v)))
@@ -173,6 +191,12 @@ class MusicTab(QWidget):
 
         self.cmb_zone.currentIndexChanged.connect(lambda _i: self.refresh_status())
         self.reload_all()
+        # единый стиль кнопок вкладки (тёмная тема рендерила текст невидимым);
+        # MUTE пропускаем — у неё собственный красный стиль
+        for b in self.findChildren(QPushButton):
+            if b is self._btn_mute:
+                continue
+            b.setStyleSheet(BTN_STYLE)
 
     # ---------- infra ----------
     def _url(self, path):
@@ -240,6 +264,11 @@ class MusicTab(QWidget):
                 b.setMinimumHeight(48)
                 b.setEnabled(False)
             self.grid_pads.addWidget(b, r, c)
+        # стиль для пересозданных падов
+        if self._btn_mute is not None:
+            for b in self.grid_pads.parentWidget().findChildren(QPushButton):
+                if b is not self._btn_mute:
+                    b.setStyleSheet(BTN_STYLE)
 
     def load_license(self):
         self._run(lambda: self.api.session.get(self._url("/license"), timeout=15).json(),
