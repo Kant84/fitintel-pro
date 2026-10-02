@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
-"""DJ-пульт: состояние деков A/B, кроссфейд, мастер-громкость.
+"""DJ-пульт: состояние деков A/B, кроссфейд, мастер-громкость, эквалайзер.
 local_agent — применяет DJ-агент; external — пуш на бокс провайдера."""
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 
 from app.db.session import get_db
 from . import deps
@@ -21,6 +24,7 @@ class DjStateIn(BaseModel):
     active_deck: str = "A"           # A | B — какой дек в эфире
     crossfade_seconds: float = Field(8.0, ge=0.0, le=30.0)
     master_volume: int = Field(70, ge=0, le=100)
+    eq: dict = {}   # {"A": {"bass": 0, "mid": 0, "treble": 0}, "B": {...}}, дБ -12..+12
 
 
 @router.get("/zones/{zid}/dj")
@@ -39,18 +43,18 @@ def dj_set(zid: str, body: DjStateIn, db=Depends(get_db)):
          "deck_b": body.deck_b.model_dump() if body.deck_b else None,
          "active_deck": body.active_deck,
          "crossfade_seconds": body.crossfade_seconds,
-         "master_volume": body.master_volume}
-    import json
-    from sqlalchemy import text
+         "master_volume": body.master_volume,
+         "eq": body.eq or {}}
     db.execute(text("UPDATE music_zones SET dj_state=:d, updated_at=now() WHERE id=:z"),
                {"d": json.dumps(d, ensure_ascii=False), "z": zid})
     db.commit()
     if zone["provider_type"] == "external":
-        # Контракт для бокса провайдера: dj_load / dj_crossfade / dj_master.
+        # Контракт для бокса провайдера: dj_load / dj_crossfade / dj_master / dj_eq.
         # Реальный формат команд подгоним под конкретную коробку (provider_config).
         deps.push_external(zone, "dj_load", {"deck": "A", "track": d["deck_a"]})
         deps.push_external(zone, "dj_load", {"deck": "B", "track": d["deck_b"]})
         deps.push_external(zone, "dj_crossfade", {"active": d["active_deck"],
                                                   "seconds": d["crossfade_seconds"]})
         deps.push_external(zone, "dj_master", {"level": d["master_volume"]})
+        deps.push_external(zone, "dj_eq", {"eq": d["eq"]})
     return {"ok": True, "zone": zid, **d}
