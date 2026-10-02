@@ -71,6 +71,11 @@ class Agent:
         while True:
             try:
                 st = self.fetch("/music/agent/state")
+                if self.a.debug:
+                    rem = self.decks[self.active].remaining()
+                    print("DBG | state=%s active=%s master=%s mixing=%s rem=%.1f"
+                          % (st.get("state"), self.active, self.master,
+                             self.mixing, rem if rem is not None else -1))
                 dj = st.get("dj") or {}
                 if dj.get("deck_a") or dj.get("deck_b"):
                     self.handle_dj(st, dj)
@@ -214,6 +219,7 @@ def main():
     ap.add_argument("--server", required=True, help="http://192.168.101.182/api/v1")
     ap.add_argument("--token", required=True)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--debug", action="store_true", help="подробный лог каждого опроса")
     ap.add_argument("--lib", default=None, help="папка с MP3/FLAC/OGG")
     ap.add_argument("--interval", type=float, default=3.0)
     ap.add_argument("--mic", action="store_true", help="включить авто-дакинг микрофона")
