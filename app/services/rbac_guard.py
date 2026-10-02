@@ -115,25 +115,23 @@ class RBACGuardService:
     def check_can_assign_role(self, actor_user_id: UUID, role: Role) -> None:
         """
         Проверка безопасного назначения роли.
-        На текущем этапе запрещаем назначение критичных ролей
+        Критичные роли (admin/owner/device) может назначать ТОЛЬКО superadmin;
+        остальным — запрещено (защита от повышения прав).
         """
+        is_superadmin = False
+        try:
+            from app.models.user import User
+            db = getattr(self, "db", None)
+            if db is not None:
+                actor = db.get(User, actor_user_id)
+                is_superadmin = bool(actor and str(getattr(actor, "username", "")).lower() == "superadmin")
+        except Exception:
+            is_superadmin = False
 
-        if role.code == "admin":
+        if role.code in ("admin", "owner", "device") and not is_superadmin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Назначение роли 'admin' через данный endpoint запрещено.",
-            )
-
-        if role.code == "owner":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Назначение роли 'owner' через данный endpoint запрещено.",
-            )
-
-        if role.code == "device":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Назначение роли 'device' через данный endpoint запрещено.",
+                detail="Назначение роли '%s' разрешено только superadmin." % role.code,
             )
 
     def check_can_revoke_role(self, user_id: UUID, role: Role) -> None:
