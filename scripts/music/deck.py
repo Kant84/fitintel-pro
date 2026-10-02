@@ -148,7 +148,7 @@ class Deck:
             if not self.track:
                 return None
             start = getattr(self, "_loaded_at", None) or time.time()
-            return max(0.0, 12.0 - (time.time() - start))
+            return max(0.0, 45.0 - (time.time() - start))
         dur = self.prop("duration")
         pos = self.prop("time-pos")
         if dur and pos is not None:
