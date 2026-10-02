@@ -41,6 +41,7 @@ class Agent:
         self.active = "A"
         self.master = 70
         self.applied_sig = None
+        self._last_dj = None        # предыдущее состояние пульта (для мягкого сведения)
         self.mixing = False
         self.base_key = None
         self.ducker = None
@@ -105,7 +106,11 @@ class Agent:
 
         sig = json.dumps(dj, sort_keys=True, ensure_ascii=False)
         if sig != self.applied_sig:
+            prev = self._last_dj or {}
+            decks_same = (prev.get("deck_a") == dj.get("deck_a")
+                          and prev.get("deck_b") == dj.get("deck_b"))
             self.applied_sig = sig
+            self._last_dj = dj
             self.mixing = False
             da = dj.get("deck_a")
             db = dj.get("deck_b")
@@ -114,7 +119,9 @@ class Agent:
             if db and (self.decks["B"].track or {}).get("path") != db.get("path"):
                 self.decks["B"].load_paused(db)
             if want_active in ("A", "B"):
-                self.switch_to(want_active, cf, immediate=True)
+                # Треки те же, сменился только активный дек -> плавное сведение;
+                # треки новые -> первичная подача без фейда
+                self.switch_to(want_active, cf, immediate=not decks_same)
             print("DJ | применено: активный дек %s | мастер %s | кроссфейд %.1fs"
                   % (want_active, self.master, cf))
 
