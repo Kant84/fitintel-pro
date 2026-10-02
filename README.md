@@ -1,76 +1,52 @@
-# FitIntel Pro v3.5
+# FitIntel Pro
 
-ERP/CRM система управления фитнес-клубом — FastAPI + PostgreSQL + Redis + PyQt6 тонкий клиент.
+Система управления фитнес-клубом: сервер (FastAPI + PostgreSQL + Redis/Celery) + desktop-клиент (PyQt6) + кассовый модуль (54-ФЗ, АТОЛ ДТО 10) + AI-аналитика оттока + SKUD/RFID/Face ID + мессенджеры (MAX/Telegram).
 
-## Быстрый старт
+**Текущий релиз: v1.5.3** — состав, платформы, SHA256: [RELEASES.md](RELEASES.md).
 
-```bash
-# 1. Клонировать
-git clone https://github.com/Kant84/fitintel-pro.git
-cd fitintel-pro
+## Состав системы
 
-# 2. Python 3.11+, виртуальное окружение
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-pip install -r requirements.txt
+| Компонент | Технологии | Где |
+|---|---|---|
+| Сервер API | Python 3.11, FastAPI, SQLAlchemy, PostgreSQL 16, Redis, Celery | `app/` |
+| Desktop-клиент | Python 3.11, PyQt6 | `fitintel-desktop/` |
+| Касса/фискализация | HTTP ДТО 10 (АТОЛ), адаптеры Штрих-М/Эвотор/Меркурий, mock | `app/api/v1/fiscal.py`, `app/services/fiscal/` |
+| Эквайринг | Сбер (DLL/JSON), Тинькофф, Райффайзен; mock | `app/services/bank/` |
+| Онлайн-оплаты | ЮKassa (webhook, возвраты, автосписания), СБП (mock) | `app/api/v1/yookassa.py` |
+| Бухгалтерия | проводки в PostgreSQL (`accounting_entries`) + внутренняя SQLite-учётка + 1С CommerceML 2.0 | `app/services/accounting/` |
+| AI-модуль оттока | scikit-learn (logreg), самообучение + сверка | `app/api/v1/ai_engine.py`, `analytics_ai.py` |
+| Доступ в клуб | RFID/QR/динамические QR/Face ID (dlib), SKUD ITC, Kerong, шкафчики | `app/api/v1/{visits,credentials,lockers,face_id,dynamic_qr,skud_itconnect,kerong}.py` |
+| Коммуникации | MAX (бот + FSM + чаты WS), Telegram, email/SMS/webpush | `app/api/v1/{messenger,max_bot,max_bot_fsm,telegram,notifications,chat,chats}.py` |
+| Развёртывание | Docker Compose: nginx + api + celery + redis + db | `deploy/` |
 
-# 3. PostgreSQL + Redis
-docker compose up -d db redis
-
-# 4. Миграции + seed
-alembic upgrade head
-python scripts/create_admin.py
-
-# 5. Запуск
-uvicorn app.main:app --host 0.0.0.0 --port 8001
-# Swagger: http://localhost:8001/docs
-```
-
-## Модули (E1–E58)
-
-| Модуль | Эндпоинты | Описание |
-|--------|-----------|----------|
-| E1–E6 | Основа | Клиенты, абонементы, тарифы, визиты, расписание |
-| E7 | Backup | Автобэкап PostgreSQL (03:00, ротация 30д) |
-| E8 | Security | `.env` в `.gitignore`, ротация секретов |
-| E9 | Monitoring | Health-check (БД, диск, память, бэкап) |
-| E11–E15 | Платежи, Face ID, MAX Bot, SMTP, Устройства |
-| E16 | Аналитика | Дашборд, KPI, прогнозы, heatmap |
-| E17 | Уведомления | Email/SMS/WebPush/MAX, дайджест |
-| E18 | Коммерция | White-label, тенанты, брендинг |
-| E19 | Экспорт | xlsx/csv/json/xml, JWT-ссылки, GDPR ZIP |
-| E20 | Бухгалтерия | ПКО/РКО, ОСВ, P&L, баланс, 1С-обмен |
-| E21 | A&A интеграция | Импорт/экспорт CSV, webhook, журнал |
-| E22 | 1С Fitness | Заготовка CommerceML |
-| E26 | YooKassa | Платежи, рекурренты, возвраты |
-| E28–E30 | Лицензия, Phone Verify, Setup Master |
-| E31–E33 | Фискализация, 1С, Документы (PDF/DOCX/ЭП) |
-| E34–E41 | Маркетинг, Терминал, Рефералы, Корпоратив, Сезонные кампании, Нишевые шаблоны, Booking Widget |
-| E42–E48 | Documents bulk, Feature Flags, AI Analytics, Video AI, MAX Bot FSM, DAL, Отчётность |
-| E50–E52 | HA, UI-Config, Тонкий клиент |
-| E55–E58 | Платежи/Face ID, MAX/Интеграции, Рассылки, Оповещения |
-
-## Тонкий клиент (PyQt6)
+## Быстрый старт (разработка)
 
 ```bash
-cd fitintel-desktop
-python main.py
+cd deploy && docker compose -f docker-compose.test.yml up -d --build   # API: http://localhost:8001/docs
+cd fitintel-desktop && python main.py
 ```
 
-## Логи
+## Структура репозитория
 
 ```
-logs/app.log      # Все логи (ротация 10MB×5)
-logs/error.log    # WARNING+ (ротация 10MB×3)
-logs/access.log   # HTTP-запросы
+app/api/v1/      # ~90 роутеров (auth, clients, payments, fiscal, ai_engine, ...)
+app/services/    # ~55 сервисов + accounting/ bank/ fiscal/ connectors/
+deploy/          # compose.test/prod, .env.example, backup/, monitoring/, nginx/
+fitintel-desktop/# main.py, windows/*, api/client.py
+docs/            # этот пакет
 ```
 
 ## Документация
 
-- `PROD_NOTES.md` — полная документация по развёртыванию (E1–E58)
-- `doc/` — шпаргалки по ролям, архитектура
-- `deploy/` — Terraform, Ansible, Docker, monitoring
+| Документ | Для кого | Содержание |
+|---|---|---|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | разработчики, интеграторы | компоненты, адаптеры, потоки данных, БД, RBAC, deploy-топология |
+| [USER_GUIDE.md](docs/USER_GUIDE.md) | сотрудники клуба | сценарии по ролям: касса, абонементы, доступ, тренеры, чаты |
+| [ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) | администратор | мастер установки, роли/права/экраны, бэкапы, адаптеры, feature flags |
+| [FISCAL_GUIDE.md](docs/FISCAL_GUIDE.md) | кассир, бухгалтер | смены, авто-фискализация, проводки, эквайринг, онлайн-оплаты, реготчётность |
+| [API_OVERVIEW.md](docs/API_OVERVIEW.md) | разработчики, 1С-интеграторы | все группы endpoint'ов, коды ошибок, примеры |
+| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | все | симптом → причина → решение, логи, диагностика |
 
-## Лицензия
+## Поддержка
 
-FitIntel Pro | Проприетарное ПО
+Desktop: Помощь → Поддержка (MAX), кнопка «Скопировать логи». Сервер: `docker compose logs api`. БД: `docker exec -i deploy-db-1 psql -U fitnexus_user -d fitnexus_ai`.
