@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Music API v3 — пакет. Собирает роутеры модулей под prefix="/music".
-main.py подключает как раньше: from app.api.v1.music import router as music_router"""
+"""Music API v3 — пакет. Собирает роутеры модулей под prefix="/music"."""
 from fastapi import APIRouter
 
-from . import zones, playlists, schedule, dj, sfx, agent
 from . import zones, playlists, schedule, dj, sfx, agent, license
 
 router = APIRouter(prefix="/music")

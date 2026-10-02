@@ -8,6 +8,7 @@ from sqlalchemy import text
 
 from app.db.session import get_db
 from . import deps
+from . import license
 
 router = APIRouter()
 
@@ -62,6 +63,7 @@ def zone_delete(zid: str, db=Depends(get_db)):
 @router.post("/zones/{zid}/play")
 def zone_play(zid: str, body: PlayIn, db=Depends(get_db)):
     zone = deps.get_zone(db, zid)
+    license.enforce(db)
     if not db.execute(text("SELECT 1 FROM music_playlists WHERE id=:p"),
                       {"p": body.playlist_id}).first():
         raise HTTPException(404, "плейлист не найден")
@@ -101,6 +103,7 @@ def zone_volume(zid: str, body: VolumeIn, db=Depends(get_db)):
 def zone_energize(zid: str, db=Depends(get_db)):
     """Пиковый режим: энерджи-плейлист + громкость 90. Триггер — потом от СКУД."""
     zone = deps.get_zone(db, zid)
+    license.enforce(db)
     r = db.execute(text("SELECT * FROM music_playlists WHERE is_energize=TRUE LIMIT 1")).first()
     if not r:
         raise HTTPException(404, "нет плейлиста с is_energize=true")
