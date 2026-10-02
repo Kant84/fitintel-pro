@@ -94,6 +94,7 @@ class Deck:
 
     def load_paused(self, track):
         self.track = track
+        self._loaded_at = time.time()      # dry-run: имитация длительности трека
         if self.dry:
             print("DECK %s | загружен (пауза, vol 0): %s" % (self.name, track.get("title")))
             return
@@ -141,12 +142,16 @@ class Deck:
         threading.Thread(target=_ramp, daemon=True).start()
 
     def remaining(self):
+        if self.dry:
+            # dry-run: трек «длится» 12 секунд — чтобы увидеть AUTO-MIX без mpv
+            if not self.track:
+                return None
+            return max(0.0, 12.0 - (time.time() - getattr(self, "_loaded_at", time.time())))
         dur = self.prop("duration")
         pos = self.prop("time-pos")
         if dur and pos is not None:
             return float(dur) - float(pos)
         return None
-
     def eof(self):
         return bool(self.prop("eof-reached", False))
 
