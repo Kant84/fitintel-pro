@@ -241,7 +241,18 @@ class LoginWindow(QWidget):
             return
 
         self.api.set_token(token)
+        self.api.set_token(token)
 
+        # E70: сохраняем refresh_token для молчаливого обновления сессии
+        rt = result.get("refresh_token")
+        if rt:
+            try:
+                st = _load_settings()
+                st["refresh_token"] = rt
+                SETTINGS_PATH.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+                self.api._refresh_token = rt
+            except Exception:
+                pass
         if result.get("force_change_password"):
             from windows.change_password_dialog import ChangePasswordDialog
             dlg = ChangePasswordDialog(self.api, token, self)
