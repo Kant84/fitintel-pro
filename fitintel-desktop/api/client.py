@@ -19,7 +19,6 @@ class ApiClient:
             pass
 
         # Таймаут по умолчанию (10 сек) для ВСЕХ запросов сессии.
-        # Без этого зависшие запросы висят вечно и копятся в фоновых потоках.
         _orig_request = self.session.request
         def _request_with_timeout(method, url, **kwargs):
             kwargs.setdefault("timeout", 10)
@@ -54,7 +53,13 @@ class ApiClient:
         payload = {"login": username, "password": password}
         resp = self.session.post(self._url("/auth/login"), json=payload)
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        # сохраняем refresh_token сразу (E70 будет обновлять сессию молча)
+        rt = data.get("refresh_token")
+        if rt:
+            self._refresh_token = rt
+            _e70_save_tokens(getattr(self, "token", None), rt)
+        return data
 
     def me(self) -> Dict[str, Any]:
         resp = self.session.get(self._url("/auth/me"))
@@ -484,96 +489,4 @@ for _n in _N59:
 def _e55_patch(self, path, payload=None):
     import requests
     url = _e55_url(self, path)
-    r = self._session.patch(url, json=payload or {}, timeout=30) if hasattr(self, "_session") else requests.patch(url, json=payload or {}, timeout=30)
-    r.raise_for_status()
-    try:
-        return r.json()
-    except Exception:
-        return {}
-
-def update_tariff(self, tariff_id, data):
-    """Backend accepts PATCH (not PUT) on /tariffs/{id}."""
-    last = None
-    for base in _TARIFF_PATHS:
-        try:
-            return _e55_patch(self, base.rstrip("/") + "/" + str(tariff_id), data)
-        except Exception as e:
-            last = e
-    raise last
-
-# ============================ E70_EXT: автоперелогин при 401 ============================
-import json as _e70_json
-from pathlib import Path as _e70_Path
-
-def _e70_relogin(self) -> bool:
-    """Молчаливая повторная авторизация по saved_login/saved_password из client_settings.json."""
-    if getattr(self, "_e70_refreshing", False):
-        return False
-    self._e70_refreshing = True
-    try:
-        cfg = {}
-        try:
-            from paths import SETTINGS as _p
-            cfg = _e70_json.loads(_p.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-        login = cfg.get("saved_login") or cfg.get("login") or cfg.get("username")
-        password = cfg.get("saved_password") or cfg.get("password")
-        if not login or not password:
-            return False
-        old_auth = self.session.headers.pop("Authorization", None)
-        try:
-            r = self.session.post(self._url("/auth/login"),
-                                  json={"login": login, "password": password})
-            if r.status_code != 200:
-                return False
-            token = r.json().get("access_token")
-        finally:
-            if old_auth and "Authorization" not in self.session.headers:
-                self.session.headers["Authorization"] = old_auth
-        if not token:
-            return False
-        self.set_token(token)
-        try:
-            _p = _e70_Path(__file__).resolve().parents[1] / "client_settings.json"
-            cfg["token"] = token
-            cfg["access_token"] = token
-            _p.write_text(_e70_json.dumps(cfg, ensure_ascii=False, indent=2),
-                          encoding="utf-8")
-        except Exception:
-            pass
-        try:
-            from app_logging import log as _e70_log
-            _e70_log.info("E70: токен сессии обновлён автоматически")
-        except Exception:
-            pass
-        return True
-    except Exception:
-        return False
-    finally:
-        self._e70_refreshing = False
-
-
-_e70_orig_init = ApiClient.__init__
-
-def _e70_init(self, base_url="http://localhost:8001/api/v1"):
-    _e70_orig_init(self, base_url)
-    self._e70_refreshing = False
-    _inner = self.session.request
-
-    def _e70_request(method, url, **kwargs):
-        resp = _inner(method, url, **kwargs)
-        if resp.status_code == 401 and _e70_relogin(self):
-            h = kwargs.get("headers")
-            if isinstance(h, dict) and "Authorization" in h:
-                h = dict(h)
-                h["Authorization"] = "Bearer " + str(getattr(self, "token", "") or "")
-                kwargs = dict(kwargs, headers=h)
-            resp = _inner(method, url, **kwargs)
-        return resp
-
-    self.session.request = _e70_request
-
-
-ApiClient.__init__ = _e70_init
-# ========================== E70_EXT END ==========================
+    r = self._session.patch(url,
