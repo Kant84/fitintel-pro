@@ -15,6 +15,8 @@ _GENDER_ALIASES = {
 
 import re as _re
 
+_YEAR_2DIGIT = _re.compile(r"^\d{1,2}[-./]\d{1,2}[-./]\d{2}$")
+
 
 def _norm_gender(v):
     """Принимает код enum, русскую подпись ('Мужской'), регистронезависимо."""
@@ -27,8 +29,8 @@ def _norm_gender(v):
 
 
 def _norm_date(v):
-    """дд-мм-гггг / дд.мм.гггг / дд/мм/гггг / ддммгггг / дд-мм-гг → date.
-    Разделители автоматически приводятся к '-'. Принимает также date/str ISO."""
+    """дд-мм-гггг / дд.мм.гггг / дд/мм/гггг / ддммгггг → date (год СТРОГО 4 цифры).
+    Двузначные года запрещены — понятная ошибка вместо угадывания века."""
     if v is None or isinstance(v, date):
         return v
     s = str(v).strip()
@@ -39,11 +41,13 @@ def _norm_date(v):
         return date.fromisoformat(s)
     except ValueError:
         pass
+    # двузначный год — сразу честная ошибка
+    if _YEAR_2DIGIT.match(s):
+        raise ValueError("Год должен быть четырёхзначным. Формат: ДД-ММ-ГГГГ")
     # варианты с разделителями: 01-02-1990, 01.02.1990, 01/02/1990
-    m = _re.fullmatch(r"(\d{1,2})[-./](\d{1,2})[-./](\d{2,4})", s)
+    m = _re.fullmatch(r"(\d{1,2})[-./](\d{1,2})[-./](\d{4})", s)
     if m:
         d, mo, y = m.groups()
-        y = ("20" + y) if len(y) == 2 else y
         try:
             return date(int(y), int(mo), int(d))
         except ValueError:
@@ -209,7 +213,7 @@ class ClientCreateRequest(_ClientDatesMixin, _ClientGenderMixin, BaseModel):
         examples=["МУЖСКОЙ"],
     )
 
-    # дата рождения: ISO или дд-мм-гггг / дд.мм.гггг / ддммгггг (авто-нормализация)
+    # дата рождения: ISO или дд-мм-гггг / дд.мм.гггг / ддммгггг (год строго 4 цифры)
     birth_date: date | None = Field(
         default=None,
         description="Дата рождения клиента",
