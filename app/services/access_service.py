@@ -342,7 +342,7 @@ class AccessService:
     # ==========================================================
     # ПРЕДОСТАВЛЕНИЕ ДОСТУПА (ВХОД)
     # ==========================================================
-    
+
     def grant_access(
         self,
         credential: str,
@@ -351,24 +351,26 @@ class AccessService:
         override: bool = False,
         override_by_user_id: UUID | None = None,
         sector: int = 0,
+        access_method: AccessMethod | None = None,
     ) -> AccessGrantResponse:
         """
         Предоставить доступ (вход).
-        
+
         Args:
             sector: для KERONG замков — сектор (0=шкаф, 1=сейф)
+            access_method: способ входа; если None — QR (или OVERRIDE для принудительного)
         """
         device = self._get_device(device_id)
         client = self._find_client_by_credential(credential)
-        
+
         if not client:
             return AccessGrantResponse(
                 granted=False,
                 reason="Клиент не найден",
             )
-        
+
         access_check = self.check_access(credential, device_id, zone)
-        
+
         if access_check.decision == AccessDecision.DENIED and not override:
             return AccessGrantResponse(
                 granted=False,
@@ -376,17 +378,18 @@ class AccessService:
                 client_id=client.id,
                 client_name=f"{client.first_name} {client.last_name}",
             )
-        
-        access_method = AccessMethod.OVERRIDE if override else AccessMethod.QR
+
+        if access_method is None:
+            access_method = AccessMethod.OVERRIDE if override else AccessMethod.QR
         subscription = self._get_active_subscription(client.id)
-        
+
         # Проверяем, нет ли активного посещения
         active_visit = self.db.query(Visit).filter(
             Visit.client_id == client.id,
             Visit.status == "ACTIVE",
             Visit.exit_time.is_(None),
         ).first()
-        
+
         if active_visit:
             return AccessGrantResponse(
                 granted=False,
@@ -394,7 +397,7 @@ class AccessService:
                 client_id=client.id,
                 client_name=f"{client.first_name} {client.last_name}",
             )
-        
+
         # Создаём посещение
         visit = self.visit_service.entry(
             client_id=client.id,
@@ -403,20 +406,20 @@ class AccessService:
             access_device_id=device_id,
             zone=zone,
         )
-        
+
         # Списываем визит
         if subscription and not subscription.is_unlimited:
             subscription.visits_used += 1
             self.db.commit()
-        
+
         # Отправляем команду на турникет (с учётом сектора)
         open_success = False
         if device and device.protocol != "none":
             open_success = self._send_open_command(device, sector)
-        
+
         if device and not open_success:
             print(f"[WARN] Failed to open turnstile for client {client.id}, but visit recorded")
-        
+
         return AccessGrantResponse(
             granted=True,
             reason=None,

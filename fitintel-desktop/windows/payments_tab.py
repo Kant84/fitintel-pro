@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QFileDialog, QHeaderView, QTabWidget)
 from . import theme
 from .form_dialog import FormDialog
+from datetime import datetime, timezone
 
 METHODS = ["CASH", "CARD", "SBP", "TRANSFER", "ONLINE", "SUBSCRIPTION",
            "QR", "BALANCE", "OTHER"]
@@ -76,6 +77,17 @@ def _err_text(e):
             pass
         return "Ошибка сервера %s: %s" % (resp.status_code, resp.text[:150])
     return str(e)
+
+
+def _local(s):
+    """UTC-строка от сервера -> локальное время 'YYYY-MM-DD HH:MM'."""
+    try:
+        dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone().strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return str(s)[:16]
 
 def _money(v):
     try:
@@ -350,7 +362,7 @@ class PaymentsTab(QWidget):
             self.tbl.insertRow(r)
             pid = p.get("id") or p.get("payment_id")
             vals = [str(pid)[:8],
-                    str(p.get("created_at") or p.get("payment_date") or "")[:19],
+                    _local(p.get("created_at") or p.get("payment_date")),
                     str(p.get("amount") or ""),
                     _ru(RU_M, p.get("payment_method") or p.get("method")),
                     _ru(RU_S, p.get("status")),
