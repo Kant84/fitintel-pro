@@ -10,6 +10,13 @@ from api import ApiClient
 from windows import theme
 from windows.form_dialog import FormDialog
 
+def _fmt_date(iso: str) -> str:
+    """'1991-10-03' -> '03-10-1991' для показа человеку."""
+    s = str(iso or "")[:10]
+    if len(s) == 10 and s[4] == "-":
+        y, m, d = s.split("-")
+        return f"{d}-{m}-{y}"
+    return s
 
 class ClientsWorker(QThread):
     finished = pyqtSignal(list)
@@ -212,7 +219,7 @@ class ClientsTab(QWidget):
             ("phone", "Телефон *", "text", c.get("phone")),
             ("email", "Email *", "text", c.get("email")),
             ("gender", "Пол", "combo", [("Мужской", "MALE"), ("Женский", "FEMALE"), ("Не указан", "НЕ_УКАЗАН")]),
-            ("birth_date", "Дата рождения (ДД-ММ-ГГГГ)", "text", str(c.get("birth_date") or "")),
+            ("birth_date", "Дата рождения (ДД-ММ-ГГГГ)", "text", _fmt_date(c.get("birth_date"))),
         ]
         dlg = FormDialog(f"Клиент: {self._fio(c)}", fields, self)
         if dlg.exec() != FormDialog.DialogCode.Accepted:
