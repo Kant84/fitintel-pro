@@ -40,6 +40,29 @@ TRAILER_ITC   = "000000000000FF078069666666666666"
 KEY_A_ITC     = "FFFFFFFFFFFF"
 KEY_B_ITC     = "666666666666"
 
+class _ResetWorker(QThread):
+    """Сброс карты: опрос ридера -> запись -> отвязка на сервере -> очистка кэша. Всё в фоне."""
+    done = pyqtSignal(object)
+    def __init__(self, tab, parent=None):
+        super().__init__(parent)
+        self.tab = tab
+    def run(self):
+        out = {"ok": False}
+        try:
+            r = self.tab._req("POST", "/reader/detect-card")
+            if isinstance(r, dict) and "_err" in r:
+                out["error"] = "Носитель не обнаружен"; self.done.emit(out); return
+            uid = r.get("uid")
+            out["uid"] = uid
+            self.tab._rfid_card.reset_card(uid)                      # 1. очистка карты
+            r2 = self.tab._req("POST", "/credentials/rfid/unbind-by-uid",
+                               {"uid": uid})                          # 2. отвязка в БД
+            out["unbind"] = r2
+            out["ok"] = isinstance(r2, dict) and r2.get("ok") is True
+            self.tab._clear_uid_cache(uid)                            # 3. кэш виджета
+        except Exception as e:
+            out["error"] = str(e)
+        self.done.emit(out)
 
 def _encode_locknum(num: int) -> str:
     return f"020B000000{num:02X}00000000000000000003"
@@ -90,28 +113,23 @@ class CredentialsTab(QWidget):
 
     def _req(self, method, path, data=None):
         data = data or {}
-        # /reader/* — НАПРЯМУЮ к USB-считывателю (pyscard), без всяких сервисов
+        # /reader/* — НАПРЯМУЮ к USB-считывателю (pyscard), без сервера
         if path.startswith("/reader/"):
             return self._reader_local(path, data)
-        tok = None
-        if self.api and hasattr(self.api, "token") and self.api.token:
-            tok = self.api.token
-        if not tok:
-            tok = self._token()
-        r = urllib.request.Request(
-            self._base() + path,
-            data=json.dumps(data).encode() if data is not None else None,
-            headers={"Content-Type": "application/json"}, method=method)
-        if tok:
-            r.add_header("Authorization", "Bearer " + tok)
-        try:
-            return json.load(urllib.request.urlopen(r, timeout=15))
-        except urllib.error.HTTPError as e:
-            body = e.read().decode()[:300]
+        # Через ApiClient: таймауты и авто-перелогин (E70) уже внутри
+        if self.api is not None and hasattr(self.api, "session"):
             try:
-                return {"_err": e.code, "_body": json.loads(body)}
-            except Exception:
-                return {"_err": e.code, "_body": body}
+                r = self.api.session.request(method, self.api._url(path),
+                                             json=data, timeout=20)
+                if r.status_code >= 400:
+                    try:
+                        return {"_err": r.status_code, "_body": r.json()}
+                    except Exception:
+                        return {"_err": r.status_code, "_body": r.text[:300]}
+                return r.json()
+            except Exception as e:
+                return {"_err": str(e)}
+        return {"_err": "api client not available"}
 
     def _reader_local(self, path, data):
         try:
@@ -315,23 +333,35 @@ class CredentialsTab(QWidget):
             self.reader_status.setText("🔴  Ошибка записи")
             self.reader_status.setStyleSheet("color: #ef4444; font-weight: 600;")
 
+    def _clear_uid_cache(self, uid):
+        """Убирает UID из rfid_uid_cache.json (виджет RFID Монитор)."""
+        try:
+            import pathlib
+            p = pathlib.Path("rfid_uid_cache.json")
+            if p.exists():
+                cache = json.loads(p.read_text(encoding="utf-8"))
+                if str(uid).upper() in cache:
+                    del cache[str(uid).upper()]
+                    p.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
+
     def _reset_card(self):
-        self._log(self.log, "🗑️ Поднесите носитель для отвязки...")
-        r = self._req("POST", "/reader/detect-card")
-        if isinstance(r, dict) and "_err" in r:
-            self._log(self.log, "❌ Носитель не обнаружен")
-            return
-        uid = r.get("uid")
-        if not uid:
-            self._log(self.log, "❌ UID не считан")
-            return
-        self._log(self.log, f"✅ UID считан: {uid}")
-        # 1. Очищаем данные клиента с карты (блок 1)
-        self._rfid_card.reset_card(uid)
-        # 2. Отвязываем от клиента в базе
-        self._rfid_api.unbind_uid(uid)
+        self._log(self.log, "🗑️ Поднесите носитель для сброса (работаем в фоне, UI не зависнет)...")
+        self._reset_w = _ResetWorker(self)
+        self._reset_w.done.connect(self._reset_done)
+        self._reset_w.start()
+
+    def _reset_done(self, out):
+        uid = out.get("uid", "—")
+        if out.get("ok") and (out.get("unbind") or {}).get("removed"):
+            self._log(self.log, f"✅ UID {uid}: клиент отвязан на сервере, карта очищена, кэш сброшен")
+        elif out.get("ok"):
+            self._log(self.log, f"✅ UID {uid}: карта очищена (носитель в базе не был привязан)")
+        else:
+            self._log(self.log, f"⚠️ UID {uid}: {out.get('error', out.get('unbind', 'неизвестная ошибка'))}")
         self._load_credentials()
-        self._log(self.log, "✅ Клиент отвязан, карта очищена")
+        self._refresh_widget()
 
     def _check_reader(self):
         try:
@@ -603,3 +633,23 @@ class CredentialsTab(QWidget):
                     break
         except Exception:
             pass
+            
+ @router.post("/rfid/unbind-by-uid")
+def unbind_rfid_by_uid(payload: dict,
+                       current_user=Depends(require_permission("credentials.update")),
+                       db: Session = Depends(get_db)):
+    """Отвязка RFID/браслета по UID (экран «Браслеты/Карты» → «Сброс к заводским»)."""
+    uid = (payload or {}).get("uid")
+    if not uid:
+        raise HTTPException(status_code=400, detail="uid обязателен")
+    from app.models.credential import Credential
+    cred = db.query(Credential).filter(
+        Credential.credential_value == uid,
+        Credential.credential_type == "RFID",
+    ).first()
+    if not cred:
+        return {"ok": True, "removed": False, "message": "Носитель не привязан"}
+    db.delete(cred)
+    db.commit()
+    return {"ok": True, "removed": True, "credential_id": str(cred.id)}           
+            
