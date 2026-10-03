@@ -15,7 +15,7 @@ from app.models.face_id import FaceTemplate
 from app.models.user import User
 from app.schemas.face_id import FaceRegisterRequest, FaceVerifyRequest, FaceUpdateRequest, FaceTurnstileRequest
 from app.services.face_id_service import FaceIDService
-
+from app.schemas.enums import AccessMethod 
 
 def _warmup_face_models():
     """Прогрев dlib/ResNet в фоне при старте — иначе первый запрос грузит модель 10-60 сек."""
@@ -270,14 +270,14 @@ def face_turnstile(data: FaceTurnstileRequest, db: Session = Depends(get_db)):
     from app.services.access_service import AccessService
     access = AccessService(db)
     result = access.grant_access(credential=client.phone or client.email,
-                                 device_id=data.device_id, zone=data.zone)
+                                 device_id=data.device_id, zone=data.zone,
+                                 access_method=AccessMethod.FACE_ID)
     service.log_recognition(template.id, data.device_id,
                             "granted" if result.granted else "denied", result.reason, confidence)
     return {"access_granted": result.granted, "turnstile_open": result.granted,
             "client_id": str(template.client_id), "confidence": round(confidence, 4),
             "visit_id": str(result.visit_id) if result.visit_id else None,
             "device_id": data.device_id}
-
 
 @router.get("/engine/info")
 def face_engine_info():

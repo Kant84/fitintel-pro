@@ -13,6 +13,17 @@ from api import ApiClient
 from windows import theme
 from windows.form_dialog import FormDialog
 
+from datetime import datetime, timezone
+
+def _local(s):
+    """UTC-строка от сервера -> локальное время 'YYYY-MM-DD HH:MM'."""
+    try:
+        dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone().strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return str(s)[:16]
 
 class LoadVisitsWorker(QThread):
     finished = pyqtSignal(list, dict, dict)
@@ -146,7 +157,7 @@ class VisitsTab(QWidget):
             self.table.setItem(i, 1, QTableWidgetItem(fio))
             self.table.setItem(i, 2, QTableWidgetItem(phone or "—"))
             self.table.setItem(i, 3, QTableWidgetItem(str(row.get("access_method") or "—")))
-            tm = str(row.get("entry_time") or row.get("created_at") or "—")[:16].replace("T", " ")
+            tm = _local(row.get("entry_time") or row.get("created_at")) if (row.get("entry_time") or row.get("created_at")) else "—"
             self.table.setItem(i, 4, QTableWidgetItem(tm))
             status = str(row.get("status") or "—")
             item = QTableWidgetItem(status)
