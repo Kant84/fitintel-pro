@@ -55,17 +55,20 @@ def validate_phone(phone: str) -> str:
 
 
 # функция очищает email
-def normalize_email(email: str) -> str:
+def normalize_email(email: str | None) -> str | None:
+    # email необязателен (схема ClientCreateRequest): None/пусто -> None
+    if not email:
+        return None
+
     # убираем пробелы по краям и переводим в нижний регистр
     value = email.strip().lower()
 
-    # если email пустой — ошибка
+    # если после очистки пусто — None (не ошибка)
     if not value:
-        raise ValueError("Email не может быть пустым")
+        return None
 
     # возвращаем нормализованный email
     return value
-
 
 # функция очищает текстовое поле
 def normalize_text(value: str) -> str:
