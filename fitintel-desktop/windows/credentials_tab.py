@@ -25,6 +25,7 @@ QTableWidget { background: #1e293b; border: 1px solid #334155; border-radius: 8p
 QTableWidget::item:selected { background: #ec4899; color: white; }
 QHeaderView::section { background: #1e293b; color: #06b6d4; padding: 8px; border: none; font-weight: 600; }
 QLabel { color: #cbd5e1; }
+QToolTip { background-color: #1e293b; color: #e2e8f0; border: 1px solid #334155; padding: 4px 8px; }
 """
 
 BTN_PRIMARY   = "background: linear-gradient(135deg, #ec4899, #be185d); border-radius: 0px;"
