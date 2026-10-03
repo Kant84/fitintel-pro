@@ -489,4 +489,163 @@ for _n in _N59:
 def _e55_patch(self, path, payload=None):
     import requests
     url = _e55_url(self, path)
-    r = self._session.patch(url,
+    if hasattr(self, "_session"):
+        r = self._session.patch(url, json=payload or {}, timeout=30)
+    else:
+        r = requests.patch(url, json=payload or {}, timeout=30)
+    r.raise_for_status()
+    try:
+        return r.json()
+    except Exception:
+        return {}
+
+def update_tariff(self, tariff_id, data):
+    """Backend accepts PATCH (not PUT) on /tariffs/{id}."""
+    last = None
+    for base in _TARIFF_PATHS:
+        try:
+            return _e55_patch(self, base.rstrip("/") + "/" + str(tariff_id), data)
+        except Exception as e:
+            last = e
+    raise last
+
+# ============================ E70_EXT: прозрачное обновление сессии ============================
+"""
+Схема: access-токен короткий (30 мин). Любой запрос с 401 -> один молчаливый
+refresh (refresh_token из client_settings.json, ротация на сервере) -> повтор
+исходного запроса. Пользователь не видит «Токен истёк». Если refresh мёртв —
+fallback на логин/пароль (если сохранены), иначе 401 доходит до UI (разлогин).
+"""
+import json as _e70_json
+from pathlib import Path as _e70_Path
+
+
+def _e70_settings_path():
+    try:
+        from paths import SETTINGS as _p
+        return _p
+    except Exception:
+        return _e70_Path(__file__).resolve().parents[1] / "client_settings.json"
+
+
+def _e70_load_settings() -> dict:
+    try:
+        p = _e70_settings_path()
+        if p.exists():
+            return _e70_json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {}
+
+
+def _e70_save_tokens(token, refresh_token):
+    try:
+        p = _e70_settings_path()
+        cfg = _e70_load_settings()
+        if token:
+            cfg["token"] = token
+            cfg["access_token"] = token
+        if refresh_token:
+            cfg["refresh_token"] = refresh_token
+        p.write_text(_e70_json.dumps(cfg, ensure_ascii=False, indent=2),
+                     encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _e70_refresh(self) -> bool:
+    """Обмен refresh_token на новую пару. Молча, с сохранением в настройки."""
+    rt = getattr(self, "_refresh_token", None) or _e70_load_settings().get("refresh_token")
+    if not rt:
+        return False
+    try:
+        r = self.session.post(self._url("/auth/refresh"),
+                              json={"refresh_token": rt}, timeout=15)
+        if r.status_code != 200:
+            return False
+        data = r.json()
+        token = data.get("access_token")
+        new_rt = data.get("refresh_token") or rt
+        if not token:
+            return False
+        self._refresh_token = new_rt
+        self.set_token(token)
+        _e70_save_tokens(token, new_rt)
+        try:
+            from app_logging import log as _l
+            _l.info("E70: сессия обновлена через refresh_token")
+        except Exception:
+            pass
+        return True
+    except Exception:
+        return False
+
+
+def _e70_relogin(self) -> bool:
+    """Молчаливая повторная авторизация: сначала refresh, потом логин/пароль."""
+    if getattr(self, "_e70_refreshing", False):
+        return False
+    self._e70_refreshing = True
+    try:
+        if _e70_refresh(self):
+            return True
+
+        cfg = _e70_load_settings()
+        login = cfg.get("saved_login") or cfg.get("login") or cfg.get("username")
+        password = cfg.get("saved_password") or cfg.get("password")
+        if not login or not password:
+            return False
+        old_auth = self.session.headers.pop("Authorization", None)
+        try:
+            r = self.session.post(self._url("/auth/login"),
+                                  json={"login": login, "password": password})
+            if r.status_code != 200:
+                return False
+            data = r.json()
+            token = data.get("access_token")
+            rt = data.get("refresh_token")
+        finally:
+            if old_auth and "Authorization" not in self.session.headers:
+                self.session.headers["Authorization"] = old_auth
+        if not token:
+            return False
+        if rt:
+            self._refresh_token = rt
+        self.set_token(token)
+        _e70_save_tokens(token, rt)
+        try:
+            from app_logging import log as _l
+            _l.info("E70: сессия обновлена через логин/пароль")
+        except Exception:
+            pass
+        return True
+    except Exception:
+        return False
+    finally:
+        self._e70_refreshing = False
+
+
+_e70_orig_init = ApiClient.__init__
+
+def _e70_init(self, base_url="http://localhost:8001/api/v1"):
+    _e70_orig_init(self, base_url)
+    self._e70_refreshing = False
+    self._refresh_token = _e70_load_settings().get("refresh_token")
+    _inner = self.session.request
+
+    def _e70_request(method, url, **kwargs):
+        resp = _inner(method, url, **kwargs)
+        if resp.status_code == 401 and _e70_relogin(self):
+            h = kwargs.get("headers")
+            if isinstance(h, dict) and "Authorization" in h:
+                h = dict(h)
+                h["Authorization"] = "Bearer " + str(getattr(self, "token", "") or "")
+                kwargs = dict(kwargs, headers=h)
+            resp = _inner(method, url, **kwargs)
+        return resp
+
+    self.session.request = _e70_request
+
+
+ApiClient.__init__ = _e70_init
+# ========================== E70_EXT END ==========================
