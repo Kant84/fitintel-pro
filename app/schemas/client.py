@@ -110,8 +110,9 @@ class ClientResponse(BaseModel):
         examples=["+79991234567"],
     )
 
-    # email клиента
-    email: str = Field(
+    # email клиента (может отсутствовать)
+    email: str | None = Field(
+        default=None,
         description="Email клиента",
         examples=["ivan@test.com"],
     )
