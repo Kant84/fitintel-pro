@@ -1,10 +1,76 @@
 # app/schemas/client.py
-# app/schemas/client.py
-
 from datetime import date, datetime
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from app.schemas.enums import ClientStatus, GenderEnum, ClientCategoryEnum
+
+
+# ---------------------------------------------------------------- helpers
+_GENDER_ALIASES = {
+    "мужской": "MALE", "м": "MALE", "male": "MALE",
+    "женский": "FEMALE", "ж": "FEMALE", "female": "FEMALE",
+    "не указан": "НЕ_УКАЗАН", "не_указан": "НЕ_УКАЗАН", "none": "НЕ_УКАЗАН",
+}
+
+import re as _re
+
+
+def _norm_gender(v):
+    """Принимает код enum, русскую подпись ('Мужской'), регистронезависимо."""
+    if v is None or isinstance(v, GenderEnum):
+        return v
+    s = str(v).strip()
+    if not s:
+        return None
+    return _GENDER_ALIASES.get(s.lower(), s)
+
+
+def _norm_date(v):
+    """дд-мм-гггг / дд.мм.гггг / дд/мм/гггг / ддммгггг / дд-мм-гг → date.
+    Разделители автоматически приводятся к '-'. Принимает также date/str ISO."""
+    if v is None or isinstance(v, date):
+        return v
+    s = str(v).strip()
+    if not s:
+        return None
+    # ISO уже в порядке
+    try:
+        return date.fromisoformat(s)
+    except ValueError:
+        pass
+    # варианты с разделителями: 01-02-1990, 01.02.1990, 01/02/1990
+    m = _re.fullmatch(r"(\d{1,2})[-./](\d{1,2})[-./](\d{2,4})", s)
+    if m:
+        d, mo, y = m.groups()
+        y = ("20" + y) if len(y) == 2 else y
+        try:
+            return date(int(y), int(mo), int(d))
+        except ValueError:
+            return v            # отдадим на откуп pydantic — даст понятный 422
+    # склейка: 01021990
+    m = _re.fullmatch(r"(\d{2})(\d{2})(\d{4})", s)
+    if m:
+        d, mo, y = m.groups()
+        try:
+            return date(int(y), int(mo), int(d))
+        except ValueError:
+            return v
+    return v                    # пусть pydantic сообщит об ошибке
+
+
+class _ClientDatesMixin:
+    @field_validator("birth_date", mode="before")
+    @classmethod
+    def _v_birth(cls, v):
+        return _norm_date(v)
+
+
+class _ClientGenderMixin:
+    @field_validator("gender", mode="before")
+    @classmethod
+    def _v_gender(cls, v):
+        return _norm_gender(v)
 
 
 # схема ответа по клиенту
@@ -96,7 +162,7 @@ class ClientListResponse(BaseModel):
 
 
 # схема запроса на создание клиента
-class ClientCreateRequest(BaseModel):
+class ClientCreateRequest(_ClientDatesMixin, _ClientGenderMixin, BaseModel):
     # имя клиента
     first_name: str = Field(
         min_length=1,
@@ -129,20 +195,21 @@ class ClientCreateRequest(BaseModel):
         examples=["+79991234567"],
     )
 
-    # email клиента
-    email: EmailStr = Field(
+    # email клиента — НЕобязателен (в клубе не у всех есть почта)
+    email: EmailStr | None = Field(
+        default=None,
         description="Email клиента",
         examples=["ivan@test.com"],
     )
 
-    # пол клиента
+    # пол клиента: код enum или русская подпись («Мужской»)
     gender: GenderEnum | None = Field(
         default=None,
         description="Пол клиента",
         examples=["МУЖСКОЙ"],
     )
 
-    # дата рождения клиента
+    # дата рождения: ISO или дд-мм-гггг / дд.мм.гггг / ддммгггг (авто-нормализация)
     birth_date: date | None = Field(
         default=None,
         description="Дата рождения клиента",
@@ -172,7 +239,7 @@ class ClientCreateRequest(BaseModel):
 
 
 # схема запроса на обновление клиента
-class ClientUpdateRequest(BaseModel):
+class ClientUpdateRequest(_ClientDatesMixin, _ClientGenderMixin, BaseModel):
     # новое имя клиента
     first_name: str | None = Field(
         default=None,
