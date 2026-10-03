@@ -250,12 +250,13 @@ class ClientService:
             is_active=is_active,
         )
 
-        # проверяем уникальность email
-        if self.client_repository.email_exists(normalized_fields["email"]):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Клиент с таким email уже существует",
-            )
+        # проверяем уникальность email (только если email задан)
+        if normalized_fields["email"] is not None:
+            if self.client_repository.email_exists(normalized_fields["email"]):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Клиент с таким email уже существует",
+                )
 
         # проверяем уникальность телефона
         if self.client_repository.phone_exists(normalized_fields["phone"]):
