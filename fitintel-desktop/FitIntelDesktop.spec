@@ -1,16 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
 from PyInstaller.utils.hooks import collect_submodules
 
-BASE = 'C:/Users/PC/Desktop/2026/FitNexus AI/FitIntel AI/fitintel-desktop'
+BASE = os.path.abspath(SPECPATH)   # папка fitintel-desktop (где лежит этот spec)
 
 hiddenimports = ['PyQt6.sip', 'cv2', 'smartcard']
 hiddenimports += collect_submodules('cv2')
 hiddenimports += collect_submodules('smartcard')
 hiddenimports += collect_submodules('PyQt6.QtMultimedia')
 
-
 a = Analysis(
-    [BASE + '/main.py'],
+    [os.path.join(BASE, 'main.py')],
     pathex=[BASE],
     binaries=[],
     datas=[],
@@ -43,5 +43,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=[BASE + '/assets/FitIntel_icon.ico'],
+    icon=[os.path.join(BASE, 'assets', 'FitIntel_icon.ico')],
 )
