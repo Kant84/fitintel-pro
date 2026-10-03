@@ -91,7 +91,7 @@ QCheckBox::indicator:checked {{ background: {ok_c}; border-color: {ok_c}; }}
 QGroupBox {{ border: 1px solid {accent}; border-radius: 6px; margin-top: 12px; color: {hdr_c}; }}
 QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 4px; }}
 QStatusBar {{ background: {panel}; color: {sub}; border-top: 1px solid {accent}; }}
-QToolTip {{ background: {panel}; color: {text}; border: 1px solid {accent}; }}
+QToolTip {{ background: {panel}; color: {text}; border: 1px solid {accent}; padding: 4px 8px; }}
 QSplitter::handle {{ background: {accent}; }}
 QProgressBar {{ background: {panel}; border: 1px solid {accent}; border-radius: 4px; color: {text}; text-align: center; }}
 QProgressBar::chunk {{ background: {accent}; }}

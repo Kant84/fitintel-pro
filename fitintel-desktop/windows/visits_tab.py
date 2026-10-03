@@ -1,19 +1,17 @@
-"""FitIntel Pro — Visits Tab (с ФИО, телефоном и кнопками впуска/выпуска)"""
+"""FitIntel Pro — Visits Tab (ФИО, телефон, кнопки впуска/выпуска, локальное время)"""
+from datetime import datetime, timezone
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit
+    QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit, QMessageBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor
-
-from datetime import datetime
-from PyQt6.QtWidgets import QMessageBox
 
 from api import ApiClient
 from windows import theme
 from windows.form_dialog import FormDialog
 
-from datetime import datetime, timezone
 
 def _local(s):
     """UTC-строка от сервера -> локальное время 'YYYY-MM-DD HH:MM'."""
@@ -24,6 +22,7 @@ def _local(s):
         return dt.astimezone().strftime("%Y-%m-%d %H:%M")
     except Exception:
         return str(s)[:16]
+
 
 class LoadVisitsWorker(QThread):
     finished = pyqtSignal(list, dict, dict)
@@ -53,10 +52,9 @@ class VisitsTab(QWidget):
         super().__init__()
         self.api = api
         self._all_data = []
-        self._visible = []   # ← визиты, видимые в таблице (синхронно со строками)
+        self._visible = []   # визиты, видимые в таблице (синхронно со строками)
         self._cmap = {}
         self._build_ui()
-        QThread.msleep(0)
         self.refresh()
 
     def _build_ui(self):
@@ -157,8 +155,8 @@ class VisitsTab(QWidget):
             self.table.setItem(i, 1, QTableWidgetItem(fio))
             self.table.setItem(i, 2, QTableWidgetItem(phone or "—"))
             self.table.setItem(i, 3, QTableWidgetItem(str(row.get("access_method") or "—")))
-            tm = _local(row.get("entry_time") or row.get("created_at")) if (row.get("entry_time") or row.get("created_at")) else "—"
-            self.table.setItem(i, 4, QTableWidgetItem(tm))
+            _raw = row.get("entry_time") or row.get("created_at")
+            self.table.setItem(i, 4, QTableWidgetItem(_local(_raw) if _raw else "—"))
             status = str(row.get("status") or "—")
             item = QTableWidgetItem(status)
             if status == "ACTIVE":
@@ -191,10 +189,8 @@ class VisitsTab(QWidget):
     def _fio_of(self, visit: dict) -> str:
         return self._cmap.get(str(visit.get("client_id")), ("—", ""))[0]
 
-    # ============ КОМАНДА НА ТУРНИКЕТ (v1.6, пока заглушка-вывоз) ============
+    # ============ КОМАНДА НА ТУРНИКЕТ (v1.6, пока заглушка) ============
     def _open_turnstile(self, direction: str):
-        """Отправить команду открытия на терминал. Эндпоинт /skud/open появится в v1.6 —
-        до тех пор просто молча пропускаем, визитная логика работает без него."""
         try:
             self.api.session.post(self.api._url("/skud/open"),
                                   json={"direction": direction, "source": "desktop"},
@@ -223,12 +219,12 @@ class VisitsTab(QWidget):
         try:
             r = self.api.session.post(self.api._url("/visits/manual"), json=payload)
             r.raise_for_status()
-            self._open_turnstile("entry")   # открыть турникет на вход (с v1.6)
+            self._open_turnstile("entry")
             self.refresh()
         except Exception as e:
             QMessageBox.critical(self, "Ошибка входа", str(e))
 
-    # ============ ВЫПУСТИТЬ (выход: закрыть визит + турникет) ============
+    # ============ ВЫПУСТИТЬ (выход) ============
     def _checkout(self):
         visit = self._selected_visit()
         if not visit:
@@ -252,7 +248,7 @@ class VisitsTab(QWidget):
             r = self.api.session.post(
                 self.api._url(f"/visits/{visit['id']}/complete"), json=payload)
             r.raise_for_status()
-            self._open_turnstile("exit")    # открыть турникет на выход (с v1.6)
+            self._open_turnstile("exit")
             QMessageBox.information(self, "Готово", f"{fio} выпущен, визит закрыт")
             self.refresh()
         except Exception as e:
