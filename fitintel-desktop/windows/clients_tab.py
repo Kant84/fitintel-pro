@@ -40,6 +40,42 @@ CAT_LABELS = {"ADULT": "Взрослый", "CHILD": "Ребёнок", "VIP": "VI
               "НЕ_УКАЗАНА": "—", "ПЕНСИОНЕР": "Пенсионер", "ИНВАЛИД": "Инвалид",
               "КОРПОРАТИВНЫЙ": "Корпоративный"}
 
+# Диалог может вернуть подпись («Мужской») или код («MALE») — сервер ждёт код.
+GENDER_MAP = {"Мужской": "MALE", "М": "MALE", "MALE": "MALE",
+              "Женский": "FEMALE", "Ж": "FEMALE", "FEMALE": "FEMALE",
+              "Не указан": "НЕ_УКАЗАН", "НЕ_УКАЗАН": "НЕ_УКАЗАН", "": "НЕ_УКАЗАН"}
+
+
+def _norm_gender(v: dict):
+    if v.get("gender"):
+        v["gender"] = GENDER_MAP.get(str(v["gender"]), "НЕ_УКАЗАН")
+    return v
+
+
+def _norm_birth_date(v: dict, parent) -> bool:
+    """ДД.ММ.ГГГГ / ДД.ММ.ГГ → ГГГГ-ММ-ДД. False = формат неверный (показан warning)."""
+    if "birth_date" not in v:
+        return True
+    bd = str(v["birth_date"]).strip()
+    if not bd:
+        return True
+    if "." in bd and len(bd.split(".")) == 3:
+        try:
+            d, m, y = bd.split(".")
+            if len(y) == 4 and len(m) == 2 and len(d) == 2:
+                v["birth_date"] = f"{y}-{m}-{d}"
+                return True
+            if len(y) == 2 and len(m) == 2 and len(d) == 2:
+                v["birth_date"] = f"20{y}-{m}-{d}"
+                return True
+        except Exception:
+            pass
+    if "-" in bd:
+        return True
+    QMessageBox.warning(parent, "Ошибка",
+                        f"Неверный формат даты: {bd}\nИспользуйте ДД.ММ.ГГГГ или ГГГГ-ММ-ДД")
+    return False
+
 
 class ClientsTab(QWidget):
     def __init__(self, api: ApiClient):
@@ -148,28 +184,14 @@ class ClientsTab(QWidget):
         dlg = FormDialog("Новый клиент", CLIENT_FIELDS, self)
         if dlg.exec() != FormDialog.DialogCode.Accepted:
             return
-        v = dlg.values()
-        if not v["first_name"] or not v["last_name"] or not v["phone"] or not v["email"]:
+        v = _norm_gender(dlg.values())
+        if not v.get("first_name") or not v.get("last_name") or not v.get("phone") or not v.get("email"):
             QMessageBox.warning(self, "Ошибка", "Заполните обязательные поля: фамилия, имя, телефон, email")
             return
         payload = {k: val for k, val in v.items() if val not in ("", None)}
 
-        # Валидация birth_date: конвертируем ДД.ММ.ГГГГ → ГГГГ-ММ-ДД
-        if "birth_date" in payload:
-            bd = payload["birth_date"].strip()
-            if bd:
-                if "." in bd and len(bd.split(".")) == 3:
-                    try:
-                        d, m, y = bd.split(".")
-                        if len(y) == 4 and len(m) == 2 and len(d) == 2:
-                            payload["birth_date"] = f"{y}-{m}-{d}"
-                        elif len(y) == 2 and len(m) == 2 and len(d) == 2:
-                            payload["birth_date"] = f"20{y}-{m}-{d}"
-                    except Exception:
-                        pass
-                elif "-" not in bd:
-                    QMessageBox.warning(self, "Ошибка", f"Неверный формат даты: {bd}\nИспользуйте ДД.ММ.ГГГГ или ГГГГ-ММ-ДД")
-                    return
+        if not _norm_birth_date(payload, self):
+            return
 
         try:
             self.api.create_client(payload)
@@ -193,24 +215,10 @@ class ClientsTab(QWidget):
         dlg = FormDialog(f"Клиент: {self._fio(c)}", fields, self)
         if dlg.exec() != FormDialog.DialogCode.Accepted:
             return
-        v = {k: val for k, val in dlg.values().items() if val not in ("", None)}
+        v = _norm_gender({k: val for k, val in dlg.values().items() if val not in ("", None)})
 
-        # Валидация birth_date
-        if "birth_date" in v:
-            bd = v["birth_date"].strip()
-            if bd:
-                if "." in bd and len(bd.split(".")) == 3:
-                    try:
-                        d, m, y = bd.split(".")
-                        if len(y) == 4 and len(m) == 2 and len(d) == 2:
-                            v["birth_date"] = f"{y}-{m}-{d}"
-                        elif len(y) == 2 and len(m) == 2 and len(d) == 2:
-                            v["birth_date"] = f"20{y}-{m}-{d}"
-                    except Exception:
-                        pass
-                elif "-" not in bd:
-                    QMessageBox.warning(self, "Ошибка", f"Неверный формат даты: {bd}\nИспользуйте ДД.ММ.ГГГГ или ГГГГ-ММ-ДД")
-                    return
+        if not _norm_birth_date(v, self):
+            return
 
         try:
             self.api.update_client(str(c["id"]), v)
