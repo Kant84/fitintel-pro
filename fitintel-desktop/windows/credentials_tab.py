@@ -277,7 +277,7 @@ class CredentialsTab(QWidget):
         if not self._current_client_id:
             QMessageBox.warning(self, "Клиент", "Сначала выберите клиента")
             return
-        vendor = "KERONG"
+        vendor = ""
         model = "KR-S50"
         cid = str(self._current_client_id)
         self._log(self.log, "📖 Поднесите браслет / карту к считывателю...")
@@ -352,7 +352,7 @@ class CredentialsTab(QWidget):
         lay = QVBoxLayout(w)
         lay.setSpacing(12)
 
-        lay.addWidget(QLabel("<h3 style='color:#ec4899;'>🔧  Программирование оффлайн-замков Kerong S80F</h3>"))
+        lay.addWidget(QLabel("<h3 style='color:#ec4899;'>🔧  Программирование оффлайн-замков  S80F</h3>"))
 
         top = QHBoxLayout()
         self.admin_sector = QSpinBox()
@@ -554,7 +554,7 @@ class CredentialsTab(QWidget):
         self.ol_client.setPlaceholderText("UUID клиента...")
         f.addRow("Клиент ID:", self.ol_client)
         self.ol_provider = QComboBox()
-        self.ol_provider.addItems(["TTLock", "KERONG Cloud", "Sciener"])
+        self.ol_provider.addItems(["TTLock", " Cloud", "Sciener"])
         f.addRow("Провайдер:", self.ol_provider)
         self.ol_lock_id = QLineEdit()
         self.ol_lock_id.setPlaceholderText("ID замка в облаке...")
