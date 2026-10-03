@@ -33,7 +33,7 @@ CLIENT_FIELDS = [
     ("phone", "Телефон *", "text", "+7"),
     ("email", "Email *"),
     ("gender", "Пол", "combo", [("Мужской", "MALE"), ("Женский", "FEMALE"), ("Не указан", "НЕ_УКАЗАН")]),
-    ("birth_date", "Дата рождения (ГГГГ-ММ-ДД)"),
+    ("birth_date", "Дата рождения (ДД-ММ-ГГГГ)"),
 ]
 
 CAT_LABELS = {"ADULT": "Взрослый", "CHILD": "Ребёнок", "VIP": "VIP", "STAFF": "Персонал",
@@ -53,27 +53,29 @@ def _norm_gender(v: dict):
 
 
 def _norm_birth_date(v: dict, parent) -> bool:
-    """ДД.ММ.ГГГГ / ДД.ММ.ГГ → ГГГГ-ММ-ДД. False = формат неверный (показан warning)."""
+    """ДД-ММ-ГГГГ / ДД.ММ.ГГГГ → ГГГГ-ММ-ДД. Год СТРОГО 4 цифры (двузначные запрещены).
+    False = формат неверный (показан warning)."""
     if "birth_date" not in v:
         return True
     bd = str(v["birth_date"]).strip()
     if not bd:
         return True
-    if "." in bd and len(bd.split(".")) == 3:
+    # ISO — принимаем как есть
+    if len(bd) == 10 and bd[4] == "-" and bd[7] == "-":
+        return True
+    # ДД.ММ.ГГГГ или ДД-ММ-ГГГГ
+    if len(bd) == 10 and bd[2] in ".-" and bd[5] in ".-":
+        sep = bd[2]
         try:
-            d, m, y = bd.split(".")
-            if len(y) == 4 and len(m) == 2 and len(d) == 2:
-                v["birth_date"] = f"{y}-{m}-{d}"
-                return True
-            if len(y) == 2 and len(m) == 2 and len(d) == 2:
-                v["birth_date"] = f"20{y}-{m}-{d}"
-                return True
+            d, m, y = bd.split(sep)
+            if len(y) != 4:
+                raise ValueError
+            v["birth_date"] = f"{y}-{m}-{d}"
+            return True
         except Exception:
             pass
-    if "-" in bd:
-        return True
     QMessageBox.warning(parent, "Ошибка",
-                        f"Неверный формат даты: {bd}\nИспользуйте ДД.ММ.ГГГГ или ГГГГ-ММ-ДД")
+                        f"Неверный формат даты: {bd}\nИспользуйте ДД-ММ-ГГГГ (год строго четырёхзначный)")
     return False
 
 
@@ -210,7 +212,7 @@ class ClientsTab(QWidget):
             ("phone", "Телефон *", "text", c.get("phone")),
             ("email", "Email *", "text", c.get("email")),
             ("gender", "Пол", "combo", [("Мужской", "MALE"), ("Женский", "FEMALE"), ("Не указан", "НЕ_УКАЗАН")]),
-            ("birth_date", "Дата рождения", "text", str(c.get("birth_date") or "")),
+            ("birth_date", "Дата рождения (ДД-ММ-ГГГГ)", "text", str(c.get("birth_date") or "")),
         ]
         dlg = FormDialog(f"Клиент: {self._fio(c)}", fields, self)
         if dlg.exec() != FormDialog.DialogCode.Accepted:
