@@ -571,3 +571,21 @@ def force_write_rfid(
         updated_at=credential.updated_at,
     )
 
+@router.post("/rfid/unbind-by-uid")
+def unbind_rfid_by_uid(payload: dict,
+                       current_user=Depends(require_permission("credentials.update")),
+                       db: Session = Depends(get_db)):
+    """Отвязка RFID/браслета по UID (экран «Браслеты/Карты» → «Сброс к заводским»)."""
+    uid = (payload or {}).get("uid")
+    if not uid:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="uid обязателен")
+    cred = db.query(Credential).filter(
+        Credential.credential_value == uid,
+        Credential.credential_type == "RFID",
+    ).first()
+    if not cred:
+        return {"ok": True, "removed": False, "message": "Носитель не привязан"}
+    db.delete(cred)
+    db.commit()
+    return {"ok": True, "removed": True, "credential_id": str(cred.id)}
