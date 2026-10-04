@@ -8,7 +8,7 @@ from uuid import UUID
 # Depends - подключает зависимости,
 # Query - описывает query-параметры,
 # HTTPException - возвращает HTTP-ошибки.
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 # Импорт Session SQLAlchemy для работы с базой данных.
 from sqlalchemy.orm import Session
@@ -69,6 +69,15 @@ from app.services.rbac_service import RBACService
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
+def _validate_email(email: str | None) -> None:
+    """Email обязателен и должен быть в формате name@domain —
+    иначе ломается /auth/me (схема ответа требует валидный email)."""
+    import re as _re
+    if not _re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email or ""):
+        raise HTTPException(status_code=400,
+                            detail="Некорректный email: нужен формат name@domain.ru")
+
+
 # ============================================================
 # SELF-SERVICE: ТЕКУЩИЙ ПОЛЬЗОВАТЕЛЬ
 # ============================================================
@@ -105,6 +114,9 @@ def update_me(
     # Получаем сессию базы данных.
     db: Session = Depends(get_db),
 ):
+    if payload.email:
+        _validate_email(payload.email)
+
     # Создаём сервис пользователей.
     user_service = UserService(db)
 
@@ -225,6 +237,8 @@ def create_user(
     # Получаем сессию базы данных.
     db: Session = Depends(get_db),
 ):
+    _validate_email(payload.email)
+
     # Создаём сервис пользователей.
     user_service = UserService(db)
 
@@ -268,6 +282,9 @@ def update_user(
     # Получаем сессию базы данных.
     db: Session = Depends(get_db),
 ):
+    if payload.email:
+        _validate_email(payload.email)
+
     # Создаём сервис пользователей.
     user_service = UserService(db)
 
