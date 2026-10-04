@@ -16,6 +16,32 @@ class EventLogger:
     
     def __init__(self, db: Session):
         self.db = db
+        self._ensure_table()
+
+    def _ensure_table(self):
+        # Создать ml_events, если ее нет (авто-миграция схемы, как в остальном проекте)
+        ddl = (
+            "CREATE TABLE IF NOT EXISTS ml_events ("
+            " id UUID PRIMARY KEY,"
+            " event_type VARCHAR(50) NOT NULL,"
+            " payload JSONB,"
+            " client_id UUID,"
+            " user_id UUID,"
+            " session_id VARCHAR(100),"
+            " source VARCHAR(50) DEFAULT 'api',"
+            " created_at TIMESTAMPTZ DEFAULT now()"
+            ")"
+        )
+        try:
+            self.db.execute(text(ddl))
+            self.db.execute(text(
+                "CREATE INDEX IF NOT EXISTS idx_ml_events_type ON ml_events(event_type)"))
+            self.db.execute(text(
+                "CREATE INDEX IF NOT EXISTS idx_ml_events_created ON ml_events(created_at)"))
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            print(f"[WARN] ml_events ensure_table failed (ignored): {e}")
     
     def log(self,
         event_type: str,
