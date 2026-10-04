@@ -173,6 +173,8 @@ def _fiscalize(db: Session, driver: str, receipt_type: str, amount: float,
     settings = _get_settings(db)
     fn, sign = _fn(), _sign()
     dto_url = (settings.get("settings") or {}).get("dto_url")
+    if dto_url and not str(dto_url).startswith("http"):
+        dto_url = "http://" + str(dto_url)      # терпим адрес без схемы
     if dto_url and driver == "atol":
         try:
             st_s = settings.get("settings") or {}
