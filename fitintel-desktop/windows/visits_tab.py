@@ -174,8 +174,20 @@ class VisitsTab(QWidget):
         lbl.setText(f"<b style='font-size:24px; color:{theme.fg()};'>{value}</b><br>"
                     f"<span style='font-size:12px; color:{theme.sub()};'>{title}</span>")
 
+    @staticmethod
+    def _entry_dt(row):
+        try:
+            return datetime.fromisoformat(str(row.get("entry_time") or row.get("created_at"))
+                                          .replace("Z", "+00:00"))
+        except Exception:
+            return datetime.min
+
     def _on_loaded(self, visits: list, stats: dict, cmap: dict):
-        self._all_data = visits
+        # Сначала активные (они всегда новее), внутри групп — по времени входа, свежие сверху
+        self._all_data = sorted(
+            visits,
+            key=lambda r: (str(r.get("status")) != "ACTIVE", -VisitsTab._entry_dt(r).timestamp()
+                           if VisitsTab._entry_dt(r) != datetime.min else 0))
         self._cmap = cmap
         self._card(self.lbl_today, "Сегодня", stats.get("today", stats.get("today_count", 0)))
         self._card(self.lbl_week, "Неделя", stats.get("week", stats.get("week_count", 0)))
