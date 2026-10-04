@@ -192,7 +192,7 @@ class VisitsTab(QWidget):
         self._card(self.lbl_today, "Сегодня", stats.get("today", stats.get("today_count", 0)))
         self._card(self.lbl_week, "Неделя", stats.get("week", stats.get("week_count", 0)))
         self._card(self.lbl_month, "Месяц", stats.get("month", stats.get("month_count", 0)))
-        self._render(visits)
+        self._render(self._all_data)   # <-- отсортированный список, а не исходный visits
 
     def _render(self, rows: list):
         self._visible = rows
