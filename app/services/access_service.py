@@ -11,6 +11,7 @@ from app.models.device import Device
 from app.models.subscription import Subscription
 from app.models.visit import Visit
 from app.models.locker_session import LockerSession
+from app.models.locker_privilege import LockerPrivilege
 from app.schemas.access import (
     AccessCheckResponse,
     AccessGrantResponse,
@@ -203,47 +204,57 @@ class AccessService:
     # ПРОВЕРКА ДОСТУПА
     # ==========================================================
     
+    def _has_valid_privilege(self, client_id, locker_type: str) -> bool:
+        """Есть ли у клиента действующая привилегия (VIP / RENTAL) на сегодня."""
+        today = date.today()
+        return self.db.query(LockerPrivilege).filter(
+            LockerPrivilege.client_id == client_id,
+            LockerPrivilege.locker_type == locker_type,
+            LockerPrivilege.valid_from <= today,
+        ).filter(
+            (LockerPrivilege.valid_until.is_(None)) | (LockerPrivilege.valid_until >= today)
+        ).first() is not None
+
     def _check_locker_on_exit(self, client_id: str) -> dict:
         """
-        Проверить, можно ли клиенту выйти с занятым шкафчиком.
-        
-        VIP клиенты могут выходить с занятым шкафчиком.
-        Остальные должны освободить шкафчик перед выходом.
-        
+        Проверить, можно ли клиенту выйти при закрытых шкафчиках.
+
+        Схема клуба:
+        - выход БЛОКИРУЕТСЯ, если закрыт обычный (бесплатный) шкафчик —
+          клиент обязан открыть его браслетом до выхода;
+        - ИСКЛЮЧЕНИЕ: арендованный шкафчик (привилегия RENTAL), VIP-клиент
+          или привилегированный шкафчик (requires_privilege) — выход разрешён.
+
         Returns:
             {"can_exit": True} — можно выходить
-            {"can_exit": False, "reason": "..."} — нельзя выходить
+            {"can_exit": False, "reason": "..."} — нельзя
         """
-        from app.models.locker import Locker
-        from app.models.locker_session import LockerSession
-        
-        # Ищем активную сессию шкафчика клиента
-        session = (
+        sessions = (
             self.db.query(LockerSession)
-            .filter(LockerSession.client_id == client_id, LockerSession.status == "ACTIVE")
-            .first()
+            .filter(LockerSession.client_id == client_id,
+                    LockerSession.status == "ACTIVE")
+            .all()
         )
-        
-        if not session:
-            # Нет занятого шкафчика — можно выходить
+        if not sessions:
             return {"can_exit": True}
-        
-        # Проверяем шкафчик
-        locker = self.db.query(Locker).filter(Locker.id == session.locker_id).first()
-        if not locker:
-            return {"can_exit": True}
-        
-        # VIP клиенты могут выходить с занятым шкафчиком
-        client = self.db.query(Client).filter(Client.id == client_id).first()
-        if client and client.client_category == "VIP":
-            return {"can_exit": True}
-        
-        # Обычный шкафчик занят — нельзя выходить!
-        return {
-            "can_exit": False,
-            "reason": f"Шкафчик {locker.number} занят. Освободите шкафчик перед выходом.",
-        }
-    
+
+        is_vip = self._has_valid_privilege(client_id, "VIP")
+        is_rental = self._has_valid_privilege(client_id, "RENTAL")
+
+        for s in sessions:
+            locker = self.db.query(Locker).filter(Locker.id == s.locker_id).first()
+            if locker and locker.requires_privilege:
+                continue                      # привилегированный шкафчик — не блокирует
+            if is_vip or is_rental:
+                continue                      # арендатор/VIP — выходит с закрытым шкафчиком
+            number = locker.number if locker else str(s.locker_id)
+            return {
+                "can_exit": False,
+                "reason": (f"Шкафчик №{number} закрыт. Приложите браслет к замку "
+                           f"шкафчика и выйдите повторно."),
+            }
+        return {"can_exit": True}
+
     def _get_active_visit(self, client_id: str):
         """Получить активное посещение клиента"""
         from app.models.visit import Visit
@@ -446,21 +457,14 @@ class AccessService:
                 reason="Клиент не найден",
             )
     
-        # Проверка: есть ли активный ONLINE шкафчик?
-        active_locker_session = self.db.query(LockerSession).filter(
-            LockerSession.client_id == client.id,
-            LockerSession.status == "ACTIVE",
-            LockerSession.lock_type == "ONLINE",
-        ).first()
-    
-        if active_locker_session:
-            locker = self.db.query(Locker).filter(Locker.id == active_locker_session.locker_id).first()
-            locker_number = locker.number if locker else "неизвестен"
+        # Проверка закрытых шкафчиков (блок выхода; аренда/VIP — исключение)
+        locker_check = self._check_locker_on_exit(client.id)
+        if not locker_check["can_exit"]:
             return AccessExitResponse(
                 success=False,
-                reason=f"Закройте онлайн шкафчик №{locker_number} перед выходом",
+                reason=locker_check["reason"],
             )
-    
+
         # Ищем активное посещение
         active_visit = self.db.query(Visit).filter(
             Visit.client_id == client.id,
@@ -495,6 +499,7 @@ class AccessService:
         credential: str,
         device_id: str,
         zone: str | None = None,
+        access_method: AccessMethod | None = None,
     ) -> AccessOpenResponse:
         """
         Открыть турникет по карте/QR (E9.1-3).
@@ -562,6 +567,7 @@ class AccessService:
             credential=credential,
             device_id=device_id,
             zone=zone,
+            access_method=access_method,
         )
         
         return AccessOpenResponse(
