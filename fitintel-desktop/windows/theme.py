@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """FitIntel Pro theme manager: neon electro-punk (dark) + clean light."""
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtGui import QPalette, QColor
 
 DARK = True
 
@@ -16,6 +17,8 @@ N_RED     = "#ff3860"
 N_PURPLE  = "#9d4edd"
 N_TEXT    = "#e8e8ff"
 N_SUB     = "#9a9ac0"
+N_TTIP_BG = "#1e293b"   # фон тултипа
+N_TTIP_FG = "#e2e8f0"   # текст тултипа
 
 # --- light palette ---
 L_BG      = "#f2f4fa"
@@ -27,6 +30,20 @@ L_GREEN   = "#15803d"
 L_RED     = "#dc2626"
 L_TEXT    = "#1a1a2e"
 L_SUB     = "#55556e"
+L_TTIP_BG = "#ffffff"
+L_TTIP_FG = "#1a1a2e"
+
+
+def _tooltip_palette(app):
+    """Qt6 игнорирует QToolTip в stylesheet — цвета задаём через палитру."""
+    pal = app.palette()
+    if DARK:
+        pal.setColor(QPalette.ColorRole.ToolTipBase, QColor(N_TTIP_BG))
+        pal.setColor(QPalette.ColorRole.ToolTipText, QColor(N_TTIP_FG))
+    else:
+        pal.setColor(QPalette.ColorRole.ToolTipBase, QColor(L_TTIP_BG))
+        pal.setColor(QPalette.ColorRole.ToolTipText, QColor(L_TTIP_FG))
+    app.setPalette(pal)
 
 
 def _build(dark):
@@ -91,7 +108,7 @@ QCheckBox::indicator:checked {{ background: {ok_c}; border-color: {ok_c}; }}
 QGroupBox {{ border: 1px solid {accent}; border-radius: 6px; margin-top: 12px; color: {hdr_c}; }}
 QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 4px; }}
 QStatusBar {{ background: {panel}; color: {sub}; border-top: 1px solid {accent}; }}
-QToolTip {{ background: {panel}; color: {text}; border: 1px solid {accent}; padding: 4px 8px; }}
+QToolTip {{ background-color: {N_TTIP_BG if dark else L_TTIP_BG}; color: {N_TTIP_FG if dark else L_TTIP_FG}; border: 1px solid {accent}; padding: 4px 8px; }}
 QSplitter::handle {{ background: {accent}; }}
 QProgressBar {{ background: {panel}; border: 1px solid {accent}; border-radius: 4px; color: {text}; text-align: center; }}
 QProgressBar::chunk {{ background: {accent}; }}
@@ -105,6 +122,7 @@ def set_dark(v):
     qss = _build(DARK)
     if app is not None:
         app.setStyleSheet(qss)
+        _tooltip_palette(app)
         for w in app.allWidgets():
             try:
                 if "FITINTEL_THEME" in (w.styleSheet() or ""):
@@ -131,6 +149,7 @@ def apply(app=None):
     app = app or QApplication.instance()
     if app is not None:
         app.setStyleSheet(_build(DARK))
+        _tooltip_palette(app)
 
 
 def widget_style(*a, **kw):
