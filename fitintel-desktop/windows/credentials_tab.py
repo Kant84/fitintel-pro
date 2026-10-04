@@ -6,7 +6,7 @@ import json, urllib.request
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTableWidget, QTableWidgetItem, QMessageBox, QComboBox,
     QLineEdit, QGroupBox, QFormLayout, QSpinBox, QPlainTextEdit,
-    QTabWidget, QSplitter, QFrame, QDialog, QTextEdit)
+    QTabWidget, QSplitter, QFrame, QDialog, QTextEdit, QCheckBox)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 
@@ -213,6 +213,12 @@ class CredentialsTab(QWidget):
         b_reset.setToolTip("Полный сброс Mifare — factory default")
         b_reset.clicked.connect(self._reset_card)
         btn_grid.addWidget(b_reset)
+        b_rent = QPushButton("🔑  Аренда шкафчика")
+        b_rent.setStyleSheet(BTN_WARNING)
+        b_rent.setToolTip("Выдать/продлить или снять аренду шкафчика для выбранного клиента.\n"
+                          "Арендатор может выходить из клуба с закрытым шкафчиком.")
+        b_rent.clicked.connect(self._rental_dialog)
+        btn_grid.addWidget(b_rent)
         left_lay.addLayout(btn_grid)
 
         self.reader_status = QLabel("🔴  Считыватель не подключён")
@@ -333,6 +339,52 @@ class CredentialsTab(QWidget):
             self._log(self.log, "❌ Ошибка привязки: " + str(msg))
             self.reader_status.setText("🔴  Ошибка записи")
             self.reader_status.setStyleSheet("color: #ef4444; font-weight: 600;")
+
+    def _rental_dialog(self):
+        """Выдача/продление/снятие аренды шкафчика (привилегия RENTAL на сервере)."""
+        if not self._current_client_id:
+            QMessageBox.warning(self, "Клиент", "Сначала выберите клиента")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("🔑 Аренда шкафчика")
+        dlg.setMinimumWidth(380)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(10)
+        lay.addWidget(QLabel("Клиент: <b>" + self.lbl_name.text() + "</b>"))
+        chk = QCheckBox("Аренда шкафчика активна")
+        chk.setChecked(True)
+        lay.addWidget(chk)
+        lay.addWidget(QLabel("Действует до (ГГГГ-ММ-ДД, пусто = бессрочно):"))
+        ed = QLineEdit()
+        ed.setPlaceholderText("например 2027-10-04")
+        lay.addWidget(ed)
+        btns = QHBoxLayout()
+        b_ok = QPushButton("💾  Сохранить")
+        b_ok.setStyleSheet(BTN_SUCCESS)
+        b_cancel = QPushButton("Отмена")
+        b_cancel.setStyleSheet(BTN_SECONDARY)
+        btns.addWidget(b_ok)
+        btns.addWidget(b_cancel)
+        lay.addLayout(btns)
+        b_ok.clicked.connect(dlg.accept)
+        b_cancel.clicked.connect(dlg.reject)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        valid_until = ed.text().strip() or None
+        r = self._req("POST", "/credentials/locker-privilege", {
+            "client_id": str(self._current_client_id),
+            "locker_type": "RENTAL",
+            "enabled": chk.isChecked(),
+            "valid_until": valid_until,
+        })
+        if isinstance(r, dict) and "_err" not in r:
+            if r.get("enabled"):
+                term = ", до " + valid_until if valid_until else ", бессрочно"
+                self._log(self.log, "✅ Аренда выдана" + term + ": " + self.lbl_name.text())
+            else:
+                self._log(self.log, "✅ Аренда снята: " + self.lbl_name.text())
+        else:
+            self._log(self.log, "❌ Ошибка аренды: " + str(r.get("_body", r)))
 
     def _clear_uid_cache(self, uid):
         """Убирает UID из rfid_uid_cache.json (виджет RFID Монитор)."""
