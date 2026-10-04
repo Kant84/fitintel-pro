@@ -124,6 +124,7 @@ def _shift_totals(db: Session, opened_at) -> tuple:
                             THEN -amount ELSE 0 END), 0) AS card
         FROM payments
         WHERE status = 'COMPLETED'
+          AND COALESCE(payment_direction,'INCOMING') <> 'REFUND'
           AND COALESCE(completed_at, created_at) >= :opened_at
     """), {"opened_at": opened_at}).first()
     return float(r[0] or 0), float(r[1] or 0)
@@ -490,3 +491,10 @@ def z_report(db: Session = Depends(get_db), user=Depends(get_current_user)):
 @router.post("/test/drivers")
 def test_drivers(payload: DriversRequest, user=Depends(require_roles("admin"))):
     """Эмуляция доступности драйверов ФР (только для тестов!)"""
+
+    """Эмуляция доступности драйверов ФР (только для тестов!)"""
+    if payload.atol is not None:
+        _DRIVERS["atol"] = payload.atol
+    if payload.shtrih is not None:
+        _DRIVERS["shtrih"] = payload.shtrih
+    return {"drivers": _DRIVERS}
