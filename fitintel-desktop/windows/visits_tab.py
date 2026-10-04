@@ -24,6 +24,42 @@ def _local(s):
         return str(s)[:16]
 
 
+def _friendly_error(e) -> str:
+    """Сырое исключение requests -> понятный текст для оператора (без URL и кодов)."""
+    resp = getattr(e, "response", None)
+    if resp is not None:
+        detail = None
+        try:
+            data = resp.json()
+            if isinstance(data, dict):
+                detail = data.get("detail")
+                if isinstance(detail, list):          # pydantic 422: список полей
+                    parts = [f"{(d.get('loc') or [''])[-1]}: {d.get('msg')}"
+                             for d in detail if isinstance(d, dict)]
+                    detail = "; ".join(parts) or None
+        except Exception:
+            pass
+        code = resp.status_code
+        if code == 409:
+            return detail or "Клиент уже в клубе (есть активный визит)"
+        if code == 404:
+            return detail or "Объект не найден на сервере"
+        if code == 422:
+            return f"Неверные данные: {detail or 'проверьте заполнение полей'}"
+        if code == 401:
+            return "Сессия истекла — выйдите из программы и войдите снова"
+        if code == 403:
+            return detail or "Недостаточно прав для этой операции"
+        if code >= 500:
+            return "Ошибка сервера. Попробуйте ещё раз; если повторится — сообщите администратору"
+        return detail or f"Ошибка ({code})"
+    text = str(e)
+    low = text.lower()
+    if any(k in low for k in ("connection", "timeout", "unreachable", "timed out")):
+        return "Нет связи с сервером. Проверьте сеть/интернет и попробуйте снова"
+    return text
+
+
 class LoadVisitsWorker(QThread):
     finished = pyqtSignal(list, dict, dict)
     error = pyqtSignal(str)
@@ -222,7 +258,8 @@ class VisitsTab(QWidget):
             self._open_turnstile("entry")
             self.refresh()
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка входа", str(e))
+            QMessageBox.warning(self, "Вход не выполнен", _friendly_error(e))
+            self.refresh()   # при 409 в списке уже есть активный визит — покажем его
 
     # ============ ВЫПУСТИТЬ (выход) ============
     def _checkout(self):
@@ -252,7 +289,7 @@ class VisitsTab(QWidget):
             QMessageBox.information(self, "Готово", f"{fio} выпущен, визит закрыт")
             self.refresh()
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка выхода", str(e))
+            QMessageBox.warning(self, "Выход не выполнен", _friendly_error(e))
 
     # ============ ЗАВЕРШИТЬ (без турникета) ============
     def _complete_selected(self):
@@ -280,8 +317,9 @@ class VisitsTab(QWidget):
             r.raise_for_status()
             self.refresh()
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", str(e))
+            QMessageBox.warning(self, "Не удалось завершить", _friendly_error(e))
 
     def _on_error(self, msg: str):
         self.table.setRowCount(1)
-        self.table.setItem(0, 0, QTableWidgetItem(f"Ошибка загрузки: {msg}"))
+        short = msg if len(msg) < 120 else msg[:117] + "..."
+        self.table.setItem(0, 0, QTableWidgetItem("Не удалось загрузить данные: " + short))
