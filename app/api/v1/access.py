@@ -84,6 +84,7 @@ def grant_access(
         zone=payload.zone,
         override=payload.override,
         override_by_user_id=payload.override_by_user_id,
+        access_method=getattr(payload, "access_method", None),
     )
 
 
@@ -172,6 +173,7 @@ def open_access(
         credential=payload.credential,
         device_id=payload.device_id,
         zone=payload.zone,
+        access_method=getattr(payload, "access_method", None),
     )
 
 
