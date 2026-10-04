@@ -121,6 +121,10 @@ def set_dark(v):
     app = QApplication.instance()
     qss = _build(DARK)
     if app is not None:
+        try:
+            app.setStyle("Fusion")
+        except Exception:
+            pass
         app.setStyleSheet(qss)
         _tooltip_palette(app)
         for w in app.allWidgets():
@@ -148,6 +152,11 @@ def is_dark():
 def apply(app=None):
     app = app or QApplication.instance()
     if app is not None:
+        # Fusion рисует тултипы сам (нативный windowsvista игнорирует палитру) — без него тултип белый
+        try:
+            app.setStyle("Fusion")
+        except Exception:
+            pass
         app.setStyleSheet(_build(DARK))
         _tooltip_palette(app)
 

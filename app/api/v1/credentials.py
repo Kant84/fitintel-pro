@@ -589,3 +589,30 @@ def unbind_rfid_by_uid(payload: dict,
     db.delete(cred)
     db.commit()
     return {"ok": True, "removed": True, "credential_id": str(cred.id)}
+    
+@router.post("/locker-privilege")
+def set_locker_privilege(payload: dict,
+                         current_user=Depends(require_permission("credentials.update")),
+                         db: Session = Depends(get_db)):
+    """Выдача/продление/снятие привилегии шкафчика (RENTAL / VIP)."""
+    from app.models.locker_privilege import LockerPrivilege
+    from datetime import date as _date
+    client_id = payload.get("client_id")
+    ltype = str(payload.get("locker_type") or "RENTAL").upper()
+    if not client_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="client_id обязателен")
+    valid_until = payload.get("valid_until") or None   # "YYYY-MM-DD" или None
+    db.query(LockerPrivilege).filter(
+        LockerPrivilege.client_id == client_id,
+        LockerPrivilege.locker_type == ltype,
+    ).delete(synchronize_session="fetch")
+    enabled = bool(payload.get("enabled", True))
+    if enabled:
+        db.add(LockerPrivilege(
+            client_id=client_id, locker_type=ltype,
+            valid_from=_date.today(), valid_until=valid_until,
+            issued_by_user_id=current_user.id,
+        ))
+    db.commit()
+    return {"ok": True, "enabled": enabled, "locker_type": ltype}    
