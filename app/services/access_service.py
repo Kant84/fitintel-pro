@@ -1,4 +1,4 @@
-# app/services/access_service.py
+## app/services/access_service.py
 
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional, Tuple
@@ -390,11 +390,6 @@ class AccessService:
                 client_name=f"{client.first_name} {client.last_name}",
             )
 
-        if access_method is not None and not isinstance(access_method, AccessMethod):
-            try:
-                access_method = AccessMethod(str(access_method).upper())
-            except ValueError:
-                access_method = None
         if access_method is None:
             access_method = AccessMethod.OVERRIDE if override else AccessMethod.QR
         subscription = self._get_active_subscription(client.id)
@@ -452,6 +447,7 @@ class AccessService:
         self,
         credential: str,
         device_id: str,
+        card_locker: int | None = None,
     ) -> AccessExitResponse:
         """Обработка выхода. Завершает активное посещение."""
         client = self._find_client_by_credential(credential)
@@ -462,13 +458,25 @@ class AccessService:
                 reason="Клиент не найден",
             )
     
-        # Проверка закрытых шкафчиков (блок выхода; аренда/VIP — исключение)
-        locker_check = self._check_locker_on_exit(client.id)
-        if not locker_check["can_exit"]:
-            return AccessExitResponse(
-                success=False,
-                reason=locker_check["reason"],
-            )
+        # Проверка закрытых шкафчиков (блок выхода; аренда/VIP — исключение).
+        # Источник истины: данные с самой карты (офлайн-замки Kerong пишут номер
+        # шкафчика на браслет) либо ACTIVE-сессия (онлайн-замки).
+        if card_locker:
+            is_vip = self._has_valid_privilege(client.id, "VIP")
+            is_rental = self._has_valid_privilege(client.id, "RENTAL")
+            if not (is_vip or is_rental):
+                return AccessExitResponse(
+                    success=False,
+                    reason=(f"Шкафчик №{card_locker} закрыт. Приложите браслет к замку "
+                            f"шкафчика и выйдите повторно."),
+                )
+        else:
+            locker_check = self._check_locker_on_exit(client.id)
+            if not locker_check["can_exit"]:
+                return AccessExitResponse(
+                    success=False,
+                    reason=locker_check["reason"],
+                )
 
         # Ищем активное посещение
         active_visit = self.db.query(Visit).filter(
