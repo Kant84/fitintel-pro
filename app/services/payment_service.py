@@ -397,53 +397,61 @@ class PaymentService:
         actor_user_id: str | None = None,
     ) -> PaymentRefundResponse:
         """
-        Возврат платежа.
-        
-        Args:
-            payment_id: ID платежа
-            amount: Сумма возврата (если None — полный возврат)
-            reason: Причина возврата
-            refund_to_balance: Вернуть на баланс кошелька
-            actor_user_id: Кто выполняет возврат
-        
-        Returns:
-            Результат возврата
+        Возврат платежа (E33): полный/частичный; сначала возвратный чек на ККТ.
+
+        Баланс смены:
+        - полный возврат: оригинал → REFUNDED (исключается), платёж-возврат
+          с direction=REFUND (тоже исключается) → нулевой эффект;
+        - частичный: оригинал остаётся COMPLETED (+полная сумма), платёж-возврат
+          с direction=OUTGOING (−сумма возврата) → баланс уменьшается корректно.
         """
         payment = self.repository.get_by_id(payment_id)
-        
+
         if not payment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Платёж не найден"
             )
-        
+
         if payment.status != PaymentStatus.COMPLETED.value:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Невозможно вернуть платёж в статусе {payment.status}"
             )
-        
+
         refund_amount = amount or payment.amount
-        
+
         if refund_amount > payment.amount:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Сумма возврата не может превышать сумму платежа"
             )
-        
-        # Создаём платёж возврата
+
+        is_full = refund_amount >= payment.amount
+
+        # 1. СНАЧАЛА возвратный чек на кассу (54-ФЗ): при закрытой смене
+        #    _fiscalize бросит 400 — возврат НЕ оформится, деньги не тронуты
+        from app.api.v1.fiscal import _fiscalize, _get_settings
+        _fiscalize(self.db, _get_settings(self.db)["driver"], "refund",
+                   float(refund_amount),
+                   payload={"items": [{"name": payment.payment_category or "Возврат",
+                                       "price": float(refund_amount), "quantity": 1}],
+                            "refund_of": str(payment.id)})
+
+        # 2. Платёж возврата
         refund_payment = Payment(
             client_id=payment.client_id,
             amount=refund_amount,
             currency=payment.currency,
             payment_method=payment.payment_method,
+            payment_direction="REFUND" if is_full else "OUTGOING",
             status=PaymentStatus.COMPLETED.value,
             notes=f"Возврат платежа {payment.id}. Причина: {reason}",
             created_by_user_id=actor_user_id,
             paid_at=datetime.now(),
         )
         self.db.add(refund_payment)
-        
+
         # Если возврат на баланс
         if refund_to_balance:
             self.wallet_service.deposit(
@@ -455,17 +463,16 @@ class PaymentService:
                 reference_id=refund_payment.id,
                 actor_user_id=actor_user_id,
             )
-        
-        # Обновляем оригинальный платёж
-        if refund_amount == payment.amount:
+
+        # 3. Оригинал: полный возврат → REFUNDED; частичный → остаётся COMPLETED
+        if is_full:
             payment.status = PaymentStatus.REFUNDED.value
-        else:
-            payment.status = PaymentStatus.REFUNDED.value
-            payment.notes = f"{payment.notes or ''}\nЧастичный возврат: {refund_amount} RUB".strip()
-        
+        payment.notes = (payment.notes or "") + \
+            f"\nВозврат {refund_amount} RUB: {reason}".strip()
+
         self.db.commit()
-        
-        # Создаём чек возврата (после commit, ID сгенерирован)
+
+        # Чек возврата (внутренний номер; фискальный уже пробит на ККТ шагом 1)
         from app.models.receipt import Receipt
         import uuid
         receipt = Receipt(
@@ -481,7 +488,7 @@ class PaymentService:
         self.db.add(receipt)
         self.db.commit()
         self._create_accounting_entry(refund_payment, kind="refund")
-        
+
         self.audit.log(
             action="payment.refunded",
             status="success",
@@ -496,14 +503,14 @@ class PaymentService:
                 "refund_to_balance": refund_to_balance,
             },
         )
-        
+
         return PaymentRefundResponse(
             success=True,
             refund_id=refund_payment.id,
             refunded_amount=refund_amount,
             message=f"Возврат на сумму {refund_amount} RUB выполнен успешно",
         )
-    
+
     # ==========================================================
     # ОНЛАЙН-ПЛАТЕЖИ (ЭКВАЙРИНГ)
     # ==========================================================
