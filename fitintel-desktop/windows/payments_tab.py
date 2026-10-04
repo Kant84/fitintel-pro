@@ -143,8 +143,13 @@ class PaymentsTab(QWidget):
         b_open.setToolTip("Открыть смену на фискальном регистраторе (АТОЛ ДТО)")
         b_open.clicked.connect(lambda: self._shift("open"))
         b_close = QPushButton("🔒 Закрыть смену")
-        b_close.setToolTip("Закрыть смену: будет показан отчёт (нал / безнал)")
+        b_close.setToolTip("Закрыть смену (Z-отчёт): итоги, гашение, остаток в «не снятый»")
         b_close.clicked.connect(lambda: self._shift("close"))
+        b_x = QPushButton("📊 X-отчёт")
+        b_x.setToolTip("Промежуточный отчёт БЕЗ закрытия смены: итоги нал/безнал. "
+                       "Используйте при смене кассиров днём — уходящий снимает X, "
+                       "приходящий сверяет деньги, смена продолжается.")
+        b_x.clicked.connect(self.x_report)
         b_wd = QPushButton("💵 Снятие кассы")
         b_wd.setToolTip("Бухгалтер снимает остаток прошлых смен (обнуляет)")
         b_wd.clicked.connect(self.cash_withdrawal)
@@ -153,7 +158,7 @@ class PaymentsTab(QWidget):
         b_set = QPushButton("⚙ Настройки кассы")
         b_set.setToolTip("Адрес АТОЛ, логин/пароль ДТО, ОФД — вместо ручных команд на сервере")
         b_set.clicked.connect(self.fiscal_settings)
-        for b in (b_open, b_close, b_wd, b_check, b_set):
+        for b in (b_open, b_close, b_x, b_wd, b_check, b_set):
             bar2.addWidget(b)
         bar2.addStretch(1)
         v.addLayout(bar2)
@@ -164,7 +169,8 @@ class PaymentsTab(QWidget):
 
         hint = QLabel("Отмена = возврат полной суммы (отдельного endpoint "
                       "отмены в API нет). Возврат — полный или частичный. "
-                      "Фискальный чек пробивается автоматически при «✓ Подтвердить».")
+                      "Чек пробивается автоматически при «✓ Подтвердить». "
+                      "«🔒 Закрыть смену» = Z-отчёт, «📊 X-отчёт» — сверка без закрытия.")
         hint.setStyleSheet("color: #888;")
         v.addWidget(hint)
 
@@ -237,6 +243,22 @@ class PaymentsTab(QWidget):
                        _money(d.get("prev_cash")), _money(d.get("prev_card"))))
             else:
                 self._show("Смена открыта.")
+            self._shift_status()
+        self._run(_do, _done)
+
+    def x_report(self):
+        """X-отчёт: итоги смены БЕЗ закрытия (сверка при пересменке)."""
+        def _do():
+            r = self.api.session.post(self._fiscal_url("/x-report"), timeout=30)
+            r.raise_for_status()
+            return r.json()
+        def _done(d):
+            d = d if isinstance(d, dict) else {}
+            QMessageBox.information(self, "X-отчёт (без закрытия смены)",
+                "Итоги текущей смены:\n"
+                "  Наличные: %s\n  Безнал: %s\n\n"
+                "Смена остаётся ОТКРЫТОЙ — продажи продолжаются."
+                % (_money(d.get("cash_total")), _money(d.get("card_total"))))
             self._shift_status()
         self._run(_do, _done)
 
