@@ -390,6 +390,11 @@ class AccessService:
                 client_name=f"{client.first_name} {client.last_name}",
             )
 
+        if access_method is not None and not isinstance(access_method, AccessMethod):
+            try:
+                access_method = AccessMethod(str(access_method).upper())
+            except ValueError:
+                access_method = None
         if access_method is None:
             access_method = AccessMethod.OVERRIDE if override else AccessMethod.QR
         subscription = self._get_active_subscription(client.id)
