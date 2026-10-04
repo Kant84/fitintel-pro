@@ -206,9 +206,12 @@ class VisitService:
         )
     
     def _ensure_timezone_aware(self, dt: datetime) -> datetime:
-        """Добавляет UTC часовой пояс, если его нет"""
+        """Привести datetime к aware-UTC.
+        Наивное время (без пояса) трактуем как ЛОКАЛЬНОЕ сервера/клиента
+        и пересчитываем в UTC — иначе разница с UTC-временем входа
+        раздувается на сдвиг пояса (у Москвы +3ч -> duration_minutes +180)."""
         if dt.tzinfo is None:
-            return dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
         return dt
     
     def _calculate_duration(self, entry_time: datetime, exit_time: datetime) -> int:
