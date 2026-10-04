@@ -514,5 +514,28 @@ try:
         TAB_REGISTRY["audit"] = ("История", AuditTab)
         print("E71 audit tab OK")
 except Exception as _e71:
-    print("E71 audit tab FAIL:", _e71)    
-    
+    print("E71 audit tab FAIL:", _e71)
+
+
+# === SELF PASSWORD CHANGE: пункт меню «Файл» ===
+try:
+    from windows.change_password_self_dialog import ChangePasswordSelfDialog
+    _orig_init_pw = MainWindow.__init__
+    def _mw_init_pw(self, *a, **kw):
+        _orig_init_pw(self, *a, **kw)
+        try:
+            from PyQt6.QtGui import QAction
+            act = QAction("🔑 Сменить пароль…", self)
+            act.setToolTip("Смена своего пароля (self-service)")
+            act.triggered.connect(
+                lambda: ChangePasswordSelfDialog(self.api, self.token, self).exec())
+            for a_ in self.menuBar().actions():
+                if a_.text().strip().lower().startswith("файл"):
+                    a_.menu().addAction(act)
+                    break
+        except Exception as e:
+            print("pwd change menu:", e)
+    MainWindow.__init__ = _mw_init_pw
+    print("Self password change OK")
+except Exception as e:
+    print("Self password change FAIL:", e)
