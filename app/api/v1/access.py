@@ -112,6 +112,7 @@ def exit_access(
     return service.exit_access(
         credential=payload.credential,
         device_id=payload.device_id,
+        card_locker=getattr(payload, "card_locker", None),
     )
 
 

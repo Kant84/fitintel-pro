@@ -106,6 +106,12 @@ class AccessExitRequest(BaseModel):
         max_length=255,
         description="ID турникета/терминала",
     )
+    card_locker: int | None = Field(
+        default=None,
+        ge=0,
+        le=65535,
+        description="Номер закрытого шкафчика, прочитанный с карты (0/None = шкафчик не закрыт)",
+    )
 
 class AccessExitResponse(BaseModel):
     """Схема ответа на выход"""
