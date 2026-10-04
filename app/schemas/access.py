@@ -71,6 +71,12 @@ class AccessGrantRequest(BaseModel):
         default=None,
         description="ID менеджера (при override)",
     )
+    access_method: str | None = Field(
+        default=None,
+        max_length=20,
+        description="Способ входа: QR, RFID, FACE_ID, MANUAL (None = авто)",
+        examples=["RFID"],
+    )
 
 
 class AccessGrantResponse(BaseModel):
@@ -134,6 +140,12 @@ class AccessOpenRequest(BaseModel):
         max_length=100,
         description="Зона: GYM, POOL, STUDIO, LOCKER, SPA, SOLARIUM",
         examples=["GYM"],
+    )
+    access_method: str | None = Field(
+        default=None,
+        max_length=20,
+        description="Способ входа: QR, RFID, FACE_ID (None = авто)",
+        examples=["RFID"],
     )
 
 
