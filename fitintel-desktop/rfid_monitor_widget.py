@@ -42,6 +42,19 @@ def api_post(endpoint, payload, timeout=3):
         return {"_err": str(e)}
 
 
+def api_get(endpoint, timeout=3):
+    try:
+        headers = {}
+        if _GLOBAL_TOKEN:
+            headers["Authorization"] = "Bearer " + _GLOBAL_TOKEN
+        import urllib.request as _u
+        with _u.urlopen(_u.Request(_api_base() + endpoint, headers=headers),
+                        timeout=timeout) as resp:
+            return json.loads(resp.read().decode())
+    except Exception as e:
+        return {"_err": str(e)}
+
+
 def _load_cache():
     if os.path.exists(CACHE_FILE):
         try:
@@ -77,6 +90,12 @@ class PollThread(QThread):
                         if "_err" not in scan and scan.get("found"):
                             name = scan.get("full_name", "")
                     info["client"] = name
+                    # Статус аренды шкафчика (Rental) по UID
+                    rental = api_get(f"/credentials/locker-privilege/by-uid/{uid}")
+                    if "_err" not in rental and rental.get("has_privilege"):
+                        info["rental"] = rental.get("valid_until") or "бессрочно"
+                    else:
+                        info["rental"] = None
                     self.card.emit(info)
                 else:
                     self.card.emit({})
@@ -88,7 +107,7 @@ class RFIDMonitorWidget(QWidget):
         super().__init__(parent, Qt.WindowType.Tool
                          | Qt.WindowType.FramelessWindowHint
                          | Qt.WindowType.WindowStaysOnTopHint)
-        self.setMinimumSize(400, 260)
+        self.setMinimumSize(400, 290)
         self.setStyleSheet(
             "background-color: #0f172a; color: #e2e8f0;"
             " border-radius: 12px; border: 2px solid #334155;")
@@ -157,6 +176,11 @@ class RFIDMonitorWidget(QWidget):
         self.lbl_client.setStyleSheet("color: #e2e8f0;")
         lay.addWidget(self.lbl_client)
 
+        self.lbl_rental = QLabel("Аренда шкафчика: —")
+        self.lbl_rental.setFont(QFont("Segoe UI", 12))
+        self.lbl_rental.setStyleSheet("color: #94a3b8;")
+        lay.addWidget(self.lbl_rental)
+
         self.lbl_raw = QLabel("")
         self.lbl_raw.setFont(QFont("Consolas", 9))
         self.lbl_raw.setStyleSheet("color: #475569;")
@@ -186,6 +210,14 @@ class RFIDMonitorWidget(QWidget):
         else:
             self.lbl_client.setText("Клиент: Неизвестный")
             self.lbl_client.setStyleSheet("color: #ef4444;")
+        rental = info.get("rental")
+        if rental:
+            term = "" if rental == "бессрочно" else f"до {rental}"
+            self.lbl_rental.setText("🔑 Аренда шкафчика: " + (term or rental))
+            self.lbl_rental.setStyleSheet("color: #f59e0b; font-weight: 600;")
+        else:
+            self.lbl_rental.setText("Аренда шкафчика: нет")
+            self.lbl_rental.setStyleSheet("color: #64748b;")
         self.lbl_raw.setText("block_1: " + block1)
 
         self._restore_or_default_pos()
