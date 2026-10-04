@@ -150,6 +150,27 @@ class RBACGuardService:
                 detail="Нельзя снять последнего admin пользователя.",
             )
 
+    def check_can_add_permission_to_role(
+        self,
+        role: Role,
+        permission: Permission,
+    ) -> None:
+        """
+        Проверка безопасного добавления permission к роли.
+
+        Добавление права в целом безопасно (это расширение доступа), но:
+        - служебная роль 'device' не должна получать критичные права
+          (защита от случайного повышения служебных учёток);
+        - у критичных ролей (admin/owner/device) расширение протоколируется
+          сервисом аудита отдельно — здесь только явные запреты.
+        """
+
+        if role.code == "device" and self._is_critical_permission(permission):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Нельзя выдать критичное право '{permission.code}' служебной роли 'device'.",
+            )
+
     def check_can_remove_permission_from_role(
         self,
         role: Role,
