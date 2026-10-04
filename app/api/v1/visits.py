@@ -98,7 +98,8 @@ def entry(
         qr_payload=payload.qr_payload,
         face_confidence=payload.face_confidence,
     )
-        # E60: трекинг для ML
+        # E60: трекинг для ML. ВАЖНО: при ошибке логгера откатываем транзакцию,
+        # иначе aborted-транзакция уронит сборку ответа (500 после создания визита).
     try:
         from app.ml.event_logger import EventLogger
         EventLogger(db).log("visit_entry", {
@@ -106,8 +107,10 @@ def entry(
             "access_method": payload.access_method,
             "zone": payload.zone,
         }, user_id=str(current_user.id), source="skud")
-    except Exception:
-        pass
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"[WARN] EventLogger visit_entry failed (ignored): {e}")
     return service._build_response(visit)
 
 
@@ -243,7 +246,8 @@ def manual_add_visit(
         data=payload,
         actor_user_id=str(current_user.id),
     )
-        # E60: трекинг для ML
+        # E60: трекинг для ML. ВАЖНО: при ошибке логгера откатываем транзакцию,
+        # иначе aborted-транзакция уронит сборку ответа (500 после создания визита).
     try:
         from app.ml.event_logger import EventLogger
         EventLogger(db).log("visit_entry", {
@@ -252,8 +256,10 @@ def manual_add_visit(
             "zone": payload.zone,
             "manual": True,
         }, user_id=str(current_user.id), source="reception")
-    except Exception:
-        pass
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"[WARN] EventLogger visit_entry failed (ignored): {e}")
     return service._build_response(visit)
 
 
