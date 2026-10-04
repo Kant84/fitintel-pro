@@ -65,6 +65,31 @@ def _check_driver(name: str):
         raise HTTPException(status_code=503, detail=f"{'АТОЛ' if name == 'atol' else 'Штрих-М'} недоступен")
 
 
+# Понятные причины типовых ошибок ККТ/сети: ищем ключевые слова в ответе
+# устройства или тексте исключения и подсказываем оператору, ЧТО делать.
+_ERROR_HINTS = (
+    (("paper", "бумаг"),            "Нет бумаги — замените рулон и повторите операцию"),
+    (("paper jam", "замят"),        "Замятие бумаги — извлеките рулон, выровняйте и повторите"),
+    (("shift", "смен"),             "Смена на кассе закрыта или истекла (24 ч) — откройте смену"),
+    (("fn", "фн", "накопит"),       "Ошибка фискального накопителя — закройте смену, проверьте ФН"),
+    (("cover", "крышк"),            "Открыта крышка кассы — закройте и повторите"),
+    (("port", "занят"),             "Порт кассы занят другой программой — закройте её"),
+    (("refused", "недоступн", "no route to host"),
+                                     "Нет связи с кассой — проверьте питание кассы и сеть"),
+    (("timed out", "timeout", "таймаут"),
+                                     "Касса не отвечает (таймаут) — повторите операцию"),
+)
+
+
+def _friendly_kkt_error(source: str) -> str:
+    """Перевод сырой ошибки кассы/сети в понятную причину с подсказкой."""
+    s = (source or "").lower()
+    for keys, text in _ERROR_HINTS:
+        if any(k in s for k in keys):
+            return text
+    return "Ошибка кассы: %s" % (source or "неизвестная")[:100]
+
+
 # ---------- E33: авто-миграция схемы ----------
 
 _DDL_DONE = False
@@ -192,14 +217,15 @@ def _fiscalize(db: Session, driver: str, receipt_type: str, amount: float,
             r.raise_for_status()
             res = (r.json().get("results") or [{}])[0]
             if res.get("error"):
-                raise HTTPException(502, f"Касса вернула ошибку: {res.get('error')}")
+                detail = res.get("description") or str(res.get("error"))
+                raise HTTPException(502, _friendly_kkt_error(detail))
             fp = res.get("fiscalParams") or {}
             fn = str(fp.get("fiscalDocumentNumber") or fn)
             sign = str(fp.get("fiscalDocumentSign") or sign)
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(502, f"Касса недоступна: {str(e)[:200]}")
+            raise HTTPException(502, _friendly_kkt_error(str(e)))
     now = datetime.now(timezone.utc)
     _insert(db, "fiscal_receipts", {
         "id": str(uuid.uuid4()), "receipt_id": receipt_id, "driver": driver,
@@ -490,8 +516,6 @@ def z_report(db: Session = Depends(get_db), user=Depends(get_current_user)):
 
 @router.post("/test/drivers")
 def test_drivers(payload: DriversRequest, user=Depends(require_roles("admin"))):
-    """Эмуляция доступности драйверов ФР (только для тестов!)"""
-
     """Эмуляция доступности драйверов ФР (только для тестов!)"""
     if payload.atol is not None:
         _DRIVERS["atol"] = payload.atol
