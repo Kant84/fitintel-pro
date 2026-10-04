@@ -616,3 +616,27 @@ def set_locker_privilege(payload: dict,
         ))
     db.commit()
     return {"ok": True, "enabled": enabled, "locker_type": ltype}    
+
+@router.get("/locker-privilege/by-uid/{uid}")
+def get_locker_privilege_by_uid(uid: str, locker_type: str = "RENTAL",
+                                current_user=Depends(require_permission("credentials.read")),
+                                db: Session = Depends(get_db)):
+    """Статус аренды/VIP по UID браслета (для RFID-монитора)."""
+    from app.models.locker_privilege import LockerPrivilege
+    from app.models.credential import Credential
+    from datetime import date as _date
+    cred = db.query(Credential).filter(
+        Credential.credential_value == uid,
+        Credential.status == "ACTIVE").first()
+    if not cred:
+        return {"has_privilege": False, "valid_until": None}
+    today = _date.today()
+    p = db.query(LockerPrivilege).filter(
+        LockerPrivilege.client_id == cred.client_id,
+        LockerPrivilege.locker_type == locker_type.upper(),
+        LockerPrivilege.valid_from <= today,
+    ).filter(
+        (LockerPrivilege.valid_until.is_(None)) | (LockerPrivilege.valid_until >= today)
+    ).first()
+    return {"has_privilege": p is not None,
+            "valid_until": str(p.valid_until) if (p and p.valid_until) else None}
