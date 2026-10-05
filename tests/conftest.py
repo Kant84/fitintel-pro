@@ -44,7 +44,6 @@ app.dependency_overrides[get_db] = override_get_db
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_db():
-    """Создать таблицы перед всеми тестами"""
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
@@ -65,15 +64,15 @@ def client():
 
 @pytest.fixture
 def auth_headers(client, db_session):
-    """Суперпользователь напрямую в БД + вход через JSON /auth/login
-    (form-логин и регистрация в актуальном API изменились — см. activation_dialog)."""
-    import bcrypt as _bc
+    """Суперпользователь напрямую в БД + вход через JSON /auth/login.
+    Хэш — ТЕМ ЖЕ CryptContext, что использует приложение (app.core.security)."""
+    from app.core.security import pwd_context
     from app.models.user import User
     if not db_session.query(User).filter_by(username="testuser").first():
-        h = _bc.hashpw(b"testpass123", _bc.gensalt()).decode()
         db_session.add(User(
             username="testuser", email="test@test.com",
-            password_hash=h, is_active=True, is_superuser=True))
+            password_hash=pwd_context.hash("testpass123"),
+            is_active=True, is_superuser=True))
         db_session.commit()
     resp = client.post("/api/v1/auth/login", json={
         "login": "testuser", "password": "testpass123"})
