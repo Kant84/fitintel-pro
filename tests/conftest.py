@@ -32,6 +32,13 @@ def _uuid_bind_sqlite_safe(self, dialect):
     return _process
 _pg.UUID.bind_processor = _uuid_bind_sqlite_safe
 
+
+import sqlite3
+import uuid as _uuid2
+
+# SQLite: teach sqlite3 to bind UUID objects (client_events и др. String-колонки)
+sqlite3.register_adapter(_uuid2.UUID, lambda u: str(u))
+
 @compiles(JSONB, "sqlite")
 def _jsonb_on_sqlite(element, compiler, **kw):
     return compiler.visit_JSON(element, **kw)
