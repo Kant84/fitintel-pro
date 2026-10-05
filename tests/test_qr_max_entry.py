@@ -126,14 +126,27 @@ class TestMaxQrEntry:
         assert r.status_code == 403
 
     def test_turnstile_rejects_expired_qr(self, client, auth_headers, qr_env):
-        from app.api.v1.dynamic_qr import generate_qr_payload
+        import hashlib
+        import hmac as hmac_mod
+        import time as time_mod
+        from app.core.config import settings
+
         cid = _mk_client(client, auth_headers)
         tid = _mk_tariff(client, auth_headers)
         _mk_subscription(client, auth_headers, cid, tid)
         _bind(client, auth_headers, cid, "777000666")
 
-        past = datetime.now(timezone.utc) - timedelta(minutes=10)
-        payload, _sig, _ = generate_qr_payload(cid, past, 60)   # TTL 60 с, выдан 10 мин назад
+        # payload со старым timestamp (TTL 60 с, «выдан» 10 минут назад)
+        secret = getattr(settings, "QR_SECRET_KEY", "fitintel-qr-secret-2026")
+        ts = int(time_mod.time()) - 600
+        body = {"client_id": cid, "timestamp": ts, "ttl": 60,
+                "expires_at": ts + 60, "jti": uuid.uuid4().hex}
+        sig = hmac_mod.new(secret.encode(),
+                           json.dumps(body, sort_keys=True).encode(),
+                           hashlib.sha256).hexdigest()
+        body["signature"] = sig
+        payload = base64.b64encode(json.dumps(body).encode()).decode()
+
         r = _turnstile(client, payload)
         assert r.status_code == 410
         assert "истёк" in r.json()["detail"].lower()
