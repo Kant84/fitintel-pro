@@ -14,6 +14,19 @@ from app.db.base import Base
 from app.main import app
 from app.db.session import get_db
 
+import sqlalchemy.dialects.postgresql as _pg
+
+_orig_uuid_bind = _pg.UUID.bind_processor
+def _uuid_bind_sqlite_safe(self, dialect):
+    proc = _orig_uuid_bind(self, dialect)
+    if proc is None:
+        return None
+    def _process(value):
+        if isinstance(value, str):
+            return value          # тесты и код передают id строками
+        return proc(value)
+    return _process
+_pg.UUID.bind_processor = _uuid_bind_sqlite_safe
 
 @compiles(JSONB, "sqlite")
 def _jsonb_on_sqlite(element, compiler, **kw):
