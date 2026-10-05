@@ -20,9 +20,6 @@ def fiscal_env(db_session, monkeypatch):
     (боевой _insert ходит в information_schema, которого нет в SQLite).
     Изоляция: кассовые таблицы общие на сессию (StaticPool), поэтому
     перед каждым тестом смены/остаток сбрасываем."""
-    db_session.execute(text("DELETE FROM fiscal_shift"))
-    db_session.execute(text("DELETE FROM fiscal_pending"))
-    db_session.execute(text("INSERT INTO fiscal_pending (id) VALUES (1)"))
     db_session.execute(text(
         "CREATE TABLE IF NOT EXISTS fiscal_shift ("
         " id TEXT PRIMARY KEY, is_open INTEGER DEFAULT 0,"
@@ -33,14 +30,16 @@ def fiscal_env(db_session, monkeypatch):
         "CREATE TABLE IF NOT EXISTS fiscal_pending ("
         " id INTEGER PRIMARY KEY DEFAULT 1, cash NUMERIC DEFAULT 0,"
         " card NUMERIC DEFAULT 0, withdrawn_at TIMESTAMP, withdrawn_by TEXT)"))
-    db_session.execute(
-        text("INSERT INTO fiscal_pending (id) VALUES (1) "
-             "ON CONFLICT(id) DO NOTHING"))
     try:
         db_session.execute(
             text("ALTER TABLE payments ADD COLUMN completed_at TIMESTAMP"))
     except Exception:
         pass  # колонка уже есть
+    db_session.commit()
+    # изоляция: чистим состояние кассы перед тестом (после CREATE!)
+    db_session.execute(text("DELETE FROM fiscal_shift"))
+    db_session.execute(text("DELETE FROM fiscal_pending"))
+    db_session.execute(text("INSERT INTO fiscal_pending (id) VALUES (1)"))
     db_session.commit()
 
     def naive_insert(db, table, data):
