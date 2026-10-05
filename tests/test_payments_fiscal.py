@@ -17,7 +17,12 @@ def admin_headers(auth_headers):
 @pytest.fixture
 def fiscal_env(db_session, monkeypatch):
     """SQLite-окружение кассы: служебные таблицы + наивный _insert
-    (боевой _insert ходит в information_schema, которого нет в SQLite)."""
+    (боевой _insert ходит в information_schema, которого нет в SQLite).
+    Изоляция: кассовые таблицы общие на сессию (StaticPool), поэтому
+    перед каждым тестом смены/остаток сбрасываем."""
+    db_session.execute(text("DELETE FROM fiscal_shift"))
+    db_session.execute(text("DELETE FROM fiscal_pending"))
+    db_session.execute(text("INSERT INTO fiscal_pending (id) VALUES (1)"))
     db_session.execute(text(
         "CREATE TABLE IF NOT EXISTS fiscal_shift ("
         " id TEXT PRIMARY KEY, is_open INTEGER DEFAULT 0,"
