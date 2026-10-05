@@ -141,6 +141,8 @@ def extend_subscription(
     
     return subscription
 
+# обновить абонемент
+@router.patch("/{subscription_id}", response_model=SubscriptionResponse)
 def update_subscription(
     subscription_id: UUID,
     payload: SubscriptionUpdateRequest,
