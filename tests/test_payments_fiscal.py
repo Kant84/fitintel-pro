@@ -9,12 +9,8 @@ from sqlalchemy import text
 
 
 @pytest.fixture
-def admin_headers(client, auth_headers, db_session):
-    """testuser -> is_superuser=True (bypass прав RBAC для кассовых тестов)."""
-    from app.models.user import User
-    u = db_session.query(User).filter_by(username="testuser").first()
-    u.is_superuser = True
-    db_session.commit()
+def admin_headers(auth_headers):
+    """auth_headers уже суперпользователь (см. conftest) — bypass RBAC."""
     return auth_headers
 
 

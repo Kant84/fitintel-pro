@@ -64,17 +64,18 @@ def client():
 
 
 @pytest.fixture
-def auth_headers(client):
-    resp = client.post("/api/v1/auth/register", json={
-        "username": "testuser",
-        "email": "test@test.com",
-        "password": "testpass123",
-        "first_name": "Test",
-        "last_name": "User",
-    })
-    resp = client.post("/api/v1/auth/login", data={
-        "username": "testuser",
-        "password": "testpass123",
-    })
-    token = resp.json().get("access_token", "")
-    return {"Authorization": f"Bearer {token}"}
+def auth_headers(client, db_session):
+    """Суперпользователь напрямую в БД + вход через JSON /auth/login
+    (form-логин и регистрация в актуальном API изменились — см. activation_dialog)."""
+    import bcrypt as _bc
+    from app.models.user import User
+    if not db_session.query(User).filter_by(username="testuser").first():
+        h = _bc.hashpw(b"testpass123", _bc.gensalt()).decode()
+        db_session.add(User(
+            username="testuser", email="test@test.com",
+            password_hash=h, is_active=True, is_superuser=True))
+        db_session.commit()
+    resp = client.post("/api/v1/auth/login", json={
+        "login": "testuser", "password": "testpass123"})
+    assert resp.status_code == 200, resp.text
+    return {"Authorization": "Bearer " + resp.json()["access_token"]}
