@@ -4,7 +4,7 @@
 Роутер: app/api/v1/visits.py (entry/exit/manual/complete/active/stats).
 """
 import uuid
-from datetime import date, datetime, timezone, datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -101,9 +101,11 @@ class TestVisits:
             "entry_time": datetime.now(timezone.utc).isoformat(),
             "access_method": "MANUAL"})
         r = client.get("/api/v1/visits/active", headers=auth_headers)
-        assert r.status_code == 200 and r.json()["count"] >= 1
+        assert r.status_code == 200, r.text
+        assert r.json()["count"] >= 1
         r = client.get("/api/v1/visits/active/count", headers=auth_headers)
-        assert r.status_code == 200 and r.json()["count"] >= 1
+        assert r.status_code == 200, r.text
+        assert r.json()["count"] >= 1
 
     def test_client_visits_history(self, client, auth_headers, visits_env):
         cid = _mk_client(client, auth_headers)
@@ -112,7 +114,8 @@ class TestVisits:
             "entry_time": datetime.now(timezone.utc).isoformat(),
             "access_method": "QR"})
         r = client.get(f"/api/v1/visits/client/{cid}", headers=auth_headers)
-        assert r.status_code == 200 and r.json()["count"] >= 1
+        assert r.status_code == 200, r.text
+        assert r.json()["count"] >= 1
 
     def test_visit_not_found(self, client, auth_headers, visits_env):
         r = client.get(f"/api/v1/visits/{uuid.uuid4()}", headers=auth_headers)
