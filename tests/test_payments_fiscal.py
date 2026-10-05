@@ -53,12 +53,13 @@ def fiscal_env(db_session, monkeypatch):
     return db_session
 
 
-def _mk_client(client, headers):
-    import uuid as _u
-    phone = "+79" + _u.uuid4().hex[:9]   # уникально на тест
+def _mk_client(client, headers, _attempt=0):
+    import random
+    phone = "+79%09d" % random.randint(0, 999999999)   # только цифры, 11 знаков
     r = client.post("/api/v1/clients/", headers=headers, json={
-        "first_name": "Касса", "last_name": "Тестовая",
-        "phone": phone})
+        "first_name": "Касса", "last_name": "Тестовая", "phone": phone})
+    if r.status_code == 409 and _attempt < 5:          # редкое совпадение — повторим
+        return _mk_client(client, headers, _attempt + 1)
     assert r.status_code == 201, r.text
     return r.json()["id"]
 
