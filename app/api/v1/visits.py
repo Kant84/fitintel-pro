@@ -2,7 +2,7 @@
 
 from uuid import UUID
 from datetime import date, datetime
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from app.api.dependencies import require_permission
 from datetime import datetime
