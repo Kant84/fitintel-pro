@@ -142,7 +142,10 @@ class SubscriptionLifecycleService:
         
         # Сдвигаем дату окончания на количество замороженных дней
         if sub.frozen_at:
-            frozen_days = (datetime.now(timezone.utc) - sub.frozen_at).days
+            frozen_at = sub.frozen_at
+            if getattr(frozen_at, "tzinfo", None) is None:
+                frozen_at = frozen_at.astimezone()   # naive -> aware (SQLite отдаёт наивные)
+            frozen_days = (datetime.now(timezone.utc) - frozen_at).days
             if frozen_days > 0:
                 sub.end_date = sub.end_date + timedelta(days=frozen_days)
         
