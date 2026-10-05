@@ -78,6 +78,13 @@ def setup_db():
             " expires_at TIMESTAMP NOT NULL,"
             " revoked BOOLEAN NOT NULL DEFAULT FALSE,"
             " created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"))
+    # auth.py._ensure() выполняет Postgres-DDL (DEFAULT now()) — на SQLite падает.
+    # Таблица уже создана выше, помечаем DDL выполненным:
+    try:
+        from app.api.v1 import auth as _auth_mod
+        _auth_mod._DDL_DONE = True
+    except Exception:
+        pass
     yield
     Base.metadata.drop_all(bind=engine)
 
