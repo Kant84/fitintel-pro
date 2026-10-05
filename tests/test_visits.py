@@ -4,7 +4,7 @@
 Роутер: app/api/v1/visits.py (entry/exit/manual/complete/active/stats).
 """
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone, datetime, timezone
 
 import pytest
 
@@ -37,7 +37,7 @@ def _mk_tariff(client, headers, limit=10):
 
 def _mk_subscription(client, headers, cid, tid):
     r = client.post("/api/v1/subscriptions/", headers=headers, json={
-        "client_id": cid, "tariff_id": tid,
+        "client_id": cid, "tariff_id": tid["id"],
         "start_date": str(date.today()), "status": "ACTIVE"})
     assert r.status_code == 201, r.text
     return r.json()
@@ -52,13 +52,17 @@ class TestVisits:
     def test_manual_visit_and_double_entry_conflict(self, client, auth_headers, visits_env):
         cid = _mk_client(client, auth_headers)
         r = client.post("/api/v1/visits/manual", headers=auth_headers, json={
-            "client_id": cid, "access_method": "MANUAL", "zone": "main"})
+            "client_id": cid,
+            "entry_time": datetime.now(timezone.utc).isoformat(),
+            "access_method": "MANUAL", "zone": "main"})
         assert r.status_code == 201, r.text
         assert r.json()["status"] == "ACTIVE"
         vid = r.json()["id"]
 
         r2 = client.post("/api/v1/visits/manual", headers=auth_headers, json={
-            "client_id": cid, "access_method": "MANUAL", "zone": "main"})
+            "client_id": cid,
+            "entry_time": datetime.now(timezone.utc).isoformat(),
+            "access_method": "MANUAL", "zone": "main"})
         assert r2.status_code == 409
         assert "уже" in r2.json()["detail"].lower()
 
@@ -68,7 +72,9 @@ class TestVisits:
     def test_complete_visit_calculates_duration(self, client, auth_headers, visits_env):
         cid = _mk_client(client, auth_headers)
         vid = client.post("/api/v1/visits/manual", headers=auth_headers, json={
-            "client_id": cid, "access_method": "MANUAL"}).json()["id"]
+            "client_id": cid,
+            "entry_time": datetime.now(timezone.utc).isoformat(),
+            "access_method": "MANUAL"}).json()["id"]
         r = client.post(f"/api/v1/visits/{vid}/complete", headers=auth_headers, json={})
         assert r.status_code == 200, r.text
         d = r.json()
@@ -79,7 +85,9 @@ class TestVisits:
     def test_exit_endpoint(self, client, auth_headers, visits_env):
         cid = _mk_client(client, auth_headers)
         vid = client.post("/api/v1/visits/manual", headers=auth_headers, json={
-            "client_id": cid, "access_method": "RFID"}).json()["id"]
+            "client_id": cid,
+            "entry_time": datetime.now(timezone.utc).isoformat(),
+            "access_method": "RFID"}).json()["id"]
         r = client.post("/api/v1/visits/exit", headers=auth_headers,
                         json={"visit_id": vid})
         assert r.status_code == 200
@@ -88,7 +96,9 @@ class TestVisits:
     def test_active_list_and_count(self, client, auth_headers, visits_env):
         cid = _mk_client(client, auth_headers)
         client.post("/api/v1/visits/manual", headers=auth_headers, json={
-            "client_id": cid, "access_method": "MANUAL"})
+            "client_id": cid,
+            "entry_time": datetime.now(timezone.utc).isoformat(),
+            "access_method": "MANUAL"})
         r = client.get("/api/v1/visits/active", headers=auth_headers)
         assert r.status_code == 200 and r.json()["count"] >= 1
         r = client.get("/api/v1/visits/active/count", headers=auth_headers)
@@ -97,7 +107,9 @@ class TestVisits:
     def test_client_visits_history(self, client, auth_headers, visits_env):
         cid = _mk_client(client, auth_headers)
         client.post("/api/v1/visits/manual", headers=auth_headers, json={
-            "client_id": cid, "access_method": "QR"})
+            "client_id": cid,
+            "entry_time": datetime.now(timezone.utc).isoformat(),
+            "access_method": "QR"})
         r = client.get(f"/api/v1/visits/client/{cid}", headers=auth_headers)
         assert r.status_code == 200 and r.json()["count"] >= 1
 
@@ -122,7 +134,9 @@ class TestVisits:
     def test_stats_today(self, client, auth_headers, visits_env):
         cid = _mk_client(client, auth_headers)
         client.post("/api/v1/visits/manual", headers=auth_headers, json={
-            "client_id": cid, "access_method": "MANUAL"})
+            "client_id": cid,
+            "entry_time": datetime.now(timezone.utc).isoformat(),
+            "access_method": "MANUAL"})
         r = client.get("/api/v1/visits/stats/today", headers=auth_headers)
         assert r.status_code == 200, r.text
         assert r.json()["total_visits"] >= 1
