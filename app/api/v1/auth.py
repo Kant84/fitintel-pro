@@ -325,6 +325,8 @@ def refresh_token(
         raise HTTPException(status_code=401, detail="Невалидный refresh-токен")
     _id, user_id, expires_at, revoked = row
     now = datetime.now(timezone.utc)
+    if isinstance(expires_at, str):            # SQLite/некоторые драйверы отдают строку
+        expires_at = datetime.fromisoformat(expires_at)
     exp = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
     if revoked or exp < now:
         raise HTTPException(status_code=401, detail="Refresh-токен истёк или отозван")
