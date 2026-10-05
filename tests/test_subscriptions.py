@@ -122,7 +122,7 @@ class TestSubscriptionLifecycle:
         r = client.post(f"/api/v1/subscriptions/{sub['id']}/freeze",
                         headers=auth_headers,
                         json={"frozen_until": str(date.today() + timedelta(days=7)),
-                              "reason": "TRAVEL", "notes": "отпуск"})
+                              "reason": "VACATION", "notes": "отпуск"})
         assert r.status_code == 200, r.text
         assert r.json()["status"] == "FROZEN"
 
@@ -174,7 +174,7 @@ class TestSubscriptionLifecycle:
         sub = _mk_subscription(client, auth_headers, cid, tid)
         sid = sub["id"]
         client.post(f"/api/v1/subscriptions/{sid}/freeze", headers=auth_headers,
-                    json={"reason": "TRAVEL"})
+                    json={"reason": "VACATION"})
         client.post(f"/api/v1/subscriptions/{sid}/unfreeze", headers=auth_headers)
         client.post(f"/api/v1/subscriptions/{sid}/cancel", headers=auth_headers,
                     json={"reason": "USER_REQUEST"})
