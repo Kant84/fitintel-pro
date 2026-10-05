@@ -337,6 +337,43 @@ def get_visit_stats(
 
 
 @router.get(
+    "/active",
+    response_model=VisitListResponse,
+    status_code=status.HTTP_200_OK,
+)
+def get_active_visits(
+    zone: str | None = Query(default=None, description="Фильтр по зоне"),
+    current_user=Depends(require_permission("visits.read")),
+    db: Session = Depends(get_db),
+):
+    """
+    Получить список активных посещений (клиенты в клубе).
+    
+    - Возвращает всех клиентов, которые сейчас в клубе
+    - Можно отфильтровать по зоне
+    """
+    service = VisitService(db)
+    return service.get_active_visits(zone=zone)
+
+
+@router.get(
+    "/active/count",
+    status_code=status.HTTP_200_OK,
+)
+def get_active_count(
+    zone: str | None = Query(default=None, description="Фильтр по зоне"),
+    current_user=Depends(require_permission("visits.read")),
+    db: Session = Depends(get_db),
+):
+    """
+    Получить количество клиентов в клубе.
+    """
+    service = VisitService(db)
+    count = service.get_active_count(zone=zone)
+    return {"count": count, "zone": zone}
+
+
+@router.get(
     "/{visit_id}",
     response_model=VisitResponse,
     status_code=status.HTTP_200_OK,
@@ -380,82 +417,10 @@ def get_client_visits(
     )
 
 
-@router.get(
-    "/active",
-    response_model=VisitListResponse,
-    status_code=status.HTTP_200_OK,
-)
-def get_active_visits(
-    zone: str | None = Query(default=None, description="Фильтр по зоне"),
-    current_user=Depends(require_permission("visits.read")),
-    db: Session = Depends(get_db),
-):
-    """
-    Получить список активных посещений (клиенты в клубе).
-    
-    - Возвращает всех клиентов, которые сейчас в клубе
-    - Можно отфильтровать по зоне
-    """
-    service = VisitService(db)
-    return service.get_active_visits(zone=zone)
-
-
-@router.get(
-    "/active/count",
-    status_code=status.HTTP_200_OK,
-)
-def get_active_count(
-    zone: str | None = Query(default=None, description="Фильтр по зоне"),
-    current_user=Depends(require_permission("visits.read")),
-    db: Session = Depends(get_db),
-):
-    """
-    Получить количество клиентов в клубе.
-    """
-    service = VisitService(db)
-    count = service.get_active_count(zone=zone)
-    return {"count": count, "zone": zone}
-
 
 # ==========================================================
 # СТАТИСТИКА
 # ==========================================================
-
-@router.get(
-    "/stats",
-    response_model=VisitStatsResponse,
-    status_code=status.HTTP_200_OK,
-)
-def get_visits_stats(
-    period: str = Query(
-        default="day",
-        description="Период: day, week, month, year",
-        pattern="^(day|week|month|year)$",
-    ),
-    start_date: date = Query(description="Дата начала"),
-    end_date: date | None = Query(default=None, description="Дата окончания"),
-    zone: str | None = Query(default=None, description="Фильтр по зоне"),
-    current_user=Depends(require_permission("visits.read")),
-    db: Session = Depends(get_db),
-):
-    """
-    Получить статистику посещений.
-    
-    - total_visits: общее количество
-    - unique_clients: уникальные клиенты
-    - avg_duration_minutes: средняя длительность
-    - peak_hours: распределение по часам
-    - visits_by_day: распределение по дням
-    - visits_by_zone: распределение по зонам
-    """
-    service = VisitService(db)
-    return service.get_stats(
-        period=period,
-        start_date=start_date,
-        end_date=end_date,
-        zone=zone,
-    )
-
 
 @router.get(
     "/stats/today",
