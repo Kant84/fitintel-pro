@@ -176,7 +176,11 @@ def change_password(
     """Смена пароля + сброс флага is_first_login"""
     auth_service = AuthService(db)
 
-    if not auth_service.authenticate_user(current_user.username, body.current_password):
+    try:
+        pwd_ok = auth_service.authenticate_user(current_user.username, body.current_password)
+    except HTTPException:
+        pwd_ok = None          # неверный текущий пароль ≠ 401 на смене пароля
+    if not pwd_ok:
         raise HTTPException(status_code=400, detail="Неверный текущий пароль")
 
     current_user.password_hash = get_password_hash(body.new_password)
@@ -204,7 +208,6 @@ def change_password(
     db.commit()
     _revoke_user_tokens(db, current_user.id)   # смена пароля = все сеансы завершены
     return {"ok": True, "message": "Пароль изменён"}
-
 
 # ---------------------------------------------------------------- me / checks
 @router.get("/me", response_model=CurrentUserResponse)
