@@ -27,6 +27,11 @@ def fiscal_env(db_session, monkeypatch):
         " cash_total NUMERIC DEFAULT 0, card_total NUMERIC DEFAULT 0,"
         " created_at TIMESTAMP, updated_at TIMESTAMP)"))
     db_session.execute(text(
+        "CREATE TABLE IF NOT EXISTS fiscal_settings ("
+        " id TEXT PRIMARY KEY, driver VARCHAR(50) DEFAULT 'atol',"
+        " port VARCHAR(50), settings TEXT, ofd_provider VARCHAR(50),"
+        " created_at TIMESTAMP, updated_at TIMESTAMP)"))    
+    db_session.execute(text(
         "CREATE TABLE IF NOT EXISTS fiscal_pending ("
         " id INTEGER PRIMARY KEY DEFAULT 1, cash NUMERIC DEFAULT 0,"
         " card NUMERIC DEFAULT 0, withdrawn_at TIMESTAMP, withdrawn_by TEXT)"))
