@@ -4,7 +4,9 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
-from sqlalchemy import create_engine, StaticPool
+from sqlalchemy import create_engine, StaticPool, JSON
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 
@@ -13,7 +15,12 @@ from app.main import app
 from app.db.session import get_db
 
 
-# In-memory SQLite для тестов
+# SQLite не знает Postgres-JSONB — компилируем его как JSON
+@compiles(JSONB, "sqlite")
+def _jsonb_on_sqlite(element, compiler, **kw):
+    return compiler.visit_JSON(element, **kw)
+
+
 TEST_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
@@ -45,7 +52,6 @@ def setup_db():
 
 @pytest.fixture
 def db_session():
-    """Новая сессия БД для каждого теста"""
     session = TestingSessionLocal()
     yield session
     session.rollback()
@@ -54,14 +60,11 @@ def db_session():
 
 @pytest.fixture
 def client():
-    """TestClient для FastAPI"""
     return TestClient(app)
 
 
 @pytest.fixture
 def auth_headers(client):
-    """Получить JWT токен для тестов"""
-    # Регистрация
     resp = client.post("/api/v1/auth/register", json={
         "username": "testuser",
         "email": "test@test.com",
@@ -69,8 +72,6 @@ def auth_headers(client):
         "first_name": "Test",
         "last_name": "User",
     })
-    
-    # Логин
     resp = client.post("/api/v1/auth/login", data={
         "username": "testuser",
         "password": "testpass123",
