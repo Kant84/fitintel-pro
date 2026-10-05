@@ -170,7 +170,43 @@ def _handle_command(db: Session, max_user_id: str, text: str) -> str:
         ).scalar() or 0
         return f"🏋️ Всего посещений: {count}"
 
+    if cmd in ("/qr", "qr", "вход"):
+        return _qr_entry_reply(db, max_user_id)
+
     return "Неизвестная команда. Список команд: /help"
+
+
+def _qr_entry_reply(db: Session, max_user_id: str) -> str:
+    """QR для входа на турникет: привязка -> активный абонемент -> динамический QR."""
+    import os
+    from app.models.dynamic_qr import DynamicQRCode
+    from app.api.v1.dynamic_qr import generate_qr_payload, QR_TTL
+
+    if os.getenv("MAX_QR_ENTRY_ENABLED", "true").lower() not in ("1", "true", "yes"):
+        return "Вход по QR пока отключён администратором."
+
+    link = _find_link(db, max_user_id)
+    if not link:
+        return ("🔐 Для входа по QR привяжите аккаунт: сообщите администратору свой номер телефона, "
+                "он привяжет вас (экран «MAX сообщения → Привязки»).")
+    sub = db.execute(
+        select(Subscription).where(
+            Subscription.client_id == str(link.client_id),
+            Subscription.status == "ACTIVE",
+            Subscription.is_active == True)
+    ).scalars().first()
+    if not sub or str(sub.end_date) < str(date.today()):
+        return "🚫 Нет активного абонемента — продлите на ресепшене, и я сразу выдам QR."
+
+    expires = datetime.now(timezone.utc) + timedelta(seconds=QR_TTL)
+    payload, signature, _ = generate_qr_payload(link.client_id, expires, QR_TTL)
+    db_qr = DynamicQRCode(client_id=link.client_id, qr_payload=payload, signature=signature,
+                          expires_at=expires, is_used=False, max_uses=1)
+    db.add(db_qr)
+    db.commit()
+    minutes = max(1, QR_TTL // 60)
+    return ("🎟 Ваш QR для входа (действует %d мин, одноразовый):\n%s\n"
+            "Покажите его на турникете — турникет откроется автоматически." % (minutes, payload))
 
 
 @router.post("/webhook")
