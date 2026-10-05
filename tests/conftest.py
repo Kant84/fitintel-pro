@@ -4,7 +4,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
-from sqlalchemy import create_engine, StaticPool, JSON
+from sqlalchemy import create_engine, StaticPool, JSON, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
@@ -15,7 +15,6 @@ from app.main import app
 from app.db.session import get_db
 
 
-# SQLite не знает Postgres-JSONB — компилируем его как JSON
 @compiles(JSONB, "sqlite")
 def _jsonb_on_sqlite(element, compiler, **kw):
     return compiler.visit_JSON(element, **kw)
@@ -44,7 +43,17 @@ app.dependency_overrides[get_db] = override_get_db
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_db():
+    """Таблицы моделей + runtime-DDL таблицы (auth_refresh_tokens)."""
     Base.metadata.create_all(bind=engine)
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE IF NOT EXISTS auth_refresh_tokens ("
+            " id VARCHAR(36) PRIMARY KEY,"
+            " user_id VARCHAR(36) NOT NULL,"
+            " token_hash VARCHAR(64) NOT NULL,"
+            " expires_at TIMESTAMP NOT NULL,"
+            " revoked BOOLEAN NOT NULL DEFAULT FALSE,"
+            " created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"))
     yield
     Base.metadata.drop_all(bind=engine)
 
@@ -64,8 +73,6 @@ def client():
 
 @pytest.fixture
 def auth_headers(client, db_session):
-    """Суперпользователь напрямую в БД + вход через JSON /auth/login.
-    Хэш — ТЕМ ЖЕ CryptContext, что использует приложение (app.core.security)."""
     from app.core.security import pwd_context
     from app.models.user import User
     if not db_session.query(User).filter_by(username="testuser").first():
