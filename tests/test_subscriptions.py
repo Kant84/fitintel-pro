@@ -45,7 +45,7 @@ def _mk_tariff(client, headers, days=30, limit=10):
 
 def _mk_subscription(client, headers, cid, tid, start=None):
     r = client.post("/api/v1/subscriptions/", headers=headers, json={
-        "client_id": cid, "tariff_id": tid,
+        "client_id": cid, "tariff_id": tid["id"],
         "start_date": str(start or date.today()),
         "status": "ACTIVE", "notes": "тест"})
     assert r.status_code == 201, r.text
