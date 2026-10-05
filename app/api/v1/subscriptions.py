@@ -111,9 +111,6 @@ def create_subscription(
     return subscription_service.build_subscription_response(subscription)
 
 
-# обновить абонемент
-@router.patch("/{subscription_id}", response_model=SubscriptionResponse)
-
 
 # продление абонемента
 @router.post("/{subscription_id}/extend", response_model=SubscriptionResponse)
