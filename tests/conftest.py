@@ -92,13 +92,13 @@ def client():
 def auth_headers(client, db_session):
     from app.core.security import pwd_context
     from app.models.user import User
-    if not db_session.query(User).filter_by(username="testuser").first():
+    if not db_session.query(User).filter_by(username="superadmin").first():
         db_session.add(User(
-            username="testuser", email="test@test.com",
+            username="superadmin", email="superadmin@fitintel.ru",
             password_hash=pwd_context.hash("testpass123"),
             is_active=True, is_superuser=True))
         db_session.commit()
     resp = client.post("/api/v1/auth/login", json={
-        "login": "testuser", "password": "testpass123"})
+        "login": "superadmin", "password": "testpass123"})
     assert resp.status_code == 200, resp.text
     return {"Authorization": "Bearer " + resp.json()["access_token"]}
