@@ -54,9 +54,11 @@ def fiscal_env(db_session, monkeypatch):
 
 
 def _mk_client(client, headers):
+    import uuid as _u
+    phone = "+79" + _u.uuid4().hex[:9]   # уникально на тест
     r = client.post("/api/v1/clients/", headers=headers, json={
         "first_name": "Касса", "last_name": "Тестовая",
-        "phone": "+79000000111"})
+        "phone": phone})
     assert r.status_code == 201, r.text
     return r.json()["id"]
 
