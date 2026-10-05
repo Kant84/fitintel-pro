@@ -32,6 +32,13 @@ def fiscal_env(db_session, monkeypatch):
         " port VARCHAR(50), settings TEXT, ofd_provider VARCHAR(50),"
         " created_at TIMESTAMP, updated_at TIMESTAMP)"))    
     db_session.execute(text(
+        "CREATE TABLE IF NOT EXISTS fiscal_receipts ("
+        " id TEXT PRIMARY KEY, receipt_id TEXT, driver VARCHAR(50),"
+        " receipt_type VARCHAR(20), amount NUMERIC, status VARCHAR(20),"
+        " fiscal_document_number TEXT, fiscal_document_sign TEXT,"
+        " original_receipt_id TEXT, ofd_provider VARCHAR(50), payload TEXT,"
+        " created_at TIMESTAMP, updated_at TIMESTAMP)"))   
+    db_session.execute(text(
         "CREATE TABLE IF NOT EXISTS fiscal_pending ("
         " id INTEGER PRIMARY KEY DEFAULT 1, cash NUMERIC DEFAULT 0,"
         " card NUMERIC DEFAULT 0, withdrawn_at TIMESTAMP, withdrawn_by TEXT)"))
