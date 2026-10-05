@@ -75,7 +75,8 @@ class TestVisits:
             "client_id": cid,
             "entry_time": datetime.now(timezone.utc).isoformat(),
             "access_method": "MANUAL"}).json()["id"]
-        r = client.post(f"/api/v1/visits/{vid}/complete", headers=auth_headers, json={})
+        r = client.post(f"/api/v1/visits/{vid}/complete", headers=auth_headers,
+                        json={"visit_id": vid})
         assert r.status_code == 200, r.text
         d = r.json()
         assert d["status"] == "COMPLETED"
