@@ -31,7 +31,8 @@ class TestAuth:
 
     def test_register_duplicate_login(self, client):
         login = _uniq("dupuser")
-        payload = {"login": login, "password": "pass123"}
+        payload = {"login": login, "password": "pass1234",
+                   "email": f"{login}@test.ru"}
         first = client.post("/api/v1/auth/register", json=payload)
         assert first.status_code == 200, first.text
         second = client.post("/api/v1/auth/register", json=payload)
@@ -59,7 +60,7 @@ class TestAuth:
 
     def test_login_wrong_password(self, client):
         resp = client.post("/api/v1/auth/login", json={
-            "login": "no_such_user", "password": "wrong"})
+            "login": "no_such_user", "password": "wrongpass1"})
         assert resp.status_code == 401
 
     def test_me_endpoint(self, client, auth_headers):
