@@ -15,6 +15,7 @@ from app.main import app
 from app.db.session import get_db
 
 import sqlalchemy.dialects.postgresql as _pg
+import uuid as _uuid
 
 _orig_uuid_bind = _pg.UUID.bind_processor
 def _uuid_bind_sqlite_safe(self, dialect):
@@ -23,7 +24,10 @@ def _uuid_bind_sqlite_safe(self, dialect):
         return None
     def _process(value):
         if isinstance(value, str):
-            return value          # тесты и код передают id строками
+            try:
+                value = _uuid.UUID(value)   # '…-…-…' -> UUID -> hex без дефисов,
+            except ValueError:               # как хранит SQLite-процессор
+                return value
         return proc(value)
     return _process
 _pg.UUID.bind_processor = _uuid_bind_sqlite_safe
