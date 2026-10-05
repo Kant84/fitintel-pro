@@ -136,13 +136,19 @@ class TestVisits:
         assert r3.status_code in (400, 409)
 
     def test_stats_today(self, client, auth_headers, visits_env):
+        """Статистика за период: завершённый визит попадает в свою дату
+        (не привязываемся к «сегодня» сервера — граница суток в UTC-контейнере)."""
+        from datetime import datetime, timezone
         cid = _mk_client(client, auth_headers)
+        entry_iso = datetime.now(timezone.utc).isoformat()
+        day = entry_iso[:10]                      # дата визита по UTC
         vid = client.post("/api/v1/visits/manual", headers=auth_headers, json={
-            "client_id": cid,
-            "entry_time": datetime.now(timezone.utc).isoformat(),
+            "client_id": cid, "entry_time": entry_iso,
             "access_method": "MANUAL"}).json()["id"]
         client.post(f"/api/v1/visits/{vid}/complete", headers=auth_headers,
                     json={"visit_id": vid})
-        r = client.get("/api/v1/visits/stats/today", headers=auth_headers)
+        r = client.get("/api/v1/visits/stats", headers=auth_headers,
+                       params={"date_from": day, "date_to": day})
         assert r.status_code == 200, r.text
-        assert r.json()["total_visits"] >= 1   # статистика считает завершённые визиты
+        assert r.json()["total_visits"] >= 1
+        assert r.json()["completed_visits"] >= 1
