@@ -137,10 +137,12 @@ class TestVisits:
 
     def test_stats_today(self, client, auth_headers, visits_env):
         cid = _mk_client(client, auth_headers)
-        client.post("/api/v1/visits/manual", headers=auth_headers, json={
+        vid = client.post("/api/v1/visits/manual", headers=auth_headers, json={
             "client_id": cid,
             "entry_time": datetime.now(timezone.utc).isoformat(),
-            "access_method": "MANUAL"})
+            "access_method": "MANUAL"}).json()["id"]
+        client.post(f"/api/v1/visits/{vid}/complete", headers=auth_headers,
+                    json={"visit_id": vid})
         r = client.get("/api/v1/visits/stats/today", headers=auth_headers)
         assert r.status_code == 200, r.text
-        assert r.json()["total_visits"] >= 1
+        assert r.json()["total_visits"] >= 1   # статистика считает завершённые визиты
