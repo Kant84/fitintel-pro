@@ -448,3 +448,11 @@ try:
     print("E60 ML router OK")
 except Exception as _eml:
     print("E60 ML router FAIL:", _eml)
+    
+    
+# === W5: свип броней (напоминания/подтверждения/авто-отмена) ===
+try:
+    import app.services.booking_sweep  # noqa
+    print("W5 booking sweep OK")
+except Exception as _w5e:
+    print("W5 booking sweep FAIL:", _w5e)   

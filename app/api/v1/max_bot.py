@@ -1,4 +1,3 @@
-# app/api/v1/max_bot.py — MAX Bot API (мессенджер MAX)
 """MAX Messenger бот (B6 + Волна 5).
 
 Волна 5:
@@ -35,7 +34,7 @@ except Exception:
     QR_TTL = 120
 from app.core.config import settings
 
-from app.api.v1.club_params import engine, get_param_int, get_label
+# импорты club_params — ленивые (внутри функций), см. ниже
 
 # --- QR refresh cooldown (in-memory) ---
 _last_qr: dict[str, float] = {}
@@ -147,6 +146,7 @@ def _gamification(db: Session, client_id):
 
 
 def _handle_command(db: Session, max_user_id: int, text: str) -> dict:
+    from app.api.v1.club_params import get_label
     cmd = (text or "").strip().lower()
     _ensure_bot_tables(db)
 
@@ -234,6 +234,7 @@ def _handle_command(db: Session, max_user_id: int, text: str) -> dict:
 def _qr_entry_reply(db: Session, max_user_id: int) -> dict:
     """Волна 5: QR по основаниям входа (абонемент ИЛИ оплаченное занятие)."""
     from app.services.entry_policy import entry_reasons
+    from app.api.v1.club_params import get_param_int, get_label
 
     row = _find_client(db, max_user_id)
     if not row:

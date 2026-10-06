@@ -1,0 +1,44 @@
+УСТАНОВКА ВОЛНЫ 5 — ПАКЕТ А (фундамент)
+=========================================
+Файлы ложатся ПОВЕРХ существующих (структура проекта сохранена).
+
+1. Заменить/добавить:
+   app/api/v1/club_params.py          (НОВЫЙ: параметры клуба + лейблы бота)
+   app/services/entry_policy.py       (НОВЫЙ: единая политика входа)
+   app/services/booking_sweep.py      (НОВЫЙ: свип напоминаний/авто-отмена + поток)
+   app/models/service.py              (ЗАМЕНА: ServiceBooking +6 колонок жизненного цикла)
+   app/api/v1/services.py             (ЗАМЕНА: confirm/pay/no-show/complete/upcoming/my,
+                                       отмена по CANCEL_WINDOW_HOURS из параметров)
+   app/api/v1/max_bot.py              (ЗАМЕНА: /qr по основаниям + cooldown TTL из
+                                       параметров, /bonuses, доставка ответа в MAX)
+   tests/test_wave5_integration.py    (НОВЫЙ: 12 тестов, ваш conftest)
+
+2. app/main.py — добавить роутер (рядом с остальными):
+   from app.api.v1.club_params import router as club_params_router
+   app.include_router(club_params_router, prefix=settings.API_V1_PREFIX)
+
+3. pytest.ini — добавить tests/test_wave5_integration.py в testpaths.
+
+4. Миграции: НЕ нужны вручную — _ensure() создаст club_params и ALTER-ит
+   service_bookings / clients.rating при первом вызове (лениво, идемпотентно).
+
+5. Шедулер свипа: добавить в app/main.py (в стиле E-блоков, В КОНЦЕ файла):
+       # === W5: свип броней (напоминания/подтверждения/авто-отмена) ===
+       try:
+           import app.services.booking_sweep  # noqa
+           print("W5 booking sweep OK")
+       except Exception as _w5e:
+           print("W5 booking sweep FAIL:", _w5e)
+   Ручной запуск: POST /api/v1/services/bookings/sweep.
+
+6. Турникет (app/api/v1/dynamic_qr.py — ТОЧЕЧНАЯ правка, файл не присылали):
+   в валидации QR заменить проверку абонемента на:
+       from app.services.entry_policy import can_enter
+       if not can_enter(db, str(payload["client_id"])):
+           -> 403 «Нет оснований для входа» (абонемент ИЛИ оплаченное занятие в окне)
+   Пришлите dynamic_qr.py — внесу правку сам.
+
+7. ROADMAP.md: Пакет А волны 5 (параметры/лейблы из десктопа, цикл брони,
+   политика входа, свип). Дальше: Пакет Б — меню/FSM бота (Магазин/Расписание/
+   Тренер/запись/дети), Пакет В — десктоп (фото в расписании, подвкладка Магазин,
+   окно параметров клуба), Пакет Г — мини-приложение MAX (тема из theme.py).
