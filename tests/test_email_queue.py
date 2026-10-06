@@ -16,26 +16,24 @@ def email_env(db_session, monkeypatch):
     db_session.commit()
 
     def _set_smtp(**cfg):
-        r = db_session.execute(text("SELECT config FROM notification_settings WHERE id=1"))
-        row = r.first()
-        import json
-        cur = {}
-        if row and row[0]:
-            try:
-                cur = json.loads(row[0])
-            except Exception:
-                pass
-        cur.update(cfg)
+        if "smtp_password" in cfg:
+            cfg["smtp_pass"] = cfg.pop("smtp_password")
+        if "from_email" in cfg:
+            cfg["email_from"] = cfg.pop("from_email")
+        cfg.pop("smtp_ssl", None)
+        vals = {"email_enabled": True, "smtp_host": "", "smtp_port": 465,
+                "smtp_user": "", "smtp_pass": "", "email_from": ""}
+        vals.update({k: v for k, v in cfg.items() if k in vals})
+        cols = ", ".join(vals)
+        ins = ", ".join(":%s" % k for k in vals)
+        upd = ", ".join("%s=:%s" % (k, k) for k in vals)
         db_session.execute(text(
-            "INSERT INTO notification_settings (id, config, updated_at)"
-            " VALUES (1, :c, :t) ON CONFLICT (id) DO UPDATE SET config=:c"),
-            {"c": json.dumps(cur, ensure_ascii=False),
-             "t": datetime.now(timezone.utc).isoformat()})
+            "INSERT INTO notification_settings (id, %s) VALUES (1, %s)"
+            " ON CONFLICT (id) DO UPDATE SET %s" % (cols, ins, upd)), vals)
         db_session.commit()
 
     return type("Env", (), {"db": db_session, "set_smtp": staticmethod(_set_smtp),
                             "q": EmailQueueService(db_session)})()
-
 
 def _mk_client(client, headers, with_email=True):
     phone = "+79%09d" % (uuid.uuid4().int % 10 ** 9)
