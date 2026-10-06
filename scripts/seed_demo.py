@@ -87,9 +87,13 @@ def main():
             rid = roles.get(code)
             if not rid:
                 return 0
+            from datetime import datetime, timezone
             db.execute(text(
-                "INSERT INTO user_roles (user_id, role_id) VALUES (:u, :r)"
-                " ON CONFLICT DO NOTHING"), {"u": str(user_id), "r": str(rid)})
+                "INSERT INTO user_roles (user_id, role_id, assigned_at)"
+                " VALUES (:u, :r, :a)"
+                " ON CONFLICT DO NOTHING"),
+                {"u": str(user_id), "r": str(rid),
+                 "a": datetime.now(timezone.utc)})
             return 1
 
         cols = {c[0] for c in db.execute(text(
