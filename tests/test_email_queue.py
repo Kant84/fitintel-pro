@@ -52,8 +52,7 @@ class TestEmailQueue:
         """Критерий A4: без SMTP письмо копится (PENDING), после настройки — уходит (SENT)."""
         email_env.set_smtp(smtp_host="")   # SMTP выключен
         r = client.post("/api/v1/notify/test", headers=auth_headers,
-                        json={"channel": "email", "to": "boss@club.ru",
-                              "message": "проверка"})
+                        json={"email": "boss@club.ru", "message": "проверка"})
         assert r.status_code == 200, r.text
 
         row = email_env.db.execute(
@@ -107,12 +106,23 @@ class TestEmailQueue:
         assert r.json()["sent"] >= 1
 
     def test_expiring_digest_enqueues_email(self, client, auth_headers, email_env):
-        """Дайджест шлёт КЛУБУ (на email_from из настроек) и ставит письмо в очередь."""
-        email_env.set_smtp(email_from="club@mail.ru", smtp_user="club@mail.ru")
-        r = client.post("/api/v1/notify/digest", headers=auth_headers)
+        c = _mk_client(client, auth_headers)
+        code = f"TAR_{uuid.uuid4().hex[:8]}"
+        t = client.post("/api/v1/tariffs/", headers=auth_headers, json={
+            "code": code, "name": f"Тариф {code}", "price": 1000, "currency": "RUB",
+            "duration_days": 30, "visit_limit": 10,
+            "is_unlimited": False, "is_active": True})
+        assert t.status_code == 201, t.text
+        r = client.post("/api/v1/subscriptions/", headers=auth_headers, json={
+            "client_id": c["id"], "tariff_id": t.json()["id"],
+            "start_date": str(date.today() - timedelta(days=28)),
+            "status": "ACTIVE"})
+        assert r.status_code == 201, r.text
+
+        r = client.post("/api/v1/notify/digest?days=7", headers=auth_headers)
         assert r.status_code == 200, r.text
         from sqlalchemy import text
         row = email_env.db.execute(text(
             "SELECT count(*) FROM email_queue WHERE recipient=:e"),
-            {"e": "club@mail.ru"}).first()
-        assert row[0] >= 1   # дайджест встал в очередь на адрес клуба
+            {"e": c["email"]}).first()
+        assert row[0] >= 1   # дайджест поставил письмо в очередь
