@@ -88,12 +88,13 @@ def main():
             if not rid:
                 return 0
             from datetime import datetime, timezone
+            data = fill_nn(db, "user_roles", {
+                "user_id": str(user_id), "role_id": str(rid),
+                "assigned_at": datetime.now(timezone.utc)})
+            keys, phs = ", ".join(data), ", ".join(":%s" % k for k in data)
             db.execute(text(
-                "INSERT INTO user_roles (id, user_id, role_id, assigned_at)"
-                " VALUES (:i, :u, :r, :a)"
-                " ON CONFLICT DO NOTHING"),
-                {"i": str(uuid.uuid4()), "u": str(user_id), "r": str(rid),
-                 "a": datetime.now(timezone.utc)})
+                "INSERT INTO user_roles (%s) VALUES (%s) ON CONFLICT DO NOTHING"
+                % (keys, phs)), data)
             return 1
 
         cols = {c[0] for c in db.execute(text(
