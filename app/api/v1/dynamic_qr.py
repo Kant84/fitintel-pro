@@ -21,6 +21,14 @@ router = APIRouter(prefix="/dynamic-qr", tags=["Dynamic QR"])
 QR_TTL = getattr(settings, 'QR_TTL_MINUTES', 5) * 60  # TTL из настроек клуба
 QR_SECRET = getattr(settings, 'QR_SECRET_KEY', 'fitintel-qr-secret-2026')
 
+
+def _entry_gate(db: Session, client_id) -> list:
+    """Волна 5: основания входа (абонемент ИЛИ оплаченное занятие в окне ±N ч).
+    Возвращает список оснований; пусто = вход запрещён. Импорт ленивый (без циклов)."""
+    from app.services.entry_policy import entry_reasons
+    return entry_reasons(db, str(client_id))
+
+
 def generate_qr_payload(client_id, expires, ttl, device_id=None):
     timestamp = int(time.time())
     client_id_str = str(client_id)
@@ -43,16 +51,16 @@ def validate_qr(qr_payload: str, db: Session):
         signature = data.get("signature")
         if not all([client_id, timestamp, ttl, signature]):
             return False, client_id, "Неверный формат QR"
-        
+
         # Проверяем, не отозван ли QR
         qr_record = db.query(DynamicQRCode).filter(DynamicQRCode.qr_payload == qr_payload).first()
         if qr_record and qr_record.is_used:
             return False, client_id, "QR отозван или уже использован"
-        
+
         # Проверяем время жизни
         if int(time.time()) > timestamp + ttl + 30:
             return False, client_id, "QR устарел"
-        
+
         # Проверяем подпись
         payload = {"client_id": client_id, "timestamp": timestamp, "ttl": ttl, "expires_at": data.get("expires_at")}
         if data.get("jti"):
@@ -69,14 +77,11 @@ async def generate_qr(qr_data: DynamicQRCreate, db: Session = Depends(get_db), c
     client = db.query(Client).filter(Client.id == qr_data.client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Клиент не найден")
-    # Проверяем активный абонемент
-    active_sub = db.query(Subscription).filter(
-        Subscription.client_id == qr_data.client_id,
-        Subscription.status == "ACTIVE",
-        Subscription.end_date > datetime.now(timezone.utc)
-    ).first()
-    if not active_sub:
-        raise HTTPException(status_code=402, detail="Абонемент не активен")
+    # Волна 5: основания входа (абонемент ИЛИ оплаченное занятие в окне)
+    reasons = _entry_gate(db, qr_data.client_id)
+    if not reasons:
+        raise HTTPException(status_code=402,
+                            detail="Нет оснований для входа: нет активного абонемента или оплаченного занятия")
     expires = datetime.now(timezone.utc) + timedelta(minutes=qr_data.expires_in_minutes)
     payload, signature, _ = generate_qr_payload(qr_data.client_id, expires, qr_data.expires_in_minutes * 60, getattr(qr_data, 'device_id', None))
     db_qr = DynamicQRCode(client_id=qr_data.client_id, qr_payload=payload, signature=signature, expires_at=expires, is_used=False)
@@ -90,9 +95,12 @@ async def validate_qr_endpoint(data: QRValidateRequest, db: Session = Depends(ge
     is_valid, client_id, message = validate_qr(data.qr_payload, db)
     if not is_valid:
         return QRValidateResponse(valid=False, client_id=client_id, message=message, access_granted=False)
-    subscription = db.query(Subscription).filter(Subscription.client_id == client_id, Subscription.status == "ACTIVE", Subscription.end_date > datetime.now(timezone.utc)).first()
-    if not subscription:
-        return QRValidateResponse(valid=True, client_id=client_id, message="Нет активного абонемента", access_granted=False)
+    # Волна 5: основания входа вместо проверки только абонемента
+    reasons = _entry_gate(db, client_id)
+    if not reasons:
+        return QRValidateResponse(valid=True, client_id=client_id,
+                                  message="Нет оснований для входа (абонемент/оплаченное занятие)",
+                                  access_granted=False)
     qr_record = db.query(DynamicQRCode).filter(DynamicQRCode.qr_payload == data.qr_payload).first()
     if qr_record:
         qr_record.is_used = True
@@ -208,8 +216,7 @@ async def turnstile_qr_scan(
     zone: str = Body(None),
     db: Session = Depends(get_db),
 ):
-    """Сканер на турникете: проверяет QR и открывает турникет (E20.14)."""
-    from fastapi import Body
+    """Сканер на турникете: проверяет QR и открывает турникет (E20.14 + Волна 5)."""
     # 1. Декодируем и проверяем подпись
     try:
         raw = json.loads(base64.b64decode(qr_payload))
@@ -240,7 +247,16 @@ async def turnstile_qr_scan(
             qr_record.is_used = True
         db.commit()
 
-    # 2. Открываем турникет через AccessService
+    # 2. Волна 5: основания входа (абонемент ИЛИ оплаченное занятие в окне ±N ч)
+    if not str(client_id).startswith(("guest:", "group:")):
+        reasons = _entry_gate(db, client_id)
+        if not reasons:
+            raise HTTPException(
+                status_code=403,
+                detail="Нет оснований для входа: нет активного абонемента или оплаченного занятия",
+            )
+
+    # 3. Открываем турникет через AccessService
     from app.services.access_service import AccessService
     client = db.query(Client).filter(Client.id == client_id).first() if not str(client_id).startswith(("guest:", "group:")) else None
     credential = (client.phone or client.email) if client else str(client_id)
