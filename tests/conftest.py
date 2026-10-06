@@ -25,8 +25,8 @@ def _uuid_bind_sqlite_safe(self, dialect):
     def _process(value):
         if isinstance(value, str):
             try:
-                value = _uuid.UUID(value)   # '…-…-…' -> UUID -> hex без дефисов,
-            except ValueError:               # как хранит SQLite-процессор
+                value = _uuid.UUID(value)   # '…-…-…' -> UUID -> hex без дефисов
+            except ValueError:
                 return value
         return proc(value)
     return _process
@@ -35,9 +35,12 @@ _pg.UUID.bind_processor = _uuid_bind_sqlite_safe
 
 import sqlite3
 import uuid as _uuid2
+import datetime as _dt
 
-# SQLite: teach sqlite3 to bind UUID objects (client_events и др. String-колонки)
+# SQLite: teach sqlite3 to bind UUID and datetime objects
 sqlite3.register_adapter(_uuid2.UUID, lambda u: str(u))
+sqlite3.register_adapter(_dt.datetime, lambda v: v.isoformat())
+sqlite3.register_adapter(_dt.date, lambda v: v.isoformat())
 
 @compiles(JSONB, "sqlite")
 def _jsonb_on_sqlite(element, compiler, **kw):
@@ -71,6 +74,14 @@ def setup_db():
     (auth_refresh_tokens, notification_settings)."""
     Base.metadata.create_all(bind=engine)
     with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE IF NOT EXISTS auth_refresh_tokens ("
+            " id VARCHAR(36) PRIMARY KEY,"
+            " user_id VARCHAR(36) NOT NULL,"
+            " token_hash VARCHAR(64) NOT NULL,"
+            " expires_at TIMESTAMP NOT NULL,"
+            " revoked BOOLEAN NOT NULL DEFAULT FALSE,"
+            " created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"))
         # notification_settings — ПОЛНАЯ схема колонок (как _ensure() в проде)
         conn.execute(text(
             "CREATE TABLE IF NOT EXISTS notification_settings ("
@@ -84,13 +95,7 @@ def setup_db():
             " webpush_enabled BOOLEAN DEFAULT FALSE,"
             " vapid_public TEXT, vapid_private TEXT, vapid_sub TEXT,"
             " digest_time VARCHAR(5) DEFAULT '09:00')"))
-        # notification_settings — SMTP клуба хранится в config (JSON)
-        conn.execute(text(
-            "CREATE TABLE IF NOT EXISTS notification_settings ("
-            " id INTEGER PRIMARY KEY DEFAULT 1,"
-            " config TEXT, updated_at TIMESTAMP)"))
     # auth.py._ensure() выполняет Postgres-DDL (DEFAULT now()) — на SQLite падает.
-    # Таблица уже создана выше, помечаем DDL выполненным:
     try:
         from app.api.v1 import auth as _auth_mod
         _auth_mod._DDL_DONE = True
