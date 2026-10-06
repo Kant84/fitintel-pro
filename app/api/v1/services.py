@@ -14,10 +14,20 @@ from app.schemas.service import ServiceBookingCreate, ServiceCreate, ServiceOut,
 router = APIRouter()
 
 # --- Волна 5: колонки жизненного цикла брони (idempotent, raw-SQL как в branding.py) ---
+# Импорты club_params — ЛЕНИВЫЕ (внутри функций): иначе возможен цикл на старте.
 from sqlalchemy import text as _text
-from app.api.v1.club_params import engine as _engine, get_param_int
 
 _BCOLS_DONE = False
+
+
+def _w5_engine():
+    for mod in ("app.db.session", "app.core.database", "app.database"):
+        try:
+            m = __import__(mod, fromlist=["engine"])
+            return m.engine
+        except Exception:
+            continue
+    raise RuntimeError("services(W5): engine not found")
 
 
 def _ensure_booking_cols():
@@ -26,8 +36,8 @@ def _ensure_booking_cols():
     if _BCOLS_DONE:
         return
     try:
-        with _engine.begin() as c:
-            if _engine.dialect.name == "postgresql":
+        with _w5_engine().begin() as c:
+            if _w5_engine().dialect.name == "postgresql":
                 for ddl in ("ALTER TABLE service_bookings ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMP",
                             "ALTER TABLE service_bookings ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP",
                             "ALTER TABLE service_bookings ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMP",
@@ -59,7 +69,8 @@ def _deps(db: Session = Depends(get_db)):
 
 def _apply_rating(client_id: str, delta: float):
     """Рейтинг клиента: clamp [1.0, 5.0]. MIN/MAX — скалярные обе БД."""
-    with _engine.begin() as c:
+    from app.api.v1 import club_params as _cp
+    with _cp.engine.begin() as c:
         c.execute(_text("UPDATE clients SET rating = MIN(MAX(COALESCE(rating, 5.0) + :d, 1.0), 5.0) "
                         "WHERE id = :i"), {"d": delta, "i": str(client_id)})
 
@@ -255,6 +266,7 @@ def cancel_booking(
     if booking.status != "BOOKED":
         raise HTTPException(400, "Only BOOKED can be cancelled")
 
+    from app.api.v1.club_params import get_param_int
     hours = get_param_int("CANCEL_WINDOW_HOURS", 24)
     time_diff = booking.booking_date - datetime.now(timezone.utc)
     if time_diff < timedelta(hours=hours):
