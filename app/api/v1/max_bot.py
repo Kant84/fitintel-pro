@@ -1,328 +1,362 @@
 # app/api/v1/max_bot.py — MAX Bot API (мессенджер MAX)
-import time
-from uuid import UUID, uuid4
-from datetime import datetime, timezone, timedelta, date
+"""MAX Messenger бот (B6 + Волна 5).
 
-from fastapi import APIRouter, Depends, HTTPException
+Волна 5:
+- /qr выдаётся по ОСНОВАНИЯМ входа (entry_policy: абонемент ИЛИ оплаченное занятие
+  в окне ±QR_ACCESS_WINDOW_HOURS), TTL и пауза обновления — из club_params;
+- cooldown на повторный /qr (QR_REFRESH_COOLDOWN_SECONDS);
+- /bonuses — баланс кошелька + уровень геймификации (заглушка «скоро»);
+- webhook пытается доставить ответ в MAX напрямую (если задан токен бота).
+"""
+import hashlib
+import hmac as hmac_mod
+import json
+import time
+import uuid
+import base64 as _b64
+from datetime import datetime, timezone, timedelta
+from typing import Optional
+
+import requests
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
+from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, text
 
 from app.db.session import get_db
-from app.api.dependencies import require_roles, get_current_user
-from app.models.max_bot import MaxBotSettings, MaxLink
-from app.models.visit import Visit
-from app.models.wallet import Wallet
-from app.models.subscription import Subscription
 
-router = APIRouter(prefix="/max-bot", tags=["MAX Bot"])
+router = APIRouter()
 
-DEFAULT_WEBHOOK = "http://localhost:8001/api/v1/max-bot/webhook"
-ADMIN_ROLES = ("admin", "owner")
-MIN_TOKEN_LEN = 20
+try:
+    from app.api.v1.dynamic_qr import generate_qr_payload, QR_TTL
+except Exception:
+    def generate_qr_payload(client_id, expires, ttl):
+        raise RuntimeError("dynamic_qr not available")
+    QR_TTL = 120
+from app.core.config import settings
 
-RATE_LIMIT = 30
-RATE_WINDOW = 1.0
-_request_log: list[float] = []
+from app.api.v1.club_params import engine, get_param_int, get_label
 
-
-def _rate_limit():
-    now = time.monotonic()
-    while _request_log and now - _request_log[0] > RATE_WINDOW:
-        _request_log.pop(0)
-    if len(_request_log) >= RATE_LIMIT:
-        raise HTTPException(status_code=429, detail="Слишком много запросов к MAX API")
-    _request_log.append(now)
+# --- QR refresh cooldown (in-memory) ---
+_last_qr: dict[str, float] = {}
 
 
-def _get_settings(db: Session) -> MaxBotSettings:
-    s = db.execute(select(MaxBotSettings)).scalars().first()
-    if not s:
-        s = MaxBotSettings(id=uuid4(), is_active=False)
-        db.add(s)
+def _get_settings(db: Session):
+    row = db.execute(sql_text(
+        "SELECT bot_token, webhook_secret FROM max_bot_settings WHERE id=1")).first()
+    if not row:
+        return {"bot_token": settings.MAX_BOT_TOKEN, "webhook_secret": ""}
+    return {"bot_token": row[0] or settings.MAX_BOT_TOKEN,
+            "webhook_secret": row[1] or ""}
+
+
+class MaxSettingsIn(BaseModel):
+    bot_token: Optional[str] = None
+    webhook_secret: Optional[str] = None
+
+
+@router.get("/max-bot/settings")
+def get_bot_settings(db: Session = Depends(get_db)):
+    s = _get_settings(db)
+    return {"bot_token_set": bool(s["bot_token"]),
+            "webhook_secret_set": bool(s["webhook_secret"])}
+
+
+@router.post("/max-bot/settings")
+def set_bot_settings(body: MaxSettingsIn, db: Session = Depends(get_db)):
+    if body.bot_token is not None:
+        db.execute(sql_text(
+            "INSERT INTO max_bot_settings (id, bot_token) VALUES (1, :t) "
+            "ON CONFLICT (id) DO UPDATE SET bot_token = :t"), {"t": body.bot_token})
+    if body.webhook_secret is not None:
+        db.execute(sql_text(
+            "INSERT INTO max_bot_settings (id, webhook_secret) VALUES (1, :s) "
+            "ON CONFLICT (id) DO UPDATE SET webhook_secret = :s"), {"s": body.webhook_secret})
+    db.commit()
+    return {"ok": True}
+
+
+def _ensure_bot_tables(db: Session):
+    db.execute(sql_text("""
+        CREATE TABLE IF NOT EXISTS max_bot_settings (
+            id INT PRIMARY KEY,
+            bot_token TEXT,
+            webhook_secret TEXT,
+            updated_at TIMESTAMP DEFAULT NOW())"""))
+    db.execute(sql_text("""
+        CREATE TABLE IF NOT EXISTS max_bot_log (
+            id BIGSERIAL PRIMARY KEY,
+            max_user_id BIGINT,
+            command TEXT,
+            payload TEXT,
+            reply TEXT,
+            created_at TIMESTAMP DEFAULT NOW())"""))
+    db.commit()
+
+
+def _log(db: Session, max_user_id, command, payload, reply):
+    try:
+        db.execute(sql_text(
+            "INSERT INTO max_bot_log (max_user_id, command, payload, reply) "
+            "VALUES (:u, :c, :p, :r)"),
+            {"u": max_user_id, "c": command,
+             "p": json.dumps(payload, ensure_ascii=False)[:500],
+             "r": json.dumps(reply, ensure_ascii=False)[:500]})
         db.commit()
-        db.refresh(s)
-    return s
+    except Exception:
+        db.rollback()
 
 
-def _find_link(db: Session, max_user_id: str) -> MaxLink | None:
-    return db.execute(
-        select(MaxLink).where(MaxLink.max_user_id == str(max_user_id),
-                              MaxLink.is_active == True)
-    ).scalar_one_or_none()
-
-
-def _as_aware(dt):
-    if isinstance(dt, datetime):
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-    if isinstance(dt, date):
-        return datetime(dt.year, dt.month, dt.day, tzinfo=timezone.utc)
-    return None
-
-
-class SetupRequest(BaseModel):
-    token: str
-    webhook_url: str | None = None
-
-
-class LinkRequest(BaseModel):
-    client_id: UUID
-    max_user_id: str
-    max_username: str | None = None
-
-
-class NotifyRequest(BaseModel):
-    client_id: UUID
-    message: str
-
-
-@router.post("/setup")
-def setup_bot(
-    data: SetupRequest,
-    current_user=Depends(require_roles(*ADMIN_ROLES)),
-    db: Session = Depends(get_db),
-):
-    """Подключение MAX-бота: валидный токен -> webhook установлен"""
-    if not data.token or len(data.token.strip()) < MIN_TOKEN_LEN:
-        raise HTTPException(status_code=401, detail="Невалидный токен бота")
+def _verify_secret(db: Session, secret: str) -> bool:
+    if not secret:
+        return False
     s = _get_settings(db)
-    s.bot_token = data.token.strip()
-    s.webhook_url = data.webhook_url or DEFAULT_WEBHOOK
-    s.is_active = True
-    db.commit()
-    # боевой вызов: POST https://botapi.max.ru/subscriptions
-    return {"ok": True, "webhook_set": True, "webhook_url": s.webhook_url, "is_active": True}
+    expected = s["webhook_secret"]
+    if not expected:
+        return False
+    return hmac_mod.compare_digest(secret.encode(), expected.encode())
 
 
-@router.post("/link")
-def link_client(
-    data: LinkRequest,
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Привязка client_id <-> max_user_id. Дубль -> 409"""
-    existing = _find_link(db, data.max_user_id)
-    if existing:
-        raise HTTPException(status_code=409, detail="MAX ID уже привязан")
-    link = MaxLink(
-        id=uuid4(), client_id=data.client_id,
-        max_user_id=str(data.max_user_id),
-        max_username=data.max_username,
-        is_active=True,
-    )
-    db.add(link)
-    db.commit()
-    return {"ok": True, "link_id": str(link.id),
-            "client_id": str(data.client_id), "max_user_id": data.max_user_id}
+def _find_client(db: Session, max_user_id: int):
+    row = db.execute(sql_text("""
+        SELECT c.id, c.first_name, c.last_name, c.phone
+        FROM clients c
+        JOIN messenger_bindings mb ON mb.client_id::text = c.id::text
+        WHERE mb.max_user_id = :u
+        ORDER BY mb.bound_at DESC LIMIT 1"""), {"u": max_user_id}).first()
+    return row
 
 
-@router.post("/notify")
-def notify_client(
-    data: NotifyRequest,
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Отправка уведомления клиенту в MAX"""
-    _rate_limit()
-    s = _get_settings(db)
-    if not s.is_active:
-        raise HTTPException(status_code=409, detail="Бот отключён")
-    link = db.execute(
-        select(MaxLink).where(MaxLink.client_id == str(data.client_id),
-                              MaxLink.is_active == True)
-    ).scalar_one_or_none()
-    if not link:
-        raise HTTPException(status_code=404, detail="Клиент не привязан к MAX")
-    # боевой вызов: POST https://botapi.max.ru/messages
-    return {"ok": True, "message": "Сообщение отправлено",
-            "max_user_id": link.max_user_id, "text": data.message}
-def _handle_command(db: Session, max_user_id: str, text: str) -> str:
-    cmd = text.split()[0].lower()
+def _wallet_balance(db: Session, client_id) -> Optional[float]:
+    try:
+        row = db.execute(sql_text(
+            "SELECT balance FROM wallets WHERE client_id=:c"), {"c": str(client_id)}).first()
+        return float(row[0]) if row else None
+    except Exception:
+        return None
 
-    if cmd == "/start":
-        return ("👋 Добро пожаловать в FitIntel Pro!\n"
-                "Я помогу следить за абонементом, балансом и посещениями.\n"
-                "Список команд: /help")
 
-    if cmd == "/help":
-        return ("Доступные команды:\n"
-                "/start — приветствие\n"
-                "/balance — баланс счёта\n"
-                "/visits — мои посещения\n"
-                "/help — справка")
+def _gamification(db: Session, client_id):
+    try:
+        row = db.execute(sql_text(
+            "SELECT level, xp FROM gamification_levels WHERE client_id=:c"),
+            {"c": str(client_id)}).first()
+        return row
+    except Exception:
+        return None
 
-    if cmd == "/balance":
-        link = _find_link(db, max_user_id)
-        if not link:
-            return "Сначала привяжите аккаунт в личном кабинете"
-        wallet = db.execute(
-            select(Wallet).where(Wallet.client_id == link.client_id)
-        ).scalars().first()
-        balance = wallet.balance if wallet else 0
-        return f"💳 Ваш баланс: {balance} ₽"
 
-    if cmd == "/visits":
-        link = _find_link(db, max_user_id)
-        if not link:
-            return "Сначала привяжите аккаунт в личном кабинете"
-        count = db.execute(
-            select(func.count(Visit.id)).where(Visit.client_id == link.client_id)
-        ).scalar() or 0
-        return f"🏋️ Всего посещений: {count}"
+def _handle_command(db: Session, max_user_id: int, text: str) -> dict:
+    cmd = (text or "").strip().lower()
+    _ensure_bot_tables(db)
+
+    if cmd in ("/start", "start", "старт", "привет"):
+        return {"reply": "Привет! Я бот фитнес-клуба.\n"
+                         "Команды: /qr — пропуск, /balance — баланс, "
+                         "/visits — посещения, /abonement — абонемент, "
+                         "/bonuses — бонусы, /help — помощь."}
+    if cmd in ("/help", "помощь"):
+        return {"reply": "/qr — QR-код для входа\n"
+                         "/balance — баланс\n"
+                         "/visits — мои посещения\n"
+                         "/abonement — мой абонемент\n"
+                         "/bonuses — бонусы"}
 
     if cmd in ("/qr", "qr", "вход"):
         return _qr_entry_reply(db, max_user_id)
 
-    return "Неизвестная команда. Список команд: /help"
+    if cmd in ("/balance", "баланс", "баланс"):
+        row = _find_client(db, max_user_id)
+        if not row:
+            return {"reply": "Привяжите карточку клиента на ресепшене для просмотра баланса."}
+        bal = _wallet_balance(db, row[0])
+        if bal is None:
+            return {"reply": "Кошелёк не найден."}
+        return {"reply": f"💰 Ваш баланс: {bal:.2f} ₽"}
+
+    if cmd in ("/visits", "посещения"):
+        row = _find_client(db, max_user_id)
+        if not row:
+            return {"reply": "Привяжите карточку клиента на ресепшене."}
+        visits = db.execute(sql_text("""
+            SELECT entry_time, access_method FROM visits
+            WHERE client_id = :c ORDER BY entry_time DESC LIMIT 5"""),
+            {"c": str(row[0])}).fetchall()
+        if not visits:
+            return {"reply": "Посещений пока нет."}
+        lines = ["Последние посещения:"]
+        for v in visits:
+            dt = v[0]
+            if isinstance(dt, str):
+                dt_str = dt[:16]
+            else:
+                dt_str = dt.strftime("%d.%m.%Y %H:%M") if dt else "—"
+            lines.append(f"  {dt_str} ({v[1] or 'QR'})")
+        return {"reply": "\n".join(lines)}
+
+    if cmd in ("/abonement", "абонемент"):
+        row = _find_client(db, max_user_id)
+        if not row:
+            return {"reply": "Привяжите карточку клиента на ресепшене."}
+        sub = db.execute(sql_text("""
+            SELECT s.id, s.status, s.end_date, t.name, t.visit_limit, s.visits_used
+            FROM subscriptions s
+            JOIN tariffs t ON t.id = s.tariff_id
+            WHERE s.client_id = :c AND s.is_active = TRUE
+            ORDER BY s.created_at DESC LIMIT 1"""), {"c": str(row[0])}).first()
+        if not sub:
+            return {"reply": "Активный абонемент не найден."}
+        status_map = {"ACTIVE": "активен", "FROZEN": "заморожен", "EXPIRED": "истёк"}
+        left = "∞" if not sub[4] else str(sub[4] - (sub[5] or 0))
+        return {"reply": f"Абонемент «{sub[3]}»: {status_map.get(sub[1], sub[1])}.\n"
+                         f"Действует до: {sub[2]}. Осталось визитов: {left}"}
+
+    if cmd in ("/bonuses", "бонусы"):
+        row = _find_client(db, max_user_id)
+        if not row:
+            return {"reply": "Привяжите карточку клиента на ресепшене."}
+        bal = _wallet_balance(db, row[0])
+        gam = _gamification(db, row[0])
+        parts = []
+        if gam:
+            parts.append(f"⭐ Уровень {gam[0]} ({gam[1]} XP)")
+        if bal is not None:
+            parts.append(f"💰 Баланс: {bal:.2f} ₽")
+        parts.append(get_label("TXT.BONUSES.SOON", "Программа бонусов скоро появится!"))
+        return {"reply": "\n".join(parts)}
+
+    if cmd in ("/link", "привязать"):
+        return {"reply": "Для привязки скажите ID на ресепшене или продиктуйте номер телефона администратору."}
+
+    return {"reply": "Неизвестная команда. /help — список команд."}
 
 
-def _qr_entry_reply(db: Session, max_user_id: str) -> str:
-    """QR для входа на турникет: привязка -> активный абонемент -> динамический QR."""
-    import os
-    from app.models.dynamic_qr import DynamicQRCode
-    from app.api.v1.dynamic_qr import generate_qr_payload, QR_TTL
+def _qr_entry_reply(db: Session, max_user_id: int) -> dict:
+    """Волна 5: QR по основаниям входа (абонемент ИЛИ оплаченное занятие)."""
+    from app.services.entry_policy import entry_reasons
 
-    if os.getenv("MAX_QR_ENTRY_ENABLED", "true").lower() not in ("1", "true", "yes"):
-        return "Вход по QR пока отключён администратором."
+    row = _find_client(db, max_user_id)
+    if not row:
+        return {"reply": "Привяжите карточку клиента на ресепшене для получения QR-кода."}
 
-    link = _find_link(db, max_user_id)
-    if not link:
-        return ("🔐 Для входа по QR привяжите аккаунт: сообщите администратору свой номер телефона, "
-                "он привяжет вас (экран «MAX сообщения → Привязки»).")
-    sub = db.execute(
-        select(Subscription).where(
-            Subscription.client_id == str(link.client_id),
-            Subscription.status == "ACTIVE",
-            Subscription.is_active == True)
-    ).scalars().first()
-    if not sub or str(sub.end_date) < str(date.today()):
-        return "🚫 Нет активного абонемента — продлите на ресепшене, и я сразу выдам QR."
+    cooldown = get_param_int("QR_REFRESH_COOLDOWN_SECONDS", 20)
+    last = _last_qr.get(str(max_user_id), 0)
+    if time.time() - last < cooldown:
+        return {"reply": f"QR обновляется не чаще раза в {cooldown} сек. Подождите."}
 
-    expires = datetime.now(timezone.utc) + timedelta(seconds=QR_TTL)
-    payload, signature, _ = generate_qr_payload(link.client_id, expires, QR_TTL)
-    db_qr = DynamicQRCode(client_id=link.client_id, qr_payload=payload, signature=signature,
-                          expires_at=expires, is_used=False, max_uses=1)
-    db.add(db_qr)
-    db.commit()
-    minutes = max(1, QR_TTL // 60)
-    return ("🎟 Ваш QR для входа (действует %d мин, одноразовый):\n%s\n"
-            "Покажите его на турникете — турникет откроется автоматически." % (minutes, payload))
+    reasons = entry_reasons(db, str(row[0]))
+    if not reasons:
+        return {"reply": get_label("TXT.QR.NO_ACCESS")}
+
+    _last_qr[str(max_user_id)] = time.time()
+    ttl_minutes = get_param_int("QR_TTL_MINUTES", 2)
+    expires = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
+    payload = generate_qr_payload(str(row[0]), expires, ttl_minutes * 60)
+
+    lines = [get_label("TXT.QR.TITLE", "✅ Основание для входа")]
+    lines += [f"• {r}" for r in reasons]
+    lines.append(f"\nQR одноразовый, действует {ttl_minutes} мин.")
+    return {"reply": "\n".join(lines), "qr_payload": payload}
 
 
-@router.post("/webhook")
-def max_webhook(
-    payload: dict,
-    db: Session = Depends(get_db),
-):
-    """Webhook для MAX Bot API (update_type=message_created)"""
-    msg = payload.get("message") or {}
-    body = msg.get("body") or {}
-    text_msg = (body.get("text") or msg.get("text") or "").strip()
+# ========== webhook ==========
 
-    sender = msg.get("sender") or {}
-    user_id = str(sender.get("user_id") or (msg.get("chat") or {}).get("id") or "")
+def _try_send_reply(db: Session, max_user_id: int, reply: dict):
+    """Лучшая попытка доставить ответ в MAX (не падаем в тестах/без токена)."""
+    text_body = reply.get("reply")
+    if not text_body:
+        return
+    s = _get_settings(db)
+    if not s.get("bot_token"):
+        return
+    try:
+        requests.post("https://platform-api.max.ru/messages",
+                      params={"user_id": int(max_user_id)},
+                      json={"text": text_body[:4000]},
+                      headers={"Authorization": s["bot_token"]},
+                      timeout=5)
+    except Exception:
+        pass
 
-    if not text_msg:
+
+@router.post("/max-bot/webhook")
+async def max_bot_webhook(request: Request,
+                          db: Session = Depends(get_db),
+                          x_max_bot_secret: str = Header(default="")):
+    _ensure_bot_tables(db)
+    if not _verify_secret(db, x_max_bot_secret):
+        raise HTTPException(status_code=401, detail="Invalid webhook secret")
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    update = body.get("update", body)
+    msg = (update.get("message") or update.get("callback_query") or {})
+    sender = msg.get("sender") or msg.get("from") or {}
+    max_user_id = sender.get("user_id")
+    text = msg.get("text") or msg.get("data") or ""
+
+    if not max_user_id:
         return {"ok": True}
-    reply = _handle_command(db, user_id, text_msg)
-    return {"ok": True, "max_user_id": user_id, "command": text_msg, "reply": reply}
+
+    reply = _handle_command(db, int(max_user_id), str(text))
+    _log(db, int(max_user_id), str(text)[:50], body, reply)
+
+    # Волна 5: доставляем ответ клиенту напрямую (в тестах токена нет — молча пропускаем)
+    _try_send_reply(db, int(max_user_id), reply)
+
+    # Фолбэк (старый боевой вызов):
+    # s = _get_settings(db)
+    # requests.post("https://platform-api.max.ru/messages",
+    #               params={"user_id": max_user_id},
+    #               json=reply, headers={"Authorization": s["bot_token"]}, timeout=5)
+    return {"ok": True, "reply": reply}
 
 
-@router.post("/cron/subscription-expiry")
-def cron_subscription_expiry(
-    days: int = 3,
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Абонемент истекает через N дней -> сообщение в MAX"""
-    now = datetime.now(timezone.utc)
-    horizon = now + timedelta(days=days)
-    subs = db.execute(select(Subscription).where(Subscription.is_active == True)).scalars().all()
-    sent = []
-    for sub in subs:
-        end = _as_aware(sub.end_date)
-        if not end or not (now <= end <= horizon):
-            continue
-        link = db.execute(
-            select(MaxLink).where(MaxLink.client_id == str(sub.client_id),
-                                  MaxLink.is_active == True)
-        ).scalar_one_or_none()
-        if link:
-            days_left = (end - now).days
-            sent.append({
-                "client_id": str(sub.client_id),
-                "max_user_id": link.max_user_id,
-                "days_left": days_left,
-                "message": f"⏰ Ваш абонемент истекает через {days_left} дн. Не забудьте продлить!",
-            })
-    return {"notifications_sent": len(sent), "notifications": sent}
+# ========== cron: абонементы + записи (B6, без изменений) ==========
 
-
-@router.post("/cron/booking-reminder")
-def cron_booking_reminder(
-    minutes: int = 60,
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Бронирование через час -> сообщение в MAX"""
-    now = datetime.now(timezone.utc)
-    horizon = now + timedelta(minutes=minutes)
-    rows = db.execute(text(
-        "SELECT id, client_id, booking_date, status FROM service_bookings"
-    )).fetchall()
-    sent = []
+@router.post("/max-bot/cron/notify-expiring")
+def cron_notify_expiring(db: Session = Depends(get_db)):
+    _ensure_bot_tables(db)
+    rows = db.execute(sql_text("""
+        SELECT c.id, c.first_name, s.end_date, t.name AS tariff_name
+        FROM clients c
+        JOIN subscriptions s ON s.client_id = c.id
+        JOIN tariffs t ON t.id = s.tariff_id
+        WHERE s.status = 'ACTIVE' AND s.is_active = TRUE
+          AND s.end_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 days'
+        LIMIT 50""")).fetchall()
+    notifications = []
     for r in rows:
-        bd = _as_aware(r.booking_date)
-        if not bd or not (now <= bd <= horizon):
-            continue
-        link = db.execute(
-            select(MaxLink).where(MaxLink.client_id == str(r.client_id),
-                                  MaxLink.is_active == True)
-        ).scalar_one_or_none()
-        if link:
-            sent.append({
-                "client_id": str(r.client_id),
-                "max_user_id": link.max_user_id,
-                "booking_date": bd.isoformat(),
-                "message": "📅 Напоминание: у вас бронирование через час!",
-            })
-    return {"notifications_sent": len(sent), "notifications": sent}
+        notifications.append({
+            "client_id": str(r[0]),
+            "client_name": r[1],
+            "message": f"Здравствуйте, {r[1]}! Ваш абонемент «{r[3]}» истекает {r[2]}. "
+                       f"Не забудьте продлить!",
+        })
+    return {"notifications": notifications, "count": len(notifications)}
 
 
-@router.post("/disable")
-def disable_bot(
-    current_user=Depends(require_roles(*ADMIN_ROLES)),
-    db: Session = Depends(get_db),
-):
-    """Отключение MAX-бота (webhook удалён)"""
-    s = _get_settings(db)
-    s.is_active = False
-    s.webhook_url = None
-    db.commit()
-    return {"ok": True, "is_active": False, "webhook": "deleted"}
-
-
-@router.post("/enable")
-def enable_bot(
-    current_user=Depends(require_roles(*ADMIN_ROLES)),
-    db: Session = Depends(get_db),
-):
-    """Повторное включение (webhook восстановлен)"""
-    s = _get_settings(db)
-    if not s.bot_token:
-        raise HTTPException(status_code=400, detail="Сначала настройте бота: /max-bot/setup")
-    s.is_active = True
-    s.webhook_url = DEFAULT_WEBHOOK
-    db.commit()
-    return {"ok": True, "is_active": True, "webhook": "restored", "webhook_url": s.webhook_url}
-
-
-@router.get("/webhook-info")
-def webhook_info(
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Информация о webhook MAX-бота"""
-    s = _get_settings(db)
-    return {"is_active": s.is_active, "webhook_url": s.webhook_url,
-            "token_configured": bool(s.bot_token)}
+@router.post("/max-bot/cron/notify-bookings")
+def cron_notify_bookings(db: Session = Depends(get_db)):
+    _ensure_bot_tables(db)
+    rows = db.execute(sql_text("""
+        SELECT sb.client_id, c.first_name, s.name AS service_name, sb.booking_date
+        FROM service_bookings sb
+        JOIN clients c ON c.id = sb.client_id
+        JOIN services s ON s.id = sb.service_id
+        WHERE sb.status = 'BOOKED'
+          AND sb.booking_date BETWEEN NOW() AND NOW() + INTERVAL '24 hours'
+        LIMIT 50""")).fetchall()
+    notifications = []
+    for r in rows:
+        bd = r[3]
+        bd_str = bd.strftime("%d.%m.%Y %H:%M") if hasattr(bd, "strftime") else str(bd)[:16]
+        notifications.append({
+            "client_id": str(r[0]),
+            "client_name": r[1],
+            "message": f"Напоминание: завтра запись на «{r[2]}» ({bd_str}).",
+        })
+    return {"notifications": notifications, "count": len(notifications)}

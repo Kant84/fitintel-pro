@@ -1,194 +1,393 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
-from datetime import datetime, date
 from uuid import UUID
 
-from app.api.dependencies import get_db, get_current_user
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+
+from app.api.dependencies import get_current_user, require_permission, require_roles
+from app.db.session import get_db
 from app.models.service import Service, ServiceBooking
-from app.models.client import Client
-from app.schemas.service import (
-    ServiceCreate, ServiceUpdate, ServiceResponse,
-    ServiceBookingCreate, ServiceBookingResponse,
-    ServiceAvailabilityResponse
-)
-from app.schemas.enums import ServiceCategory
-from app.api.dependencies import require_permission
+from app.models.user import User
+from app.schemas.service import ServiceBookingCreate, ServiceCreate, ServiceOut, ServiceUpdate
 
-router = APIRouter(prefix="/services", tags=["Услуги (E19)"])
+router = APIRouter()
 
-@router.post("", response_model=ServiceResponse, status_code=status.HTTP_201_CREATED)
+# --- Волна 5: колонки жизненного цикла брони (idempotent, raw-SQL как в branding.py) ---
+from sqlalchemy import text as _text
+from app.api.v1.club_params import engine as _engine, get_param_int
 
-async def create_service(service: ServiceCreate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
-    db_service = Service(**service.dict())
-    db.add(db_service)
-    db.commit()
-    db.refresh(db_service)
-    return db_service
+_BCOLS_DONE = False
 
-@router.get("", response_model=List[ServiceResponse])
 
-async def list_services(category: Optional[ServiceCategory] = None, is_active: Optional[bool] = None, search: Optional[str] = None, trainer_id: Optional[UUID] = None, db: Session = Depends(get_db)):
-    query = db.query(Service)
+def _ensure_booking_cols():
+    """Добавляет service_bookings: confirmed_at/paid_at/reminded_at/pinged_at/price/source."""
+    global _BCOLS_DONE
+    if _BCOLS_DONE:
+        return
+    try:
+        with _engine.begin() as c:
+            if _engine.dialect.name == "postgresql":
+                for ddl in ("ALTER TABLE service_bookings ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMP",
+                            "ALTER TABLE service_bookings ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP",
+                            "ALTER TABLE service_bookings ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMP",
+                            "ALTER TABLE service_bookings ADD COLUMN IF NOT EXISTS pinged_at TIMESTAMP",
+                            "ALTER TABLE service_bookings ADD COLUMN IF NOT EXISTS price NUMERIC(10,2)",
+                            "ALTER TABLE service_bookings ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'api'"):
+                    c.execute(_text(ddl))
+            else:
+                cols = {r[1] for r in c.execute(_text("PRAGMA table_info(service_bookings)"))}
+                for col, ddl in {
+                    "confirmed_at": "ALTER TABLE service_bookings ADD COLUMN confirmed_at TIMESTAMP",
+                    "paid_at": "ALTER TABLE service_bookings ADD COLUMN paid_at TIMESTAMP",
+                    "reminded_at": "ALTER TABLE service_bookings ADD COLUMN reminded_at TIMESTAMP",
+                    "pinged_at": "ALTER TABLE service_bookings ADD COLUMN pinged_at TIMESTAMP",
+                    "price": "ALTER TABLE service_bookings ADD COLUMN price NUMERIC(10,2)",
+                    "source": "ALTER TABLE service_bookings ADD COLUMN source VARCHAR(20) NOT NULL DEFAULT 'api'",
+                }.items():
+                    if col not in cols:
+                        c.execute(_text(ddl))
+        _BCOLS_DONE = True
+    except Exception:
+        pass  # таблица ещё не создана (старт/тесты) — повторим при следующем вызове
+
+
+def _deps(db: Session = Depends(get_db)):
+    _ensure_booking_cols()
+    return db
+
+
+def _apply_rating(client_id: str, delta: float):
+    """Рейтинг клиента: clamp [1.0, 5.0]. MIN/MAX — скалярные обе БД."""
+    with _engine.begin() as c:
+        c.execute(_text("UPDATE clients SET rating = MIN(MAX(COALESCE(rating, 5.0) + :d, 1.0), 5.0) "
+                        "WHERE id = :i"), {"d": delta, "i": str(client_id)})
+
+
+# ============================ SERVICES ============================
+
+@router.get("/services", response_model=List[ServiceOut])
+def list_services(
+    category: Optional[str] = Query(None),
+    active_only: bool = Query(True),
+    db: Session = Depends(_deps),
+    current_user: User = Depends(get_current_user),
+):
+    q = db.query(Service)
+    if active_only:
+        q = q.filter(Service.is_active.is_(True))
     if category:
-        query = query.filter(Service.category == category.value)
-    if is_active is not None:
-        query = query.filter(Service.is_active == is_active)
-    if search:
-        query = query.filter(Service.name.ilike(f"%{search}%"))
+        q = q.filter(Service.category == category)
+    return q.order_by(Service.name).all()
+
+
+@router.post("/services", response_model=ServiceOut, status_code=status.HTTP_201_CREATED)
+def create_service(
+    body: ServiceCreate,
+    db: Session = Depends(_deps),
+    current_user: User = Depends(require_permission("services.create")),
+):
+    svc = Service(**body.model_dump())
+    db.add(svc)
+    db.commit()
+    db.refresh(svc)
+    return svc
+
+
+@router.get("/services/{service_id}", response_model=ServiceOut)
+def get_service(
+    service_id: UUID,
+    db: Session = Depends(_deps),
+    current_user: User = Depends(get_current_user),
+):
+    svc = db.get(Service, service_id)
+    if not svc:
+        raise HTTPException(404, "Service not found")
+    return svc
+
+
+@router.patch("/services/{service_id}", response_model=ServiceOut)
+def update_service(
+    service_id: UUID,
+    body: ServiceUpdate,
+    db: Session = Depends(_deps),
+    current_user: User = Depends(require_permission("services.update")),
+):
+    svc = db.get(Service, service_id)
+    if not svc:
+        raise HTTPException(404, "Service not found")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(svc, k, v)
+    db.commit()
+    db.refresh(svc)
+    return svc
+
+
+@router.delete("/services/{service_id}", status_code=204)
+def delete_service(
+    service_id: UUID,
+    db: Session = Depends(_deps),
+    current_user: User = Depends(require_permission("services.delete")),
+):
+    svc = db.get(Service, service_id)
+    if not svc:
+        raise HTTPException(404, "Service not found")
+    svc.is_active = False
+    db.commit()
+
+
+# ============================ BOOKINGS ============================
+
+@router.post("/services/{service_id}/book", response_model=ServiceOut, status_code=status.HTTP_201_CREATED)
+def book_service(
+    service_id: UUID,
+    booking: ServiceBookingCreate,
+    db: Session = Depends(_deps),
+    current_user: User = Depends(get_current_user),
+):
+    """Записать клиента на услугу."""
+    svc = db.get(Service, service_id)
+    if not svc or not svc.is_active:
+        raise HTTPException(404, "Service not found or inactive")
+
+    new_booking = ServiceBooking(
+        service_id=service_id,
+        client_id=booking.client_id,
+        booking_date=booking.booking_date,
+        notes=booking.notes,
+        status="BOOKED",
+        source=getattr(booking, "source", None) or "api",
+    )
+    db.add(new_booking)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(409, "Booking already exists for this date/time")
+
+    db.refresh(new_booking)
+    return svc  # фронт ожидает ServiceOut
+
+
+@router.get("/services/trainer-schedule")
+def get_trainer_schedule(
+    trainer_id: Optional[UUID] = Query(None),
+    db: Session = Depends(_deps),
+    current_user: User = Depends(get_current_user),
+):
+    """Расписание тренеров: ближайшие активные записи."""
+    q = db.query(ServiceBooking).join(Service).filter(
+        Service.trainer_id.isnot(None),
+        ServiceBooking.status == "BOOKED",
+        ServiceBooking.booking_date >= datetime.now(timezone.utc),
+    )
     if trainer_id:
-        query = query.filter(Service.trainer_id == trainer_id)
-    return query.order_by(Service.name).all()
-
-
-
-
-
-@router.get("/trainer-schedule")
-async def get_schedule(trainer_id: Optional[UUID] = None, date: Optional[date] = None, db: Session = Depends(get_db)):
-    """Расписание тренировок: записи с именами клиентов, услуг и тренеров"""
-    from app.models.user import User
-    query = db.query(ServiceBooking).filter(ServiceBooking.status.in_(["BOOKED", "CONFIRMED"]))
-    if trainer_id:
-        trainer_services = db.query(Service.id).filter(Service.trainer_id == trainer_id).all()
-        query = query.filter(ServiceBooking.service_id.in_([s[0] for s in trainer_services]))
-    if date:
-        query = query.filter(func.date(ServiceBooking.booking_date) == date)
-    bookings = query.order_by(ServiceBooking.booking_date).all()
-
-    result = []
-    for b in bookings:
-        service = db.query(Service).filter(Service.id == b.service_id).first()
-        client = db.query(Client).filter(Client.id == b.client_id).first()
-        trainer = db.query(User).filter(User.id == service.trainer_id).first() if service and service.trainer_id else None
-        result.append({
+        q = q.filter(Service.trainer_id == trainer_id)
+    rows = q.order_by(ServiceBooking.booking_date).limit(100).all()
+    out = []
+    for b in rows:
+        out.append({
             "id": str(b.id),
             "booking_date": b.booking_date.isoformat() if b.booking_date else None,
             "status": b.status,
-            "created_at": b.created_at.isoformat() if b.created_at else None,
-            "client_id": str(b.client_id),
-            "client_name": (" ".join(x for x in (getattr(client, "last_name", None), getattr(client, "first_name", None)) if x) or str(b.client_id)) if client else "—",
-            "service_id": str(b.service_id),
-            "service_name": getattr(service, "name", None) if service else "—",
-            "trainer_id": str(service.trainer_id) if service and service.trainer_id else None,
-            "trainer_name": (getattr(trainer, "full_name", None) or getattr(trainer, "username", None)) if trainer else "—",
+            "notes": b.notes,
+            "client_name": (b.client.first_name + " " + (b.client.last_name or "")) if b.client else None,
+            "service_name": b.service.name if b.service else None,
+            "trainer_name": (b.service.trainer.full_name if b.service and b.service.trainer else None),
         })
-    return result
-@router.get("/{service_id}", response_model=ServiceResponse)
+    return out
 
-async def get_service(service_id: UUID, db: Session = Depends(get_db)):
-    service = db.query(Service).filter(Service.id == service_id).first()
-    if not service:
-        raise HTTPException(status_code=404, detail="Услуга не найдена")
-    return service
 
-@router.put("/{service_id}", response_model=ServiceResponse)
+@router.get("/services/{service_id}/availability")
+def check_availability(
+    service_id: UUID,
+    date: str = Query(..., description="YYYY-MM-DD"),
+    db: Session = Depends(_deps),
+    current_user: User = Depends(get_current_user),
+):
+    """Проверка доступности: сколько мест осталось на дату."""
+    svc = db.get(Service, service_id)
+    if not svc:
+        raise HTTPException(404, "Service not found")
+    try:
+        target = datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(400, "Invalid date format")
 
-async def update_service(service_id: UUID, service_update: ServiceUpdate, db: Session = Depends(get_db)):
-    service = db.query(Service).filter(Service.id == service_id).first()
-    if not service:
-        raise HTTPException(status_code=404, detail="Услуга не найдена")
-    for field, value in service_update.dict(exclude_unset=True).items():
-        setattr(service, field, value)
-    service.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(service)
-    return service
+    day_of_week = target.weekday()
+    schedule = svc.schedule or {}
+    if not schedule.get("days") or day_of_week not in schedule["days"]:
+        return {"available": False, "reason": "not_scheduled_day", "slots": []}
 
-@router.delete("/{service_id}", status_code=status.HTTP_204_NO_CONTENT)
-
-async def delete_service(service_id: UUID, db: Session = Depends(get_db)):
-    service = db.query(Service).filter(Service.id == service_id).first()
-    if not service:
-        raise HTTPException(status_code=404, detail="Услуга не найдена")
-    # Проверяем, есть ли активные бронирования
-    active_bookings = db.query(ServiceBooking).filter(
-        ServiceBooking.service_id == service_id,
-        ServiceBooking.status.in_(["BOOKED", "CONFIRMED"])
-    ).count()
-    if active_bookings > 0:
-        raise HTTPException(status_code=409, detail="Нельзя удалить услугу с активными бронированиями")
-    db.delete(service)
-    db.commit()
-    return None
-
-@router.get("/{service_id}/availability", response_model=ServiceAvailabilityResponse)
-
-async def get_availability(service_id: UUID, check_date: Optional[date] = None, db: Session = Depends(get_db)):
-    service = db.query(Service).filter(Service.id == service_id).first()
-    if not service:
-        raise HTTPException(status_code=404, detail="Услуга не найдена")
-    check_date = check_date or date.today()
-    schedule = service.schedule or {}
     time_slots = schedule.get("time_slots", [])
-    bookings = db.query(ServiceBooking).filter(
-        and_(ServiceBooking.service_id == service_id, func.date(ServiceBooking.booking_date) == check_date, ServiceBooking.status.in_(["BOOKED", "COMPLETED"]))
+    booked = db.query(ServiceBooking).filter(
+        ServiceBooking.service_id == service_id,
+        ServiceBooking.booking_date >= datetime.combine(target, datetime.min.time()),
+        ServiceBooking.booking_date < datetime.combine(target + timedelta(days=1), datetime.min.time()),
+        ServiceBooking.status.in_(["BOOKED", "COMPLETED"]),
     ).all()
+    booked_hours = {b.booking_date.strftime("%H:%M") for b in booked}
+
     slots = []
     for slot in time_slots:
-        slot_time = slot.get("time", "")
-        capacity = slot.get("capacity", service.max_capacity)
-        booked = len([b for b in bookings if b.booking_date.strftime("%H:%M") == slot_time])
-        slots.append({"time": slot_time, "capacity": capacity, "booked": booked, "available": max(0, capacity - booked), "is_full": booked >= capacity})
-    return ServiceAvailabilityResponse(service_id=service_id, service_name=service.name, date=check_date, available_slots=slots, is_available=any(s["available"] > 0 for s in slots))
+        time_str = slot.get("time", "")
+        cap = slot.get("capacity", svc.max_capacity)
+        left = max(0, cap - sum(1 for b in booked if b.booking_date.strftime("%H:%M") == time_str))
+        slots.append({"time": time_str, "capacity": cap, "left": left, "available": left > 0})
 
-@router.post("/{service_id}/book", response_model=ServiceBookingResponse, status_code=status.HTTP_201_CREATED)
-
-async def book_service(service_id: UUID, booking: ServiceBookingCreate, db: Session = Depends(get_db)):
-    service = db.query(Service).filter(Service.id == service_id).first()
-    if not service:
-        raise HTTPException(status_code=404, detail="Услуга не найдена")
-    client = db.query(Client).filter(Client.id == booking.client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Клиент не найден")
-    existing = db.query(ServiceBooking).filter(
-        and_(ServiceBooking.client_id == booking.client_id, func.date(ServiceBooking.booking_date) == func.date(booking.booking_date), ServiceBooking.status == "BOOKED")
-    ).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="У вас уже есть запись на это время")
-    current_bookings = db.query(ServiceBooking).filter(
-        and_(ServiceBooking.service_id == service_id, func.date(ServiceBooking.booking_date) == func.date(booking.booking_date), ServiceBooking.status.in_(["BOOKED", "COMPLETED"]))
-    ).count()
-    if current_bookings >= service.max_capacity:
-        raise HTTPException(status_code=409, detail="Мест нет")
-    db_booking = ServiceBooking(client_id=booking.client_id, service_id=service_id, booking_date=booking.booking_date, status="BOOKED")
-    db.add(db_booking)
-    db.commit()
-    db.refresh(db_booking)
-    return db_booking
-
-@router.post("/bookings/{booking_id}/send-reminder", response_model=dict)
-async def send_reminder(booking_id: UUID, db: Session = Depends(get_db)):
-    """Отправить напоминание о бронировании"""
-    booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
-    if not booking:
-        raise HTTPException(status_code=404, detail="Бронирование не найдено")
-    # Здесь будет логика отправки Email/SMS
     return {
-        "success": True,
-        "message": "Напоминание отправлено",
-        "booking_id": str(booking_id),
-        "client_id": str(booking.client_id),
-        "booking_date": booking.booking_date.isoformat(),
-        "channel": "email"
+        "available": any(s["available"] for s in slots),
+        "date": date,
+        "slots": slots,
     }
 
-@router.post("/bookings/{booking_id}/cancel", response_model=ServiceBookingResponse)
 
-async def cancel_booking(booking_id: UUID, db: Session = Depends(get_db)):
-    booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
+@router.post("/services/bookings/{booking_id}/cancel")
+def cancel_booking(
+    booking_id: UUID,
+    db: Session = Depends(_deps),
+    current_user: User = Depends(get_current_user),
+):
+    """Отмена записи — окно CANCEL_WINDOW_HOURS (параметр клуба, дефолт 24)."""
+    booking = db.get(ServiceBooking, booking_id)
     if not booking:
-        raise HTTPException(status_code=404, detail="Запись не найдена")
+        raise HTTPException(404, "Booking not found")
     if booking.status != "BOOKED":
-        raise HTTPException(status_code=409, detail="Нельзя отменить выполненную запись")
-    # Проверяем, что до начала бронирования более 24 часов
-    from datetime import datetime, timedelta, timezone
-    now = datetime.now(timezone.utc)
-    time_diff = booking.booking_date - now
-    if time_diff < timedelta(hours=24):
-        raise HTTPException(status_code=400, detail="Отмена возможна только за 24 часа до начала")
+        raise HTTPException(400, "Only BOOKED can be cancelled")
+
+    hours = get_param_int("CANCEL_WINDOW_HOURS", 24)
+    time_diff = booking.booking_date - datetime.now(timezone.utc)
+    if time_diff < timedelta(hours=hours):
+        raise HTTPException(
+            400,
+            f"Отмена возможна только за {hours} часов до начала",
+        )
     booking.status = "CANCELLED"
     db.commit()
-    db.refresh(booking)
-    return booking
+    return {"status": "cancelled"}
+
+
+# --- Волна 5: жизненный цикл брони ---
+
+@router.get("/services/bookings/upcoming")
+def upcoming_bookings(
+    db: Session = Depends(_deps),
+    current_user: User = Depends(require_permission("bookings.read")),
+):
+    """Ближайшие активные брони (десктоп + свип)."""
+    rows = (db.query(ServiceBooking)
+            .filter(ServiceBooking.status.in_(["BOOKED", "CONFIRMED", "PAID"]),
+                    ServiceBooking.booking_date >= datetime.now(timezone.utc) - timedelta(hours=2))
+            .order_by(ServiceBooking.booking_date)
+            .limit(200).all())
+    return [{
+        "id": str(b.id), "service_id": str(b.service_id), "client_id": str(b.client_id),
+        "booking_date": b.booking_date.isoformat() if b.booking_date else None,
+        "status": b.status, "price": b.price,
+        "client_name": (b.client.first_name + " " + (b.client.last_name or "")) if b.client else None,
+        "service_name": b.service.name if b.service else None,
+        "confirmed_at": b.confirmed_at.isoformat() if b.confirmed_at else None,
+        "paid_at": b.paid_at.isoformat() if b.paid_at else None,
+    } for b in rows]
+
+
+@router.get("/services/bookings/client/{client_id}")
+def client_bookings(
+    client_id: UUID,
+    db: Session = Depends(_deps),
+    current_user: User = Depends(get_current_user),
+):
+    """Записи клиента (бот «Мои записи», десктоп)."""
+    rows = (db.query(ServiceBooking)
+            .filter(ServiceBooking.client_id == str(client_id))
+            .order_by(ServiceBooking.booking_date.desc())
+            .limit(50).all())
+    return [{
+        "id": str(b.id), "booking_date": b.booking_date.isoformat() if b.booking_date else None,
+        "status": b.status, "price": b.price, "service_name": b.service.name if b.service else None,
+    } for b in rows]
+
+
+@router.post("/services/bookings/{booking_id}/confirm")
+def confirm_booking(
+    booking_id: UUID,
+    db: Session = Depends(_deps),
+    current_user: User = Depends(get_current_user),
+):
+    """Клиент подтверждает бронь (кнопка в MAX)."""
+    booking = db.get(ServiceBooking, booking_id)
+    if not booking:
+        raise HTTPException(404, "Booking not found")
+    if booking.status != "BOOKED":
+        raise HTTPException(409, f"Статус {booking.status} не требует подтверждения")
+    booking.status = "CONFIRMED"
+    booking.confirmed_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"status": "CONFIRMED"}
+
+
+@router.post("/services/bookings/{booking_id}/pay")
+def pay_booking(
+    booking_id: UUID,
+    price: Optional[float] = None,
+    db: Session = Depends(_deps),
+    current_user: User = Depends(require_roles("admin", "owner", "reception", "cashier")),
+):
+    """Касса отметила оплату (нал/карта/СБП) — бронь становится основанием для входа."""
+    booking = db.get(ServiceBooking, booking_id)
+    if not booking:
+        raise HTTPException(404, "Booking not found")
+    if booking.status not in ("BOOKED", "CONFIRMED"):
+        raise HTTPException(409, "Оплатить можно только активную бронь")
+    booking.status = "PAID"
+    booking.paid_at = datetime.now(timezone.utc)
+    if price is not None:
+        booking.price = price
+    db.commit()
+    return {"status": "PAID"}
+
+
+@router.post("/services/bookings/{booking_id}/no-show")
+def no_show_booking(
+    booking_id: UUID,
+    db: Session = Depends(_deps),
+    current_user: User = Depends(require_roles("admin", "owner", "reception")),
+):
+    """Не пришёл без предупреждения: NO_SHOW, рейтинг -0.5."""
+    booking = db.get(ServiceBooking, booking_id)
+    if not booking:
+        raise HTTPException(404, "Booking not found")
+    if booking.status not in ("CONFIRMED", "PAID"):
+        raise HTTPException(409, "No-show: только подтверждённые/оплаченные")
+    booking.status = "NO_SHOW"
+    _apply_rating(str(booking.client_id), -0.5)
+    db.commit()
+    return {"status": "NO_SHOW"}
+
+
+@router.post("/services/bookings/{booking_id}/complete")
+def complete_booking(
+    booking_id: UUID,
+    db: Session = Depends(_deps),
+    current_user: User = Depends(require_roles("admin", "owner", "reception", "trainer")),
+):
+    """Занятие состоялось: PAID -> COMPLETED, рейтинг +0.1."""
+    booking = db.get(ServiceBooking, booking_id)
+    if not booking:
+        raise HTTPException(404, "Booking not found")
+    if booking.status != "PAID":
+        raise HTTPException(409, "Завершить можно только оплаченную бронь")
+    booking.status = "COMPLETED"
+    _apply_rating(str(booking.client_id), +0.1)
+    db.commit()
+    return {"status": "COMPLETED"}
+
+
+@router.post("/services/bookings/sweep")
+def run_booking_sweep(
+    db: Session = Depends(_deps),
+    current_user: User = Depends(require_roles("admin", "owner")),
+):
+    """Ручной запуск свипа (шедулер дёргает сервис напрямую)."""
+    from app.services.booking_sweep import sweep
+    return sweep()
