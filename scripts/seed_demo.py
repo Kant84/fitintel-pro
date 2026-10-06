@@ -3,9 +3,9 @@
 
 Запуск на сервере:
   docker cp scripts/seed_demo.py deploy-api-1:/app/scripts/seed_demo.py
-  docker exec -w /app deploy-api-1 python scripts/seed_demo.py
+  docker exec -w /app -e PYTHONPATH=/app deploy-api-1 python scripts/seed_demo.py
 
-Идемпотентен: пропускает дубли по email/телефону. Пароль всех: demo12345.
+Идемпотентен: пропускает дубли по телефону. Пароль всех сотрудников: demo12345.
 """
 import random
 import uuid
@@ -46,11 +46,37 @@ def email(local):
     return "%s%s@mail.ru" % (local, uuid.uuid4().hex[:8])
 
 
+def fill_nn(db, table, data):
+    """Заполнить NOT NULL колонки без дефолта разумными значениями."""
+    data.setdefault("id", str(uuid.uuid4()))   # PK без дефолта в Postgres
+    nn = {r[0] for r in db.execute(text(
+        "SELECT column_name FROM information_schema.columns"
+        " WHERE table_name=:t AND is_nullable='NO' AND column_default IS NULL"
+        " AND column_name <> 'id' AND column_name NOT LIKE '%\\_id'"),
+        {"t": table}).fetchall()}
+    for c in nn:
+        if c in data:
+            continue
+        if c == "status":
+            data[c] = "ACTIVE"
+        elif c == "client_category":
+            data[c] = "ADULT"
+        elif c.startswith(("is_", "has_")):
+            data[c] = True
+        elif any(k in c for k in ("balance", "count", "amount", "total")):
+            data[c] = 0
+        elif c in ("created_at", "updated_at"):
+            from datetime import datetime, timezone
+            data[c] = datetime.now(timezone.utc)
+        else:
+            data[c] = ""
+    return data
+
+
 def main():
     db = SessionLocal()
     created_clients = created_staff = roles_assigned = skipped = 0
     try:
-        # ---------- роли ----------
         roles = {r[0]: r[1] for r in
                  db.execute(text("SELECT code, id FROM roles")).fetchall()}
         if not roles:
@@ -61,69 +87,70 @@ def main():
             rid = roles.get(code)
             if not rid:
                 return 0
+            from datetime import datetime, timezone
+            data = fill_nn(db, "user_roles", {
+                "user_id": str(user_id), "role_id": str(rid),
+                "assigned_at": datetime.now(timezone.utc)})
+            keys, phs = ", ".join(data), ", ".join(":%s" % k for k in data)
             db.execute(text(
-                "INSERT INTO user_roles (user_id, role_id) VALUES (:u, :r)"
-                " ON CONFLICT DO NOTHING"), {"u": str(user_id), "r": str(rid)})
+                "INSERT INTO user_roles (%s) VALUES (%s) ON CONFLICT DO NOTHING"
+                % (keys, phs)), data)
             return 1
 
-        # ---------- клиенты (взрослые + дети) ----------
-        adult_ids = []
         cols = {c[0] for c in db.execute(text(
             "SELECT column_name FROM information_schema.columns"
             " WHERE table_name='clients'")).fetchall()}
-        for i in range(50):
+        adult_ids = []
+
+        def insert_client(child=False):
             g = random.choice("mf")
             fn, ln, mn = fio(g)
-            birth = date.today() - timedelta(days=random.randint(18 * 365, 60 * 365))
+            age_days = random.randint(6 * 365, 15 * 365) if child else \
+                random.randint(18 * 365, 60 * 365)
+            birth = date.today() - timedelta(days=age_days)
             data = {"first_name": fn, "last_name": ln, "phone": phone()}
             if "middle_name" in cols: data["middle_name"] = mn
             if "birth_date" in cols: data["birth_date"] = str(birth)
             if "gender" in cols: data["gender"] = "MALE" if g == "m" else "FEMALE"
-            if "email" in cols: data["email"] = email("client")
+            if child and "client_category" in cols:
+                data["client_category"] = "CHILD"
+            if child and "parent_id" in cols and adult_ids:
+                data["parent_id"] = random.choice(adult_ids)
+            if "email" in cols:
+                data["email"] = email("kid" if child else "client")
             if db.execute(text("SELECT 1 FROM clients WHERE phone=:p"),
                           {"p": data["phone"]}).first():
-                skipped += 1
-                continue
+                return None
+            data = fill_nn(db, "clients", data)
             keys, phs = ", ".join(data), ", ".join(":%s" % k for k in data)
             r = db.execute(text(
                 "INSERT INTO clients (%s) VALUES (%s) RETURNING id" % (keys, phs)),
                 {k: str(v) for k, v in data.items()})
-            adult_ids.append(str(r.scalar()))
-            created_clients += 1
-        # дети до 16 (привязка к случайному взрослому, если есть parent_id)
-        for i in range(10):
-            g = random.choice("mf")
-            fn, ln, mn = fio(g)
-            birth = date.today() - timedelta(days=random.randint(6 * 365, 15 * 365))
-            data = {"first_name": fn, "last_name": ln, "phone": phone()}
-            if "middle_name" in cols: data["middle_name"] = mn
-            if "birth_date" in cols: data["birth_date"] = str(birth)
-            if "gender" in cols: data["gender"] = "MALE" if g == "m" else "FEMALE"
-            if "category" in cols: data["category"] = "CHILD"
-            if "parent_id" in cols and adult_ids:
-                data["parent_id"] = random.choice(adult_ids)
-            if "email" in cols: data["email"] = email("kid")
-            if db.execute(text("SELECT 1 FROM clients WHERE phone=:p"),
-                          {"p": data["phone"]}).first():
-                skipped += 1
-                continue
-            keys, phs = ", ".join(data), ", ".join(":%s" % k for k in data)
-            db.execute(text("INSERT INTO clients (%s) VALUES (%s)" % (keys, phs)),
-                       {k: str(v) for k, v in data.items()})
-            created_clients += 1
+            return str(r.scalar())
 
-        # ---------- сотрудники ----------
-        staff_plan = [("manager", 4), ("accountant", 1), ("trainer", 5),
-                      ("cashier", 2), ("support", 2), ("admin", 3), ("owner", 1)]
+        for _ in range(50):
+            cid = insert_client(child=False)
+            if cid is None:
+                skipped += 1
+            else:
+                adult_ids.append(cid)
+                created_clients += 1
+        for _ in range(10):
+            if insert_client(child=True) is None:
+                skipped += 1
+            else:
+                created_clients += 1
+
         ucols = {c[0] for c in db.execute(text(
             "SELECT column_name FROM information_schema.columns"
             " WHERE table_name='users'")).fetchall()}
+        staff_plan = [("manager", 4), ("accountant", 1), ("trainer", 5),
+                      ("cashier", 2), ("support", 2), ("admin", 3), ("owner", 1)]
         for code, count in staff_plan:
             for _ in range(count):
                 g = random.choice("mf")
                 fn, ln, mn = fio(g)
-                username = "%s_%s" % (code, uuid.uuid4().hex[:8])
-                data = {"username": username,
+                data = {"username": "%s_%s" % (code, uuid.uuid4().hex[:8]),
                         "email": email(code),
                         "password_hash": pwd_context.hash("demo12345"),
                         "is_active": True, "is_superuser": False}
@@ -131,12 +158,12 @@ def main():
                 if "first_name" in ucols: data["first_name"] = fn
                 if "last_name" in ucols: data["last_name"] = ln
                 if "is_verified" in ucols: data["is_verified"] = True
+                data = fill_nn(db, "users", data)
                 keys, phs = ", ".join(data), ", ".join(":%s" % k for k in data)
                 r = db.execute(text(
                     "INSERT INTO users (%s) VALUES (%s) RETURNING id" % (keys, phs)),
                     data)
-                uid = r.scalar()
-                roles_assigned += give_role(uid, code)
+                roles_assigned += give_role(r.scalar(), code)
                 created_staff += 1
         db.commit()
     except Exception as e:
