@@ -50,7 +50,8 @@ def fill_nn(db, table, data):
     """Заполнить NOT NULL колонки без дефолта разумными значениями."""
     nn = {r[0] for r in db.execute(text(
         "SELECT column_name FROM information_schema.columns"
-        " WHERE table_name=:t AND is_nullable='NO' AND column_default IS NULL"),
+        " WHERE table_name=:t AND is_nullable='NO' AND column_default IS NULL"
+        " AND column_name <> 'id' AND column_name NOT LIKE '%\\_id'"),
         {"t": table}).fetchall()}
     for c in nn:
         if c in data:
@@ -63,6 +64,9 @@ def fill_nn(db, table, data):
             data[c] = True
         elif any(k in c for k in ("balance", "count", "amount", "total")):
             data[c] = 0
+        elif c in ("created_at", "updated_at"):
+            from datetime import datetime, timezone
+            data[c] = datetime.now(timezone.utc)
         else:
             data[c] = ""
     return data
