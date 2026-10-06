@@ -28,6 +28,14 @@ def ensure_email_queue(db: Session) -> None:
         " created_at TIMESTAMP,"
         " sent_at TIMESTAMP)"))
     db.commit()
+    # миграция: старые БД создавались без колонки profile
+    try:
+        db.execute(text(
+            "ALTER TABLE email_queue ADD COLUMN IF NOT EXISTS"
+            " profile VARCHAR(20) NOT NULL DEFAULT 'club'"))
+        db.commit()
+    except Exception:
+        db.rollback()   # SQLite: ADD COLUMN IF NOT EXISTS не поддерживается — ок
 
 
 class EmailQueueService:
