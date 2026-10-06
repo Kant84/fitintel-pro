@@ -60,7 +60,7 @@ def fill_nn(db, table, data):
         if c == "status":
             data[c] = "ACTIVE"
         elif c == "client_category":
-            data[c] = "STANDARD"
+            data[c] = "ADULT"
         elif c.startswith(("is_", "has_")):
             data[c] = True
         elif any(k in c for k in ("balance", "count", "amount", "total")):
