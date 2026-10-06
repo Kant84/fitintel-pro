@@ -76,22 +76,25 @@ def _log(channel, recipient, subject, body, status, error=None):
     except Exception as e:
         logger.warning("notification log failed: %s", e)
 
-def _send_email(to, subject, body):
-    """A4: письмо ставится в очередь email_queue; реально уходит
-    процессингом (/email-queue/process) после настройки SMTP."""
+def _send_email(to, subject, body, db=None):
+    """A4: письмо ставится в очередь; реально уходит процессингом."""
     try:
-        try:
-            from app.db.session import SessionLocal
-        except ImportError:
-            from app.db.session import engine
-            from sqlalchemy.orm import sessionmaker
-            SessionLocal = sessionmaker(bind=engine)
+        _own = False
+        if db is None:
+            try:
+                from app.db.session import SessionLocal
+            except ImportError:
+                from app.db.session import engine
+                from sqlalchemy.orm import sessionmaker
+                SessionLocal = sessionmaker(bind=engine)
+            db = SessionLocal()
+            _own = True
         from app.services.email_queue_service import EmailQueueService
-        db = SessionLocal()
         try:
             ok = EmailQueueService(db).enqueue(to, subject, body)
         finally:
-            db.close()
+            if _own:
+                db.close()
         return (True, None) if ok else (False, "enqueue failed")
     except Exception as e:
         return False, str(e)
@@ -171,10 +174,10 @@ def set_settings(body: dict):
     return {"ok": True}
 
 @router.post("/notify/test")
-def test_send(body: TestIn):
+def test_send(body: TestIn, db: Session = Depends(get_db)):
     ch = body.channel.lower()
     if ch == "email":
-        ok, err = _send_email(body.to, "FitIntel Pro — тест", body.message)
+        ok, err = _send_email(body.to, "FitIntel Pro — тест", body.message, db)
     elif ch == "sms":
         ok, err = _send_sms(body.to, body.message)
     elif ch == "webpush":
@@ -204,7 +207,7 @@ def wp_subscribe(body: dict):
     return {"ok": True}
 
 @router.post("/notify/digest")
-def send_digest():
+def send_digest(db: Session = Depends(get_db)):
     """Ежедневный дайджест на email: посещения/выручка/клиенты за сегодня."""
     with _eng().connect() as c:
         def _cnt(q):
@@ -215,11 +218,17 @@ def send_digest():
         clients = _cnt("SELECT COUNT(*) FROM clients")
         visits = _cnt("SELECT COUNT(*) FROM visits WHERE created_at::date = CURRENT_DATE")
         revenue = _cnt("SELECT COALESCE(SUM(amount),0) FROM payments WHERE created_at::date = CURRENT_DATE")
-    s = _settings()
-    to = s.get("email_from") or s.get("smtp_user") or ""
+    # A4: настройки читаем через сессию запроса (та же БД, что и очередь)
+    try:
+        row = db.execute(text(
+            "SELECT email_from, smtp_user FROM notification_settings WHERE id=1")).first()
+        to = (row[0] or row[1] or "") if row else ""
+    except Exception:
+        s = _settings()
+        to = s.get("email_from") or s.get("smtp_user") or ""
     body = (f"Дайджест FitIntel Pro за {datetime.now():%d.%m.%Y}\n\n"
             f"Клиентов в базе: {clients}\nПосещений сегодня: {visits}\nВыручка сегодня: {revenue} руб.")
-    ok, err = _send_email(to, f"FitIntel дайджест {datetime.now():%d.%m.%Y}", body)
+    ok, err = _send_email(to, f"FitIntel дайджест {datetime.now():%d.%m.%Y}", body, db)
     _log("email", to, "digest", body, "sent" if ok else "error", err)
     return {"ok": ok, "error": err, "stats": {"clients": clients, "visits_today": visits, "revenue_today": revenue}}
 
