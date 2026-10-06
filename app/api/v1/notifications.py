@@ -77,29 +77,24 @@ def _log(channel, recipient, subject, body, status, error=None):
         logger.warning("notification log failed: %s", e)
 
 def _send_email(to, subject, body):
-    s = _settings()
-    if not s.get("email_enabled"):
-        return False, "email отключён в настройках"
-    if not s.get("smtp_host"):
-        return False, "smtp_host не задан"
+    """A4: письмо ставится в очередь email_queue; реально уходит
+    процессингом (/email-queue/process) после настройки SMTP."""
     try:
-        msg = MIMEText(body, "plain", "utf-8")
-        msg["Subject"] = subject
-        msg["From"] = s.get("email_from") or s.get("smtp_user") or ""
-        msg["To"] = to
-        port = int(s.get("smtp_port") or 465)
-        if port == 465:
-            srv = smtplib.SMTP_SSL(s["smtp_host"], port, timeout=20)
-        else:
-            srv = smtplib.SMTP(s["smtp_host"], port, timeout=20)
-            srv.starttls()
-        if s.get("smtp_user"):
-            srv.login(s["smtp_user"], s.get("smtp_pass") or "")
-        srv.sendmail(msg["From"], [to], msg.as_string())
-        srv.quit()
-        return True, None
+        try:
+            from app.db.session import SessionLocal
+        except ImportError:
+            from app.db.session import engine
+            from sqlalchemy.orm import sessionmaker
+            SessionLocal = sessionmaker(bind=engine)
+        from app.services.email_queue_service import EmailQueueService
+        db = SessionLocal()
+        try:
+            ok = EmailQueueService(db).enqueue(to, subject, body)
+        finally:
+            db.close()
+        return (True, None) if ok else (False, "enqueue failed")
     except Exception as e:
-        return False, str(e)[:300]
+        return False, str(e)
 
 def _send_sms(phone, message):
     s = _settings()
