@@ -67,7 +67,8 @@ app.dependency_overrides[get_db] = override_get_db
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_db():
-    """Таблицы моделей + runtime-DDL таблицы (auth_refresh_tokens)."""
+    """Таблицы моделей + runtime-DDL таблицы
+    (auth_refresh_tokens, notification_settings)."""
     Base.metadata.create_all(bind=engine)
     with engine.begin() as conn:
         conn.execute(text(
@@ -78,6 +79,11 @@ def setup_db():
             " expires_at TIMESTAMP NOT NULL,"
             " revoked BOOLEAN NOT NULL DEFAULT FALSE,"
             " created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"))
+        # notification_settings — SMTP клуба хранится в config (JSON)
+        conn.execute(text(
+            "CREATE TABLE IF NOT EXISTS notification_settings ("
+            " id INTEGER PRIMARY KEY DEFAULT 1,"
+            " config TEXT, updated_at TIMESTAMP)"))
     # auth.py._ensure() выполняет Postgres-DDL (DEFAULT now()) — на SQLite падает.
     # Таблица уже создана выше, помечаем DDL выполненным:
     try:
