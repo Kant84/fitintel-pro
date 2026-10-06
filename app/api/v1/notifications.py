@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import text
 
+from app.api.dependencies import get_current_user
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
