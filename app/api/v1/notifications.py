@@ -4,6 +4,8 @@ from datetime import datetime
 from email.mime.text import MIMEText
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from app.db.session import get_db
+from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.api.dependencies import get_current_user
