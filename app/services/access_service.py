@@ -304,18 +304,21 @@ class AccessService:
                 client_name=f"{client.first_name} {client.last_name}",
             )
         
-        subscription = self._get_active_subscription(client.id)
-        
-        if not subscription:
+        # === ВОЛНА 5: основания входа = активный абонемент ИЛИ оплаченное
+        # занятие в окне ±QR_ACCESS_WINDOW_HOURS (параметр клуба). Импорт ленивый.
+        from app.services.entry_policy import entry_reasons
+        reasons = entry_reasons(self.db, str(client.id))
+        if not reasons:
             return AccessCheckResponse(
                 decision=AccessDecision.DENIED,
-                reason="Нет активного абонемента",
+                reason="Нет оснований для входа: нет активного абонемента или оплаченного занятия",
                 client_id=client.id,
                 client_name=f"{client.first_name} {client.last_name}",
             )
-        
-        if not subscription.is_unlimited:
-            if subscription.visits_used >= subscription.visit_limit:
+        subscription = self._get_active_subscription(client.id)
+
+        if subscription and not subscription.is_unlimited:
+            if subscription.visits_used >= (subscription.visit_limit or 0):
                 return AccessCheckResponse(
                     decision=AccessDecision.DENIED,
                     reason="Лимит посещений исчерпан",
@@ -325,8 +328,8 @@ class AccessService:
                     visits_left=0,
                     subscription_end_date=subscription.end_date,
                 )
-        
-        if subscription.end_date < date.today():
+
+        if subscription and subscription.end_date < date.today():
             return AccessCheckResponse(
                 decision=AccessDecision.DENIED,
                 reason="Срок абонемента истёк",
@@ -335,10 +338,10 @@ class AccessService:
                 subscription_status=subscription.status,
                 subscription_end_date=subscription.end_date,
             )
-        
+
         visits_left = None
-        if not subscription.is_unlimited:
-            visits_left = subscription.visit_limit - subscription.visits_used
+        if subscription and not subscription.is_unlimited:
+            visits_left = (subscription.visit_limit or 0) - subscription.visits_used
         
         return AccessCheckResponse(
             decision=AccessDecision.ALLOWED,
