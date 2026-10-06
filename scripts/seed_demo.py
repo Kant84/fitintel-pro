@@ -79,6 +79,7 @@ def main():
             if "middle_name" in cols: data["middle_name"] = mn
             if "birth_date" in cols: data["birth_date"] = str(birth)
             if "gender" in cols: data["gender"] = "MALE" if g == "m" else "FEMALE"
+            if "client_category" in cols: data["client_category"] = "STANDARD"
             if "email" in cols: data["email"] = email("client")
             if db.execute(text("SELECT 1 FROM clients WHERE phone=:p"),
                           {"p": data["phone"]}).first():
@@ -99,7 +100,7 @@ def main():
             if "middle_name" in cols: data["middle_name"] = mn
             if "birth_date" in cols: data["birth_date"] = str(birth)
             if "gender" in cols: data["gender"] = "MALE" if g == "m" else "FEMALE"
-            if "category" in cols: data["category"] = "CHILD"
+            if "client_category" in cols: data["client_category"] = "CHILD"
             if "parent_id" in cols and adult_ids:
                 data["parent_id"] = random.choice(adult_ids)
             if "email" in cols: data["email"] = email("kid")
