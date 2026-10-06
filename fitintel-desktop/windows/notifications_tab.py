@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""E17 v2: Уведомления — подвкладки Email/SMS/WebPush/Тест/Журнал + контакты из базы."""
+"""E17 v2: Уведомления — подвкладки Email/SMS/WebPush/Отправка/Журнал + контакты из базы."""
 import json, os
 import requests
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
@@ -13,6 +13,11 @@ def _base():
         return cfg.get("api_base") or cfg.get("base_url") or cfg.get("base") or "http://localhost:8001/api/v1"
     except Exception:
         return "http://localhost:8001/api/v1"
+
+
+# Русские статусы для журнала
+STATUS_RU = {"sent": "Отправлено", "error": "Ошибка", "queued": "На отправлении",
+             "failed": "Ошибка", "pending": "На отправлении"}
 
 
 class NotificationsTab(QWidget):
@@ -100,17 +105,19 @@ class NotificationsTab(QWidget):
         self.ed_msg = QLineEdit("Тестовое уведомление FitIntel Pro")
         f.addRow("Текст:", self.ed_msg)
         hb2 = QHBoxLayout()
-        bt = QPushButton("📨 Отправить тест"); bt.clicked.connect(self.send_test)
+        bt = QPushButton("📨 Отправить"); bt.clicked.connect(self.send_test)
         bd = QPushButton("📊 Отправить дайджест"); bd.clicked.connect(self.send_digest)
         hb2.addWidget(bt); hb2.addWidget(bd)
         f.addRow(hb2)
-        self.tabs.addTab(w, "📨 Тест")
+        self.tabs.addTab(w, "📨 Отправка")
 
     def _build_log_tab(self):
         w = QWidget(); v = QVBoxLayout(w)
         b = QPushButton("🔄 Обновить журнал"); b.clicked.connect(self.load_log)
-        self.tbl = QTableWidget(0, 6)
-        self.tbl.setHorizontalHeaderLabels(["ID", "Канал", "Кому", "Тема", "Статус", "Ошибка"])
+        # 8 колонок: добавлены Дата и Время
+        self.tbl = QTableWidget(0, 8)
+        self.tbl.setHorizontalHeaderLabels(
+            ["ID", "Канал", "Кому", "Тема", "Дата", "Время", "Статус", "Ошибка"])
         self.tbl.horizontalHeader().setStretchLastSection(True)
         v.addWidget(b); v.addWidget(self.tbl)
         self.tabs.addTab(w, "📋 Журнал")
@@ -194,7 +201,8 @@ class NotificationsTab(QWidget):
         try:
             r = self._post("/notify/test", {"channel": self.cmb_ch.currentText(),
                 "to": self.ed_to.text().strip(), "message": self.ed_msg.text()})
-            QMessageBox.information(self, "Тест", "Отправлено ✓" if r.get("ok") else f"Ошибка: {r.get('error')}")
+            QMessageBox.information(self, "Отправка",
+                "Отправлено ✓" if r.get("ok") else f"Ошибка: {r.get('error')}")
             self.load_log()
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))
@@ -213,9 +221,17 @@ class NotificationsTab(QWidget):
     def load_log(self):
         try:
             rows = self._get("/notify/log?limit=50")
-            self.tbl.setRowCount(len(rows) if isinstance(rows, list) else 0)
-            for i, r in enumerate(rows if isinstance(rows, list) else []):
-                for j, k in enumerate(("id", "channel", "recipient", "subject", "status", "error")):
-                    self.tbl.setItem(i, j, QTableWidgetItem(str(r.get(k) or "")))
+            rows = rows if isinstance(rows, list) else []
+            self.tbl.setRowCount(len(rows))
+            for i, r in enumerate(rows):
+                created = str(r.get("created_at") or "")
+                date_s, _, time_s = created.partition("T")
+                time_s = time_s[:8] if time_s else ""
+                status_ru = STATUS_RU.get(str(r.get("status") or "").lower(),
+                                          str(r.get("status") or ""))
+                vals = [r.get("id"), r.get("channel"), r.get("recipient"),
+                        r.get("subject"), date_s, time_s, status_ru, r.get("error")]
+                for j, v in enumerate(vals):
+                    self.tbl.setItem(i, j, QTableWidgetItem(str(v or "")))
         except Exception as e:
             print("[E17] log load:", e)
