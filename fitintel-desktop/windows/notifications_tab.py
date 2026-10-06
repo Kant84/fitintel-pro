@@ -117,10 +117,10 @@ class NotificationsTab(QWidget):
 
     # ---------- логика ----------
     def _get(self, path):
-        return requests.get(_base() + path, timeout=15).json()
+        return requests.get(self.api.base_url.rstrip(chr(47)) + path, timeout=15).json()
 
     def _post(self, path, payload):
-        return requests.post(_base() + path, json=payload, timeout=25).json()
+        return requests.post(self.api.base_url.rstrip(chr(47)) + path, json=payload, timeout=25).json()
 
     def load_contacts(self):
         try:
