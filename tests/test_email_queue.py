@@ -52,7 +52,8 @@ class TestEmailQueue:
         """Критерий A4: без SMTP письмо копится (PENDING), после настройки — уходит (SENT)."""
         email_env.set_smtp(smtp_host="")   # SMTP выключен
         r = client.post("/api/v1/notify/test", headers=auth_headers,
-                        json={"email": "boss@club.ru", "message": "проверка"})
+                        json={"channel": "email", "to": "boss@club.ru",
+                              "message": "проверка"})
         assert r.status_code == 200, r.text
 
         row = email_env.db.execute(
