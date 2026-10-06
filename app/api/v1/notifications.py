@@ -276,3 +276,31 @@ def _e17_scheduler():
 
 _th.Thread(target=_e17_scheduler, daemon=True).start()
 print("[E17] scheduler OK")
+
+
+# ---------- A4: очередь email ----------
+@router.get("/email-queue")
+def email_queue(status: str | None = None, limit: int = 100,
+                current_user=Depends(get_current_user),
+                db: Session = Depends(get_db)):
+    from app.services.email_queue_service import ensure_email_queue
+    ensure_email_queue(db)
+    q = ("SELECT id, recipient, subject, status, attempts, last_error,"
+         " created_at, sent_at FROM email_queue")
+    prm = {}
+    if status:
+        q += " WHERE status=:s"
+        prm["s"] = status
+    q += " ORDER BY created_at DESC LIMIT %d" % int(limit)
+    rows = db.execute(text(q), prm).fetchall()
+    return {"items": [{"id": r[0], "recipient": r[1], "subject": r[2],
+                       "status": r[3], "attempts": r[4], "last_error": r[5],
+                       "created_at": r[6], "sent_at": r[7]} for r in rows]}
+
+
+@router.post("/email-queue/process")
+def email_queue_process(current_user=Depends(get_current_user),
+                        db: Session = Depends(get_db)):
+    """Ручной процессинг очереди (админ): отправка due-писем."""
+    from app.services.email_queue_service import EmailQueueService
+    return EmailQueueService(db).process_queue()
