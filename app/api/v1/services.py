@@ -9,7 +9,44 @@ from app.api.dependencies import get_current_user, require_permission, require_r
 from app.db.session import get_db
 from app.models.service import Service, ServiceBooking
 from app.models.user import User
-from app.schemas.service import ServiceBookingCreate, ServiceCreate, ServiceOut, ServiceUpdate
+# --- схемы локально (ваш app/schemas/service.py в репо отличается от присланного:
+#     ServiceOut отсутствует). Самодостаточность убирает класс ImportError при дрейфе схем.
+from pydantic import BaseModel, ConfigDict
+
+
+class ServiceBookingCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    client_id: UUID
+    booking_date: datetime
+    notes: Optional[str] = None
+    source: Optional[str] = None
+
+
+class ServiceCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    name: str
+    description: Optional[str] = None
+    category: str = "OTHER"
+    price: float = 0.0
+    duration_minutes: int = 60
+    max_capacity: int = 1
+    is_active: bool = True
+    trainer_id: Optional[UUID] = None
+    schedule: Optional[dict] = None
+
+
+class ServiceUpdate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    name: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    price: Optional[float] = None
+    duration_minutes: Optional[int] = None
+    max_capacity: Optional[int] = None
+    is_active: Optional[bool] = None
+    trainer_id: Optional[UUID] = None
+    schedule: Optional[dict] = None
+
 
 router = APIRouter()
 
@@ -77,7 +114,7 @@ def _apply_rating(client_id: str, delta: float):
 
 # ============================ SERVICES ============================
 
-@router.get("/services", response_model=List[ServiceOut])
+@router.get("/services")
 def list_services(
     category: Optional[str] = Query(None),
     active_only: bool = Query(True),
@@ -92,7 +129,7 @@ def list_services(
     return q.order_by(Service.name).all()
 
 
-@router.post("/services", response_model=ServiceOut, status_code=status.HTTP_201_CREATED)
+@router.post("/services", status_code=status.HTTP_201_CREATED)
 def create_service(
     body: ServiceCreate,
     db: Session = Depends(_deps),
@@ -105,7 +142,7 @@ def create_service(
     return svc
 
 
-@router.get("/services/{service_id}", response_model=ServiceOut)
+@router.get("/services/{service_id}", )
 def get_service(
     service_id: UUID,
     db: Session = Depends(_deps),
@@ -117,7 +154,7 @@ def get_service(
     return svc
 
 
-@router.patch("/services/{service_id}", response_model=ServiceOut)
+@router.patch("/services/{service_id}", )
 def update_service(
     service_id: UUID,
     body: ServiceUpdate,
@@ -149,7 +186,7 @@ def delete_service(
 
 # ============================ BOOKINGS ============================
 
-@router.post("/services/{service_id}/book", response_model=ServiceOut, status_code=status.HTTP_201_CREATED)
+@router.post("/services/{service_id}/book", status_code=status.HTTP_201_CREATED)
 def book_service(
     service_id: UUID,
     booking: ServiceBookingCreate,
