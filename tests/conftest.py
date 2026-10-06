@@ -37,10 +37,18 @@ import sqlite3
 import uuid as _uuid2
 import datetime as _dt
 
-# SQLite: teach sqlite3 to bind UUID and datetime objects
+
+def _adapt_datetime(v):
+    """Формат СОВМЕСТИМ с дефолтным адаптером sqlite3 (space, без tz) —
+    строковые сравнения дат в коде (fiscal/visits) не должны ломаться."""
+    if getattr(v, "tzinfo", None) is not None:
+        v = v.astimezone(_dt.timezone.utc).replace(tzinfo=None)
+    return v.strftime("%Y-%m-%d %H:%M:%S.%f")
+
+
 sqlite3.register_adapter(_uuid2.UUID, lambda u: str(u))
-sqlite3.register_adapter(_dt.datetime, lambda v: v.isoformat())
-sqlite3.register_adapter(_dt.date, lambda v: v.isoformat())
+sqlite3.register_adapter(_dt.datetime, _adapt_datetime)
+sqlite3.register_adapter(_dt.date, lambda v: v.strftime("%Y-%m-%d"))
 
 @compiles(JSONB, "sqlite")
 def _jsonb_on_sqlite(element, compiler, **kw):
