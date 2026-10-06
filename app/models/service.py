@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Optional, List, Dict, Any
 
 from sqlalchemy import (
-    Boolean, DateTime, Float, ForeignKey, Integer, String, Text,
+    JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text,
     UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -53,7 +53,7 @@ class Service(Base):
     )
     trainer: Mapped[Optional["TrainerProfile"]] = relationship("TrainerProfile", lazy="joined")
 
-    schedule: Mapped[Optional[Dict[str, Any]]] = mapped_column(nullable=True)
+    schedule: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     """JSON: {"days": [1,3,5], "time_slots": [{"time": "10:00", "capacity": 10}, ...]}"""
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
