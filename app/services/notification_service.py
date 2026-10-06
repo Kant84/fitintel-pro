@@ -83,25 +83,17 @@ class NotificationService:
         profile: str = PROFILE_CLUB,
     ) -> bool:
         """Поставить письмо в очередь. Реально уходит при process_queue()
-        после настройки SMTP — не «мгновенный успех» (критерий A4)."""
+        после настройки SMTP — не «мгновенный успех» (критерий A4).
+        Делегируем EmailQueueService: там же миграция колонки profile."""
         try:
-            ensure_email_queue_table(self.db)
-            self.db.execute(text(
-                "INSERT INTO email_queue (id, profile, recipient, subject, body,"
-                " html_body, status, attempts, next_attempt_at, created_at)"
-                " VALUES (:id, :p, :r, :s, :b, :h, 'PENDING', 0, :na, :ca)"
-            ), {
-                "id": str(_uuid.uuid4()), "p": profile, "r": to_email,
-                "s": subject, "b": body, "h": html_body,
-                "na": _now(), "ca": _now(),
-            })
-            self.db.commit()
+            from app.services.email_queue_service import EmailQueueService
+            EmailQueueService(self.db).enqueue(
+                to_email, subject, body, html_body=html_body, profile=profile)
             self._log('email', to_email, subject, body, 'queued', template_id)
             return True
         except Exception as e:
             self._log('email', to_email, subject, body, 'failed', template_id, str(e))
             return False
-
     def send_system_email(self, to_email: str, subject: str, body: str,
                           html_body: Optional[str] = None) -> bool:
         """Письмо от РАЗРАБОТЧИКА (алерты, лицензии) — профиль system."""
