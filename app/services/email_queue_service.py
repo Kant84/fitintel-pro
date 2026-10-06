@@ -18,6 +18,7 @@ def ensure_email_queue(db: Session) -> None:
     db.execute(text(
         "CREATE TABLE IF NOT EXISTS email_queue ("
         " id VARCHAR(36) PRIMARY KEY,"
+        " profile VARCHAR(20) NOT NULL DEFAULT 'club',"
         " recipient VARCHAR(320) NOT NULL,"
         " subject VARCHAR(500) NOT NULL,"
         " body TEXT,"
@@ -28,16 +29,15 @@ def ensure_email_queue(db: Session) -> None:
         " created_at TIMESTAMP,"
         " sent_at TIMESTAMP)"))
     db.commit()
-    # миграция: старые БД создавались без колонки profile
+    # миграция: старые Postgres-таблицы создавались без колонки profile
     try:
         db.execute(text(
             "ALTER TABLE email_queue ADD COLUMN IF NOT EXISTS"
             " profile VARCHAR(20) NOT NULL DEFAULT 'club'"))
         db.commit()
     except Exception:
-        db.rollback()   # SQLite: ADD COLUMN IF NOT EXISTS не поддерживается — ок
-
-
+        db.rollback()  
+        
 class EmailQueueService:
     def __init__(self, db: Session):
         self.db = db
