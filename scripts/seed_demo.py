@@ -48,6 +48,7 @@ def email(local):
 
 def fill_nn(db, table, data):
     """Заполнить NOT NULL колонки без дефолта разумными значениями."""
+    data.setdefault("id", str(uuid.uuid4()))   # PK без дефолта в Postgres
     nn = {r[0] for r in db.execute(text(
         "SELECT column_name FROM information_schema.columns"
         " WHERE table_name=:t AND is_nullable='NO' AND column_default IS NULL"
