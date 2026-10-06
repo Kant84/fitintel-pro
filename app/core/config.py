@@ -151,15 +151,17 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================
-    # 5. SMTP Email
+    # 5. SMTP Email — клубный профиль (profile=club)
     # ==========================================================
+    # Источник истины — настройки «Уведомления» в desktop (notification_settings).
+    # Эти переменные — фолбэк, если в БД SMTP не заполнен.
     SMTP_HOST: str = Field(
         default="",
-        description="SMTP хост (например, mail.fixintel.ru)",
+        description="SMTP хост (например, smtp.mail.ru)",
     )
     SMTP_PORT: int = Field(
         default=587,
-        description="SMTP порт (обычно 587)",
+        description="SMTP порт (465 = SSL, 587 = STARTTLS)",
     )
     SMTP_USER: str = Field(
         default="",
@@ -167,7 +169,7 @@ class Settings(BaseSettings):
     )
     SMTP_PASSWORD: str = Field(
         default="",
-        description="SMTP пароль",
+        description="SMTP пароль / пароль приложения",
     )
     SMTP_TLS: bool = Field(
         default=True,
@@ -180,6 +182,32 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = Field(
         default="",
         description="Email отправителя",
+    )
+
+    # ----------------------------------------------------------
+    # 5а. SMTP Email — системный профиль (profile=system)
+    # ----------------------------------------------------------
+    # Почта РАЗРАБОТЧИКА: алерты мониторинга, лицензии, поддержка клубов.
+    # Клуб этот блок не видит и не трогает. Mailcow (fixintel.ru).
+    SYSTEM_SMTP_HOST: str = Field(
+        default="",
+        description="Системный SMTP хост (mail.sanakin.tech)",
+    )
+    SYSTEM_SMTP_PORT: int = Field(
+        default=465,
+        description="Системный SMTP порт",
+    )
+    SYSTEM_SMTP_USER: str = Field(
+        default="",
+        description="Системный SMTP пользователь (support@fixintel.ru)",
+    )
+    SYSTEM_SMTP_PASSWORD: str = Field(
+        default="",
+        description="Системный SMTP пароль",
+    )
+    SYSTEM_SMTP_FROM: str = Field(
+        default="",
+        description="Системный email отправителя",
     )
 
     # ==========================================================
@@ -234,8 +262,6 @@ class Settings(BaseSettings):
         description="DSN для отправки ошибок в Sentry.",
     )
 
-    
-
     # ==========================================================
     # 8. Внешние интеграции (1C, Mobifitness и др.)
     # ==========================================================
@@ -288,7 +314,6 @@ class Settings(BaseSettings):
         default=None,
         description="Ключ API SMS провайдера",
     )
-    
 
     # ==========================================================
     # QR-КОДЫ
@@ -302,7 +327,7 @@ class Settings(BaseSettings):
         default="M",
         description="Уровень коррекции ошибок: L, M, Q, H"
     )
-    
+
     @computed_field
     @property
     def DATABASE_URL(self) -> str:
