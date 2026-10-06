@@ -2,7 +2,7 @@
 import json, smtplib, logging
 from datetime import datetime
 from email.mime.text import MIMEText
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import text
 
