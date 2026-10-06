@@ -62,13 +62,15 @@ class EmailQueueService:
                 "ssl": port == 465}
 
     # ---------- постановка в очередь ----------
-    def enqueue(self, recipient, subject, body, html_body=None, max_attempts=MAX_ATTEMPTS):
+    def enqueue(self, recipient, subject, body, html_body=None,
+                max_attempts=MAX_ATTEMPTS, profile="club"):
         ensure_email_queue(self.db)
         self.db.execute(text(
-            "INSERT INTO email_queue (id, recipient, subject, body, status, attempts,"
-            " next_attempt_at, created_at) VALUES (:id, :r, :s, :b, 'PENDING', 0, :na, :ca)"),
-            {"id": str(uuid.uuid4()), "r": recipient, "s": subject, "b": body,
-             "na": _now(), "ca": _now()})
+            "INSERT INTO email_queue (id, profile, recipient, subject, body, status,"
+            " attempts, next_attempt_at, created_at)"
+            " VALUES (:id, :p, :r, :s, :b, 'PENDING', 0, :na, :ca)"),
+            {"id": str(uuid.uuid4()), "p": profile, "r": recipient, "s": subject,
+             "b": body, "na": _now(), "ca": _now()})
         self.db.commit()
         return True
 
