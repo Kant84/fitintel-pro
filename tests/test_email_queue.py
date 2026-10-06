@@ -51,7 +51,7 @@ class TestEmailQueue:
     def test_queued_when_smtp_off_then_sent_when_on(self, client, auth_headers, email_env, monkeypatch):
         """Критерий A4: без SMTP письмо копится (PENDING), после настройки — уходит (SENT)."""
         email_env.set_smtp(smtp_host="")   # SMTP выключен
-        r = client.post("/api/v1/notifications/send-test", headers=auth_headers,
+        r = client.post("/api/v1/notify/test", headers=auth_headers, ...)
                         json={"email": "boss@club.ru", "message": "проверка"})
         assert r.status_code == 200, r.text
 
@@ -101,7 +101,7 @@ class TestEmailQueue:
             lambda self, cfg, recipient, subject, body, html_body: None)
         email_env.set_smtp(smtp_host="smtp.mail.ru")
         email_env.q.enqueue("x@y.ru", "s", "b")
-        r = client.post("/api/v1/notifications/email-queue/process", headers=auth_headers)
+        r = client.post("/api/v1/email-queue/process", headers=auth_headers)
         assert r.status_code == 200, r.text
         assert r.json()["sent"] >= 1
 
@@ -119,7 +119,7 @@ class TestEmailQueue:
             "status": "ACTIVE"})
         assert r.status_code == 201, r.text
 
-        r = client.post("/api/v1/notifications/expiring-digest?days=7",
+       r = client.post("/api/v1/notify/digest?days=7", ...)
                         headers=auth_headers)
         assert r.status_code == 200, r.text
         from sqlalchemy import text
