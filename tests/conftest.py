@@ -71,14 +71,19 @@ def setup_db():
     (auth_refresh_tokens, notification_settings)."""
     Base.metadata.create_all(bind=engine)
     with engine.begin() as conn:
+        # notification_settings — ПОЛНАЯ схема колонок (как _ensure() в проде)
         conn.execute(text(
-            "CREATE TABLE IF NOT EXISTS auth_refresh_tokens ("
-            " id VARCHAR(36) PRIMARY KEY,"
-            " user_id VARCHAR(36) NOT NULL,"
-            " token_hash VARCHAR(64) NOT NULL,"
-            " expires_at TIMESTAMP NOT NULL,"
-            " revoked BOOLEAN NOT NULL DEFAULT FALSE,"
-            " created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"))
+            "CREATE TABLE IF NOT EXISTS notification_settings ("
+            " id INTEGER PRIMARY KEY DEFAULT 1,"
+            " updated_at TIMESTAMP,"
+            " email_enabled BOOLEAN DEFAULT FALSE,"
+            " smtp_host TEXT, smtp_port INTEGER DEFAULT 465,"
+            " smtp_user TEXT, smtp_pass TEXT, email_from TEXT,"
+            " sms_enabled BOOLEAN DEFAULT FALSE,"
+            " smsc_login TEXT, smsc_pass TEXT, smsc_sender TEXT,"
+            " webpush_enabled BOOLEAN DEFAULT FALSE,"
+            " vapid_public TEXT, vapid_private TEXT, vapid_sub TEXT,"
+            " digest_time VARCHAR(5) DEFAULT '09:00')"))
         # notification_settings — SMTP клуба хранится в config (JSON)
         conn.execute(text(
             "CREATE TABLE IF NOT EXISTS notification_settings ("

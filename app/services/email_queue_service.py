@@ -1,138 +1,122 @@
 # app/services/email_queue_service.py
-"""A4: очередь email-писем.
-
-- Таблица email_queue (авто-миграция, как остальные runtime-DDL).
-- enqueue() — постановка в очередь вместо мгновенной «успешной» отправки.
-- process_queue() — отправка due-писем через SMTPEmailService (конфиг из
-  notification_settings: smtp_host/port/user/password/ssl, from_email),
-  ретраи 1 мин -> 5 мин -> 15 мин, после max_attempts -> FAILED.
-- Пока SMTP не настроен/недоступен письма копятся со статусом PENDING
-  (критерий приёмки A4: при выключенном SMTP письмо копится и уходит после включения).
-"""
-import json
+"""A4: очередь email. Копится при выключенном SMTP, уходит процессингом."""
 import uuid
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-_BACKOFF_SECONDS = (60, 300, 900)   # экспоненциальные паузы между попытками
+MAX_ATTEMPTS = 3
+RETRY_DELAYS_MIN = (1, 5, 15)
 
-_DDL_DONE = False
+
+def _now():
+    return datetime.now(timezone.utc)
 
 
-def ensure_email_queue(db: Session):
-    global _DDL_DONE
-    if _DDL_DONE:
-        return
+def ensure_email_queue(db: Session) -> None:
     db.execute(text(
         "CREATE TABLE IF NOT EXISTS email_queue ("
         " id VARCHAR(36) PRIMARY KEY,"
-        " recipient VARCHAR(255) NOT NULL,"
+        " recipient VARCHAR(320) NOT NULL,"
         " subject VARCHAR(500) NOT NULL,"
         " body TEXT,"
-        " html_body TEXT,"
-        " priority INTEGER DEFAULT 3,"
-        " status VARCHAR(10) DEFAULT 'PENDING',"
-        " attempts INTEGER DEFAULT 0,"
-        " max_attempts INTEGER DEFAULT 3,"
-        " last_error TEXT,"
+        " status VARCHAR(20) NOT NULL DEFAULT 'PENDING',"
+        " attempts INTEGER NOT NULL DEFAULT 0,"
         " next_attempt_at TIMESTAMP,"
+        " last_error TEXT,"
         " created_at TIMESTAMP,"
         " sent_at TIMESTAMP)"))
-    db.execute(text(
-        "CREATE INDEX IF NOT EXISTS idx_email_queue_status ON email_queue(status)"))
     db.commit()
-    _DDL_DONE = True
 
 
 class EmailQueueService:
     def __init__(self, db: Session):
         self.db = db
-        ensure_email_queue(db)
+
+    # ---------- настройки SMTP читаем ТОЙ ЖЕ сессией (важно для тестов) ----------
+    def _smtp_config(self):
+        try:
+            row = self.db.execute(text(
+                "SELECT * FROM notification_settings WHERE id=1")).mappings().first()
+        except Exception:
+            return None
+        if not row:
+            return None
+        host = row.get("smtp_host")
+        if not host:
+            return None
+        port = int(row.get("smtp_port") or 465)
+        return {"host": host, "port": port,
+                "user": row.get("smtp_user"),
+                "password": row.get("smtp_pass"),
+                "from": row.get("email_from") or row.get("smtp_user"),
+                "ssl": port == 465}
 
     # ---------- постановка в очередь ----------
-    def enqueue(self, recipient: str, subject: str, body: str,
-                html_body: str | None = None, priority: int = 3,
-                max_attempts: int = 3) -> str:
-        eid = str(uuid.uuid4())
+    def enqueue(self, recipient, subject, body, html_body=None, max_attempts=MAX_ATTEMPTS):
+        ensure_email_queue(self.db)
         self.db.execute(text(
-            "INSERT INTO email_queue (id, recipient, subject, body, html_body,"
-            " priority, status, attempts, max_attempts, created_at)"
-            " VALUES (:i, :r, :s, :b, :h, :p, 'PENDING', 0, :m, :n)"),
-            {"i": eid, "r": recipient, "s": subject, "b": body, "h": html_body,
-             "p": priority, "m": max_attempts, "n": datetime.now(timezone.utc)})
+            "INSERT INTO email_queue (id, recipient, subject, body, status, attempts,"
+            " next_attempt_at, created_at) VALUES (:id, :r, :s, :b, 'PENDING', 0, :na, :ca)"),
+            {"id": str(uuid.uuid4()), "r": recipient, "s": subject, "b": body,
+             "na": _now(), "ca": _now()})
         self.db.commit()
-        return eid
+        return True
 
-    # ---------- конфиг SMTP из настроек «Уведомлений» ----------
-    def smtp_config(self) -> dict:
-        row = self.db.execute(text(
-            "SELECT config FROM notification_settings WHERE id=1")).first()
-        cfg = {}
-        if row and row[0]:
-            try:
-                cfg = json.loads(row[0])
-            except Exception:
-                pass
-        return {
-            "host": cfg.get("smtp_host") or "",
-            "port": int(cfg.get("smtp_port") or 465),
-            "user": cfg.get("smtp_user") or "",
-            "password": cfg.get("smtp_password") or "",
-            "use_ssl": str(cfg.get("smtp_ssl", True)).lower() in ("1", "true", "yes"),
-            "from_email": (cfg.get("from_email") or cfg.get("smtp_user")
-                           or "no-reply@fitintel.ru"),
-        }
-
-    # ---------- доставка ----------
-    def _deliver(self, cfg: dict, recipient: str, subject: str,
-                 body: str, html_body: str | None):
-        if not cfg.get("host"):
-            raise RuntimeError("SMTP не настроен: укажите smtp_host в «Уведомления → Настройки»")
-        from app.services.email_service import SMTPEmailService
-        svc = SMTPEmailService(
-            host=cfg["host"], port=cfg["port"],
-            username=cfg["user"] or None, password=cfg["password"] or None,
-            use_ssl=cfg["use_ssl"], from_email=cfg["from_email"],
-        )
-        svc.send(subject=subject, body=body, recipients=[recipient],
-                 html_body=html_body)
-
-    # ---------- процессинг очереди ----------
-    def process_queue(self, limit: int = 20) -> dict:
-        cfg = self.smtp_config()
-        now = datetime.now(timezone.utc)
+    # ---------- процессинг ----------
+    def process_queue(self, limit=50):
+        ensure_email_queue(self.db)
+        cfg = self._smtp_config()
         rows = self.db.execute(text(
-            "SELECT id, recipient, subject, body, html_body, attempts, max_attempts"
-            " FROM email_queue"
-            " WHERE status = 'PENDING'"
-            "   AND (next_attempt_at IS NULL OR next_attempt_at <= :n)"
-            " ORDER BY priority ASC, created_at ASC LIMIT :l"),
-            {"n": now, "l": limit}).fetchall()
-        sent = failed = deferred = 0
-        for r in rows:
+            "SELECT id, recipient, subject, body, attempts FROM email_queue"
+            " WHERE status='PENDING' AND (next_attempt_at IS NULL OR next_attempt_at <= :now)"
+            " ORDER BY created_at LIMIT :lim"), {"now": _now(), "lim": int(limit)}).fetchall()
+        sent = failed = waiting = 0
+        for rid, recipient, subject, body, attempts in rows:
+            if not cfg:
+                waiting += 1
+                continue
             try:
-                self._deliver(cfg, r.recipient, r.subject, r.body, r.html_body)
+                self._deliver(cfg, recipient, subject, body, None)
                 self.db.execute(text(
                     "UPDATE email_queue SET status='SENT', sent_at=:n, last_error=NULL"
-                    " WHERE id=:i"), {"n": now, "i": r.id})
+                    " WHERE id=:id"), {"n": _now(), "id": rid})
                 sent += 1
             except Exception as e:
-                attempts = (r.attempts or 0) + 1
-                err = str(e)[:300]
-                if attempts >= (r.max_attempts or 3):
+                attempts += 1
+                if attempts >= MAX_ATTEMPTS:
                     self.db.execute(text(
                         "UPDATE email_queue SET status='FAILED', attempts=:a, last_error=:e"
-                        " WHERE id=:i"), {"a": attempts, "e": err, "i": r.id})
+                        " WHERE id=:id"), {"a": attempts, "e": str(e)[:500], "id": rid})
                     failed += 1
                 else:
-                    backoff = _BACKOFF_SECONDS[min(attempts - 1, len(_BACKOFF_SECONDS) - 1)]
-                    nxt = now + timedelta(seconds=backoff)
+                    delay = RETRY_DELAYS_MIN[min(attempts - 1, len(RETRY_DELAYS_MIN) - 1)]
                     self.db.execute(text(
-                        "UPDATE email_queue SET attempts=:a, last_error=:e,"
-                        " next_attempt_at=:x WHERE id=:i"),
-                        {"a": attempts, "e": err, "x": nxt, "i": r.id})
-                    deferred += 1
-        self.db.commit()
-        return {"processed": len(rows), "sent": sent, "failed": failed, "deferred": deferred}
+                        "UPDATE email_queue SET attempts=:a, last_error=:e, next_attempt_at=:na"
+                        " WHERE id=:id"), {"a": attempts, "e": str(e)[:500],
+                                           "na": _now() + timedelta(minutes=delay), "id": rid})
+                    waiting += 1
+            self.db.commit()
+        return {"processed": len(rows), "sent": sent, "failed": failed, "waiting_smtp": waiting}
+
+    def _deliver(self, cfg, recipient, subject, body, html_body):
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        msg = MIMEMultipart()
+        msg["From"] = cfg.get("from") or cfg.get("user") or "FitIntel PRO"
+        msg["To"] = recipient
+        msg["Subject"] = subject
+        msg.attach(MIMEText(html_body or body or "", "html", "utf-8"))
+        if cfg.get("ssl"):
+            srv = smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=20)
+        else:
+            srv = smtplib.SMTP(cfg["host"], cfg["port"], timeout=20)
+            srv.starttls()
+        try:
+            if cfg.get("user"):
+                srv.login(cfg["user"], cfg.get("password") or "")
+            srv.send_message(msg)
+        finally:
+            srv.quit()
