@@ -1,4 +1,4 @@
-""""Политика права входа: бот /qr и турникет используют ОДНУ функцию.
+"""Политика права входа: бот /qr и турникет используют ОДНУ функцию.
 
 Основания (не «единый вход» — любое из):
   1. ACTIVE-абонемент с остатком визитов (логика как в access_service);
@@ -7,6 +7,7 @@
 """
 from datetime import datetime, timezone, timedelta, date
 
+from sqlalchemy import text as _sql_text
 from sqlalchemy.orm import Session
 
 from app.api.v1.club_params import get_param, get_param_int
@@ -75,11 +76,21 @@ def entry_reasons(db: Session, client_id: str, at: datetime | None = None) -> li
     after_h = get_param_int("ENTRY_WINDOW_AFTER_HOURS", 1)
     until_close = str(get_param("ENTRY_STAY_UNTIL_CLOSE", "false")).lower() == "true"
     gym_full_day = str(get_param("GYM_ACCESS_FULL_DAY", "true")).lower() == "true"
-    # широкий охват выборки: фильтр точный — в Python (окна ассимметричные)
+    # широкий охват выборки: фильтр точный — в Python (окна ассимметричные).
+    # Основания считаем и по своим броням, и по броням детей (родитель приводит ребёнка).
+    me = str(client_id).replace("-", "")
+    # дети — raw-SQL: атрибута parent_id в модели Client нет (колонка — ALTER-ом)
+    try:
+        kids = [r[0] for r in db.execute(
+            _sql_text("SELECT id FROM clients WHERE parent_id = :p"),
+            {"p": me}).fetchall()]
+    except Exception:
+        kids = []
+    family = [me] + [str(k).replace("-", "") for k in kids]
     lo_scan, hi_scan = at - timedelta(hours=48), at + timedelta(days=2)
     rows = (db.query(ServiceBooking, Service)
             .join(Service, ServiceBooking.service_id == Service.id)
-            .filter(ServiceBooking.client_id == str(client_id),
+            .filter(ServiceBooking.client_id.in_(family),
                     ServiceBooking.status == "PAID",
                     ServiceBooking.booking_date >= lo_scan,
                     ServiceBooking.booking_date <= hi_scan)
@@ -88,7 +99,8 @@ def entry_reasons(db: Session, client_id: str, at: datetime | None = None) -> li
         if _booking_grants_entry(b, svc, at, before_h, after_h,
                                  until_close, gym_full_day):
             t = _aware(b.booking_date).strftime("%H:%M")
-            reasons.append(f"Оплаченное занятие «{svc.name}» в {t}")
+            whose = "" if str(b.client_id).replace("-", "") == me else " (ребёнок)"
+            reasons.append(f"Оплаченное занятие «{svc.name}» в {t}{whose}")
     return reasons
 
 

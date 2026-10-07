@@ -22,7 +22,8 @@ MENU_TEXT = (
     "3. 👤 Личный тренер\n"
     "4. 📋 Мои записи\n"
     "5. 🔳 QR на вход\n"
-    "6. 🎁 Бонусы\n\n"
+    "6. 🎁 Бонусы\n"
+    "7. 👶 Мои дети\n\n"
     "Ответьте номером или словом (например: «1» или «магазин»)."
 )
 
@@ -35,7 +36,16 @@ def _ensure(db: Session):
         " max_user_id BIGINT PRIMARY KEY,"
         " state TEXT, data TEXT,"
         " updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"))
-    db.commit()
+    try:
+        if db.bind.dialect.name == "postgresql":
+            db.execute(sql_text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS parent_id VARCHAR(64)"))
+        else:
+            cols = {r[1] for r in db.execute(sql_text("PRAGMA table_info(clients)"))}
+            if "parent_id" not in cols:
+                db.execute(sql_text("ALTER TABLE clients ADD COLUMN parent_id VARCHAR(64)"))
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 def _get_state(db: Session, uid: int):
@@ -91,10 +101,28 @@ def _norm(t: str) -> str:
     return (t or "").strip().lower()
 
 
+def _my_children(db: Session, parent_id) -> list:
+    """Дети клиента (parent_id хранится hex без дефисов)."""
+    return db.query(Client).filter(
+        Client.parent_id == str(parent_id).replace("-", ""),
+        Client.client_category == "CHILD").all()
+
+
+def _save_source(db: Session, client_id, source: str | None):
+    if not source:
+        return
+    try:
+        db.execute(sql_text("UPDATE clients SET source=:s WHERE replace(id,'-','')=:i"),
+                   {"s": source[:30], "i": str(client_id).replace("-", "")})
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
 # ---------------- сценарии ----------------
 
-def _start_registration(db: Session, uid: int) -> str:
-    _set_state(db, uid, "REG_FIO", {})
+def _start_registration(db: Session, uid: int, source: str | None = None) -> str:
+    _set_state(db, uid, "REG_FIO", {"source": source})
     return ("Регистрация. Шаг 1/4: напишите ФИО одной строкой "
             "(например: Иванов Иван Иванович).")
 
@@ -131,6 +159,40 @@ def _step_registration(db: Session, uid: int, text: str) -> str:
         _set_state(db, uid, "REG_BIRTH", data)
         return "Шаг 4/4: дата рождения ДД.ММ.ГГГГ (например: 15.03.1990)."
 
+    if state == "CHILD_FIO":
+        parts = text.strip().split()
+        if len(parts) < 2:
+            return "Нужны фамилия и имя ребёнка. Ещё раз:"
+        data.update(last_name=parts[0], first_name=parts[1],
+                    middle_name=" ".join(parts[2:]) or None)
+        _set_state(db, uid, "CHILD_BIRTH", data)
+        return "Дата рождения ребёнка: ДД.ММ.ГГГГ."
+
+    if state == "CHILD_BIRTH":
+        m = re.match(r"^(\d{2})\.(\d{2})\.(\d{4})$", text.strip())
+        if not m:
+            return "Формат: ДД.ММ.ГГГГ. Ещё раз:"
+        d, mo, y = map(int, m.groups())
+        try:
+            bd = date(y, mo, d)
+        except ValueError:
+            return "Такой даты не бывает. Ещё раз:"
+        parent = _find_client_row(db, uid)
+        try:
+            child = Client(first_name=data["first_name"], last_name=data["last_name"],
+                           middle_name=data.get("middle_name"),
+                           phone=f"child:{uid}:{data['first_name'][:10]}",  # телефон уникален
+                           birth_date=bd, gender="НЕ_УКАЗАН", client_category="CHILD",
+                           parent_id=str(parent[0]).replace("-", ""))
+            db.add(child)
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            _clear(db, uid)
+            return f"Не получилось добавить ребёнка ({str(e)[:80]}). Попробуйте через ресепшен."
+        _clear(db, uid)
+        return f"✅ {data['first_name']} добавлен(а). При записи можно выбрать «для ребёнка».\n\n" + _menu()
+
     if state == "REG_BIRTH":
         m = re.match(r"^(\d{2})\.(\d{2})\.(\d{4})$", text.strip())
         if not m:
@@ -155,6 +217,7 @@ def _step_registration(db: Session, uid: int, text: str) -> str:
             _clear(db, uid)
             return f"Не получилось создать карточку (возможно, телефон уже есть в базе). Напишите /start и попробуйте снова. ({str(e)[:80]})"
         _bind(db, uid, c.id)
+        _save_source(db, c.id, data.get("source"))
         _clear(db, uid)
         return (f"Готово, {data['first_name']}! Карточка создана и привязана.\n\n" + _menu())
 
@@ -182,14 +245,44 @@ def _shop_pick(db: Session, uid: int, text: str) -> str:
     svc = db.get(Service, ids[int(text) - 1])
     if not svc:
         return "Услуга не найдена. Попробуйте снова: /start"
-    sched = svc.schedule or {}
-    days = sched.get("days") or []
+    # дальше: для кого запись (дети) -> дата -> слот
+    return _who_for(db, uid, {"sid": str(svc.id)})
+
+
+def _who_for(db: Session, uid: int, data: dict) -> str:
+    """Если у клиента есть дети — спросить, для кого запись."""
+    parent = _find_client_row(db, uid)
+    kids = _my_children(db, parent[0]) if parent else []
+    if not kids:
+        data["who"] = str(parent[0]).replace("-", "")
+        _set_state(db, uid, "BOOK_PICK_DATE", data)
+        return _book_pick_date_prompt(db, uid, data)
+    opts = ["1. Для себя"] + [f"{i+2}. Для {k.first_name}" for i, k in enumerate(kids[:5])]
+    data["kid_ids"] = [str(k.id).replace("-", "") for k in kids[:5]]
+    _set_state(db, uid, "BOOK_PICK_WHO", data)
+    return "Для кого запись?\n" + "\n".join(opts)
+
+
+def _book_pick_who(db: Session, uid: int, text: str) -> str:
+    _, data = _get_state(db, uid)
+    n = len(data.get("kid_ids", [])) + 1
+    if not text.strip().isdigit() or not (1 <= int(text) <= n):
+        return f"Напишите число от 1 до {n}."
+    i = int(text) - 1
+    parent = _find_client_row(db, uid)
+    data["who"] = str(parent[0]).replace("-", "") if i == 0 else data["kid_ids"][i - 1]
+    _set_state(db, uid, "BOOK_PICK_DATE", data)
+    return _book_pick_date_prompt(db, uid, data)
+
+
+def _book_pick_date_prompt(db: Session, uid: int, data: dict) -> str:
+    svc = db.get(Service, data["sid"])
+    sched = (svc.schedule or {}) if svc else {}
     slots = sched.get("time_slots") or []
+    days = sched.get("days") or []
     if not slots:
-        # без расписания — свободный ввод даты
-        _set_state(db, uid, "BOOK_FREE_DATE", {"sid": str(svc.id)})
-        return (f"«{svc.name}». Напишите дату и время занятия: ДД.ММ.ГГГГ ЧЧ:ММ")
-    # даты на 7 дней вперёд по schedule.days
+        _set_state(db, uid, "BOOK_FREE_DATE", data)
+        return f"«{svc.name}». Напишите дату и время занятия: ДД.ММ.ГГГГ ЧЧ:ММ"
     out, opts = [], []
     for add in range(0, 8):
         d = date.today() + timedelta(days=add)
@@ -200,7 +293,9 @@ def _shop_pick(db: Session, uid: int, text: str) -> str:
         return "Ближайших дней по расписанию нет. Уточните на ресепшене."
     for i, d in enumerate(opts[:7], 1):
         out.append(f"{i}. {d.strftime('%d.%m.%Y (%a)')}")
-    _set_state(db, uid, "BOOK_PICK_DATE", {"sid": str(svc.id), "dates": [x.isoformat() for x in opts[:7]], "slots": slots})
+    data["dates"] = [x.isoformat() for x in opts[:7]]
+    data["slots"] = slots
+    _set_state(db, uid, "BOOK_PICK_DATE", data)
     return f"«{svc.name}». Выберите дату:\n" + "\n".join(out)
 
 
@@ -241,13 +336,14 @@ def _book_pick_slot(db: Session, uid: int, text: str, row) -> str:
         ServiceBooking.status.in_(["BOOKED", "CONFIRMED", "PAID"])).count()
     if booked >= cap:
         return "Место только что заняли. Выберите другое время."
+    who = data.get("who") or str(row[0]).replace("-", "")
     conflict = db.query(ServiceBooking).filter(
-        ServiceBooking.client_id == str(row[0]),
+        ServiceBooking.client_id == who,
         ServiceBooking.booking_date == when.replace(tzinfo=None),
         ServiceBooking.status.in_(["BOOKED", "CONFIRMED", "PAID"])).first()
     if conflict:
-        return "У вас уже есть запись на это время. Выберите другое."
-    b = ServiceBooking(service_id=data["sid"], client_id=str(row[0]),
+        return "Уже есть запись на это время (себя или ребёнка). Выберите другое."
+    b = ServiceBooking(service_id=data["sid"], client_id=who,
                        booking_date=when.replace(tzinfo=None), status="BOOKED", source="MAX")
     db.add(b)
     db.commit()
@@ -268,7 +364,8 @@ def _book_free_date(db: Session, uid: int, text: str, row) -> str:
     except ValueError:
         return "Некорректная дата. Ещё раз:"
     _, data = _get_state(db, uid)
-    b = ServiceBooking(service_id=data["sid"], client_id=str(row[0]),
+    who = data.get("who") or str(row[0]).replace("-", "")
+    b = ServiceBooking(service_id=data["sid"], client_id=who,
                        booking_date=when.replace(tzinfo=None), status="BOOKED", source="MAX")
     db.add(b)
     db.commit()
@@ -331,6 +428,8 @@ def handle(db: Session, max_user_id: int, text: str) -> str | None:
             return "Нужна привязка карточки: сообщите номер телефона администратору или на ресепшене."
         if state == "SHOP_PICK":
             return _shop_pick(db, max_user_id, text)
+        if state == "BOOK_PICK_WHO":
+            return _book_pick_who(db, max_user_id, text)
         if state == "BOOK_PICK_DATE":
             return _book_pick_date(db, max_user_id, text)
         if state == "BOOK_PICK_SLOT":
@@ -340,7 +439,10 @@ def handle(db: Session, max_user_id: int, text: str) -> str | None:
         if state == "MY_CONFIRM":
             return _my_confirm(db, max_user_id, text, row)
 
-    # старт/регистрация
+    # старт/регистрация; deep-link «/start reception|poster|card» — источник в карточку
+    m_start = re.match(r"^/start\s+(\S+)$", t)
+    if m_start and not row:
+        return _start_registration(db, max_user_id, source=m_start.group(1))
     if t in ("/start", "start", "старт", "привет", "меню", "0"):
         if not row:
             return _start_registration(db, max_user_id)
@@ -350,6 +452,33 @@ def handle(db: Session, max_user_id: int, text: str) -> str | None:
 
     if not row:
         return None   # пусть max_bot ответит про привязку
+
+    # отмена записи (окно CANCEL_WINDOW_HOURS — то же правило, что в API)
+    m_cancel = re.match(r"^отменить\s+(\d+)$", t)
+    if m_cancel:
+        _, data = _get_state(db, max_user_id)
+        ids = data.get("ids", [])
+        n = int(m_cancel.group(1))
+        if not (1 <= n <= len(ids)):
+            return "Сначала откройте «4. Мои записи», затем «отменить <номер>»."
+        b = db.get(ServiceBooking, ids[n - 1])
+        if not b or str(b.client_id).replace("-", "") not in (
+                str(row[0]).replace("-", ""),
+                *[str(k.id).replace("-", "") for k in _my_children(db, row[0])]):
+            return "Запись не найдена."
+        if b.status != "BOOKED":
+            return f"Статус «{b.status}» — отмена недоступна (обратитесь на ресепшен)."
+        from app.api.v1.club_params import get_param_int
+        bd = b.booking_date
+        if getattr(bd, "tzinfo", None) is None:
+            bd = bd.replace(tzinfo=timezone.utc)
+        hours = get_param_int("CANCEL_WINDOW_HOURS", 24)
+        if bd - datetime.now(timezone.utc) < timedelta(hours=hours):
+            return f"Бесплатная отмена — не позднее чем за {hours} ч. Позвоните в клуб."
+        b.status = "CANCELLED"
+        db.commit()
+        _clear(db, max_user_id)
+        return get_label("TXT.CANCEL.OK", "❌ Запись отменена. Слот освобождён.") + "\n\n" + _menu()
 
     # пункты меню
     if t in ("1", "магазин", "услуги", "товары"):
@@ -372,6 +501,20 @@ def handle(db: Session, max_user_id: int, text: str) -> str | None:
         _set_state(db, max_user_id, "SHOP_PICK", {"ids": [str(s.id) for s in svcs]})
         return ("👤 Личный тренер — выберите услугу:\n" +
                 "\n".join(f"{i}. {s.name}" for i, s in enumerate(svcs[:20], 1)))
+    if t in ("7", "дети", "мои дети", "ребёнок", "ребенок"):
+        kids = _my_children(db, row[0])
+        lines = ["👶 Ваши дети:"]
+        for k in kids:
+            bd = k.birth_date.strftime("%d.%m.%Y") if k.birth_date else "—"
+            lines.append(f"• {k.first_name} {k.last_name or ''} ({bd})".rstrip())
+        if not kids:
+            lines.append("пока никого не добавлено.")
+        lines.append("\nДобавить: «добавить ребёнка».")
+        return "\n".join(lines)
+    if t in ("добавить ребёнка", "добавить ребенка"):
+        _set_state(db, max_user_id, "CHILD_FIO", {})
+        return "ФИО ребёнка одной строкой (например: Иванова Мария):"
+
     if t in ("4", "мои записи", "записи"):
         _my_menu_prep(db, max_user_id)
         return _my_bookings(db, row)
