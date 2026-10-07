@@ -12,11 +12,11 @@ from PyQt6.QtWidgets import QMessageBox, QPushButton, QTableWidget, QFileDialog,
 
 _DLG_STYLE = (
     "QDialog { border: 2px solid #E6007E; background: #0f172a; }"
-    " QToolBar { background: #1e293b; border: none; spacing: 4px; }"
-    " QToolButton { color: #e2e8f0; background: #1e293b; border: 1px solid #334155; border-radius: 4px; padding: 4px; }"
-    " QToolButton:hover { border: 1px solid #E6007E; }"
-    " QComboBox, QSpinBox { background: #0f172a; color: #e2e8f0; border: 1px solid #E6007E; padding: 2px; }"
-    " QLabel { color: #e2e8f0; }"
+    "QToolBar { background: #1e293b; border: none; spacing: 4px; }"
+    "QToolButton { color: #e2e8f0; background: #1e293b; border: 1px solid #334155; border-radius: 4px; padding: 4px; }"
+    "QToolButton:hover { border: 1px solid #E6007E; }"
+    "QComboBox, QSpinBox { background: #0f172a; color: #e2e8f0; border: 1px solid #E6007E; padding: 2px; }"
+    "QLabel { color: #e2e8f0; }"
 )
 
 def _doc_print(doc, printer):
@@ -89,8 +89,8 @@ def add_print_button(tab, title="FitIntel Pro"):
     box = QWidget()
     h = QHBoxLayout(box)
     h.setContentsMargins(0, 0, 0, 0)
-    btn_p = QPushButton("🖨 Печать")
-    btn_pdf = QPushButton("📄 В PDF")
+    btn_p = QPushButton("Печать")
+    btn_pdf = QPushButton("В PDF")
 
     def _get_tbl():
         tbl = _find_table(tab)

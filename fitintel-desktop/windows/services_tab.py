@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QMessageBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QFormLayout,
     QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox, QDialogButtonBox,
-    QCheckBox
+    QCheckBox, QTabWidget, QLabel
 )
 from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QColor
@@ -39,16 +39,16 @@ class ServicesWorker(QThread):
 
     def run(self):
         try:
-            r1 = self.api.session.get(self.api._url("/services"))
+            r1 = self.api.session.get(self.api._url("services"))
             r1.raise_for_status()
             services = r1.json()
             try:
-                r2 = self.api.session.get(self.api._url("/trainers/profiles"))
+                r2 = self.api.session.get(self.api._url("trainers/profiles"))
                 trainers = r2.json() if r2.status_code == 200 else []
             except Exception:
                 trainers = []
             try:
-                r3 = self.api.session.get(self.api._url("/users"))
+                r3 = self.api.session.get(self.api._url("users"))
                 users = r3.json() if r3.status_code == 200 else []
                 if isinstance(users, dict):
                     users = users.get("items", []) 
@@ -110,7 +110,7 @@ class ServiceDialog(QDialog):
                 umap[str(u["id"])] = str(nm)
 
         self.trainer = QComboBox()
-        self.trainer.addItem("— без тренера —", None)
+        self.trainer.addItem("без тренера —", None)
         for p in trainers:
             self.trainer.addItem(_trainer_name(p, umap),
                                  p.get("user_id") or p.get("id"))
@@ -154,12 +154,12 @@ class ServiceDialog(QDialog):
         try:
             if self.service.get("id"):
                 resp = self.api.session.put(
-                    self.api._url(f"/services/{self.service['id']}"),
+                    self.api._url(f"services/{self.service['id']}"),
                     json={k: v for k, v in payload.items()
                           if k in ("name", "price", "is_active", "max_capacity",
                                    "duration_minutes", "category", "trainer_id")})
             else:
-                resp = self.api.session.post(self.api._url("/services"), json=payload)
+                resp = self.api.session.post(self.api._url("services"), json=payload)
             if resp.status_code in (200, 201):
                 self.ok = True
                 self.accept()
@@ -241,7 +241,7 @@ class TrainerDialog(QDialog):
             "max_clients_per_day": int(self.max_clients.value()),
         }
         try:
-            resp = self.api.session.post(self.api._url("/trainers/profiles"), json=payload)
+            resp = self.api.session.post(self.api._url("trainers/profiles"), json=payload)
             if resp.status_code == 201:
                 self.ok = True
                 self.accept()
@@ -254,6 +254,98 @@ class TrainerDialog(QDialog):
                 QMessageBox.warning(self, "Не создано", f"{resp.status_code}: {detail}")
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))
+class ShopTab(QWidget):
+    """Волна 5: Магазин (склад) — каталог + продажа на кассу (нал/карта/СБП)."""
+    def __init__(self, api: ApiClient):
+        super().__init__()
+        self.api = api
+        self._products = []
+        v = QVBoxLayout(self)
+        v.setContentsMargins(16, 16, 16, 16)
+
+        top = QHBoxLayout()
+        self.lbl_info = QLabel("Каталог склада (продажа — на кассе, оплата любым способом).")
+        top.addWidget(self.lbl_info)
+        top.addStretch()
+        btn_sell = QPushButton("Продать")
+        btn_sell.setStyleSheet("QPushButton { background: #059669; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
+        btn_sell.clicked.connect(self._sell)
+        btn_ref = QPushButton("Обновить")
+        btn_ref.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
+        btn_ref.clicked.connect(self.refresh)
+        top.addWidget(btn_sell)
+        top.addWidget(btn_ref)
+        v.addLayout(top)
+
+        self.tbl = QTableWidget()
+        self.tbl.setColumnCount(4)
+        self.tbl.setHorizontalHeaderLabels(["Товар", "Цена ₽", "Остаток", "Ед."])
+        self.tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tbl.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.tbl.setAlternatingRowColors(True)
+        self.tbl.setStyleSheet(theme.table_style())
+        v.addWidget(self.tbl, 1)
+        self.refresh()
+
+    def refresh(self):
+        try:
+            r = self.api.session.get(self.api._url("warehouse/products"), params={"club_id": 1})
+            if r.status_code != 200:
+                self.tbl.setRowCount(1)
+                self.tbl.setItem(0, 0, QTableWidgetItem(f"Склад недоступен: {r.status_code}"))
+                return
+            rows = r.json()
+            self._products = rows if isinstance(rows, list) else rows.get("items", [])
+            self.tbl.setRowCount(len(self._products))
+            for i, p in enumerate(self._products):
+                self.tbl.setItem(i, 0, QTableWidgetItem(str(p.get("name") or "—")))
+                self.tbl.setItem(i, 1, QTableWidgetItem(str(p.get("sale_price") or 0)))
+                self.tbl.setItem(i, 2, QTableWidgetItem(str(p.get("quantity") or 0)))
+                self.tbl.setItem(i, 3, QTableWidgetItem(str(p.get("unit") or "шт")))
+        except Exception as e:
+            self.tbl.setRowCount(1)
+            self.tbl.setItem(0, 0, QTableWidgetItem(f"Ошибка: {e}"))
+
+    def _sell(self):
+        idx = self.tbl.currentRow()
+        if idx < 0 or idx >= len(self._products):
+            QMessageBox.information(self, "Продажа", "Выберите товар в таблице")
+            return
+        p = self._products[idx]
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Продажа: {p.get('name')}")
+        f = QFormLayout(dlg)
+        qty = QSpinBox(); qty.setRange(1, int(float(p.get("quantity") or 0)) or 1); qty.setValue(1)
+        f.addRow("Количество:", qty)
+        pay = QComboBox(); pay.addItem("Наличные", "cash"); pay.addItem("Карта", "card"); pay.addItem("СБП", "sbp")
+        f.addRow("Оплата:", pay)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.button(QDialogButtonBox.StandardButton.Ok).setText("Провести")
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        f.addRow(bb)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            r = self.api.session.post(self.api._url("warehouse/bar/sales"), json={
+                "club_id": 1,
+                "payment_method": pay.currentData(),
+                "items": [{"item_type": "product",
+                           "product_id": str(p.get("id")),
+                           "quantity": qty.value()}]})
+            if r.status_code == 201:
+                d = r.json()
+                QMessageBox.information(self, "Продажа", f"Продано на {d.get('total', 0):.2f} ₽")
+                self.refresh()
+            else:
+                detail = "ошибка сервера"
+                try: detail = r.json().get("detail", detail)
+                except Exception: pass
+                QMessageBox.warning(self, "Не проведено", f"{r.status_code}: {detail}")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", str(e))
+
+
 class ServicesTab(QWidget):
     def __init__(self, api: ApiClient):
         super().__init__()
@@ -266,18 +358,24 @@ class ServicesTab(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        tabs = QTabWidget()
+        host = QWidget()
+        inner = QVBoxLayout(host)
+        inner.setContentsMargins(16, 16, 16, 16)
+        inner.setSpacing(12)
+        layout.addWidget(tabs)
 
         row = QHBoxLayout()
         for text, handler, style in (
-            ("＋ Добавить услугу", self._add,
+            ("Добавить услугу", self._add,
              "QPushButton { background: #059669; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; }"),
-            ("✎ Назначить тренера", self._edit,
+            ("Назначить тренера", self._edit,
              "QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }"),
-            ("🗑 Удалить", self._delete,
+            ("Удалить", self._delete,
              "QPushButton { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; border-radius: 6px; padding: 8px 16px; font-weight: 600; }"),
-            ("👤 Новый тренер", self._new_trainer,
+            ("Новый тренер", self._new_trainer,
              "QPushButton { background: #eef2ff; border: 1px solid #a5b4fc; color: #3730a3; border-radius: 6px; padding: 8px 16px; font-weight: 600; }"),
         ):
             b = QPushButton(text)
@@ -289,7 +387,7 @@ class ServicesTab(QWidget):
         rb.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         rb.clicked.connect(self.refresh)
         row.addWidget(rb)
-        layout.addLayout(row)
+        inner.addLayout(row)
 
         self.table = QTableWidget()
         self.table.setColumnCount(7)
@@ -300,7 +398,10 @@ class ServicesTab(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
         self.table.setStyleSheet(theme.table_style())
-        layout.addWidget(self.table)
+        inner.addWidget(self.table)
+        tabs.addTab(host, "Услуги")
+        self._shop = ShopTab(self.api)
+        tabs.addTab(self._shop, "Магазин")
 
     def refresh(self):
         self.worker = ServicesWorker(self.api)
@@ -378,7 +479,7 @@ class ServicesTab(QWidget):
         ) != QMessageBox.StandardButton.Yes:
             return
         try:
-            resp = self.api.session.delete(self.api._url(f"/services/{s['id']}"))
+            resp = self.api.session.delete(self.api._url(f"services/{s['id']}"))
             if resp.status_code == 204:
                 self.refresh()
             else:

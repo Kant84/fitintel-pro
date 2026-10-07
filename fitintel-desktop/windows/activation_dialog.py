@@ -33,7 +33,7 @@ class ActivationDialog(QDialog):
         b_act = QPushButton("Активировать и войти")
         b_act.setStyleSheet(
             "QPushButton { background: #059669; color: white; border: none;"
-            " border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
+            "border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         b_act.clicked.connect(self._activate)
         b_skip = QPushButton("У меня уже есть доступ")
         b_skip.clicked.connect(self.reject)
@@ -72,7 +72,7 @@ class ActivationDialog(QDialog):
             self.lbl.setText("В ключе нет пароля — сгенерируйте лицензию новой версией Studio")
             return
         try:
-            r = self._post("/license/activate", {"key": key})
+            r = self._post("license/activate", {"key": key})
         except urllib.error.HTTPError as e:
             self.lbl.setText(f"Сервер отклонил: {e.code}")
             return
@@ -83,7 +83,7 @@ class ActivationDialog(QDialog):
             self.lbl.setText("Ключ не принят: " + str(r.get("reason", r))[:180])
             return
         try:
-            lr = self._post("/auth/login", {"login": login, "password": pw})
+            lr = self._post("auth/login", {"login": login, "password": pw})
             self.token = lr.get("access_token")
             self.user_data = lr.get("user") or {"username": login}
             self.accept()

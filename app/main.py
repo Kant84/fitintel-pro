@@ -457,3 +457,22 @@ try:
     print("W5 booking sweep OK")
 except Exception as _w5e:
     print("W5 booking sweep FAIL:", _w5e)
+    
+# === W5: экран «Параметры клуба» в матрице ролей ===
+try:
+    from sqlalchemy import text as _w5t
+    from app.db.session import engine as _w5e
+    with _w5e.begin() as _c:
+        _cols = {r[0] for r in _c.execute(_w5t(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='ui_screens'"))}
+        _vals = {"code": "club_params", "name": "Параметры клуба"}
+        _have = {k: v for k, v in _vals.items() if k in _cols}
+        if "is_active" in _cols:
+            _have["is_active"] = True
+        if _have and "code" in _cols:
+            _ks = ", ".join(_have)
+            _ps = ", ".join(":%s" % k for k in _have)
+            _c.execute(_w5t(f"INSERT INTO ui_screens ({_ks}) VALUES ({_ps}) ON CONFLICT DO NOTHING"), _have)
+    print("W5 ui screen OK")
+except Exception as _w5ui:
+    print("W5 ui screen:", str(_w5ui)[:120])

@@ -106,6 +106,7 @@ class TestClubParams:
         assert data["SLOT_MINUTES"] == "45"
         assert data["ENTRY_WINDOW_BEFORE_HOURS"] == "1"
         assert data["CANCEL_WINDOW_HOURS"] == "24"
+        assert data["CHILD_MAX_AGE"] == "16"
 
     def test_override_and_readback(self, client, auth_headers):
         r = client.put("/api/v1/club-params/CANCEL_WINDOW_HOURS",

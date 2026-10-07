@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
 
 class FormDialog(QDialog):
     """fields: list of (key, label, kind, options_or_default)
-    kind: "text" | "combo"; combo options: list of (label, value)"""
+    kind: "text" | "combo"combo options: list of (label, value)"""
 
     def __init__(self, title: str, fields: list, parent=None):
         super().__init__(parent)

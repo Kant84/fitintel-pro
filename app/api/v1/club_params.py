@@ -52,6 +52,7 @@ DEFAULT_PARAMS = {
     "ENTRY_WINDOW_AFTER_HOURS": ("1", "Вход на занятие: сколько часов ПОСЛЕ начала пускать"),
     "ENTRY_STAY_UNTIL_CLOSE": ("false", "Вошёл — остаётся до конца дня (true/false, окно AFTER игнорится)"),
     "GYM_ACCESS_FULL_DAY": ("true", "Разовый вход в зал (GYM_ACCESS): весь день оплаты (true/false)"),
+    "CHILD_MAX_AGE": ("16", "Дети: максимальный возраст (полных лет)"),
     "QR_TTL_MINUTES": ("2", "Время жизни QR, минут"),
     "QR_REFRESH_COOLDOWN_SECONDS": ("20", "Пауза между обновлениями QR в боте, секунд"),
     "CANCEL_WINDOW_HOURS": ("24", "Бесплатная отмена записи не позднее, часов"),

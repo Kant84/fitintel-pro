@@ -156,6 +156,6 @@ class SettingsTab(QWidget):
             from app_logging import LOG_FILE
             lines = LOG_FILE.read_text(encoding="utf-8").splitlines()
             bad = [l for l in lines if "WARNING" in l or "ERROR" in l or "CRITICAL" in l]
-            self.lbl_tail.setText("\n".join(bad[-10:]) or "Ошибок нет")
+            self.lbl_tail.setText("n".join(bad[-10:]) or "Ошибок нет")
         except Exception as e:
             self.lbl_tail.setText(f"Лог пуст: {e}")
