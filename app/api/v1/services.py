@@ -107,12 +107,13 @@ def _deps(db: Session = Depends(get_db)):
 def _apply_rating(db: Session, client_id: str, delta: float):
     """Рейтинг клиента: clamp [1.0, 5.0]. Читаем/пишем ТОЙ ЖЕ сессией (тесты!).
     Кламп в Python — диалектно-нейтрально (sqlite max() != Postgres MAX())."""
+    uid = str(client_id).replace("-", "")   # sqlite хранит UUID hex без дефисов
     row = db.execute(_text("SELECT rating FROM clients WHERE id = :i"),
-                     {"i": str(client_id)}).first()
+                     {"i": uid}).first()
     cur = float(row[0]) if row and row[0] is not None else 5.0
     new = min(5.0, max(1.0, cur + delta))
     db.execute(_text("UPDATE clients SET rating = :r WHERE id = :i"),
-               {"r": new, "i": str(client_id)})
+               {"r": new, "i": uid})
     db.commit()
 
 

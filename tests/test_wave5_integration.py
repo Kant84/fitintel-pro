@@ -58,7 +58,8 @@ def _mk_tariff(db, name="Безлимит", code="TEST-UNL") -> Tariff:
 def _mk_subscription(db, client_id, tariff_id) -> Subscription:
     sub = Subscription(client_id=str(client_id), tariff_id=tariff_id,
                        start_date=NOW.date(), end_date=(NOW + timedelta(days=30)).date(),
-                       visits_used=0, is_unlimited=True, status="ACTIVE", is_active=True)
+                       visits_used=0, is_unlimited=True, status="ACTIVE", is_active=True,
+                       price=3000.0)   # в актуальной модели price NOT NULL (дрейф)
     db.add(sub); db.commit(); db.refresh(sub)
     return sub
 
