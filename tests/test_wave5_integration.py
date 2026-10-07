@@ -19,26 +19,36 @@ from app.services.booking_sweep import sweep as booking_sweep
 NOW = datetime.now(timezone.utc)
 
 
+_API = {}
+
+
+def _api(db):
+    """(TestClient, headers) drift-proof: логин один раз на сессию тестов."""
+    if "h" not in _API:
+        from fastapi.testclient import TestClient
+        from app.main import app
+        from app.core.security import pwd_context
+        from app.models.user import User
+        if not db.query(User).filter_by(username="superadmin").first():
+            db.add(User(username="superadmin", email="sa@t.ru",
+                        password_hash=pwd_context.hash("testpass123"),
+                        is_active=True, is_superuser=True))
+            db.commit()
+        c = TestClient(app)
+        r = c.post("/api/v1/auth/login",
+                   json={"login": "superadmin", "password": "testpass123"})
+        _API["h"] = {"Authorization": "Bearer " + r.json()["access_token"]}
+        _API["c"] = c
+    return _API["c"], _API["h"]
+
+
 def _mk_client(db, phone="+79000000001") -> Client:
     """Через API: сервер сам заполнит обязательные поля модели (дрейф-сейф)."""
-    from fastapi.testclient import TestClient
-    from app.main import app
-    c = TestClient(app)
-    from app.core.security import pwd_context
-    from app.models.user import User
-    sess = db
-    if not sess.query(User).filter_by(username="superadmin").first():
-        sess.add(User(username="superadmin", email="sa@t.ru",
-                      password_hash=pwd_context.hash("testpass123"),
-                      is_active=True, is_superuser=True))
-        sess.commit()
-    r = c.post("/api/v1/auth/login", json={"login": "superadmin", "password": "testpass123"})
-    h = {"Authorization": "Bearer " + r.json()["access_token"]}
+    c, h = _api(db)
     resp = c.post("/api/v1/clients", json={"first_name": "Иван", "last_name": "Тестов",
                                            "phone": phone}, headers=h)
     assert resp.status_code in (200, 201), resp.text
-    cid = resp.json()["id"]
-    return sess.query(Client).filter_by(id=cid).first()
+    return db.query(Client).filter_by(id=resp.json()["id"]).first()
 
 
 def _mk_service(db, name="Персональная тренировка", maxcap=1) -> Service:
@@ -49,19 +59,24 @@ def _mk_service(db, name="Персональная тренировка", maxcap
 
 
 def _mk_tariff(db, name="Безлимит", code="TEST-UNL") -> Tariff:
-    t = Tariff(name=name, code=code, price=3000.0, visit_limit=None, duration_days=30,
-               is_active=True)
-    db.add(t); db.commit(); db.refresh(t)
-    return t
+    import uuid as _uuid
+    c, h = _api(db)
+    r = c.post("/api/v1/tariffs/", headers=h, json={
+        "code": f"{code}-{_uuid.uuid4().hex[:6]}", "name": name, "price": 3000,
+        "currency": "RUB", "duration_days": 30, "visit_limit": 10,
+        "is_unlimited": False, "is_active": True})   # зеркалим B6 (проверенный набор)
+    assert r.status_code == 201, r.text
+    return db.query(Tariff).filter_by(id=r.json()["id"]).first()
 
 
 def _mk_subscription(db, client_id, tariff_id) -> Subscription:
-    sub = Subscription(client_id=str(client_id), tariff_id=tariff_id,
-                       start_date=NOW.date(), end_date=(NOW + timedelta(days=30)).date(),
-                       visits_used=0, is_unlimited=True, status="ACTIVE", is_active=True,
-                       price=3000.0)   # в актуальной модели price NOT NULL (дрейф)
-    db.add(sub); db.commit(); db.refresh(sub)
-    return sub
+    """Через API: сервер заполнит price/currency/даты из тарифа (дрейф-сейф)."""
+    c, h = _api(db)
+    r = c.post("/api/v1/subscriptions/", headers=h, json={
+        "client_id": str(client_id), "tariff_id": str(tariff_id),
+        "start_date": str(NOW.date()), "status": "ACTIVE"})
+    assert r.status_code == 201, r.text
+    return db.query(Subscription).filter_by(id=r.json()["id"]).first()
 
 
 # ---------- параметры клуба ----------
