@@ -252,7 +252,13 @@ def _qr_entry_reply(db: Session, max_user_id: int) -> dict:
     _last_qr[str(max_user_id)] = time.time()
     ttl_minutes = get_param_int("QR_TTL_MINUTES", 2)
     expires = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
-    payload = generate_qr_payload(str(row[0]), expires, ttl_minutes * 60)
+    payload, signature, _ = generate_qr_payload(str(row[0]), expires, ttl_minutes * 60)
+
+    # B6: запись в DynamicQRCode — турникет проверяет одноразовость по записи (uses_count/max_uses)
+    from app.models.dynamic_qr import DynamicQRCode
+    db.add(DynamicQRCode(client_id=row[0], qr_payload=payload, signature=signature,
+                         expires_at=expires, is_used=False, max_uses=1))
+    db.commit()
 
     lines = [get_label("TXT.QR.TITLE", "✅ Основание для входа")]
     lines += [f"• {r}" for r in reasons]
