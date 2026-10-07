@@ -146,7 +146,7 @@ def _find_client(db: Session, max_user_id: int):
     row = db.execute(sql_text("""
         SELECT c.id, c.first_name, c.last_name, c.phone
         FROM clients c
-        JOIN max_bot_bindings mb ON mb.client_id = CAST(c.id AS TEXT)
+        JOIN max_bot_bindings mb ON replace(mb.client_id, '-', '') = replace(CAST(c.id AS TEXT), '-', '')
         WHERE mb.max_user_id = :u
         ORDER BY mb.bound_at DESC LIMIT 1"""), {"u": max_user_id}).first()
     if row:
@@ -155,7 +155,7 @@ def _find_client(db: Session, max_user_id: int):
         return db.execute(sql_text("""
             SELECT c.id, c.first_name, c.last_name, c.phone
             FROM clients c
-            JOIN messenger_bindings mb ON CAST(mb.client_id AS TEXT) = CAST(c.id AS TEXT)
+            JOIN messenger_bindings mb ON replace(CAST(mb.client_id AS TEXT), '-', '') = replace(CAST(c.id AS TEXT), '-', '')
             WHERE mb.max_user_id = :u
             ORDER BY mb.bound_at DESC LIMIT 1"""), {"u": max_user_id}).first()
     except Exception:
@@ -183,6 +183,14 @@ def _gamification(db: Session, client_id):
 
 def _handle_command(db: Session, max_user_id: int, text: str) -> dict:
     from app.api.v1.club_params import get_label
+    # Пакет Б: диалоговые сценарии (регистрация/меню/запись) — приоритет над командами
+    try:
+        from app.services.bot_scenarios import handle as scenario_handle
+        sc = scenario_handle(db, max_user_id, text or "")
+        if sc:
+            return {"reply": sc}
+    except Exception as _e:
+        print("[W5-B] scenarios:", str(_e)[:150])
     cmd = (text or "").strip().lower()
     _ensure_bot_tables(db)
 
