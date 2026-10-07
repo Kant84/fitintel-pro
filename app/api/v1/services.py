@@ -124,12 +124,13 @@ def _deps(db: Session = Depends(get_db)):
 def _apply_rating(db: Session, client_id: str, delta: float):
     """Рейтинг клиента: clamp [1.0, 5.0]. Читаем/пишем ТОЙ ЖЕ сессией (тесты!).
     Кламп в Python — диалектно-нейтрально (sqlite max() != Postgres MAX())."""
-    uid = str(client_id).replace("-", "")   # sqlite хранит UUID hex без дефисов
-    row = db.execute(_text("SELECT rating FROM clients WHERE id = :i"),
+    uid = str(client_id).replace("-", "")
+    # replace('-','') — формат-хранения-нейтрально: hex (контейнер) и dashed (локально)
+    row = db.execute(_text("SELECT rating FROM clients WHERE replace(id, '-', '') = :i"),
                      {"i": uid}).first()
     cur = float(row[0]) if row and row[0] is not None else 5.0
     new = min(5.0, max(1.0, cur + delta))
-    db.execute(_text("UPDATE clients SET rating = :r WHERE id = :i"),
+    db.execute(_text("UPDATE clients SET rating = :r WHERE replace(id, '-', '') = :i"),
                {"r": new, "i": uid})
     db.commit()
 
@@ -327,7 +328,10 @@ def cancel_booking(
 
     from app.api.v1.club_params import get_param_int
     hours = get_param_int("CANCEL_WINDOW_HOURS", 24)
-    time_diff = booking.booking_date - datetime.now(timezone.utc)
+    bd = booking.booking_date
+    if getattr(bd, "tzinfo", None) is None:
+        bd = bd.replace(tzinfo=timezone.utc)   # naive из БД = UTC
+    time_diff = bd - datetime.now(timezone.utc)
     if time_diff < timedelta(hours=hours):
         raise HTTPException(
             400,
