@@ -98,20 +98,20 @@ def _ensure_bot_tables(db: Session):
             id INT PRIMARY KEY,
             bot_token TEXT,
             webhook_secret TEXT,
-            updated_at TIMESTAMP DEFAULT NOW())"""))
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"""))
     db.execute(sql_text("""
         CREATE TABLE IF NOT EXISTS max_bot_bindings (
             max_user_id BIGINT PRIMARY KEY,
             client_id TEXT NOT NULL,
-            bound_at TIMESTAMP DEFAULT NOW())"""))
+            bound_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"""))
     db.execute(sql_text("""
         CREATE TABLE IF NOT EXISTS max_bot_log (
-            id BIGSERIAL PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             max_user_id BIGINT,
             command TEXT,
             payload TEXT,
             reply TEXT,
-            created_at TIMESTAMP DEFAULT NOW())"""))
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"""))
     db.commit()
 
 
@@ -144,17 +144,20 @@ def _find_client(db: Session, max_user_id: int):
     row = db.execute(sql_text("""
         SELECT c.id, c.first_name, c.last_name, c.phone
         FROM clients c
-        JOIN max_bot_bindings mb ON mb.client_id = c.id::text
+        JOIN max_bot_bindings mb ON mb.client_id = CAST(c.id AS TEXT)
         WHERE mb.max_user_id = :u
         ORDER BY mb.bound_at DESC LIMIT 1"""), {"u": max_user_id}).first()
     if row:
         return row
-    return db.execute(sql_text("""
-        SELECT c.id, c.first_name, c.last_name, c.phone
-        FROM clients c
-        JOIN messenger_bindings mb ON mb.client_id::text = c.id::text
-        WHERE mb.max_user_id = :u
-        ORDER BY mb.bound_at DESC LIMIT 1"""), {"u": max_user_id}).first()
+    try:
+        return db.execute(sql_text("""
+            SELECT c.id, c.first_name, c.last_name, c.phone
+            FROM clients c
+            JOIN messenger_bindings mb ON CAST(mb.client_id AS TEXT) = CAST(c.id AS TEXT)
+            WHERE mb.max_user_id = :u
+            ORDER BY mb.bound_at DESC LIMIT 1"""), {"u": max_user_id}).first()
+    except Exception:
+        return None
 
 
 def _wallet_balance(db: Session, client_id) -> Optional[float]:
@@ -382,14 +385,16 @@ def cron_notify_expiring(db: Session = Depends(get_db)):
 @router.post("/max-bot/cron/notify-bookings")
 def cron_notify_bookings(db: Session = Depends(get_db)):
     _ensure_bot_tables(db)
+    _from = datetime.now(timezone.utc)
+    _to = _from + timedelta(hours=24)
     rows = db.execute(sql_text("""
         SELECT sb.client_id, c.first_name, s.name AS service_name, sb.booking_date
         FROM service_bookings sb
         JOIN clients c ON c.id = sb.client_id
         JOIN services s ON s.id = sb.service_id
         WHERE sb.status = 'BOOKED'
-          AND sb.booking_date BETWEEN NOW() AND NOW() + INTERVAL '24 hours'
-        LIMIT 50""")).fetchall()
+          AND sb.booking_date BETWEEN :f AND :t
+        LIMIT 50"""), {"f": _from, "t": _to}).fetchall()
     notifications = []
     for r in rows:
         bd = r[3]
