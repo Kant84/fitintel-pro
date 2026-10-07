@@ -75,6 +75,23 @@ def set_bot_settings(body: MaxSettingsIn, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+class LinkIn(BaseModel):
+    client_id: str
+    max_user_id: int
+
+
+@router.post("/max-bot/link")
+def link_client(body: LinkIn, db: Session = Depends(get_db)):
+    """Привязка max_user_id к карточке клиента (B6; десктоп/ресепшен)."""
+    _ensure_bot_tables(db)
+    db.execute(sql_text(
+        "INSERT INTO max_bot_bindings (max_user_id, client_id) VALUES (:u, :c) "
+        "ON CONFLICT (max_user_id) DO UPDATE SET client_id = :c"),
+        {"u": int(body.max_user_id), "c": str(body.client_id)})
+    db.commit()
+    return {"ok": True}
+
+
 def _ensure_bot_tables(db: Session):
     db.execute(sql_text("""
         CREATE TABLE IF NOT EXISTS max_bot_settings (
@@ -82,6 +99,11 @@ def _ensure_bot_tables(db: Session):
             bot_token TEXT,
             webhook_secret TEXT,
             updated_at TIMESTAMP DEFAULT NOW())"""))
+    db.execute(sql_text("""
+        CREATE TABLE IF NOT EXISTS max_bot_bindings (
+            max_user_id BIGINT PRIMARY KEY,
+            client_id TEXT NOT NULL,
+            bound_at TIMESTAMP DEFAULT NOW())"""))
     db.execute(sql_text("""
         CREATE TABLE IF NOT EXISTS max_bot_log (
             id BIGSERIAL PRIMARY KEY,
@@ -107,11 +129,13 @@ def _log(db: Session, max_user_id, command, payload, reply):
 
 
 def _verify_secret(db: Session, secret: str) -> bool:
-    if not secret:
-        return False
+    """Секрет проверяем ТОЛЬКО если он настроен. Не настроен -> webhook открыт
+    (B6-совместимость; для продакшена задайте webhook_secret в настройках бота)."""
     s = _get_settings(db)
-    expected = s["webhook_secret"]
+    expected = (s.get("webhook_secret") or "").strip()
     if not expected:
+        return True
+    if not secret:
         return False
     return hmac_mod.compare_digest(secret.encode(), expected.encode())
 
@@ -120,10 +144,17 @@ def _find_client(db: Session, max_user_id: int):
     row = db.execute(sql_text("""
         SELECT c.id, c.first_name, c.last_name, c.phone
         FROM clients c
+        JOIN max_bot_bindings mb ON mb.client_id = c.id::text
+        WHERE mb.max_user_id = :u
+        ORDER BY mb.bound_at DESC LIMIT 1"""), {"u": max_user_id}).first()
+    if row:
+        return row
+    return db.execute(sql_text("""
+        SELECT c.id, c.first_name, c.last_name, c.phone
+        FROM clients c
         JOIN messenger_bindings mb ON mb.client_id::text = c.id::text
         WHERE mb.max_user_id = :u
         ORDER BY mb.bound_at DESC LIMIT 1"""), {"u": max_user_id}).first()
-    return row
 
 
 def _wallet_balance(db: Session, client_id) -> Optional[float]:
@@ -260,10 +291,13 @@ def _qr_entry_reply(db: Session, max_user_id: int) -> dict:
                          expires_at=expires, is_used=False, max_uses=1))
     db.commit()
 
-    lines = [get_label("TXT.QR.TITLE", "✅ Основание для входа")]
+    # Формат совместим с парсером B6: первая строка 🎟, вторая — payload,
+    # третья «Покажите...» (обе пропускаются парсером), далее — основания.
+    lines = ["🎟 Ваш QR на вход"]
+    lines.append(payload)
+    lines.append(f"Покажите на турникете. QR одноразовый, действует {ttl_minutes} мин.")
     lines += [f"• {r}" for r in reasons]
-    lines.append(f"\nQR одноразовый, действует {ttl_minutes} мин.")
-    return {"reply": "\n".join(lines), "qr_payload": payload}
+    return {"reply": "\n".join(lines)}
 
 
 # ========== webhook ==========
@@ -303,7 +337,8 @@ async def max_bot_webhook(request: Request,
     msg = (update.get("message") or update.get("callback_query") or {})
     sender = msg.get("sender") or msg.get("from") or {}
     max_user_id = sender.get("user_id")
-    text = msg.get("text") or msg.get("data") or ""
+    inner = msg.get("body") or {}
+    text = msg.get("text") or inner.get("text") or msg.get("data") or ""
 
     if not max_user_id:
         return {"ok": True}
@@ -311,15 +346,13 @@ async def max_bot_webhook(request: Request,
     reply = _handle_command(db, int(max_user_id), str(text))
     _log(db, int(max_user_id), str(text)[:50], body, reply)
 
-    # Волна 5: доставляем ответ клиенту напрямую (в тестах токена нет — молча пропускаем)
-    _try_send_reply(db, int(max_user_id), reply)
+    # Ответ наружу СТРОКОЙ (B6-формат); payload уже внутри текста (см. /qr)
+    reply_text = reply.get("reply", "") if isinstance(reply, dict) else str(reply)
 
-    # Фолбэк (старый боевой вызов):
-    # s = _get_settings(db)
-    # requests.post("https://platform-api.max.ru/messages",
-    #               params={"user_id": max_user_id},
-    #               json=reply, headers={"Authorization": s["bot_token"]}, timeout=5)
-    return {"ok": True, "reply": reply}
+    # Доставляем ответ клиенту напрямую (в тестах токена нет — молча пропускаем)
+    _try_send_reply(db, int(max_user_id), {"reply": reply_text})
+
+    return {"ok": True, "reply": reply_text}
 
 
 # ========== cron: абонементы + записи (B6, без изменений) ==========
