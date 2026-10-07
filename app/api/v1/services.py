@@ -99,8 +99,25 @@ def _ensure_booking_cols():
         pass  # таблица ещё не создана (старт/тесты) — повторим при следующем вызове
 
 
+def _ensure_rating_col(db: Session):
+    """clients.rating — лениво и диалектно-нейтрально ТОЙ ЖЕ сессией
+    (тестовая sqlite строит таблицы из модели, где rating нет — вот и ALTER)."""
+    try:
+        if db.bind.dialect.name == "postgresql":
+            db.execute(_text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS "
+                             "rating DOUBLE PRECISION DEFAULT 5.0"))
+        else:
+            cols = {r[1] for r in db.execute(_text("PRAGMA table_info(clients)"))}
+            if "rating" not in cols:
+                db.execute(_text("ALTER TABLE clients ADD COLUMN rating FLOAT DEFAULT 5.0"))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
 def _deps(db: Session = Depends(get_db)):
     _ensure_booking_cols()
+    _ensure_rating_col(db)
     return db
 
 
