@@ -1,0 +1,48 @@
+ПАТЧ ДЛЯ fitintel-desktop\windows\main_window.py (иконки вместо эмодзи)
+=========================================================================
+
+ШАГ 1 — импорт (рядом с «from windows import theme»):
+
+    from windows.icons import icon
+
+ШАГ 2 — в методе _rebuild_content, где создаётся пункт меню. Было:
+
+            title = TAB_REGISTRY[code][0]
+            item = QListWidgetItem(title)
+
+    Стало:
+
+            title = TAB_REGISTRY[code][0]
+            item = QListWidgetItem(title)
+            item.setIcon(icon(code))
+
+    И сразу после self.sidebar = QListWidget() (в _build_ui) добавьте:
+
+            self.sidebar.setIconSize(QSize(22, 22))
+
+ШАГ 3 — убрать эмодзи из названий вкладок БЕЗ правки каждой строки:
+в конец main_window.py добавьте блок:
+
+    # === W5: чистим эмодзи-префиксы из названий вкладок (иконки вместо) ===
+    try:
+        import re as _w5re
+        from windows.icons import icon as _w5icon  # noqa
+        for _code, (_t, _cls) in list(TAB_REGISTRY.items()):
+            TAB_REGISTRY[_code] = (_w5re.sub(r"^[^\wА-Яа-я0-9]+\s*", "", _t), _cls)
+        print("W5 icons OK")
+    except Exception as _w5i:
+        print("W5 icons FAIL:", _w5i)
+
+Примечания:
+- Эмодзи в кнопках внутри вкладок (не в sidebar) можно заменять постепенно:
+  QPushButton("…") -> b = QPushButton("…"); b.setIcon(icon("cart")).
+- SVG кэшируются в assets/icons-generated/{dark,light}/ — добавьте папку
+  в .gitignore десктопа, чтобы не коммитить генерируемое:
+      echo assets/icons-generated/ >> .gitignore
+
+
+ШАГ 4 — полировщик: автозамена эмодзи на иконки ВО ВСЕХ вкладках.
+В методе _build_tab ПЕРЕД строкой «self._built[code] = widget» добавьте:
+
+            from windows.icons import polish
+            polish(widget)

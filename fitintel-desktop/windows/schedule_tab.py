@@ -1,19 +1,65 @@
-"""FitIntel Pro — Schedule Tab (записи на услуги: просмотр + добавление + отмена)"""
+"""FitIntel Pro — Schedule Tab (W5): три подвкладки.
+«Занятия по дням» — сетка день-недели x время из Service.schedule (+ свободные места);
+«Тренеры» — карточки с фото (TrainerProfile.photo_url);
+«Записи» — прежняя таблица записей (добавление/отмена).
+"""
+import urllib.request
+from datetime import date, timedelta
 from uuid import UUID
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QMessageBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QMessageBox, QLabel,
     QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QFormLayout,
-    QComboBox, QDateTimeEdit, QDialogButtonBox
+    QComboBox, QDateTimeEdit, QDialogButtonBox, QTabWidget, QGridLayout,
+    QScrollArea, QFrame
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
+from PyQt6.QtGui import QColor, QPixmap, QFont
 
 from api import ApiClient
 from windows import theme
 
+DAYS_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+
+
+# ---------------- данные ----------------
 
 class ScheduleWorker(QThread):
+    finished = pyqtSignal(list, list, dict)
+    error = pyqtSignal(str)
+
+    def __init__(self, api: ApiClient):
+        super().__init__()
+        self.api = api
+
+    def run(self):
+        try:
+            r1 = self.api.session.get(self.api._url("services"))
+            r1.raise_for_status()
+            services = r1.json() if isinstance(r1.json(), list) else []
+            try:
+                r2 = self.api.session.get(self.api._url("trainers/profiles"))
+                trainers = r2.json() if r2.status_code == 200 else []
+            except Exception:
+                trainers = []
+            try:
+                r3 = self.api.session.get(self.api._url("users"))
+                users = r3.json() if r3.status_code == 200 else []
+                if isinstance(users, dict):
+                    users = users.get("items", [])
+            except Exception:
+                users = []
+            umap = {}
+            for u in users or []:
+                nm = u.get("full_name") or u.get("username") or u.get("name")
+                if nm and u.get("id"):
+                    umap[str(u["id"])] = str(nm)
+            self.finished.emit(services, trainers if isinstance(trainers, list) else [], umap)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class BookingsWorker(QThread):
     finished = pyqtSignal(list)
     error = pyqtSignal(str)
 
@@ -23,7 +69,7 @@ class ScheduleWorker(QThread):
 
     def run(self):
         try:
-            resp = self.api.session.get(self.api._url("/services/trainer-schedule"))
+            resp = self.api.session.get(self.api._url("services/trainer-schedule"))
             resp.raise_for_status()
             rows = resp.json()
             if isinstance(rows, dict):
@@ -33,18 +79,16 @@ class ScheduleWorker(QThread):
             self.error.emit(str(e))
 
 
-class NewBookingDialog(QDialog):
-    """Диалог добавления записи: клиент + услуга + дата/время"""
+# ---------------- диалог записи (как раньше) ----------------
 
+class NewBookingDialog(QDialog):
     def __init__(self, api: ApiClient, parent=None):
         super().__init__(parent)
         self.api = api
         self.booking = None
         self.setWindowTitle("Новая запись")
         self.setMinimumWidth(420)
-
         layout = QFormLayout(self)
-
         self.client = QComboBox()
         self._clients = []
         try:
@@ -55,11 +99,10 @@ class NewBookingDialog(QDialog):
         except Exception:
             pass
         layout.addRow("Клиент:", self.client)
-
         self.service = QComboBox()
         self._services = []
         try:
-            resp = api.session.get(api._url("/services"))
+            resp = api.session.get(api._url("services"))
             resp.raise_for_status()
             for s in resp.json():
                 if s.get("is_active", True):
@@ -68,14 +111,12 @@ class NewBookingDialog(QDialog):
         except Exception:
             pass
         layout.addRow("Услуга:", self.service)
-
         self.when = QDateTimeEdit()
         self.when.setCalendarPopup(True)
         self.when.setDisplayFormat("yyyy-MM-dd HH:mm")
         from PyQt6.QtCore import QDateTime
         self.when.setDateTime(QDateTime.currentDateTime().addSecs(3600))
         layout.addRow("Дата и время:", self.when)
-
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Записать")
@@ -92,9 +133,8 @@ class NewBookingDialog(QDialog):
         service_id = self._services[self.service.currentIndex()][0]
         try:
             resp = self.api.session.post(
-                self.api._url(f"/services/{service_id}/book"),
+                self.api._url(f"services/{service_id}/book"),
                 json={"client_id": str(client_id),
-                      "service_id": str(service_id),
                       "booking_date": self.when.dateTime().toString("yyyy-MM-ddTHH:mm:ss")})
             if resp.status_code == 201:
                 self.booking = resp.json()
@@ -110,10 +150,67 @@ class NewBookingDialog(QDialog):
             QMessageBox.critical(self, "Ошибка", str(e))
 
 
+# ---------------- карточка тренера с фото ----------------
+
+class TrainerCard(QFrame):
+    def __init__(self, name: str, spec: str, photo_url: str, extra: str, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(theme.card_style())
+        h = QHBoxLayout(self)
+        self.photo = QLabel("📷")
+        self.photo.setFixedSize(96, 96)
+        self.photo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.photo.setStyleSheet("QLabel { border: 1px dashed #888; border-radius: 6px; font-size: 28px; }")
+        h.addWidget(self.photo)
+        if photo_url:
+            self._loader = _PhotoLoader(photo_url)
+            self._loader.done.connect(self._set_photo)
+            self._loader.start()
+        v = QVBoxLayout()
+        nm = QLabel(name)
+        f = nm.font(); f.setPointSize(13); f.setBold(True); nm.setFont(f)
+        v.addWidget(nm)
+        if spec:
+            v.addWidget(QLabel(spec))
+        if extra:
+            v.addWidget(QLabel(extra))
+        v.addStretch(1)
+        h.addLayout(v, 1)
+        h.setContentsMargins(10, 10, 10, 10)
+
+    def _set_photo(self, px: QPixmap):
+        if not px.isNull():
+            self.photo.setPixmap(px.scaled(96, 96, Qt.AspectRatioMode.KeepAspectRatio,
+                                           Qt.TransformationMode.SmoothTransformation))
+            self.photo.setStyleSheet("")
+
+
+class _PhotoLoader(QThread):
+    done = pyqtSignal(object)
+
+    def __init__(self, url: str):
+        super().__init__()
+        self.url = url
+
+    def run(self):
+        px = QPixmap()
+        try:
+            with urllib.request.urlopen(self.url, timeout=8) as r:
+                px.loadFromData(r.read())
+        except Exception:
+            pass
+        self.done.emit(px)
+
+
+# ---------------- основная вкладка ----------------
+
 class ScheduleTab(QWidget):
     def __init__(self, api: ApiClient):
         super().__init__()
         self.api = api
+        self._services = []
+        self._trainers = []
+        self._umap = {}
         self._rows = []
         self._build_ui()
         self.refresh()
@@ -124,7 +221,7 @@ class ScheduleTab(QWidget):
         layout.setSpacing(12)
 
         row = QHBoxLayout()
-        btn_add = QPushButton("＋ Добавить запись")
+        btn_add = QPushButton("Добавить запись")
         btn_add.setStyleSheet("QPushButton { background: #059669; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn_add.clicked.connect(self._add_booking)
         btn_cancel = QPushButton("Отменить запись")
@@ -139,24 +236,60 @@ class ScheduleTab(QWidget):
         row.addWidget(btn_refresh)
         layout.addLayout(row)
 
+        self.tabs = QTabWidget()
+        layout.addWidget(self.tabs, 1)
+
+        # --- подвкладка 1: занятия по дням ---
+        w_grid = QWidget()
+        v = QVBoxLayout(w_grid)
+        self.grid_week = QTableWidget()
+        self.grid_week.setColumnCount(8)
+        self.grid_week.setHorizontalHeaderLabels(["Время"] + DAYS_RU)
+        self.grid_week.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.grid_week.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.grid_week.setStyleSheet(theme.table_style())
+        v.addWidget(self.grid_week)
+        self.tabs.addTab(w_grid, "Занятия по дням")
+
+        # --- подвкладка 2: тренеры ---
+        self.trainers_scroll = QScrollArea()
+        self.trainers_scroll.setWidgetResizable(True)
+        self.trainers_host = QWidget()
+        self.trainers_lay = QGridLayout(self.trainers_host)
+        self.trainers_scroll.setWidget(self.trainers_host)
+        self.tabs.addTab(self.trainers_scroll, "Тренеры")
+
+        # --- подвкладка 3: записи ---
         self.table = QTableWidget()
         self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels(
-            ["Дата", "Время", "Клиент", "Услуга", "Тренер", "Статус"])
+        self.table.setHorizontalHeaderLabels(["Дата", "Время", "Клиент", "Услуга", "Тренер", "Статус"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
         self.table.setStyleSheet(theme.table_style())
-        layout.addWidget(self.table)
+        self.tabs.addTab(self.table, "Записи")
+
+    # ---------- загрузка ----------
 
     def refresh(self):
         self.worker = ScheduleWorker(self.api)
         self.worker.finished.connect(self._on_loaded)
-        self.worker.error.connect(self._on_error)
+        self.worker.error.connect(lambda m: QMessageBox.warning(self, "Расписание", m))
         self.worker.start()
+        self.bworker = BookingsWorker(self.api)
+        self.bworker.finished.connect(self._on_bookings)
+        self.bworker.error.connect(lambda _m: None)
+        self.bworker.start()
 
-    def _on_loaded(self, rows: list):
+    def _on_loaded(self, services: list, trainers: list, umap: dict):
+        self._services = services
+        self._trainers = trainers
+        self._umap = umap
+        self._render_week_grid()
+        self._render_trainers()
+
+    def _on_bookings(self, rows: list):
         self._rows = rows
         self.table.setRowCount(max(len(rows), 1))
         if not rows:
@@ -164,25 +297,77 @@ class ScheduleTab(QWidget):
             self.table.setSpan(0, 0, 1, 6)
             return
         for i, r in enumerate(rows):
-            raw_date = str(r.get("booking_date") or "")
-            self.table.setItem(i, 0, QTableWidgetItem(raw_date[:10] or "—"))
-            self.table.setItem(i, 1, QTableWidgetItem(raw_date[11:16] or "—"))
+            raw = str(r.get("booking_date") or "")
+            self.table.setItem(i, 0, QTableWidgetItem(raw[:10] or "—"))
+            self.table.setItem(i, 1, QTableWidgetItem(raw[11:16] or "—"))
             self.table.setItem(i, 2, QTableWidgetItem(str(r.get("client_name") or "—")))
             self.table.setItem(i, 3, QTableWidgetItem(str(r.get("service_name") or "—")))
             self.table.setItem(i, 4, QTableWidgetItem(str(r.get("trainer_name") or "—")))
             st = str(r.get("status") or "—")
             item = QTableWidgetItem(st)
-            if st.lower() in ("confirmed", "booked", "active", "new"):
+            if st in ("BOOKED", "CONFIRMED", "PAID"):
                 item.setForeground(QColor("#059669"))
-            elif st.lower() in ("cancelled", "canceled"):
+            elif st in ("CANCELLED", "AUTO_CANCELLED", "NO_SHOW"):
                 item.setForeground(QColor("#ef4444"))
             self.table.setItem(i, 5, item)
 
-    def _on_error(self, msg: str):
-        self._rows = []
-        self.table.setRowCount(1)
-        self.table.setItem(0, 0, QTableWidgetItem(f"Ошибка загрузки: {msg}"))
-        self.table.setSpan(0, 0, 1, 6)
+    # ---------- занятия по дням ----------
+
+    def _render_week_grid(self):
+        """Сетка: строки — время, колонки — дни; ячейка — занятия с местами."""
+        cells = {}   # (day, time) -> list[str]
+        times = set()
+        for s in self._services:
+            if not s.get("is_active", True):
+                continue
+            sched = s.get("schedule") or {}
+            days = sched.get("days") or list(range(7))
+            for sl in sched.get("time_slots") or []:
+                t = sl.get("time", "")
+                cap = sl.get("capacity", s.get("max_capacity", 1))
+                if not t:
+                    continue
+                times.add(t)
+                for d in days:
+                    cells.setdefault((d, t), []).append(f"{s.get('name')} ({cap})")
+        for t in sorted(times):
+            pass
+        self.grid_week.setRowCount(len(times))
+        for i, t in enumerate(sorted(times)):
+            self.grid_week.setItem(i, 0, QTableWidgetItem(t))
+            for d in range(7):
+                v = "n".join(cells.get((d, t), []))
+                it = QTableWidgetItem(v)
+                if v:
+                    it.setForeground(QColor("#065f46"))
+                self.grid_week.setItem(i, d + 1, it)
+        if not times:
+            self.grid_week.setRowCount(1)
+            self.grid_week.setItem(0, 0, QTableWidgetItem(
+                "Расписание не заполнено — задайте «Расписание» в карточке услуги"))
+            self.grid_week.setSpan(0, 0, 1, 8)
+
+    # ---------- тренеры ----------
+
+    def _render_trainers(self):
+        while self.trainers_lay.count():
+            it = self.trainers_lay.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        if not self._trainers:
+            self.trainers_lay.addWidget(QLabel("Профили тренеров не созданы — вкладка «Услуги» → «Новый тренер»"), 0, 0)
+            return
+        for i, p in enumerate(self._trainers):
+            uid = str(p.get("user_id") or p.get("id") or "")
+            name = self._umap.get(uid) or p.get("full_name") or p.get("specialization") or uid[:8]
+            spec = str(p.get("specialization") or "")
+            photo = str(p.get("photo_url") or "")
+            rate = p.get("rate_per_hour")
+            extra = f"Ставка: {rate} ₽/час" if rate else ""
+            card = TrainerCard(str(name), spec, photo, extra)
+            self.trainers_lay.addWidget(card, i // 2, i % 2)
+
+    # ---------- действия ----------
 
     def _add_booking(self):
         dlg = NewBookingDialog(self.api, self)
@@ -191,22 +376,21 @@ class ScheduleTab(QWidget):
             self.refresh()
 
     def _cancel_booking(self):
+        self.tabs.setCurrentIndex(2)   # переключить на «Записи»
         idx = self.table.currentRow()
         if idx < 0 or idx >= len(self._rows):
-            QMessageBox.information(self, "Отмена записи", "Выберите строку в таблице")
+            QMessageBox.information(self, "Отмена записи", "Выберите строку в таблице «Записи»")
             return
         booking = self._rows[idx]
         bid = booking.get("id")
         name = booking.get("client_name", "—")
         dt = str(booking.get("booking_date") or "")[:16].replace("T", " ")
-        if QMessageBox.question(
-                self, "Отмена записи",
-                f"Отменить запись:\n{name} — {dt}?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        ) != QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(self, "Отмена записи", f"Отменить запись:\n{name} — {dt}?",
+                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                                ) != QMessageBox.StandardButton.Yes:
             return
         try:
-            resp = self.api.session.post(self.api._url(f"/services/bookings/{bid}/cancel"))
+            resp = self.api.session.post(self.api._url(f"services/bookings/{bid}/cancel"))
             if resp.status_code in (200, 201, 204):
                 QMessageBox.information(self, "Отмена записи", "Запись отменена")
                 self.refresh()

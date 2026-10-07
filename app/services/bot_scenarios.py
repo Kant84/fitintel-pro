@@ -177,6 +177,15 @@ def _step_registration(db: Session, uid: int, text: str) -> str:
             bd = date(y, mo, d)
         except ValueError:
             return "Такой даты не бывает. Ещё раз:"
+        # возрастная граница "ребёнок" — параметр клуба
+        try:
+            max_age = get_param_int("CHILD_MAX_AGE", 16)
+            age = (date.today() - bd).days // 365
+            if age > max_age:
+                return (f"По дате получается больше {max_age} лет — это взрослая карточка. "
+                        f"Создайте её через ресепшен, либо уточните дату рождения:")
+        except Exception:
+            pass
         parent = _find_client_row(db, uid)
         try:
             child = Client(first_name=data["first_name"], last_name=data["last_name"],

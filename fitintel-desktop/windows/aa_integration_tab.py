@@ -13,10 +13,10 @@ class AAIntegrationTab(QWidget):
         lay = QVBoxLayout(self)
         tabs = QTabWidget()
         tabs.setMovable(True)
-        tabs.addTab(self._import_tab(), "📥 Импорт из A&A")
-        tabs.addTab(self._export_tab(), "📤 Экспорт в A&A")
-        tabs.addTab(self._log_tab(), "📝 Журнал")
-        tabs.addTab(self._webhook_tab(), "🔗 Webhook")
+        tabs.addTab(self._import_tab(), "Импорт из A&A")
+        tabs.addTab(self._export_tab(), "Экспорт в A&A")
+        tabs.addTab(self._log_tab(), "Журнал")
+        tabs.addTab(self._webhook_tab(), "Webhook")
         lay.addWidget(tabs)
 
     def _base(self):
@@ -31,7 +31,7 @@ class AAIntegrationTab(QWidget):
             cfg = json.load(open("client_settings.json", encoding="utf-8"))
             if cfg.get("token"):
                 return cfg["token"]
-            r = urllib.request.Request(self._base() + "/auth/login",
+            r = urllib.request.Request(self._base() + "auth/login",
                 data=json.dumps({"login": cfg.get("saved_login"), "password": cfg.get("saved_password")}).encode(),
                 headers={"Content-Type": "application/json"})
             return json.load(urllib.request.urlopen(r, timeout=10)).get("access_token")
@@ -56,11 +56,11 @@ class AAIntegrationTab(QWidget):
         self.csv_path = QLineEdit()
         self.csv_path.setPlaceholderText("Путь к CSV-файлу...")
         h.addWidget(self.csv_path)
-        b_browse = QPushButton("📂 Обзор")
+        b_browse = QPushButton("Обзор")
         b_browse.clicked.connect(self._browse_csv)
         h.addWidget(b_browse)
         lay.addLayout(h)
-        b_import = QPushButton("📥 Импортировать")
+        b_import = QPushButton("Импортировать")
         b_import.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_import.clicked.connect(self._do_import)
         lay.addWidget(b_import)
@@ -82,8 +82,8 @@ class AAIntegrationTab(QWidget):
         try:
             with open(path, "r", encoding="utf-8-sig") as f:
                 csv_text = f.read()
-            r = self._req("POST", "/aa/import-csv", {"csv": csv_text, "entity": "clients"})
-            self.imp_status.setText(f"✅ Импортировано: {r.get('imported', 0)}, ошибок: {r.get('errors', 0)}")
+            r = self._req("POST", "aa/import-csv", {"csv": csv_text, "entity": "clients"})
+            self.imp_status.setText(f"Импортировано: {r.get('imported', 0)}, ошибок: {r.get('errors', 0)}")
         except Exception as e:
             self.imp_status.setText("❌ " + str(e)[:200])
 
@@ -91,10 +91,10 @@ class AAIntegrationTab(QWidget):
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.addWidget(QLabel("Экспорт клиентов для A&A"))
-        b_exp = QPushButton("📤 Экспорт JSON")
+        b_exp = QPushButton("Экспорт JSON")
         b_exp.clicked.connect(self._do_export)
         lay.addWidget(b_exp)
-        b_csv = QPushButton("📄 Экспорт CSV")
+        b_csv = QPushButton("Экспорт CSV")
         b_csv.clicked.connect(self._do_export_csv)
         lay.addWidget(b_csv)
         self.exp_tbl = QTableWidget(0, 5)
@@ -105,7 +105,7 @@ class AAIntegrationTab(QWidget):
 
     def _do_export(self):
         try:
-            r = self._req("GET", "/aa/export?entity=clients&format=json")
+            r = self._req("GET", "aa/export?entity=clients&format=json")
             rows = r.get("data", [])
             self.exp_tbl.setRowCount(len(rows))
             for i, c in enumerate(rows):
@@ -119,7 +119,7 @@ class AAIntegrationTab(QWidget):
 
     def _do_export_csv(self):
         try:
-            r = self._req("GET", "/aa/export?entity=clients&format=csv")
+            r = self._req("GET", "aa/export?entity=clients&format=csv")
             csv_data = r.get("csv", "")
             path, _ = QFileDialog.getSaveFileName(self, "Сохранить CSV", "aa_export.csv", "CSV (*.csv)")
             if path:
@@ -132,7 +132,7 @@ class AAIntegrationTab(QWidget):
     def _log_tab(self):
         w = QWidget()
         lay = QVBoxLayout(w)
-        b = QPushButton("🔄 Обновить журнал")
+        b = QPushButton("Обновить журнал")
         b.clicked.connect(self._load_log)
         lay.addWidget(b)
         self.log_tbl = QTableWidget(0, 5)
@@ -143,7 +143,7 @@ class AAIntegrationTab(QWidget):
 
     def _load_log(self):
         try:
-            r = self._req("GET", "/aa/sync-log")
+            r = self._req("GET", "aa/sync-log")
             self.log_tbl.setRowCount(len(r))
             for i, row in enumerate(r[:50]):
                 self.log_tbl.setItem(i, 0, QTableWidgetItem(str(row.get("created_at", ""))[:19]))

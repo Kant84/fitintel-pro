@@ -115,14 +115,14 @@ class VisitsTab(QWidget):
         cards.addWidget(self.edit_filter)
 
         # === КНОПКИ ОПЕРАТОРА ===
-        btn_in = QPushButton("🟢 Впустить")
+        btn_in = QPushButton("Впустить")
         btn_in.setToolTip("Открыть вход: создать визит (ресепшен). "
                           "Команда на турникет — с v1.6")
         btn_in.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         btn_in.clicked.connect(self._checkin)
         cards.addWidget(btn_in)
 
-        btn_out = QPushButton("🔴 Выпустить")
+        btn_out = QPushButton("Выпустить")
         btn_out.setToolTip("Открыть выход: закрыть выбранный активный визит")
         btn_out.setStyleSheet("QPushButton { background: #ef4444; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         btn_out.clicked.connect(self._checkout)
@@ -240,7 +240,7 @@ class VisitsTab(QWidget):
     # ============ КОМАНДА НА ТУРНИКЕТ (v1.6, пока заглушка) ============
     def _open_turnstile(self, direction: str):
         try:
-            self.api.session.post(self.api._url("/skud/open"),
+            self.api.session.post(self.api._url("skud/open"),
                                   json={"direction": direction, "source": "desktop"},
                                   timeout=3)
         except Exception:
@@ -265,7 +265,7 @@ class VisitsTab(QWidget):
                    "entry_time": datetime.now().isoformat(),
                    "access_method": v["access_method"], "zone": v["zone"] or "main"}
         try:
-            r = self.api.session.post(self.api._url("/visits/manual"), json=payload)
+            r = self.api.session.post(self.api._url("visits/manual"), json=payload)
             r.raise_for_status()
             self._open_turnstile("entry")
             self.refresh()
@@ -295,7 +295,7 @@ class VisitsTab(QWidget):
             payload = {"visit_id": visit["id"],
                        "exit_time": datetime.now().isoformat()}
             r = self.api.session.post(
-                self.api._url(f"/visits/{visit['id']}/complete"), json=payload)
+                self.api._url(f"visits/{visit['id']}/complete"), json=payload)
             r.raise_for_status()
             self._open_turnstile("exit")
             QMessageBox.information(self, "Готово", f"{fio} выпущен, визит закрыт")
@@ -325,7 +325,7 @@ class VisitsTab(QWidget):
             payload = {"visit_id": visit["id"],
                        "exit_time": datetime.now().isoformat()}
             r = self.api.session.post(
-                self.api._url(f"/visits/{visit['id']}/complete"), json=payload)
+                self.api._url(f"visits/{visit['id']}/complete"), json=payload)
             r.raise_for_status()
             self.refresh()
         except Exception as e:

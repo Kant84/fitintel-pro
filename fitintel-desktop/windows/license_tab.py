@@ -37,7 +37,7 @@ class LicenseTab(QWidget):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(20)
 
-        header = QLabel("🔐 Лицензирование системы")
+        header = QLabel("Лицензирование системы")
         header.setStyleSheet("font-size: 18px; font-weight: 700; color: #0f172a;")
         layout.addWidget(header)
 
@@ -45,7 +45,7 @@ class LicenseTab(QWidget):
         self.card_status = QFrame()
         self.card_status.setStyleSheet("background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;")
         card_layout = QVBoxLayout(self.card_status)
-        self.lbl_status = QLabel("⏳ Проверьте лицензию")
+        self.lbl_status = QLabel("Проверьте лицензию")
         self.lbl_status.setStyleSheet("font-size: 14px; color: #475569;")
         card_layout.addWidget(self.lbl_status)
         layout.addWidget(self.card_status)
@@ -68,12 +68,12 @@ class LicenseTab(QWidget):
 
         # Buttons
         btn_layout = QHBoxLayout()
-        btn_verify = QPushButton("✅ Проверить лицензию")
+        btn_verify = QPushButton("Проверить лицензию")
         btn_verify.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 10px 24px; font-weight: 600; } QPushButton:hover { background: #059669; }")
         btn_verify.clicked.connect(self._verify)
         btn_layout.addWidget(btn_verify)
 
-        btn_limits = QPushButton("📊 Проверить лимиты")
+        btn_limits = QPushButton("Проверить лимиты")
         btn_limits.setStyleSheet("QPushButton { background: #3b82f6; color: white; border: none; border-radius: 6px; padding: 10px 24px; font-weight: 600; } QPushButton:hover { background: #2563eb; }")
         btn_limits.clicked.connect(self._check_limits)
         btn_layout.addWidget(btn_limits)
@@ -92,7 +92,7 @@ class LicenseTab(QWidget):
         layout.addStretch()
 
         # Footer
-        footer = QLabel("© 2026 ИП Санакин А.В. | Лицензирование через API v1.5.3")
+        footer = QLabel("2026 ИП Санакин А.В. | Лицензирование через API v1.5.3")
         footer.setStyleSheet("font-size: 11px; color: #94a3b8;")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(footer)
@@ -105,7 +105,7 @@ class LicenseTab(QWidget):
             QMessageBox.warning(self, "Ошибка", "Введите ключ и ID устройства")
             return
 
-        self.lbl_status.setText("⏳ Проверка лицензии...")
+        self.lbl_status.setText("Проверка лицензии...")
         self.worker = VerifyLicenseWorker(self.api, key, device)
         self.worker.finished.connect(self._on_verify_success)
         self.worker.error.connect(self._on_verify_error)
@@ -119,18 +119,18 @@ class LicenseTab(QWidget):
         if valid:
             self.card_status.setStyleSheet("background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 16px;")
             self.lbl_status.setStyleSheet("font-size: 14px; color: #065f46; font-weight: 600;")
-            self.lbl_status.setText(f"✅ Лицензия ВАЛИДНА\n{message}")
+            self.lbl_status.setText(f"Лицензия ВАЛИДНА\n{message}")
         else:
             self.card_status.setStyleSheet("background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; padding: 16px;")
             self.lbl_status.setStyleSheet("font-size: 14px; color: #991b1b; font-weight: 600;")
-            self.lbl_status.setText(f"❌ Лицензия НЕВАЛИДНА\n{message}")
+            self.lbl_status.setText(f"Лицензия НЕВАЛИДНА\n{message}")
 
         self.info_area.setText(str(info))
 
     def _on_verify_error(self, msg: str):
         self.card_status.setStyleSheet("background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; padding: 16px;")
         self.lbl_status.setStyleSheet("font-size: 14px; color: #991b1b;")
-        self.lbl_status.setText(f"❌ Ошибка: {msg}")
+        self.lbl_status.setText(f"Ошибка: {msg}")
 
     def _check_limits(self):
         key = self.edit_key.text().strip()
@@ -157,7 +157,7 @@ try:
             row = _H64()
             ed = _E64(); ed.setPlaceholderText("FIPRO-.....")
             row.addWidget(ed)
-            btn = _B64("✔ Проверить"); row.addWidget(btn)
+            btn = _B64("Проверить"); row.addWidget(btn)
             v.addLayout(row)
             res = _L64("—"); res.setWordWrap(True)
             v.addWidget(res)
@@ -169,13 +169,13 @@ try:
                 api = getattr(self, "api", None)
                 base = getattr(api, "base_url", None) or getattr(api, "base", None) or "http://localhost:8001/api/v1"
                 try:
-                    r = _rq64.post(str(base).rstrip("/") + "/license/validate", json={"key": key}, timeout=15).json()
+                    r = _rq64.post(str(base).rstrip("/") + "license/validate", json={"key": key}, timeout=15).json()
                     if r.get("valid"):
-                        res.setText("✅ Лицензия ДЕЙСТВИТЕЛЬНА: тариф %s, до %s, клиентов: %s, клуб: %s" % (
+                        res.setText("Лицензия ДЕЙСТВИТЕЛЬНА: тариф %s, до %s, клиентов: %s, клуб: %s" % (
                             r.get("plan"), r.get("exp"), r.get("max_clients"), r.get("club")))
                         res.setStyleSheet("color:#39ff14; font-weight:bold;")
                     else:
-                        res.setText("❌ Недействительна: %s" % r.get("reason", "?"))
+                        res.setText("Недействительна: %s" % r.get("reason", "?"))
                         res.setStyleSheet("color:#ff3860; font-weight:bold;")
                 except Exception as e:
                     res.setText("Ошибка проверки: %s" % e)
@@ -221,10 +221,10 @@ try:
                     api = getattr(self, "api", None)
                     base = getattr(api, "base_url", None) or getattr(api, "base", None) or "http://localhost:8001/api/v1"
                     try:
-                        r = _rq65.post(str(base).rstrip("/") + "/license/validate", json={"key": key}, timeout=15).json()
+                        r = _rq65.post(str(base).rstrip("/") + "license/validate", json={"key": key}, timeout=15).json()
                         if r.get("valid"):
                             try:
-                                _rq65.post(str(base).rstrip("/") + "/license/activate", json={"key": key}, timeout=15)
+                                _rq65.post(str(base).rstrip("/") + "license/activate", json={"key": key}, timeout=15)
                             except Exception:
                                 pass
                             txt = "ЛИЦЕНЗИЯ ДЕЙСТВИТЕЛЬНА\n\nТариф: %s\nДействует до: %s\nЛимит клиентов: %s\nКлуб: %s" % (r.get("plan"), r.get("exp"), r.get("max_clients"), r.get("club"))
@@ -258,7 +258,7 @@ def _e67_beautify(tab):
             break
     if marker is None:
         for b in tab.findChildren(QPushButton):
-            t = (b.text() or "").replace("\u2714", "").replace("\u2705", "").strip()
+            t = (b.text() or "").replace("u2714", "").replace("u2705", "").strip()
             if t == "Проверить":
                 marker = b
                 break
@@ -343,7 +343,7 @@ def _e68_token(skip_stored=False):
     if not login or not pw:
         print("[E68] нет логина/пароля, ключи client_settings:", list(cfg.keys()))
         return None
-    for path in ("/auth/login", "/login", "/auth/token"):
+    for path in ("auth/login", "login", "auth/token"):
         try:
             req = _u.Request(_e68_base() + path,
                              data=_j.dumps({"login": login, "username": login, "password": pw}).encode(),
@@ -384,7 +384,7 @@ def _e68_wire(tab):
     res = labels[-1] if labels else marker
 
     def _act(key, tok):
-        req = _u.Request(_e68_base() + "/license/activate",
+        req = _u.Request(_e68_base() + "license/activate",
                          data=_j.dumps({"key": key}).encode(),
                          headers={"Content-Type": "application/json"})
         if tok:
@@ -396,7 +396,7 @@ def _e68_wire(tab):
         if not key:
             res.setText("Введите ключ FIPRO-...")
             return
-        res.setText("⏳ Активация...")
+        res.setText("Активация...")
         try:
             tok = _e68_token()
             try:
@@ -408,7 +408,7 @@ def _e68_wire(tab):
                 else:
                     raise
             if r.get("activated"):
-                res.setText(f"✅ Лицензия активирована: тариф {r.get('plan')}, до {r.get('expires')}, клиентов: {r.get('max_clients')}")
+                res.setText(f"Лицензия активирована: тариф {r.get('plan')}, до {r.get('expires')}, клиентов: {r.get('max_clients')}")
             else:
                 res.setText("❌ " + str(r)[:200])
         except Exception as e:
@@ -417,19 +417,19 @@ def _e68_wire(tab):
                 body = e.read().decode()[:300]
             except Exception:
                 pass
-            res.setText(f"❌ Ошибка: {str(e)[:120]}\nОтвет сервера: {body}")
+            res.setText(f"Ошибка: {str(e)[:120]}\nОтвет сервера: {body}")
 
     try:
         btn.clicked.disconnect()
     except Exception:
         pass
-    btn.setText("✔ Проверить и активировать")
+    btn.setText("Проверить и активировать")
     btn.clicked.connect(do_activate)
 
     def load_current():
         try:
             tok = _e68_token()
-            req = _u.Request(_e68_base() + "/license/current")
+            req = _u.Request(_e68_base() + "license/current")
             if tok:
                 req.add_header("Authorization", "Bearer " + tok)
             try:
@@ -437,7 +437,7 @@ def _e68_wire(tab):
             except Exception as e1:
                 if "401" not in str(e1):
                     raise
-                req = _u.Request(_e68_base() + "/license/current")
+                req = _u.Request(_e68_base() + "license/current")
                 tok = _e68_token(skip_stored=True)
                 if tok:
                     req.add_header("Authorization", "Bearer " + tok)

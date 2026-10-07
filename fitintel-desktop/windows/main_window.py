@@ -13,6 +13,7 @@ from PyQt6.QtGui import QAction, QFont
 from api import ApiClient
 from windows.connections_tab import ConnectionsTab
 from windows import theme
+from windows.icons import icon as _icon, polish as _polish
 from windows.clients_tab import ClientsTab
 from windows.subscriptions_tab import SubscriptionsTab
 from windows.visits_tab import VisitsTab
@@ -45,7 +46,7 @@ TAB_REGISTRY = {
     "visits":        ("Входы/Выходы", VisitsTab),
     "schedule":      ("Расписание", ScheduleTab),
     "payments":      ("Платежи", PaymentsTab),
-    "music":         ("🎧 Музыка/DJ", MusicTab),
+    "music":         ("Музыка/DJ", MusicTab),
     "reports":       ("Отчёты", ReportsTab),
     "documents":     ("Документы", DocumentsTab),
     "users":         ("Пользователи", UsersTab),
@@ -63,14 +64,12 @@ DEFAULT_TABS = ["dashboard", "clients", "subscriptions", "tariffs", "visits", "s
                 "schedule", "payments", "music", "reports", "documents", "users", "roles",
                 "devices", "face_id", "license", "ui_config", "setup", "settings", "credentials", "connections"]
 
-SIDEBAR_LIGHT = """
-    QListWidget { background: #ffffff; border: none; border-right: 1px solid #e2e8f0; outline: none; }
+SIDEBAR_LIGHT = """QListWidget { background: #ffffff; border: none; border-right: 1px solid #e2e8f0; outline: none; }
     QListWidget::item { padding: 10px 14px; color: #475569; font-weight: 600; border-left: 3px solid transparent; }
     QListWidget::item:selected { background: #ecfdf5; color: #065f46; border-left: 3px solid #10b981; }
     QListWidget::item:hover:!selected { background: #f1f5f9; }
 """
-SIDEBAR_DARK = """
-    QListWidget { background: #1e293b; border: none; border-right: 1px solid #334155; outline: none; }
+SIDEBAR_DARK = """QListWidget { background: #1e293b; border: none; border-right: 1px solid #334155; outline: none; }
     QListWidget::item { padding: 10px 14px; color: #94a3b8; font-weight: 600; border-left: 3px solid transparent; }
     QListWidget::item:selected { background: #064e3b; color: #a7f3d0; border-left: 3px solid #10b981; }
     QListWidget::item:hover:!selected { background: #334155; }
@@ -197,6 +196,10 @@ class MainWindow(QMainWindow):
         self.stack.removeWidget(placeholder)
         placeholder.deleteLater()
         self.stack.insertWidget(row, widget)
+        try:
+            _polish(widget)   # W5: эмодзи -> неон-иконки во всей вкладке
+        except Exception as _pe:
+            print("polish:", code, _pe)
         self._built[code] = widget
         return widget
 
@@ -218,6 +221,7 @@ class MainWindow(QMainWindow):
                 continue
             title = TAB_REGISTRY[code][0]
             item = QListWidgetItem(title)
+            item.setIcon(_icon(code))
             item.setSizeHint(QSize(-1, 38))
             item.setData(Qt.ItemDataRole.UserRole, code)
             self.sidebar.addItem(item)
@@ -270,7 +274,8 @@ class MainWindow(QMainWindow):
         body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(0)
         self.sidebar = QListWidget()
-        self.sidebar.setFixedWidth(180)
+        self.sidebar.setIconSize(QSize(20, 20))
+        self.sidebar.setFixedWidth(200)
         self.sidebar.currentRowChanged.connect(self._on_nav)
         body.addWidget(self.sidebar)
         self.stack = QStackedWidget()
@@ -302,7 +307,7 @@ class MainWindow(QMainWindow):
         act_dark = QAction("Тёмная тема", self)
         act_dark.triggered.connect(lambda: self.apply_appearance(theme_name="dark"))
         view_menu.addAction(act_dark)
-        act_clock = QAction("🕐 Табло с часами (полный экран)", self)
+        act_clock = QAction("Табло с часами (полный экран)", self)
         act_clock.setShortcut("F11")
         act_clock.setToolTip("Полноэкранные часы для ресепшена/входа. Esc — выход.")
         act_clock.triggered.connect(self._open_clock_board)
@@ -417,7 +422,7 @@ try:
         _orig_mw_init_59d(self, *a, **kw)
         try:
             from PyQt6.QtGui import QAction
-            act = QAction("🌗 Переключить тему", self)
+            act = QAction("Переключить тему", self)
             act.triggered.connect(lambda: _th59.set_dark(not _th59.DARK))
             mb = self.menuBar()
             view = None
@@ -448,7 +453,7 @@ except Exception as e:
 # === E17_NOTIFY_WIRED ===
 try:
     from windows.notifications_tab import NotificationsTab
-    TAB_REGISTRY["notifications"] = ("🔔 Уведомления", NotificationsTab)
+    TAB_REGISTRY["notifications"] = ("Уведомления", NotificationsTab)
     print("[E17] вкладка Уведомления зарегистрирована")
 except Exception as _e17e:
     print("[E17] wire FAIL:", _e17e)
@@ -457,7 +462,7 @@ except Exception as _e17e:
 # === E18_COMMERCE_WIRED ===
 try:
     from windows.commerce_tab import CommerceTab
-    TAB_REGISTRY["commerce"] = ("🏢 Коммерция", CommerceTab)
+    TAB_REGISTRY["commerce"] = ("Коммерция", CommerceTab)
     print("E18 commerce tab OK")
 except Exception as _e18ui:
     print("E18 commerce tab FAIL:", _e18ui)
@@ -466,7 +471,7 @@ except Exception as _e18ui:
 # === E19_EXPORT_WIRED ===
 try:
     from windows.export_tab import ExportTab
-    TAB_REGISTRY["export"] = ("📤 Экспорт", ExportTab)
+    TAB_REGISTRY["export"] = ("Экспорт", ExportTab)
     print("E19 export tab OK")
 except Exception as _e19ui:
     print("E19 export tab FAIL:", _e19ui)
@@ -475,7 +480,7 @@ except Exception as _e19ui:
 # === E20_ACCOUNTING_WIRED ===
 try:
     from windows.accounting_tab import AccountingTab
-    TAB_REGISTRY["accounting"] = ("📊 Бухгалтерия", AccountingTab)
+    TAB_REGISTRY["accounting"] = ("Бухгалтерия", AccountingTab)
     print("E20 accounting tab OK")
 except Exception as _e20ui:
     print("E20 accounting tab FAIL:", _e20ui)
@@ -493,7 +498,7 @@ except Exception as _e21ui:
 # === E21_INTEGRATIONS_WIRED ===
 try:
     from windows.integrations_tab import IntegrationsTab
-    TAB_REGISTRY["integrations"] = ("🔗 Интеграции", IntegrationsTab)
+    TAB_REGISTRY["integrations"] = ("Интеграции", IntegrationsTab)
     print("E21 integrations tab OK")
 except Exception as _e21ui:
     print("E21 integrations tab FAIL:", _e21ui)
@@ -502,7 +507,7 @@ except Exception as _e21ui:
 # === E15_CREDENTIALS_TAB ===
 try:
     from windows.credentials_tab import CredentialsTab
-    TAB_REGISTRY["credentials"] = ("🔑 Браслеты/Карты", CredentialsTab)
+    TAB_REGISTRY["credentials"] = ("Браслеты/Карты", CredentialsTab)
     print("E15 credentials tab OK")
 except Exception as _e15ui:
     print("E15 credentials tab FAIL:", _e15ui)
@@ -525,7 +530,7 @@ try:
         _orig_init_pw(self, *a, **kw)
         try:
             from PyQt6.QtGui import QAction
-            act = QAction("🔑 Сменить пароль…", self)
+            act = QAction("Сменить пароль…", self)
             act.setToolTip("Смена своего пароля (self-service)")
             act.triggered.connect(
                 lambda: ChangePasswordSelfDialog(self.api, self.token, self).exec())
@@ -539,3 +544,11 @@ try:
     print("Self password change OK")
 except Exception as e:
     print("Self password change FAIL:", e)
+    
+# === W5: вкладка «Параметры клуба» ===
+try:
+    from windows.club_params_tab import ClubParamsTab
+    TAB_REGISTRY["club_params"] = ("Параметры клуба", ClubParamsTab)
+    print("W5 club_params tab OK")
+except Exception as _w5t:
+    print("W5 club_params tab FAIL:", _w5t)    

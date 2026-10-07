@@ -56,9 +56,9 @@ class NotificationsTab(QWidget):
         f.addRow("SMTP пароль:", self.ed_smtp_pass)
         f.addRow("От кого (email):", self.ed_from)
         f.addRow("Время ежедневного дайджеста:", self.ed_digest)
-        b = QPushButton("💾 Сохранить Email"); b.clicked.connect(lambda: self.save_settings("email"))
+        b = QPushButton("Сохранить Email"); b.clicked.connect(lambda: self.save_settings("email"))
         f.addRow(b)
-        self.tabs.addTab(w, "📧 Email")
+        self.tabs.addTab(w, "Email")
 
     def _build_sms_tab(self):
         w = QWidget(); f = QFormLayout(w)
@@ -70,9 +70,9 @@ class NotificationsTab(QWidget):
         f.addRow("SMSC логин:", self.ed_smsc_login)
         f.addRow("SMSC пароль:", self.ed_smsc_pass)
         f.addRow("Подпись отправителя:", self.ed_smsc_sender)
-        b = QPushButton("💾 Сохранить SMS"); b.clicked.connect(lambda: self.save_settings("sms"))
+        b = QPushButton("Сохранить SMS"); b.clicked.connect(lambda: self.save_settings("sms"))
         f.addRow(b)
-        self.tabs.addTab(w, "📱 SMS")
+        self.tabs.addTab(w, "SMS")
 
     def _build_push_tab(self):
         w = QWidget(); f = QFormLayout(w)
@@ -85,9 +85,9 @@ class NotificationsTab(QWidget):
         f.addRow("VAPID public:", self.ed_vapid_pub)
         f.addRow("VAPID private:", self.ed_vapid_priv)
         f.addRow("VAPID sub:", self.ed_vapid_sub)
-        b = QPushButton("💾 Сохранить Web Push"); b.clicked.connect(lambda: self.save_settings("push"))
+        b = QPushButton("Сохранить Web Push"); b.clicked.connect(lambda: self.save_settings("push"))
         f.addRow(b)
-        self.tabs.addTab(w, "🔔 Web Push")
+        self.tabs.addTab(w, "Web Push")
 
     def _build_test_tab(self):
         w = QWidget(); f = QFormLayout(w)
@@ -105,22 +105,22 @@ class NotificationsTab(QWidget):
         self.ed_msg = QLineEdit("Тестовое уведомление FitIntel Pro")
         f.addRow("Текст:", self.ed_msg)
         hb2 = QHBoxLayout()
-        bt = QPushButton("📨 Отправить"); bt.clicked.connect(self.send_test)
-        bd = QPushButton("📊 Отправить дайджест"); bd.clicked.connect(self.send_digest)
+        bt = QPushButton("Отправить"); bt.clicked.connect(self.send_test)
+        bd = QPushButton("Отправить дайджест"); bd.clicked.connect(self.send_digest)
         hb2.addWidget(bt); hb2.addWidget(bd)
         f.addRow(hb2)
-        self.tabs.addTab(w, "📨 Отправка")
+        self.tabs.addTab(w, "Отправка")
 
     def _build_log_tab(self):
         w = QWidget(); v = QVBoxLayout(w)
-        b = QPushButton("🔄 Обновить журнал"); b.clicked.connect(self.load_log)
+        b = QPushButton("Обновить журнал"); b.clicked.connect(self.load_log)
         # 8 колонок: добавлены Дата и Время
         self.tbl = QTableWidget(0, 8)
         self.tbl.setHorizontalHeaderLabels(
             ["ID", "Канал", "Кому", "Тема", "Дата", "Время", "Статус", "Ошибка"])
         self.tbl.horizontalHeader().setStretchLastSection(True)
         v.addWidget(b); v.addWidget(self.tbl)
-        self.tabs.addTab(w, "📋 Журнал")
+        self.tabs.addTab(w, "Журнал")
 
     # ---------- логика ----------
     def _get(self, path):
@@ -131,7 +131,7 @@ class NotificationsTab(QWidget):
 
     def load_contacts(self):
         try:
-            rows = self._get("/notify/contacts")
+            rows = self._get("notify/contacts")
             self.cmb_contacts.clear()
             self._contacts = []
             if isinstance(rows, list):
@@ -152,7 +152,7 @@ class NotificationsTab(QWidget):
 
     def load_settings(self):
         try:
-            s = self._get("/notify/settings")
+            s = self._get("notify/settings")
             self.cb_email.setChecked(bool(s.get("email_enabled")))
             self.cb_sms.setChecked(bool(s.get("sms_enabled")))
             self.cb_push.setChecked(bool(s.get("webpush_enabled")))
@@ -192,14 +192,14 @@ class NotificationsTab(QWidget):
                        "vapid_private": self.ed_vapid_priv.text().strip(),
                        "vapid_sub": self.ed_vapid_sub.text().strip()}
         try:
-            r = self._post("/notify/settings", payload)
+            r = self._post("notify/settings", payload)
             QMessageBox.information(self, "Уведомления", "Сохранено ✓" if r.get("ok") else str(r))
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))
 
     def send_test(self):
         try:
-            r = self._post("/notify/test", {"channel": self.cmb_ch.currentText(),
+            r = self._post("notify/test", {"channel": self.cmb_ch.currentText(),
                 "to": self.ed_to.text().strip(), "message": self.ed_msg.text()})
             QMessageBox.information(self, "Отправка",
                 "Отправлено ✓" if r.get("ok") else f"Ошибка: {r.get('error')}")
@@ -209,18 +209,18 @@ class NotificationsTab(QWidget):
 
     def send_digest(self):
         try:
-            r = self._post("/notify/digest", {})
+            r = self._post("notify/digest", {})
             st = r.get("stats") or {}
             QMessageBox.information(self, "Дайджест",
                 ("Отправлен ✓" if r.get("ok") else f"Ошибка: {r.get('error')}") +
-                f"\nКлиентов: {st.get('clients')}, посещений: {st.get('visits_today')}, выручка: {st.get('revenue_today')}")
+                f"nКлиентов: {st.get('clients')}, посещений: {st.get('visits_today')}, выручка: {st.get('revenue_today')}")
             self.load_log()
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))
 
     def load_log(self):
         try:
-            rows = self._get("/notify/log?limit=50")
+            rows = self._get("notify/log?limit=50")
             rows = rows if isinstance(rows, list) else []
             self.tbl.setRowCount(len(rows))
             for i, r in enumerate(rows):

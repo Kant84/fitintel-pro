@@ -18,7 +18,7 @@ def _base():
 def _token():
     try:
         cfg = json.load(open("client_settings.json", encoding="utf-8"))
-        r = urllib.request.Request(_base() + "/auth/login",
+        r = urllib.request.Request(_base() + "auth/login",
             data=json.dumps({"login": cfg.get("saved_login"), "password": cfg.get("saved_password")}).encode(),
             headers={"Content-Type": "application/json"})
         return json.load(urllib.request.urlopen(r, timeout=10)).get("access_token")
@@ -43,10 +43,10 @@ class AccountingTab(QWidget):
         lay = QVBoxLayout(self)
         tabs = QTabWidget()
         tabs.setMovable(True)
-        tabs.addTab(self._cash_tab(), "💰 Касса")
-        tabs.addTab(self._reports_tab(), "📊 Отчёты")
-        tabs.addTab(self._entries_tab(), "📝 Проводки")
-        tabs.addTab(self._export_tab(), "🔄 1С")
+        tabs.addTab(self._cash_tab(), "Касса")
+        tabs.addTab(self._reports_tab(), "Отчёты")
+        tabs.addTab(self._entries_tab(), "Проводки")
+        tabs.addTab(self._export_tab(), "1С")
         lay.addWidget(tabs)
 
     def _cash_tab(self):
@@ -63,7 +63,7 @@ class AccountingTab(QWidget):
         f1.addRow("Сумма:", self.pko_amount)
         f1.addRow("Описание:", self.pko_desc)
         f1.addRow("Номер:", self.pko_num)
-        b1 = QPushButton("📥 ПКО (приход)")
+        b1 = QPushButton("ПКО (приход)")
         b1.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b1.clicked.connect(self._do_pko)
         f1.addRow(b1)
@@ -78,7 +78,7 @@ class AccountingTab(QWidget):
         f2.addRow("Сумма:", self.rko_amount)
         f2.addRow("Описание:", self.rko_desc)
         f2.addRow("Номер:", self.rko_num)
-        b2 = QPushButton("📤 РКО (расход)")
+        b2 = QPushButton("РКО (расход)")
         b2.setStyleSheet("QPushButton { background: #EF4444; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b2.clicked.connect(self._do_rko)
         f2.addRow(b2)
@@ -90,21 +90,21 @@ class AccountingTab(QWidget):
 
     def _do_pko(self):
         try:
-            r = _req("POST", "/accounting/pko", {
+            r = _req("POST", "accounting/pko", {
                 "amount": self.pko_amount.value(),
                 "description": self.pko_desc.text(),
                 "doc_number": self.pko_num.text() or None})
-            self.cash_status.setText(f"✅ ПКО создан: {r.get('entry_id', '')[:8]}")
+            self.cash_status.setText(f"ПКО создан: {r.get('entry_id', '')[:8]}")
         except Exception as e:
             self.cash_status.setText("❌ " + str(e)[:150])
 
     def _do_rko(self):
         try:
-            r = _req("POST", "/accounting/rko", {
+            r = _req("POST", "accounting/rko", {
                 "amount": self.rko_amount.value(),
                 "description": self.rko_desc.text(),
                 "doc_number": self.rko_num.text() or None})
-            self.cash_status.setText(f"✅ РКО создан: {r.get('entry_id', '')[:8]}")
+            self.cash_status.setText(f"РКО создан: {r.get('entry_id', '')[:8]}")
         except Exception as e:
             self.cash_status.setText("❌ " + str(e)[:150])
 
@@ -114,11 +114,11 @@ class AccountingTab(QWidget):
         hb = QHBoxLayout()
         self.cb_period = QComboBox()
         self.cb_period.addItems(["2026-08", "2026-07", "2026-06"])
-        b_osv = QPushButton("📊 ОСВ")
+        b_osv = QPushButton("ОСВ")
         b_osv.clicked.connect(self._load_osv)
-        b_pl = QPushButton("💰 Прибыль/убыток")
+        b_pl = QPushButton("Прибыль/убыток")
         b_pl.clicked.connect(self._load_pl)
-        b_bs = QPushButton("⚖️ Баланс")
+        b_bs = QPushButton("Баланс")
         b_bs.clicked.connect(self._load_bs)
         hb.addWidget(QLabel("Период:"))
         hb.addWidget(self.cb_period)
@@ -136,7 +136,7 @@ class AccountingTab(QWidget):
 
     def _load_osv(self):
         try:
-            rows = _req("GET", f"/accounting/osv/{self.cb_period.currentText()}")
+            rows = _req("GET", f"accounting/osv/{self.cb_period.currentText()}")
             self.rep_tbl.setColumnCount(7)
             self.rep_tbl.setHorizontalHeaderLabels(["Счёт", "Сн Дт", "Сн Кт", "Оборот Дт", "Оборот Кт", "Ск Дт", "Ск Кт"])
             self.rep_tbl.setRowCount(len(rows))
@@ -152,7 +152,7 @@ class AccountingTab(QWidget):
 
     def _load_pl(self):
         try:
-            r = _req("GET", f"/accounting/profit-loss/{self.cb_period.currentText()}")
+            r = _req("GET", f"accounting/profit-loss/{self.cb_period.currentText()}")
             self.rep_tbl.setColumnCount(2)
             self.rep_tbl.setHorizontalHeaderLabels(["Показатель", "Сумма"])
             data = [("Доходы", r.get("income")), ("Себестоимость", r.get("cost")),
@@ -168,7 +168,7 @@ class AccountingTab(QWidget):
 
     def _load_bs(self):
         try:
-            r = _req("GET", f"/accounting/balance-sheet/{self.cb_period.currentText()}")
+            r = _req("GET", f"accounting/balance-sheet/{self.cb_period.currentText()}")
             self.rep_tbl.setColumnCount(2)
             self.rep_tbl.setHorizontalHeaderLabels(["Показатель", "Сумма"])
             data = [("Активы", r.get("assets")), ("Пассивы", r.get("liabilities")),
@@ -184,7 +184,7 @@ class AccountingTab(QWidget):
     def _entries_tab(self):
         w = QWidget()
         lay = QVBoxLayout(w)
-        b = QPushButton("🔄 Загрузить проводки")
+        b = QPushButton("Загрузить проводки")
         b.clicked.connect(self._load_entries)
         lay.addWidget(b)
         self.ent_tbl = QTableWidget(0, 6)
@@ -195,7 +195,7 @@ class AccountingTab(QWidget):
 
     def _load_entries(self):
         try:
-            r = _req("GET", "/accounting/entries?date_from=2026-08-01&date_to=2026-08-31")
+            r = _req("GET", "accounting/entries?date_from=2026-08-01&date_to=2026-08-31")
             rows = r.get("entries", [])
             self.ent_tbl.setRowCount(len(rows))
             for i, e in enumerate(rows):
@@ -208,10 +208,10 @@ class AccountingTab(QWidget):
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.addWidget(QLabel("Экспорт в 1С (CommerceML 2.0)"))
-        b1 = QPushButton("📤 Экспорт номенклатуры (mock)")
+        b1 = QPushButton("Экспорт номенклатуры (mock)")
         b1.clicked.connect(lambda: QMessageBox.information(self, "1С", "Файл сгенерирован (mock-режим)"))
         lay.addWidget(b1)
-        b2 = QPushButton("📤 Экспорт контрагентов (mock)")
+        b2 = QPushButton("Экспорт контрагентов (mock)")
         b2.clicked.connect(lambda: QMessageBox.information(self, "1С", "Файл сгенерирован (mock-режим)"))
         lay.addWidget(b2)
         lay.addStretch(1)

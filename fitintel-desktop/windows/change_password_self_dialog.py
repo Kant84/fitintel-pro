@@ -13,7 +13,7 @@ class ChangePasswordSelfDialog(QDialog):
         super().__init__(parent)
         self.api = api
         self.token = token
-        self.setWindowTitle("🔑 Смена пароля")
+        self.setWindowTitle("Смена пароля")
         self.setMinimumWidth(380)
         self._build_ui()
 
@@ -53,7 +53,7 @@ class ChangePasswordSelfDialog(QDialog):
         self.ed_new2.setPlaceholderText("Повторите новый пароль")
         form.addRow("Подтверждение:", self.ed_new2)
         lay.addLayout(form)
-        btn = QPushButton("💾 Сохранить")
+        btn = QPushButton("Сохранить")
         btn.setStyleSheet("background: #059669; color: white; padding: 10px; font-weight: 600;")
         btn.clicked.connect(self._save)
         lay.addWidget(btn)
@@ -68,7 +68,7 @@ class ChangePasswordSelfDialog(QDialog):
             QMessageBox.warning(self, "Пароль", "Новые пароли не совпадают.")
             return
         try:
-            self._req("/auth/change-password",
+            self._req("auth/change-password",
                       {"current_password": old, "new_password": new})
         except Exception as e:
             QMessageBox.warning(self, "Смена пароля",

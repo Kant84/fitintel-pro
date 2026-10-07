@@ -79,7 +79,7 @@ class ChangePasswordDialog(QDialog):
             return
 
         try:
-            self._req("POST", "/auth/change-password", {
+            self._req("POST", "auth/change-password", {
                 "current_password": old,
                 "new_password": new
             })

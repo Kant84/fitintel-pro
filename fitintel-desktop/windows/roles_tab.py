@@ -60,10 +60,10 @@ class RolesTab(QWidget):
         top = QHBoxLayout()
         self.lbl_hint = QLabel("Выберите роль слева → отметьте права галочками → «💾 Сохранить»")
         top.addWidget(self.lbl_hint, 1)
-        b = QPushButton("🔄 Обновить")
+        b = QPushButton("Обновить")
         b.clicked.connect(self.refresh)
         top.addWidget(b)
-        self.b_save = QPushButton("💾 Сохранить изменения")
+        self.b_save = QPushButton("Сохранить изменения")
         self.b_save.setEnabled(False)
         self.b_save.clicked.connect(self._save)
         top.addWidget(self.b_save)
@@ -100,7 +100,7 @@ class RolesTab(QWidget):
     def refresh(self):
         self.status.setText("Загрузка ролей и прав…")
         self._loading = True
-        w1 = _Get(self.api, "/roles/")
+        w1 = _Get(self.api, "roles/")
         w1.done.connect(self._roles_loaded)
         w1.fail.connect(self._load_fail)
         w1.start()
@@ -122,7 +122,7 @@ class RolesTab(QWidget):
                 "perms": perms,
             })
         self._edits = {r["id"]: set(r["perms"]) for r in self._roles}
-        w2 = _Get(self.api, "/permissions/")
+        w2 = _Get(self.api, "permissions/")
         w2.done.connect(self._perms_loaded)
         w2.fail.connect(self._load_fail)
         w2.start()
@@ -211,7 +211,7 @@ class RolesTab(QWidget):
         if to_add:
             pid = to_add[0]
             try:
-                r = self.api.session.post(self.api._url("/roles/%s/permissions" % role["id"]),
+                r = self.api.session.post(self.api._url("roles/%s/permissions" % role["id"]),
                                           json={"permission_id": pid}, timeout=15)
                 r.raise_for_status()
                 ok += 1
@@ -223,7 +223,7 @@ class RolesTab(QWidget):
             pid = to_del[0]
             try:
                 r = self.api.session.delete(
-                    self.api._url("/roles/%s/permissions/%s" % (role["id"], pid)), timeout=15)
+                    self.api._url("roles/%s/permissions/%s" % (role["id"], pid)), timeout=15)
                 r.raise_for_status()
                 ok += 1
             except Exception:
@@ -234,6 +234,6 @@ class RolesTab(QWidget):
         self._edits[role["id"]] = set(role["perms"])  # перечитаем ниже
         msg = "Сохранено. Применено изменений: %d" % ok
         if fail:
-            msg += ", ошибок: %d (проверьте право roles.manage)" % fail
+            msg += "ошибок: %d (проверьте право roles.manage)" % fail
         self.status.setText(msg)
         self.refresh()

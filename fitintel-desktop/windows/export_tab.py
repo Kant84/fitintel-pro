@@ -20,7 +20,7 @@ def _base():
 def _token():
     try:
         cfg = json.load(open("client_settings.json", encoding="utf-8"))
-        r = urllib.request.Request(_base() + "/auth/login",
+        r = urllib.request.Request(_base() + "auth/login",
             data=json.dumps({"login": cfg.get("saved_login"), "password": cfg.get("saved_password")}).encode(),
             headers={"Content-Type": "application/json"})
         d = json.load(urllib.request.urlopen(r, timeout=10))
@@ -44,9 +44,9 @@ class ExportTab(QWidget):
         lay = QVBoxLayout(self)
         tabs = QTabWidget()
         tabs.setMovable(True)
-        tabs.addTab(self._export_tab(), "📥 Экспорт")
-        tabs.addTab(self._forget_tab(), "🗑 Право на забвение")
-        tabs.addTab(self._log_tab(), "📋 Журнал")
+        tabs.addTab(self._export_tab(), "Экспорт")
+        tabs.addTab(self._forget_tab(), "Право на забвение")
+        tabs.addTab(self._log_tab(), "Журнал")
         lay.addWidget(tabs)
 
     def _export_tab(self):
@@ -58,7 +58,7 @@ class ExportTab(QWidget):
         self.cb_entity.addItems(ENTITIES)
         self.cb_fmt = QComboBox()
         self.cb_fmt.addItems(["xlsx", "json"])
-        b = QPushButton("📥 Скачать")
+        b = QPushButton("Скачать")
         b.clicked.connect(self.do_export)
         row.addWidget(QLabel("Данные:"))
         row.addWidget(self.cb_entity)
@@ -76,18 +76,18 @@ class ExportTab(QWidget):
         fmt = self.cb_fmt.currentText()
         tok = _token()
         if not tok:
-            self.exp_status.setText("❌ Нет токена (проверьте saved_login в client_settings.json)")
+            self.exp_status.setText("Нет токена (проверьте saved_login в client_settings.json)")
             return
         path, _ = QFileDialog.getSaveFileName(self, "Сохранить экспорт", f"{ent}.{fmt}",
                                               "Excel (*.xlsx)" if fmt == "xlsx" else "JSON (*.json)")
         if not path:
             return
         try:
-            req = urllib.request.Request(_base() + f"/export/{ent}?fmt={fmt}&token={tok}")
+            req = urllib.request.Request(_base() + f"export/{ent}?fmt={fmt}&token={tok}")
             data = urllib.request.urlopen(req, timeout=60).read()
             with open(path, "wb") as f:
                 f.write(data)
-            self.exp_status.setText(f"✅ Сохранено: {path} ({len(data)} байт)")
+            self.exp_status.setText(f"Сохранено: {path} ({len(data)} байт)")
         except Exception as e:
             self.exp_status.setText("❌ " + str(e)[:200])
 
@@ -101,7 +101,7 @@ class ExportTab(QWidget):
         self.e_reason = QLineEdit("запрос субъекта (152-ФЗ)")
         lay.addWidget(self.e_cid)
         lay.addWidget(self.e_reason)
-        b = QPushButton("🗑 Анонимизировать клиента")
+        b = QPushButton("Анонимизировать клиента")
         b.clicked.connect(self.do_forget)
         lay.addWidget(b)
         self.frg_status = QLabel("")
@@ -119,13 +119,13 @@ class ExportTab(QWidget):
             return
         tok = _token()
         try:
-            req = urllib.request.Request(_base() + f"/export/forget?token={tok}",
+            req = urllib.request.Request(_base() + f"export/forget?token={tok}",
                 data=json.dumps({"client_id": cid, "reason": self.e_reason.text().strip()}).encode(),
                 headers={"Content-Type": "application/json"}, method="POST")
             r = json.load(urllib.request.urlopen(req, timeout=15))
-            self.frg_status.setText(f"✅ Анонимизировано полей: {len(r.get('anonymized', []))}")
+            self.frg_status.setText(f"Анонимизировано полей: {len(r.get('anonymized', []))}")
         except urllib.error.HTTPError as e:
-            self.frg_status.setText(f"❌ {e.code}: {e.read().decode()[:150]}")
+            self.frg_status.setText(f"{e.code}: {e.read().decode()[:150]}")
         except Exception as e:
             self.frg_status.setText("❌ " + str(e)[:150])
 
@@ -135,7 +135,7 @@ class ExportTab(QWidget):
         self.tbl = QTableWidget(0, 5)
         self.tbl.setHorizontalHeaderLabels(["ID", "Действие", "Данные", "Формат", "Время"])
         lay.addWidget(self.tbl)
-        b = QPushButton("🔄 Обновить")
+        b = QPushButton("Обновить")
         b.clicked.connect(self.load_log)
         lay.addWidget(b)
         self.load_log()
@@ -144,7 +144,7 @@ class ExportTab(QWidget):
     def load_log(self):
         try:
             tok = _token()
-            rows = json.loads(_get(f"/export/log/list?token={tok}").read())
+            rows = json.loads(_get(f"export/log/list?token={tok}").read())
             self.tbl.setRowCount(0)
             for t in rows:
                 r = self.tbl.rowCount()

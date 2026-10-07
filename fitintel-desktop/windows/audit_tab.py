@@ -125,7 +125,7 @@ class AuditTab(QWidget):
         if self.ed_actor.text().strip():
             params["actor"] = self.ed_actor.text().strip()
         self._run(lambda: self.api.session.get(
-            self.api._url("/audit"), params=params).json(), self._fill)
+            self.api._url("audit"), params=params).json(), self._fill)
 
     def _fill(self, data):
         rows = data.get("entries", []) if isinstance(data, dict) else []
@@ -145,7 +145,7 @@ class AuditTab(QWidget):
 
     def retention_dialog(self):
         self._run(lambda: self.api.session.get(
-            self.api._url("/audit/retention")).json(), self._ret_show)
+            self.api._url("audit/retention")).json(), self._ret_show)
 
     def _ret_show(self, data):
         labels = [("Месяц", 30), ("Полгода", 180), ("Год", 365),
@@ -160,5 +160,5 @@ class AuditTab(QWidget):
             return
         days = dlg.values()["period"]
         self._run(lambda: self.api.session.post(
-            self.api._url("/audit/retention"), json={"days": days}).json(),
+            self.api._url("audit/retention"), json={"days": days}).json(),
             lambda r: (self._show(f"Срок хранения: {r.get('days')} дн."), self.load()))
