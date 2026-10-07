@@ -20,10 +20,25 @@ NOW = datetime.now(timezone.utc)
 
 
 def _mk_client(db, phone="+79000000001") -> Client:
-    c = Client(first_name="Иван", last_name="Тестов", phone=phone,
-               gender="male", client_category="ADULT")
-    db.add(c); db.commit(); db.refresh(c)
-    return c
+    """Через API: сервер сам заполнит обязательные поля модели (дрейф-сейф)."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    c = TestClient(app)
+    from app.core.security import pwd_context
+    from app.models.user import User
+    sess = db
+    if not sess.query(User).filter_by(username="superadmin").first():
+        sess.add(User(username="superadmin", email="sa@t.ru",
+                      password_hash=pwd_context.hash("testpass123"),
+                      is_active=True, is_superuser=True))
+        sess.commit()
+    r = c.post("/api/v1/auth/login", json={"login": "superadmin", "password": "testpass123"})
+    h = {"Authorization": "Bearer " + r.json()["access_token"]}
+    resp = c.post("/api/v1/clients", json={"first_name": "Иван", "last_name": "Тестов",
+                                           "phone": phone}, headers=h)
+    assert resp.status_code in (200, 201), resp.text
+    cid = resp.json()["id"]
+    return sess.query(Client).filter_by(id=cid).first()
 
 
 def _mk_service(db, name="Персональная тренировка", maxcap=1) -> Service:
@@ -31,6 +46,13 @@ def _mk_service(db, name="Персональная тренировка", maxcap
                 duration_minutes=45, max_capacity=maxcap, is_active=True)
     db.add(s); db.commit(); db.refresh(s)
     return s
+
+
+def _mk_tariff(db, name="Безлимит", code="TEST-UNL") -> Tariff:
+    t = Tariff(name=name, code=code, price=3000.0, visit_limit=None, duration_days=30,
+               is_active=True)
+    db.add(t); db.commit(); db.refresh(t)
+    return t
 
 
 def _mk_subscription(db, client_id, tariff_id) -> Subscription:
@@ -147,9 +169,7 @@ class TestBookingLifecycle:
 class TestEntryPolicy:
     def test_subscription_is_reason(self, db_session):
         c = _mk_client(db_session, "+79000000021")
-        t = Tariff(name="Безлимит", price=3000.0, visit_limit=0, duration_days=30,
-                   is_active=True)
-        db_session.add(t); db_session.commit(); db_session.refresh(t)
+        t = _mk_tariff(db_session)
         _mk_subscription(db_session, c.id, t.id)
         reasons = entry_reasons(db_session, str(c.id), at=NOW)
         assert reasons and "Абонемент" in reasons[0]
