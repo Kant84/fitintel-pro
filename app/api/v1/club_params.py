@@ -88,6 +88,8 @@ def _ensure():
                 "SELECT column_name FROM information_schema.columns WHERE table_name='clients'"))}
             if "rating" not in cols:
                 c.execute(text("ALTER TABLE clients ADD COLUMN rating DOUBLE PRECISION DEFAULT 5.0"))
+            if "parent_id" not in cols:
+                c.execute(text("ALTER TABLE clients ADD COLUMN parent_id VARCHAR(64)"))
             t = {r[0] for r in c.execute(text(
                 "SELECT table_name FROM information_schema.tables WHERE table_name='branding_settings'"))}
             if "branding_settings" in t:
@@ -99,6 +101,8 @@ def _ensure():
             cols = {r[1] for r in c.execute(text("PRAGMA table_info(clients)"))}
             if "rating" not in cols:
                 c.execute(text("ALTER TABLE clients ADD COLUMN rating FLOAT DEFAULT 5.0"))
+            if "parent_id" not in cols:
+                c.execute(text("ALTER TABLE clients ADD COLUMN parent_id VARCHAR(64)"))
 
 
 def _load_params() -> dict:

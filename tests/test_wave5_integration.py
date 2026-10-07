@@ -20,13 +20,15 @@ NOW = datetime.now(timezone.utc)
 
 
 @pytest.fixture(autouse=True)
-def _ensure_rating_col(db_session):
-    """clients.rating для прямых SQL-проверок (свип-тест идёт без HTTP -> ленивый
-    ensure не отрабатывает). Локально для тестовой сессии, прод не трогает."""
+def _ensure_client_cols(db_session):
+    """clients.rating и clients.parent_id для прямых проверок (свип/дети идут
+    без HTTP -> ленивый ensure не отрабатывает). Только тестовая сессия."""
     cols = {r[1] for r in db_session.execute(text("PRAGMA table_info(clients)"))}
     if "rating" not in cols:
         db_session.execute(text("ALTER TABLE clients ADD COLUMN rating FLOAT DEFAULT 5.0"))
-        db_session.commit()
+    if "parent_id" not in cols:
+        db_session.execute(text("ALTER TABLE clients ADD COLUMN parent_id VARCHAR(64)"))
+    db_session.commit()
 
 
 def _uid(c) -> str:
@@ -300,6 +302,28 @@ class TestEntryPolicy:
         finally:
             client.put("/api/v1/club-params/ENTRY_STAY_UNTIL_CLOSE",
                        json={"value": "false"}, headers=auth_headers)
+
+    def test_child_booking_grants_parent_entry(self, client, auth_headers, db_session):
+        """Бронь ребёнка (CHILD, parent_id) — основание для входа РОДИТЕЛЯ."""
+        parent = _mk_client(db_session, "+79000000027")
+        child = Client(first_name="Пётр", last_name="Тестов",
+                       phone="child:test:Пётр", client_category="CHILD")
+        db_session.add(child); db_session.commit(); db_session.refresh(child)
+        # parent_id — колонка вне модели (ALTER), выставляем raw-SQL
+        db_session.execute(text(
+            "UPDATE clients SET parent_id=:p WHERE replace(id,'-','')=:i"),
+            {"p": _uid(parent), "i": _uid(child)})
+        db_session.commit()
+        s = _mk_service(db_session, "Детское плавание")
+        when = (NOW + timedelta(minutes=30)).isoformat()
+        client.post(f"/api/v1/services/{s.id}/book",
+                    json={"client_id": str(child.id), "booking_date": when},
+                    headers=auth_headers)
+        bid = str(db_session.query(ServiceBooking).filter_by(client_id=str(child.id)).first().id)
+        client.post(f"/api/v1/services/bookings/{bid}/pay", headers=auth_headers)
+        reasons = entry_reasons(db_session, str(parent.id), at=NOW)
+        assert any("Детское плавание" in r for r in reasons)
+        assert can_enter(db_session, str(parent.id), at=NOW)
 
     def test_gym_access_full_day(self, client, auth_headers, db_session):
         """GYM_ACCESS (без слота): оплаченный день — вход в любое время дня."""
