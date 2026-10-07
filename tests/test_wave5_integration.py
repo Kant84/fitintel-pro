@@ -102,7 +102,7 @@ class TestClubParams:
         assert r.status_code == 200
         data = {i["key"]: i["value"] for i in r.json()}
         assert data["SLOT_MINUTES"] == "45"
-        assert data["QR_ACCESS_WINDOW_HOURS"] == "1"
+        assert data["ENTRY_WINDOW_BEFORE_HOURS"] == "1"
         assert data["CANCEL_WINDOW_HOURS"] == "24"
 
     def test_override_and_readback(self, client, auth_headers):
@@ -264,7 +264,8 @@ class TestEntryPolicy:
         assert not can_enter(db_session, str(c.id), at=NOW)
 
     def test_window_grows_with_param(self, client, auth_headers, db_session):
-        client.put("/api/v1/club-params/QR_ACCESS_WINDOW_HOURS",
+        """BEFORE увеличили 1 -> 6: занятие через 5 ч из «вне окна» стало «в окне»."""
+        client.put("/api/v1/club-params/ENTRY_WINDOW_BEFORE_HOURS",
                    json={"value": "6"}, headers=auth_headers)
         try:
             c = _mk_client(db_session, "+79000000024")
@@ -277,8 +278,44 @@ class TestEntryPolicy:
             client.post(f"/api/v1/services/bookings/{bid}/pay", headers=auth_headers)
             assert can_enter(db_session, str(c.id), at=NOW)
         finally:
-            client.put("/api/v1/club-params/QR_ACCESS_WINDOW_HOURS",
+            client.put("/api/v1/club-params/ENTRY_WINDOW_BEFORE_HOURS",
                        json={"value": "1"}, headers=auth_headers)
+
+    def test_stay_until_close(self, client, auth_headers, db_session):
+        """ENTRY_STAY_UNTIL_CLOSE=true: вход вечером в день занятия разрешён
+        (окно AFTER=1ч давно прошло, но «до конца дня»)."""
+        client.put("/api/v1/club-params/ENTRY_STAY_UNTIL_CLOSE",
+                   json={"value": "true"}, headers=auth_headers)
+        try:
+            c = _mk_client(db_session, "+79000000025")
+            s = _mk_service(db_session, "Вечернее занятие")
+            when = (NOW + timedelta(hours=2)).isoformat()
+            client.post(f"/api/v1/services/{s.id}/book",
+                        json={"client_id": str(c.id), "booking_date": when},
+                        headers=auth_headers)
+            bid = str(db_session.query(ServiceBooking).filter_by(client_id=str(c.id)).first().id)
+            client.post(f"/api/v1/services/bookings/{bid}/pay", headers=auth_headers)
+            # 8 часов ПОСЛЕ начала: AFTER=1ч нарушено, но until_close спасает
+            assert can_enter(db_session, str(c.id), at=NOW + timedelta(hours=10))
+        finally:
+            client.put("/api/v1/club-params/ENTRY_STAY_UNTIL_CLOSE",
+                       json={"value": "false"}, headers=auth_headers)
+
+    def test_gym_access_full_day(self, client, auth_headers, db_session):
+        """GYM_ACCESS (без слота): оплаченный день — вход в любое время дня."""
+        c = _mk_client(db_session, "+79000000026")
+        s = _mk_service(db_session, "Разовый зал")
+        s.category = "GYM_ACCESS"
+        db_session.commit()
+        when = (NOW + timedelta(hours=1)).isoformat()
+        client.post(f"/api/v1/services/{s.id}/book",
+                    json={"client_id": str(c.id), "booking_date": when},
+                    headers=auth_headers)
+        bid = str(db_session.query(ServiceBooking).filter_by(client_id=str(c.id)).first().id)
+        client.post(f"/api/v1/services/bookings/{bid}/pay", headers=auth_headers)
+        # утро того же дня (задолго до «за 1 час») — пускает
+        morning = NOW - timedelta(hours=6)
+        assert can_enter(db_session, str(c.id), at=morning)
 
 
 # ---------- свип ----------
