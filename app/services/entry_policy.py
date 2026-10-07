@@ -30,8 +30,8 @@ def _active_subscription(db: Session, client_id: str):
            .first())
     if not sub:
         return None
-    if not sub.is_unlimited:
-        if sub.visits_used >= (sub.visit_limit or 0):
+    if not sub.is_unlimited and sub.visit_limit is not None:
+        if sub.visits_used >= sub.visit_limit:
             return None
     return sub
 
@@ -42,7 +42,8 @@ def entry_reasons(db: Session, client_id: str, at: datetime | None = None) -> li
     reasons = []
     sub = _active_subscription(db, client_id)
     if sub:
-        left = "∞" if sub.is_unlimited else str((sub.visit_limit or 0) - sub.visits_used)
+        left = "∞" if (sub.is_unlimited or sub.visit_limit is None) \
+            else str(sub.visit_limit - sub.visits_used)
         reasons.append(f"Абонемент активен (осталось визитов: {left})")
     window = get_param_int("QR_ACCESS_WINDOW_HOURS", 1)
     lo, hi = at - timedelta(hours=window), at + timedelta(hours=window)

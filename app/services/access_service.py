@@ -317,8 +317,9 @@ class AccessService:
             )
         subscription = self._get_active_subscription(client.id)
 
-        if subscription and not subscription.is_unlimited:
-            if subscription.visits_used >= (subscription.visit_limit or 0):
+        if subscription and not subscription.is_unlimited \
+                and subscription.visit_limit is not None:
+            if subscription.visits_used >= subscription.visit_limit:
                 return AccessCheckResponse(
                     decision=AccessDecision.DENIED,
                     reason="Лимит посещений исчерпан",
