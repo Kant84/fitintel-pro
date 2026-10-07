@@ -19,6 +19,21 @@ from app.services.booking_sweep import sweep as booking_sweep
 NOW = datetime.now(timezone.utc)
 
 
+@pytest.fixture(autouse=True)
+def _ensure_rating_col(db_session):
+    """clients.rating для прямых SQL-проверок (свип-тест идёт без HTTP -> ленивый
+    ensure не отрабатывает). Локально для тестовой сессии, прод не трогает."""
+    cols = {r[1] for r in db_session.execute(text("PRAGMA table_info(clients)"))}
+    if "rating" not in cols:
+        db_session.execute(text("ALTER TABLE clients ADD COLUMN rating FLOAT DEFAULT 5.0"))
+        db_session.commit()
+
+
+def _uid(c) -> str:
+    """UUID как хранится в sqlite: hex без дефисов."""
+    return str(c.id).replace("-", "")
+
+
 _API = {}
 
 
@@ -143,7 +158,7 @@ class TestBookingLifecycle:
         assert r.status_code == 200 and r.json()["status"] == "COMPLETED"
 
         rating = db_session.execute(text("SELECT rating FROM clients WHERE id=:i"),
-                                    {"i": str(c.id)}).scalar()
+                                    {"i": _uid(c)}).scalar()
         assert abs(rating - 5.1) < 1e-6  # +0.1 за завершённое занятие
 
     def test_no_show_drops_rating(self, client, auth_headers, db_session):
@@ -158,7 +173,7 @@ class TestBookingLifecycle:
         r = client.post(f"/api/v1/services/bookings/{bid}/no-show", headers=auth_headers)
         assert r.status_code == 200
         rating = db_session.execute(text("SELECT rating FROM clients WHERE id=:i"),
-                                    {"i": str(c.id)}).scalar()
+                                    {"i": _uid(c)}).scalar()
         assert abs(rating - 4.5) < 1e-6
 
     def test_cancel_window_from_params(self, client, auth_headers, db_session):
@@ -255,7 +270,7 @@ class TestSweep:
         b2 = db_session.get(ServiceBooking, b.id)
         assert b2.status == "AUTO_CANCELLED"
         rating = db_session.execute(text("SELECT rating FROM clients WHERE id=:i"),
-                                    {"i": str(c.id)}).scalar()
+                                    {"i": _uid(c)}).scalar()
         assert rating == 5.0
 
     def test_confirmed_survives_deadline(self, db_session):

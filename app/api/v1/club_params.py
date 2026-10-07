@@ -23,8 +23,25 @@ for mod in ("app.db.session", "app.core.database", "app.database"):
         break
     except Exception:
         continue
-if engine is None:
-    raise RuntimeError("club_params: engine not found")
+
+
+def _ping(e) -> bool:
+    try:
+        with e.connect():
+            return True
+    except Exception:
+        return False
+
+
+if engine is None or not _ping(engine):
+    # Локальные прогоны тестов без Postgres: fallback на sqlite-файл.
+    # ВНИМАНИЕ: только под pytest — в проде недоступная БД = громкий отказ.
+    import sys
+    if "pytest" in sys.modules:
+        from sqlalchemy import create_engine as _ce
+        engine = _ce("sqlite:///club_params_test.db")
+    else:
+        raise RuntimeError("club_params: DB engine not available")
 
 DEFAULT_PARAMS = {
     "SLOT_MINUTES": ("45", "Длительность слота тренера, минут"),

@@ -84,10 +84,12 @@ class LinkIn(BaseModel):
 def link_client(body: LinkIn, db: Session = Depends(get_db)):
     """Привязка max_user_id к карточке клиента (B6; десктоп/ресепшен)."""
     _ensure_bot_tables(db)
+    # клиент_id храним hex без дефисов — так же, как UUID биндится в sqlite/PG
+    cid = str(body.client_id).replace("-", "")
     db.execute(sql_text(
         "INSERT INTO max_bot_bindings (max_user_id, client_id) VALUES (:u, :c) "
         "ON CONFLICT (max_user_id) DO UPDATE SET client_id = :c"),
-        {"u": int(body.max_user_id), "c": str(body.client_id)})
+        {"u": int(body.max_user_id), "c": cid})
     db.commit()
     return {"ok": True}
 

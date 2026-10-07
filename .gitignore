@@ -89,3 +89,5 @@ node_modules/
 * — копия.*
 rfid_turnstile_test.py
 face_turnstile_test.py
+
+club_params_test.db
