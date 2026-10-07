@@ -117,7 +117,7 @@ class TestBookingLifecycle:
                         json={"client_id": str(c.id), "booking_date": when},
                         headers=auth_headers)
         assert r.status_code == 201, r.text
-        bid = str(db_session.query(ServiceBooking).first().id)
+        bid = str(db_session.query(ServiceBooking).filter_by(client_id=str(c.id)).first().id)
 
         assert client.post(f"/api/v1/services/bookings/{bid}/confirm",
                            headers=auth_headers).status_code == 200
@@ -137,7 +137,7 @@ class TestBookingLifecycle:
         client.post(f"/api/v1/services/{s.id}/book",
                     json={"client_id": str(c.id), "booking_date": when},
                     headers=auth_headers)
-        bid = str(db_session.query(ServiceBooking).first().id)
+        bid = str(db_session.query(ServiceBooking).filter_by(client_id=str(c.id)).first().id)
         client.post(f"/api/v1/services/bookings/{bid}/confirm", headers=auth_headers)
         r = client.post(f"/api/v1/services/bookings/{bid}/no-show", headers=auth_headers)
         assert r.status_code == 200
@@ -155,7 +155,7 @@ class TestBookingLifecycle:
             client.post(f"/api/v1/services/{s.id}/book",
                         json={"client_id": str(c.id), "booking_date": when},
                         headers=auth_headers)
-            bid = str(db_session.query(ServiceBooking).first().id)
+            bid = str(db_session.query(ServiceBooking).filter_by(client_id=str(c.id)).first().id)
             # за 30 ч до занятия: при окне 24 ч отказало бы, при 48 — пускает
             r = client.post(f"/api/v1/services/bookings/{bid}/cancel", headers=auth_headers)
             assert r.status_code == 200, r.text
@@ -181,7 +181,7 @@ class TestEntryPolicy:
         client.post(f"/api/v1/services/{s.id}/book",
                     json={"client_id": str(c.id), "booking_date": when},
                     headers=auth_headers)
-        bid = str(db_session.query(ServiceBooking).first().id)
+        bid = str(db_session.query(ServiceBooking).filter_by(client_id=str(c.id)).first().id)
         client.post(f"/api/v1/services/bookings/{bid}/pay", headers=auth_headers)
         reasons = entry_reasons(db_session, str(c.id), at=NOW)
         assert any("Массаж" in r for r in reasons)
@@ -194,7 +194,7 @@ class TestEntryPolicy:
         client.post(f"/api/v1/services/{s.id}/book",
                     json={"client_id": str(c.id), "booking_date": when},
                     headers=auth_headers)
-        bid = str(db_session.query(ServiceBooking).first().id)
+        bid = str(db_session.query(ServiceBooking).filter_by(client_id=str(c.id)).first().id)
         client.post(f"/api/v1/services/bookings/{bid}/pay", headers=auth_headers)
         assert entry_reasons(db_session, str(c.id), at=NOW) == []
         assert not can_enter(db_session, str(c.id), at=NOW)
@@ -209,7 +209,7 @@ class TestEntryPolicy:
             client.post(f"/api/v1/services/{s.id}/book",
                         json={"client_id": str(c.id), "booking_date": when},
                         headers=auth_headers)
-            bid = str(db_session.query(ServiceBooking).first().id)
+            bid = str(db_session.query(ServiceBooking).filter_by(client_id=str(c.id)).first().id)
             client.post(f"/api/v1/services/bookings/{bid}/pay", headers=auth_headers)
             assert can_enter(db_session, str(c.id), at=NOW)
         finally:
@@ -228,12 +228,12 @@ class TestSweep:
                            booking_date=start, status="BOOKED")
         db_session.add(b); db_session.commit()
         # за 20 ч: напоминание (окно 24 ч)
-        res = booking_sweep(now=NOW + timedelta(hours=3))
+        res = booking_sweep(db_session, now=NOW + timedelta(hours=3))
         assert res["reminded"] == 1
         db_session.expire_all()
         assert db_session.get(ServiceBooking, b.id).reminded_at is not None
         # за 4 ч (< дедлайна 6 ч): авто-отмена, рейтинг не тронут
-        res = booking_sweep(now=start - timedelta(hours=4))
+        res = booking_sweep(db_session, now=start - timedelta(hours=4))
         assert res["auto_cancelled"] == 1
         db_session.expire_all()
         b2 = db_session.get(ServiceBooking, b.id)
@@ -249,7 +249,7 @@ class TestSweep:
         b = ServiceBooking(service_id=s.id, client_id=str(c.id),
                            booking_date=start, status="CONFIRMED")
         db_session.add(b); db_session.commit()
-        res = booking_sweep(now=start - timedelta(hours=3))
+        res = booking_sweep(db_session, now=start - timedelta(hours=3))
         assert res["auto_cancelled"] == 0
         db_session.expire_all()
         assert db_session.get(ServiceBooking, b.id).status == "CONFIRMED"

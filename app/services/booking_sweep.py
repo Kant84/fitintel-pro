@@ -84,48 +84,59 @@ def _aware(dt):
     return dt
 
 
-def sweep(now: datetime | None = None) -> dict:
+def sweep(db=None, now: datetime | None = None) -> dict:
+    """db — сессия (тесты передают db_session; поток — свою SessionLocal)."""
+    from app.db.session import SessionLocal
+    own = False
+    if db is None:
+        db = SessionLocal()
+        own = True
+    try:
+        return _sweep_inner(db, now)
+    finally:
+        if own:
+            db.close()
+
+
+def _sweep_inner(db, now: datetime | None = None) -> dict:
+    from app.models.service import Service, ServiceBooking
     now = _aware(now) or datetime.now(timezone.utc)
     remind_h = get_param_int("REMIND_BEFORE_HOURS", 24)
     ping_h = get_param_int("LAST_REMIND_BEFORE_HOURS", 2)
     deadline_h = get_param_int("CONFIRM_DEADLINE_HOURS", 6)
     counts = {"reminded": 0, "pinged": 0, "auto_cancelled": 0}
 
-    with engine.begin() as c:
-        rows = c.execute(text(
-            "SELECT b.id, b.client_id, b.booking_date, b.status, "
-            "b.reminded_at, b.pinged_at, s.name AS service_name "
-            "FROM service_bookings b JOIN services s ON s.id = b.service_id "
-            "WHERE b.status IN ('BOOKED','CONFIRMED')")).mappings().all()
+    rows = (db.query(ServiceBooking, Service)
+            .join(Service, ServiceBooking.service_id == Service.id)
+            .filter(ServiceBooking.status.in_(["BOOKED", "CONFIRMED"]))
+            .all())
 
-    for r in rows:
-        bd = _aware(r["booking_date"])
-        if r["status"] != "BOOKED":
+    for b, svc in rows:
+        if b.status != "BOOKED":
             continue
-        if (r["reminded_at"] is None
+        bd = _aware(b.booking_date)
+        name = svc.name if svc else "занятие"
+        if (b.reminded_at is None
                 and timedelta(0) <= bd - now <= timedelta(hours=remind_h)):
-            with engine.begin() as c:
-                c.execute(text("UPDATE service_bookings SET reminded_at=:n WHERE id=:i"),
-                          {"n": now, "i": str(r["id"])})
-            _notify(str(r["client_id"]),
-                    f"Напоминание: вы записаны на «{r['service_name']}» "
+            b.reminded_at = now
+            db.commit()
+            _notify(str(b.client_id),
+                    f"Напоминание: вы записаны на «{name}» "
                     f"{bd:%d.%m в %H:%M}. Подтвердите запись в боте (Мои записи).")
             counts["reminded"] += 1
-        elif (r["reminded_at"] is not None and r["pinged_at"] is None
+        elif (b.reminded_at is not None and b.pinged_at is None
               and timedelta(0) <= bd - now <= timedelta(hours=ping_h)):
-            with engine.begin() as c:
-                c.execute(text("UPDATE service_bookings SET pinged_at=:n WHERE id=:i"),
-                          {"n": now, "i": str(r["id"])})
-            _notify(str(r["client_id"]),
-                    f"Через ~{ping_h} ч занятие «{r['service_name']}» ({bd:%H:%M}). "
+            b.pinged_at = now
+            db.commit()
+            _notify(str(b.client_id),
+                    f"Через ~{ping_h} ч занятие «{name}» ({bd:%H:%M}). "
                     f"Подтвердите запись, иначе она будет снята.")
             counts["pinged"] += 1
         if now > bd - timedelta(hours=deadline_h):
-            with engine.begin() as c:
-                c.execute(text("UPDATE service_bookings SET status='AUTO_CANCELLED' WHERE id=:i"),
-                          {"i": str(r["id"])})
-            _notify(str(r["client_id"]),
-                    f"Запись на «{r['service_name']}» ({bd:%d.%m %H:%M}) снята: не подтверждена. "
+            b.status = "AUTO_CANCELLED"
+            db.commit()
+            _notify(str(b.client_id),
+                    f"Запись на «{name}» ({bd:%d.%m %H:%M}) снята: не подтверждена. "
                     f"Слот освобождён — запишитесь заново.")
             counts["auto_cancelled"] += 1
     return counts

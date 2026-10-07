@@ -104,12 +104,16 @@ def _deps(db: Session = Depends(get_db)):
     return db
 
 
-def _apply_rating(client_id: str, delta: float):
-    """Рейтинг клиента: clamp [1.0, 5.0]. MIN/MAX — скалярные обе БД."""
-    from app.api.v1 import club_params as _cp
-    with _cp.engine.begin() as c:
-        c.execute(_text("UPDATE clients SET rating = MIN(MAX(COALESCE(rating, 5.0) + :d, 1.0), 5.0) "
-                        "WHERE id = :i"), {"d": delta, "i": str(client_id)})
+def _apply_rating(db: Session, client_id: str, delta: float):
+    """Рейтинг клиента: clamp [1.0, 5.0]. Читаем/пишем ТОЙ ЖЕ сессией (тесты!).
+    Кламп в Python — диалектно-нейтрально (sqlite max() != Postgres MAX())."""
+    row = db.execute(_text("SELECT rating FROM clients WHERE id = :i"),
+                     {"i": str(client_id)}).first()
+    cur = float(row[0]) if row and row[0] is not None else 5.0
+    new = min(5.0, max(1.0, cur + delta))
+    db.execute(_text("UPDATE clients SET rating = :r WHERE id = :i"),
+               {"r": new, "i": str(client_id)})
+    db.commit()
 
 
 # ============================ SERVICES ============================
@@ -409,8 +413,7 @@ def no_show_booking(
     if booking.status not in ("CONFIRMED", "PAID"):
         raise HTTPException(409, "No-show: только подтверждённые/оплаченные")
     booking.status = "NO_SHOW"
-    _apply_rating(str(booking.client_id), -0.5)
-    db.commit()
+    _apply_rating(db, str(booking.client_id), -0.5)
     return {"status": "NO_SHOW"}
 
 
@@ -427,8 +430,7 @@ def complete_booking(
     if booking.status != "PAID":
         raise HTTPException(409, "Завершить можно только оплаченную бронь")
     booking.status = "COMPLETED"
-    _apply_rating(str(booking.client_id), +0.1)
-    db.commit()
+    _apply_rating(db, str(booking.client_id), +0.1)
     return {"status": "COMPLETED"}
 
 
