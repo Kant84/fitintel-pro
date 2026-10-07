@@ -202,7 +202,7 @@ def _handle_command(db: Session, max_user_id: int, text: str) -> dict:
     if cmd in ("/balance", "баланс", "баланс"):
         row = _find_client(db, max_user_id)
         if not row:
-            return {"reply": "Привяжите карточку клиента на ресепшене для просмотра баланса."}
+            return {"reply": "Нужна привязка карточки: сообщите номер телефона администратору или на ресепшене."}
         bal = _wallet_balance(db, row[0])
         if bal is None:
             return {"reply": "Кошелёк не найден."}
@@ -211,7 +211,7 @@ def _handle_command(db: Session, max_user_id: int, text: str) -> dict:
     if cmd in ("/visits", "посещения"):
         row = _find_client(db, max_user_id)
         if not row:
-            return {"reply": "Привяжите карточку клиента на ресепшене."}
+            return {"reply": "Нужна привязка карточки: сообщите номер телефона администратору или на ресепшене."}
         visits = db.execute(sql_text("""
             SELECT entry_time, access_method FROM visits
             WHERE client_id = :c ORDER BY entry_time DESC LIMIT 5"""),
@@ -231,7 +231,7 @@ def _handle_command(db: Session, max_user_id: int, text: str) -> dict:
     if cmd in ("/abonement", "абонемент"):
         row = _find_client(db, max_user_id)
         if not row:
-            return {"reply": "Привяжите карточку клиента на ресепшене."}
+            return {"reply": "Нужна привязка карточки: сообщите номер телефона администратору или на ресепшене."}
         sub = db.execute(sql_text("""
             SELECT s.id, s.status, s.end_date, t.name, t.visit_limit, s.visits_used
             FROM subscriptions s
@@ -248,7 +248,7 @@ def _handle_command(db: Session, max_user_id: int, text: str) -> dict:
     if cmd in ("/bonuses", "бонусы"):
         row = _find_client(db, max_user_id)
         if not row:
-            return {"reply": "Привяжите карточку клиента на ресепшене."}
+            return {"reply": "Нужна привязка карточки: сообщите номер телефона администратору или на ресепшене."}
         bal = _wallet_balance(db, row[0])
         gam = _gamification(db, row[0])
         parts = []
@@ -272,7 +272,7 @@ def _qr_entry_reply(db: Session, max_user_id: int) -> dict:
 
     row = _find_client(db, max_user_id)
     if not row:
-        return {"reply": "Привяжите карточку клиента на ресепшене для получения QR-кода."}
+        return {"reply": "Для получения QR нужна привязка карточки: сообщите номер телефона администратору или на ресепшене."}
 
     cooldown = get_param_int("QR_REFRESH_COOLDOWN_SECONDS", 20)
     last = _last_qr.get(str(max_user_id), 0)
