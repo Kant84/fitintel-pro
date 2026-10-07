@@ -15,8 +15,10 @@ from app.models.subscription import Subscription
 
 
 def _aware(dt):
+    # naive datetime из БД — это UTC (sqlite-адаптер срезает tz, сохраняя UTC).
+    # ВАЖНО: replace, не astimezone — иначе naive трактуется как LOCAL (+3ч).
     if dt is not None and getattr(dt, "tzinfo", None) is None:
-        return dt.astimezone()
+        return dt.replace(tzinfo=timezone.utc)
     return dt
 
 

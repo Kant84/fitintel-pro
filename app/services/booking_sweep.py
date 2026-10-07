@@ -80,7 +80,7 @@ def _notify(client_id: str, body: str):
 
 def _aware(dt):
     if dt is not None and getattr(dt, "tzinfo", None) is None:
-        return dt.astimezone()
+        return dt.replace(tzinfo=timezone.utc)   # naive из БД = UTC
     return dt
 
 

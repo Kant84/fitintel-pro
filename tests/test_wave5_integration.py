@@ -157,9 +157,36 @@ class TestBookingLifecycle:
         r = client.post(f"/api/v1/services/bookings/{bid}/complete", headers=auth_headers)
         assert r.status_code == 200 and r.json()["status"] == "COMPLETED"
 
-        rating = db_session.execute(text("SELECT rating FROM clients WHERE id=:i"),
+        # рейтинг стартует с максимума 5.0 -> +0.1 упирается в кламп (остаётся 5.0)
+        rating = db_session.execute(text("SELECT rating FROM clients WHERE replace(id, '-', '') = :i"),
                                     {"i": _uid(c)}).scalar()
-        assert abs(rating - 5.1) < 1e-6  # +0.1 за завершённое занятие
+        assert abs(rating - 5.0) < 1e-6
+
+        # вторая бронь -> no-show: -0.5 с клампа, затем complete третьей: +0.1
+        when2 = (NOW + timedelta(hours=50)).isoformat()
+        client.post(f"/api/v1/services/{s.id}/book",
+                    json={"client_id": str(c.id), "booking_date": when2}, headers=auth_headers)
+        bid2 = str(db_session.query(ServiceBooking)
+                   .filter_by(client_id=str(c.id)).order_by(ServiceBooking.booking_date.desc())
+                   .first().id)
+        client.post(f"/api/v1/services/bookings/{bid2}/confirm", headers=auth_headers)
+        client.post(f"/api/v1/services/bookings/{bid2}/no-show", headers=auth_headers)
+        rating = db_session.execute(text("SELECT rating FROM clients WHERE replace(id, '-', '') = :i"),
+                                    {"i": _uid(c)}).scalar()
+        assert abs(rating - 4.5) < 1e-6
+
+        when3 = (NOW + timedelta(hours=70)).isoformat()
+        client.post(f"/api/v1/services/{s.id}/book",
+                    json={"client_id": str(c.id), "booking_date": when3}, headers=auth_headers)
+        bid3 = str(db_session.query(ServiceBooking)
+                   .filter_by(client_id=str(c.id)).order_by(ServiceBooking.booking_date.desc())
+                   .first().id)
+        client.post(f"/api/v1/services/bookings/{bid3}/confirm", headers=auth_headers)
+        client.post(f"/api/v1/services/bookings/{bid3}/pay", headers=auth_headers)
+        client.post(f"/api/v1/services/bookings/{bid3}/complete", headers=auth_headers)
+        rating = db_session.execute(text("SELECT rating FROM clients WHERE replace(id, '-', '') = :i"),
+                                    {"i": _uid(c)}).scalar()
+        assert abs(rating - 4.6) < 1e-6  # +0.1 за завершённое занятие
 
     def test_no_show_drops_rating(self, client, auth_headers, db_session):
         c = _mk_client(db_session, "+79000000012")
@@ -172,24 +199,30 @@ class TestBookingLifecycle:
         client.post(f"/api/v1/services/bookings/{bid}/confirm", headers=auth_headers)
         r = client.post(f"/api/v1/services/bookings/{bid}/no-show", headers=auth_headers)
         assert r.status_code == 200
-        rating = db_session.execute(text("SELECT rating FROM clients WHERE id=:i"),
+        rating = db_session.execute(text("SELECT rating FROM clients WHERE replace(id, '-', '') = :i"),
                                     {"i": _uid(c)}).scalar()
         assert abs(rating - 4.5) < 1e-6
 
     def test_cancel_window_from_params(self, client, auth_headers, db_session):
-        client.put("/api/v1/club-params/CANCEL_WINDOW_HOURS",
-                   json={"value": "48"}, headers=auth_headers)
+        """Окно отмены читается из параметров: бронь через 30 ч.
+        Окно 48 ч -> отказ (осталось меньше 48 ч); окно 24 ч -> отмена проходит."""
+        c = _mk_client(db_session, "+79000000013")
+        s = _mk_service(db_session, "Тренировка В")
+        when = (NOW + timedelta(hours=30)).isoformat()
+        client.post(f"/api/v1/services/{s.id}/book",
+                    json={"client_id": str(c.id), "booking_date": when},
+                    headers=auth_headers)
+        bid = str(db_session.query(ServiceBooking).filter_by(client_id=str(c.id)).first().id)
         try:
-            c = _mk_client(db_session, "+79000000013")
-            s = _mk_service(db_session, "Тренировка В")
-            when = (NOW + timedelta(hours=30)).isoformat()
-            client.post(f"/api/v1/services/{s.id}/book",
-                        json={"client_id": str(c.id), "booking_date": when},
-                        headers=auth_headers)
-            bid = str(db_session.query(ServiceBooking).filter_by(client_id=str(c.id)).first().id)
-            # за 30 ч до занятия: при окне 24 ч отказало бы, при 48 — пускает
+            client.put("/api/v1/club-params/CANCEL_WINDOW_HOURS",
+                       json={"value": "48"}, headers=auth_headers)
             r = client.post(f"/api/v1/services/bookings/{bid}/cancel", headers=auth_headers)
-            assert r.status_code == 200, r.text
+            assert r.status_code == 400, r.text   # < 48 ч до занятия — нельзя
+
+            client.put("/api/v1/club-params/CANCEL_WINDOW_HOURS",
+                       json={"value": "24"}, headers=auth_headers)
+            r = client.post(f"/api/v1/services/bookings/{bid}/cancel", headers=auth_headers)
+            assert r.status_code == 200, r.text   # > 24 ч — можно
         finally:
             client.put("/api/v1/club-params/CANCEL_WINDOW_HOURS",
                        json={"value": "24"}, headers=auth_headers)
@@ -269,7 +302,7 @@ class TestSweep:
         db_session.expire_all()
         b2 = db_session.get(ServiceBooking, b.id)
         assert b2.status == "AUTO_CANCELLED"
-        rating = db_session.execute(text("SELECT rating FROM clients WHERE id=:i"),
+        rating = db_session.execute(text("SELECT rating FROM clients WHERE replace(id, '-', '') = :i"),
                                     {"i": _uid(c)}).scalar()
         assert rating == 5.0
 
