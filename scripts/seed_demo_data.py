@@ -75,10 +75,12 @@ def main():
             sv = db.query(Service).filter_by(name=name).first()
             if not sv:
                 trainer = trainers[idx % len(trainers)] if trainers else None
+                # ВАЖНО: services.trainer_id -> users.id (FK), НЕ id профиля тренера
+                tid = getattr(trainer, "user_id", None) if trainer else None
                 sv = Service(
                     name=name, category=cat, price=price, duration_minutes=dur,
                     max_capacity=cap, is_active=True,
-                    trainer_id=trainer.id if trainer else None,
+                    trainer_id=tid,
                     schedule={"days": days,
                               "time_slots": [{"time": t, "capacity": cap} for t in slots]},
                 )
