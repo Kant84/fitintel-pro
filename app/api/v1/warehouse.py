@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import List, Optional, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, require_permission
@@ -87,6 +87,70 @@ async def get_product(product_id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(404, "Product not found")
     return product
 
+
+
+# ========== PRODUCTS CRUD (W5: Магазин) ==========
+@router.post("/products-create", status_code=201)
+async def create_product(data: dict, db: Session = Depends(get_db),
+                         current_user = Depends(require_permission("warehouse.manage"))):
+    _ensure_warehouse(db)
+    import uuid as _uuid
+    p = WarehouseProduct(
+        id=_uuid.uuid4(), club_id=int(data.get("club_id") or 1),
+        name=data.get("name"), article=data.get("article"),
+        sale_price=data.get("sale_price") or 0, quantity=data.get("quantity") or 0,
+        unit=data.get("unit") or "шт", photo_url=data.get("photo_url"),
+        is_active=True)
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    return {"id": str(p.id), "ok": True}
+
+
+@router.put("/products/{product_id}")
+async def update_product(product_id: UUID, data: dict, db: Session = Depends(get_db),
+                         current_user = Depends(require_permission("warehouse.manage"))):
+    p = db.query(WarehouseProduct).filter(WarehouseProduct.id == product_id).first()
+    if not p:
+        raise HTTPException(404, "Product not found")
+    for k in ("name", "article", "sale_price", "quantity", "unit", "photo_url"):
+        if k in data and data[k] is not None:
+            setattr(p, k, data[k])
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/products/{product_id}", status_code=204)
+async def delete_product(product_id: UUID, db: Session = Depends(get_db),
+                         current_user = Depends(require_permission("warehouse.manage"))):
+    p = db.query(WarehouseProduct).filter(WarehouseProduct.id == product_id).first()
+    if not p:
+        raise HTTPException(404, "Product not found")
+    p.is_active = False
+    db.commit()
+    return None
+
+
+@router.post("/products/{product_id}/photo")
+async def upload_product_photo(product_id: UUID, file: UploadFile = File(...),
+                               db: Session = Depends(get_db),
+                               current_user = Depends(require_permission("warehouse.manage"))):
+    """Загрузка фото товара: сохраняет в /app/static/products и возвращает URL."""
+    import os as _os, uuid as _uuid
+    p = db.query(WarehouseProduct).filter(WarehouseProduct.id == product_id).first()
+    if not p:
+        raise HTTPException(404, "Product not found")
+    ext = (file.filename or "img.jpg").rsplit(".", 1)[-1].lower()[:4]
+    if ext not in ("jpg", "jpeg", "png", "webp"):
+        ext = "jpg"
+    d = "/app/static/products"
+    _os.makedirs(d, exist_ok=True)
+    fname = f"{_uuid.uuid4().hex}.{ext}"
+    with open(f"{d}/{fname}", "wb") as f:
+        f.write(await file.read())
+    p.photo_url = f"/static/products/{fname}"
+    db.commit()
+    return {"ok": True, "photo_url": p.photo_url}
 
 # ========== STOCK MOVEMENTS ==========
 @router.post("/stock/move", status_code=201)

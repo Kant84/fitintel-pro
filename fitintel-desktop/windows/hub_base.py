@@ -27,10 +27,15 @@ class HubTab(QWidget):
             return
         self._built.add(index)                    # ОТМЕТКА ДО мутации — защита от реентерабельности
         title, fn = self._specs[index]
+        from PyQt6.QtWidgets import QApplication
+        from PyQt6.QtCore import Qt as _Qt
+        QApplication.setOverrideCursor(_Qt.CursorShape.WaitCursor)
         try:
             widget = fn()
         except Exception as e:
             widget = QLabel(f"Не удалось загрузить «{title}»: {e}")
+        finally:
+            QApplication.restoreOverrideCursor()
         try:
             from windows.icons import polish
             polish(widget)
@@ -38,10 +43,16 @@ class HubTab(QWidget):
             pass
         self.tabs.blockSignals(True)              # remove/insert не дёргают currentChanged
         try:
+            cur = self.tabs.currentIndex()        # запомнили, какая открыта
             self.tabs.removeTab(index)
             self.tabs.insertTab(index, widget, title)
-            if self.tabs.currentIndex() < 0:
+            # вернуть фокус на ту подвкладку, что была открыта (иначе «перескакивает»)
+            if cur == index or cur < 0:
                 self.tabs.setCurrentIndex(index)
+            elif cur >= self.tabs.count():
+                self.tabs.setCurrentIndex(self.tabs.count() - 1)
+            else:
+                self.tabs.setCurrentIndex(cur)
         finally:
             self.tabs.blockSignals(False)
 
@@ -51,4 +62,4 @@ class HubTab(QWidget):
             w.refresh()
 
 
-print("[hub_base] W5 v2.1 загружен: ленивые хабы (reentrancy-safe)")
+print("[hub_base] W5 v2.2 загружен: ленивые хабы (reentrancy-safe, wait-cursor)")

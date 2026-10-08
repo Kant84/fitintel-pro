@@ -387,7 +387,7 @@ class MainWindow(QMainWindow):
 try:
     from windows.integrations_tab import IntegrationsTab
     from windows.messenger_tab import MessengerTab
-    TAB_REGISTRY["integrations"] = ("Интеграции", IntegrationsTab)
+    # [W5] «Интеграции» — подвкладка хаба «Настройки»; messenger остаётся отдельным
     TAB_REGISTRY["messenger"] = ("MAX сообщения", MessengerTab)
 except Exception as _e:
     print("E56 tabs:", _e)
