@@ -27,7 +27,7 @@ from windows.users_tab import UsersTab
 from windows.devices_tab import DevicesTab
 from windows.ui_config_tab import UiConfigTab
 from windows.schedule_tab import ScheduleTab
-from windows.services_tab import ServicesTab
+from windows.services_tab import ServicesTab, ShopTab
 from windows.reports_tab import ReportsTab
 from windows.documents_tab import DocumentsTab
 from windows.roles_tab import RolesTab
@@ -51,6 +51,7 @@ TAB_REGISTRY = {
     # хабы: класс-заглушка, реальное построение — в MainWindow._make_widget
     "accounting":    ("Бухгалтерия", QWidget),
     "ai_center":     ("AI центр", QWidget),
+    "shop":          ("Магазин", ShopTab),
 }
 
 DEFAULT_TABS = ["dashboard", "clients", "subscriptions", "tariffs", "visits", "services",

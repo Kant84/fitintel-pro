@@ -486,3 +486,23 @@ try:
     print("W5 static OK")
 except Exception as _w5s:
     print("W5 static:", _w5s)    
+    
+# === W5: экраны «Параметры клуба» и «Магазин» в матрице ролей ===
+try:
+    from sqlalchemy import text as _w5t
+    from app.db.session import engine as _w5e
+    with _w5e.begin() as _c:
+        _cols = {r[0] for r in _c.execute(_w5t(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='ui_screens'"))}
+        for _code, _name in (("club_params", "Параметры клуба"), ("shop", "Магазин")):
+            _vals = {"code": _code, "name": _name}
+            _have = {k: v for k, v in _vals.items() if k in _cols}
+            if "is_active" in _cols:
+                _have["is_active"] = True
+            if _have and "code" in _cols:
+                _ks = ", ".join(_have)
+                _ps = ", ".join(":%s" % k for k in _have)
+                _c.execute(_w5t(f"INSERT INTO ui_screens ({_ks}) VALUES ({_ps}) ON CONFLICT DO NOTHING"), _have)
+    print("W5 ui screens OK")
+except Exception as _w5ui:
+    print("W5 ui screens:", str(_w5ui)[:120])    
