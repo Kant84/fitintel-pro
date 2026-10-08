@@ -51,7 +51,7 @@ class CameraDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Съёмка фото — FitIntel Face ID")
+        self.setWindowTitle(" Съёмка фото — FitIntel Face ID")
         self.resize(680, 560)
         self.photo_path = None
         self._frame = None
@@ -65,7 +65,7 @@ class CameraDialog(QDialog):
         v.addWidget(self.lbl, 1)
 
         bar = QHBoxLayout()
-        self.b_shot = QPushButton("Снять")
+        self.b_shot = QPushButton(" Снять")
         self.b_shot.setEnabled(False)
         self.b_shot.setStyleSheet("QPushButton { background: #059669; color: white; border: none; border-radius: 6px; padding: 10px 28px; font-weight: 700; }")
         self.b_shot.clicked.connect(self._shot)
@@ -167,16 +167,16 @@ class FaceIdTab(QWidget):
         lv.addWidget(self.card)
 
         row = QHBoxLayout()
-        b_cam = QPushButton("Снять с камеры")
+        b_cam = QPushButton(" Снять с камеры")
         b_cam.setStyleSheet("QPushButton { background: #2563eb; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_cam.clicked.connect(self.capture_from_camera)
         row.addWidget(b_cam)
-        b_load = QPushButton("Загрузить файл")
+        b_load = QPushButton(" Загрузить файл")
         b_load.setStyleSheet("QPushButton { background: #059669; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_load.clicked.connect(self.register_photo)
         row.addWidget(b_load)
         lv.addLayout(row)
-        b_me = QPushButton("Проверить меня")
+        b_me = QPushButton(" Проверить меня")
         b_me.setStyleSheet("QPushButton { background: #7c3aed; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_me.clicked.connect(self.verify_me)
         
@@ -211,7 +211,7 @@ class FaceIdTab(QWidget):
         b_eng = QPushButton("Движок Face ID")
         b_eng.clicked.connect(self.engine_info)
         bar.addWidget(b_eng)
-        b_sim = QPushButton("Симуляция: verify")
+        b_sim = QPushButton(" Симуляция: verify")
         b_sim.clicked.connect(self.sim_verify)
         bar.addWidget(b_sim)
         bar.addStretch(1)
@@ -258,7 +258,7 @@ class FaceIdTab(QWidget):
         self._current = c
         fio = " ".join(x for x in (c.get("last_name"), c.get("first_name"),
                                    c.get("middle_name")) if x) or "—"
-        self.card.setTitle("%s" % fio)
+        self.card.setTitle(" %s" % fio)
         self.lbl_fio.setText(fio)
         self.lbl_phone.setText(str(c.get("phone") or "—"))
         self._run(self.api.get_subscriptions, self._fill_subs)
@@ -330,7 +330,7 @@ class FaceIdTab(QWidget):
         if isinstance(r, dict):
             ok = bool(r.get("ok") or r.get("success") or r.get("id")
                       or r.get("template_id") or r.get("face_template_id"))
-        self._show(("Шаблон зарегистрирован:\n" if ok else "Ответ сервера:\n") + txt)
+        self._show((" Шаблон зарегистрирован:\n" if ok else " Ответ сервера:\n") + txt)
         if ok:
             self.load_templates()
 
@@ -357,7 +357,7 @@ class FaceIdTab(QWidget):
 
     def engine_settings(self):
         try:
-            cur = self.api.session.get(self.api._url("face-id/settings"), timeout=30).json()
+            cur = self.api.session.get(self.api._url("/face-id/settings"), timeout=30).json()
         except Exception as e:
             QMessageBox.warning(self, "Настройки", str(e)[:150])
             return
@@ -389,7 +389,7 @@ class FaceIdTab(QWidget):
             return
         store_photos = sp.startswith("Да")
         try:
-            r = self.api.session.put(self.api._url("face-id/settings"),
+            r = self.api.session.put(self.api._url("/face-id/settings"),
                                      json={"threshold": t, "min_quality": q,
                                            "max_templates": m,
                                            "store_photos": store_photos},
@@ -407,7 +407,7 @@ class FaceIdTab(QWidget):
         ok = isinstance(res, dict) and any(
             res.get(k) is True for k in ("verified", "access_granted", "match", "success", "allowed", "matched"))
         txt = json.dumps(res, ensure_ascii=False, indent=2, default=str)[:1200]
-        self._show(("Доступ РАЗРЕШЁН\n" if ok else "Отказ / нет совпадения\n") + txt)
+        self._show((" Доступ РАЗРЕШЁН\n" if ok else " Отказ / нет совпадения\n") + txt)
 
 
 FaceIDTab = FaceIdTab  # алиас для совместимости с main_window

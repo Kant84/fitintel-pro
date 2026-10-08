@@ -21,7 +21,7 @@ class TariffsWorker(QThread):
 
     def run(self):
         try:
-            resp = self.api.session.get(self.api._url("tariffs/"))
+            resp = self.api.session.get(self.api._url("/tariffs/"))
             resp.raise_for_status()
             body = resp.json()
             if isinstance(body, dict):
@@ -137,7 +137,7 @@ class TariffsTab(QWidget):
             else:
                 payload["visit_limit"] = 30  # дефолт если пусто
         try:
-            r = self.api.session.post(self.api._url("tariffs/"), json=payload)
+            r = self.api.session.post(self.api._url("/tariffs/"), json=payload)
             r.raise_for_status()
             self.refresh()
         except Exception as e:
@@ -181,7 +181,7 @@ class TariffsTab(QWidget):
             else:
                 payload["visit_limit"] = 30  # дефолт если пусто
         try:
-            r = self.api.session.put(self.api._url("tariffs/" + code), json=payload)
+            r = self.api.session.put(self.api._url("/tariffs/" + code), json=payload)
             r.raise_for_status()
             QMessageBox.information(self, "Готово", "Тариф обновлён")
             self.refresh()
@@ -197,14 +197,14 @@ class TariffsTab(QWidget):
     def _delete(self, data: dict):
         code = data.get("code", "")
         name = data.get("name", "")
-        msg = "Удалить тариф " + name + "(" + code + "Это действие нельзя отменить!"
+        msg = "Удалить тариф " + name + " (" + code + "? Это действие нельзя отменить!"
         reply = QMessageBox.question(self, "Подтверждение удаления", msg,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No)
         if reply != QMessageBox.StandardButton.Yes:
             return
         try:
-            r = self.api.session.delete(self.api._url("tariffs/" + code))
+            r = self.api.session.delete(self.api._url("/tariffs/" + code))
             r.raise_for_status()
             QMessageBox.information(self, "Готово", "Тариф удалён")
             self.refresh()

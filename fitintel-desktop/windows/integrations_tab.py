@@ -13,9 +13,9 @@ class IntegrationsTab(QWidget):
         lay = QVBoxLayout(self)
         tabs = QTabWidget()
         tabs.setMovable(True)
-        tabs.addTab(self._aa_tab(), "A&A")
-        tabs.addTab(self._1c_tab(), "1С Fitness")
-        tabs.addTab(self._connectors_tab(), "Внешние системы")
+        tabs.addTab(self._aa_tab(), " A&A")
+        tabs.addTab(self._1c_tab(), " 1С Fitness")
+        tabs.addTab(self._connectors_tab(), " Внешние системы")
         lay.addWidget(tabs)
 
     # === BASE / TOKEN ===
@@ -31,7 +31,7 @@ class IntegrationsTab(QWidget):
             cfg = json.load(open("client_settings.json", encoding="utf-8"))
             if cfg.get("token"):
                 return cfg["token"]
-            r = urllib.request.Request(self._base() + "auth/login",
+            r = urllib.request.Request(self._base() + "/auth/login",
                 data=json.dumps({"login": cfg.get("saved_login"), "password": cfg.get("saved_password")}).encode(),
                 headers={"Content-Type": "application/json"})
             return json.load(urllib.request.urlopen(r, timeout=10)).get("access_token")
@@ -53,10 +53,10 @@ class IntegrationsTab(QWidget):
         lay = QVBoxLayout(w)
         sub = QTabWidget()
         sub.setMovable(True)
-        sub.addTab(self._aa_import(), "Импорт CSV")
-        sub.addTab(self._aa_export(), "Экспорт")
-        sub.addTab(self._aa_log(), "Журнал")
-        sub.addTab(self._aa_webhook(), "Webhook")
+        sub.addTab(self._aa_import(), " Импорт CSV")
+        sub.addTab(self._aa_export(), " Экспорт")
+        sub.addTab(self._aa_log(), " Журнал")
+        sub.addTab(self._aa_webhook(), " Webhook")
         lay.addWidget(sub)
         return w
 
@@ -70,11 +70,11 @@ class IntegrationsTab(QWidget):
         self.aa_csv_path = QLineEdit()
         self.aa_csv_path.setPlaceholderText("Путь к CSV-файлу...")
         h.addWidget(self.aa_csv_path)
-        b = QPushButton("Обзор")
+        b = QPushButton(" Обзор")
         b.clicked.connect(self._aa_browse)
         h.addWidget(b)
         lay.addLayout(h)
-        b_imp = QPushButton("Импортировать")
+        b_imp = QPushButton(" Импортировать")
         b_imp.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_imp.clicked.connect(self._aa_do_import)
         lay.addWidget(b_imp)
@@ -96,20 +96,20 @@ class IntegrationsTab(QWidget):
         try:
             with open(path, "r", encoding="utf-8-sig") as f:
                 csv_text = f.read()
-            r = self._req("POST", "aa/import-csv", {"csv": csv_text, "entity": "clients"})
-            self.aa_imp_status.setText(f"Импортировано: {r.get('imported', 0)}, ошибок: {r.get('errors', 0)}")
+            r = self._req("POST", "/aa/import-csv", {"csv": csv_text, "entity": "clients"})
+            self.aa_imp_status.setText(f" Импортировано: {r.get('imported', 0)}, ошибок: {r.get('errors', 0)}")
         except Exception as e:
-            self.aa_imp_status.setText("❌ " + str(e)[:200])
+            self.aa_imp_status.setText(" " + str(e)[:200])
 
     def _aa_export(self):
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.addWidget(QLabel("<h3>Экспорт клиентов для A&A</h3>"))
         h = QHBoxLayout()
-        b_json = QPushButton("JSON")
+        b_json = QPushButton(" JSON")
         b_json.clicked.connect(self._aa_do_export_json)
         h.addWidget(b_json)
-        b_csv = QPushButton("CSV")
+        b_csv = QPushButton(" CSV")
         b_csv.clicked.connect(self._aa_do_export_csv)
         h.addWidget(b_csv)
         lay.addLayout(h)
@@ -121,7 +121,7 @@ class IntegrationsTab(QWidget):
 
     def _aa_do_export_json(self):
         try:
-            r = self._req("GET", "aa/export?entity=clients&format=json")
+            r = self._req("GET", "/aa/export?entity=clients&format=json")
             rows = r.get("data", [])
             self.aa_exp_tbl.setRowCount(len(rows))
             for i, c in enumerate(rows):
@@ -136,7 +136,7 @@ class IntegrationsTab(QWidget):
 
     def _aa_do_export_csv(self):
         try:
-            r = self._req("GET", "aa/export?entity=clients&format=csv")
+            r = self._req("GET", "/aa/export?entity=clients&format=csv")
             csv_data = r.get("csv", "")
             path, _ = QFileDialog.getSaveFileName(self, "Сохранить CSV", "aa_export.csv", "CSV (*.csv)")
             if path:
@@ -149,7 +149,7 @@ class IntegrationsTab(QWidget):
     def _aa_log(self):
         w = QWidget()
         lay = QVBoxLayout(w)
-        b = QPushButton("Обновить журнал")
+        b = QPushButton(" Обновить журнал")
         b.clicked.connect(self._aa_load_log)
         lay.addWidget(b)
         self.aa_log_tbl = QTableWidget(0, 5)
@@ -160,7 +160,7 @@ class IntegrationsTab(QWidget):
 
     def _aa_load_log(self):
         try:
-            r = self._req("GET", "aa/sync-log")
+            r = self._req("GET", "/aa/sync-log")
             self.aa_log_tbl.setRowCount(len(r))
             for i, row in enumerate(r[:50]):
                 self.aa_log_tbl.setItem(i, 0, QTableWidgetItem(str(row.get("created_at", ""))[:19]))
@@ -194,9 +194,9 @@ class IntegrationsTab(QWidget):
         lay = QVBoxLayout(w)
         sub = QTabWidget()
         sub.setMovable(True)
-        sub.addTab(self._1c_export(), "Экспорт в 1С")
-        sub.addTab(self._1c_import(), "Импорт из 1С")
-        sub.addTab(self._1c_settings(), "Настройки")
+        sub.addTab(self._1c_export(), " Экспорт в 1С")
+        sub.addTab(self._1c_import(), " Импорт из 1С")
+        sub.addTab(self._1c_settings(), " Настройки")
         lay.addWidget(sub)
         return w
 
@@ -213,7 +213,7 @@ class IntegrationsTab(QWidget):
         self._1c_type.addItems(["Номенклатура", "Контрагенты", "Проводки (ОСВ)"])
         f.addRow("Тип:", self._1c_type)
         lay.addLayout(f)
-        b_exp = QPushButton("Сгенерировать XML")
+        b_exp = QPushButton(" Сгенерировать XML")
         b_exp.setStyleSheet("QPushButton { background: #3B82F6; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_exp.clicked.connect(self._1c_do_export)
         lay.addWidget(b_exp)
@@ -232,9 +232,9 @@ class IntegrationsTab(QWidget):
             if path:
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(xml)
-                self._1c_status.setText(f"Сохранено: {path}")
+                self._1c_status.setText(f" Сохранено: {path}")
         except Exception as e:
-            self._1c_status.setText("❌ " + str(e)[:200])
+            self._1c_status.setText(" " + str(e)[:200])
 
     def _1c_import(self):
         w = QWidget()
@@ -245,11 +245,11 @@ class IntegrationsTab(QWidget):
         self._1c_imp_path = QLineEdit()
         self._1c_imp_path.setPlaceholderText("Путь к файлу 1С...")
         h.addWidget(self._1c_imp_path)
-        b = QPushButton("Обзор")
+        b = QPushButton(" Обзор")
         b.clicked.connect(lambda: self._1c_imp_path.setText(QFileDialog.getOpenFileName(self, "Файл 1С", "", "XML/CSV (*.xml *.csv)")[0]))
         h.addWidget(b)
         lay.addLayout(h)
-        b_imp = QPushButton("Импортировать")
+        b_imp = QPushButton(" Импортировать")
         b_imp.clicked.connect(lambda: QMessageBox.information(self, "1С", "Импорт из 1С — в разработке (mock)"))
         lay.addWidget(b_imp)
         lay.addStretch(1)
@@ -268,10 +268,10 @@ class IntegrationsTab(QWidget):
         self._1c_pass.setEchoMode(QLineEdit.EchoMode.Password)
         f.addRow("Пароль:", self._1c_pass)
         lay.addLayout(f)
-        b_save = QPushButton("Сохранить настройки")
+        b_save = QPushButton(" Сохранить настройки")
         b_save.clicked.connect(lambda: QMessageBox.information(self, "1С", "Настройки сохранены (локально)"))
         lay.addWidget(b_save)
-        lay.addWidget(QLabel("Режим mock — реальное подключение требует настройки на стороне 1С"))
+        lay.addWidget(QLabel(" Режим mock — реальное подключение требует настройки на стороне 1С"))
         lay.addStretch(1)
         return w
     

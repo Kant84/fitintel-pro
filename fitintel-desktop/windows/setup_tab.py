@@ -20,7 +20,7 @@ class SetupWorker(QThread):
 
     def run(self):
         try:
-            resp = self.api.session.get(self.api._url("setup/status"))
+            resp = self.api.session.get(self.api._url("/setup/status"))
             resp.raise_for_status()
             self.finished.emit(resp.json())
         except Exception as e:
@@ -101,7 +101,7 @@ class SetupTab(QWidget):
             import json as _j, urllib.request as _u
             api = getattr(self, "api", None)
             base = getattr(api, "base_url", None) or "http://localhost:8001/api/v1"
-            with _u.urlopen(str(base).rstrip("/") + "license/status", timeout=5) as r:
+            with _u.urlopen(str(base).rstrip("/") + "/license/status", timeout=5) as r:
                 if _j.load(r).get("activated"):
                     lic = True
         except Exception:

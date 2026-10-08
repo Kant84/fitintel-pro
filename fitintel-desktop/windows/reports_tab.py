@@ -78,7 +78,7 @@ class ReportsTab(QWidget):
         btn.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 20px; font-weight: 600; }")
         btn.clicked.connect(self.refresh)
         row.addWidget(btn)
-        btn_csv = QPushButton("Экспорт CSV")
+        btn_csv = QPushButton(" Экспорт CSV")
         btn_csv.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn_csv.clicked.connect(self.export_csv)
         row.addWidget(btn_csv)
@@ -109,7 +109,7 @@ class ReportsTab(QWidget):
             params = {}
             path = path + "/" + self.dt_to.date().toString("yyyy-MM")
 
-        url = f"{path}" if path.startswith("accounting") else f"reports/{path}"
+        url = f"/{path}" if path.startswith("accounting") else f"/reports/{path}"
         self.worker = ReportWorker(self.api, url, params)
         self.worker.finished.connect(self._on_loaded)
         self.worker.error.connect(self._on_error)

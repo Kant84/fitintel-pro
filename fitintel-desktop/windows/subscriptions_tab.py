@@ -25,7 +25,7 @@ class SubsWorker(QThread):
         try:
             subs = self.api.get_subscriptions()
             clients = self.api.get_clients()
-            resp = self.api.session.get(self.api._url("tariffs/"))
+            resp = self.api.session.get(self.api._url("/tariffs/"))
             tariffs = resp.json().get("items", []) if resp.status_code == 200 else []
             self.finished.emit(subs, clients, tariffs)
         except Exception as e:
@@ -60,13 +60,13 @@ class SubscriptionsTab(QWidget):
 
         row = QHBoxLayout()
         row.addStretch()
-        b_sell = self._btn("Продать абонемент", "#10b981", "white")
+        b_sell = self._btn(" Продать абонемент", "#10b981", "white")
         b_sell.clicked.connect(self._sell)
         row.addWidget(b_sell)
-        b_fr = self._btn("Заморозить")
+        b_fr = self._btn(" Заморозить")
         b_fr.clicked.connect(self._freeze)
         row.addWidget(b_fr)
-        b_uf = self._btn("Разморозить")
+        b_uf = self._btn(" Разморозить")
         b_uf.clicked.connect(self._unfreeze)
         row.addWidget(b_uf)
         b_ref = self._btn("Обновить")
@@ -154,7 +154,7 @@ class SubscriptionsTab(QWidget):
         v = {k: val for k, val in dlg.values().items() if val}
         try:
             self.api.freeze_subscription(sid) if not v else self.api.session.post(
-                self.api._url(f"subscriptions/{sid}/freeze"), json=v).raise_for_status()
+                self.api._url(f"/subscriptions/{sid}/freeze"), json=v).raise_for_status()
             self.refresh()
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))

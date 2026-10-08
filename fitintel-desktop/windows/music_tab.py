@@ -12,7 +12,7 @@ from .form_dialog import FormDialog
 
 BTN_STYLE = (
     "QPushButton { background: #164e63; color: #a5f3fc; border: 1px solid #0891b2;"
-    "border-radius: 6px; padding: 6px 10px; font-weight: 600; }"
+    " border-radius: 6px; padding: 6px 10px; font-weight: 600; }"
     "QPushButton:hover { background: #0e7490; }"
     "QPushButton:pressed { background: #155e75; }"
     "QPushButton:disabled { background: #1e293b; color: #475569; border-color: #334155; }"
@@ -20,7 +20,7 @@ BTN_STYLE = (
 
 MUTE_STYLE = (
     "QPushButton { background: #b91c1c; color: white; font-weight: bold;"
-    "border: 1px solid #ef4444; border-radius: 6px; padding: 6px 10px; }"
+    " border: 1px solid #ef4444; border-radius: 6px; padding: 6px 10px; }"
     "QPushButton:hover { background: #dc2626; }"
     "QPushButton:pressed { background: #991b1b; }"
 )
@@ -88,9 +88,9 @@ class MusicTab(QWidget):
         self.cmb_zone.setMinimumWidth(280)
         bar.addWidget(self.cmb_zone, 1)
         for text, slot in [("Обновить", self.reload_all),
-                           ("Фон (плейлист)", self.bg_play),
-                           ("Стоп", self.bg_pause),
-                           ("Energize", self.energize)]:
+                           (" Фон (плейлист)", self.bg_play),
+                           (" Стоп", self.bg_pause),
+                           (" Energize", self.energize)]:
             b = QPushButton(text)
             b.clicked.connect(slot)
             bar.addWidget(b)
@@ -137,7 +137,7 @@ class MusicTab(QWidget):
         b_apply = QPushButton("Применить пульт")
         b_apply.clicked.connect(self.apply_dj)
         g.addWidget(b_apply, 4, 2)
-        b_mute = QPushButton("MUTE ALL")
+        b_mute = QPushButton(" MUTE ALL")
         b_mute.setStyleSheet(MUTE_STYLE)
         self._btn_mute = b_mute
         b_mute.clicked.connect(self.mute_all)
@@ -173,7 +173,7 @@ class MusicTab(QWidget):
         pads_box = QGroupBox("Сэмплер (пады 1-8)")
         pv = QVBoxLayout(pads_box)
         ph = QHBoxLayout()
-        b_add_sfx = QPushButton("Добавить сэмпл")
+        b_add_sfx = QPushButton(" Добавить сэмпл")
         b_add_sfx.clicked.connect(self.add_sfx)
         b_rf_sfx = QPushButton("Обновить сэмплы")
         b_rf_sfx.clicked.connect(self.load_sfx)
@@ -201,7 +201,7 @@ class MusicTab(QWidget):
     # ---------- infra ----------
     def _url(self, path):
         base = (getattr(self.api, "base_url", "") or "").rstrip("/")
-        return base + "music" + path
+        return base + "/music" + path
 
     def _run(self, fn, cb):
         w = Worker(fn, self)
@@ -218,9 +218,9 @@ class MusicTab(QWidget):
 
     # ---------- data ----------
     def reload_all(self):
-        self._run(lambda: self.api.session.get(self._url("zones"), timeout=15).json(),
+        self._run(lambda: self.api.session.get(self._url("/zones"), timeout=15).json(),
                   self._fill_zones)
-        self._run(lambda: self.api.session.get(self._url("playlists"), timeout=15).json(),
+        self._run(lambda: self.api.session.get(self._url("/playlists"), timeout=15).json(),
                   self._fill_playlists)
         self.load_sfx()
         self.load_license()
@@ -243,7 +243,7 @@ class MusicTab(QWidget):
         self._playlists = data if isinstance(data, list) else []
 
     def load_sfx(self):
-        self._run(lambda: self.api.session.get(self._url("sfx"), timeout=15).json(),
+        self._run(lambda: self.api.session.get(self._url("/sfx"), timeout=15).json(),
                   self._fill_sfx)
 
     def _fill_sfx(self, data):
@@ -271,7 +271,7 @@ class MusicTab(QWidget):
                     b.setStyleSheet(BTN_STYLE)
 
     def load_license(self):
-        self._run(lambda: self.api.session.get(self._url("license"), timeout=15).json(),
+        self._run(lambda: self.api.session.get(self._url("/license"), timeout=15).json(),
                   self._fill_license)
 
     def _fill_license(self, d):
@@ -279,10 +279,10 @@ class MusicTab(QWidget):
             return
         st = d.get("status")
         text = {
-            "ok": "%s, действует до %s (договор %s)" % (
+            "ok": " %s, действует до %s (договор %s)" % (
                 d.get("license_type"), d.get("valid_until"), d.get("contract_number") or "—"),
-            "warning": "Лицензия не указана — для коммерческого зала нужна (РАО/ВОИС или провайдер)",
-            "expired": "Лицензия ИСТЕКЛА %s — фоновое воспроизведение заблокировано" % d.get("valid_until"),
+            "warning": " Лицензия не указана — для коммерческого зала нужна (РАО/ВОИС или провайдер)",
+            "expired": " Лицензия ИСТЕКЛА %s — фоновое воспроизведение заблокировано" % d.get("valid_until"),
         }.get(st, "—")
         color = {"ok": "#16a34a", "warning": "#d97706", "expired": "#dc2626"}.get(st, "#888")
         self.lbl_license.setText("Лицензия фоновой музыки: " + text)
@@ -296,7 +296,7 @@ class MusicTab(QWidget):
         zid = self._zid()
         if not zid:
             return
-        self._run(lambda: self.api.session.get(self._url("zones/%s/status" % zid),
+        self._run(lambda: self.api.session.get(self._url("/zones/%s/status" % zid),
                                                timeout=15).json(),
                   self._fill_status)
 
@@ -342,7 +342,7 @@ class MusicTab(QWidget):
         pid = next((p["id"] for p in self._playlists if p["name"] == name), None)
         zid = self._zid()
         self._run(lambda: self.api.session.post(
-            self._url("zones/%s/play" % zid),
+            self._url("/zones/%s/play" % zid),
             json={"playlist_id": pid}, timeout=15).json(),
             lambda _r: (self._show("Фоновое воспроизведение запущено."),
                         self.refresh_status()))
@@ -350,13 +350,13 @@ class MusicTab(QWidget):
     def bg_pause(self):
         zid = self._zid()
         self._run(lambda: self.api.session.post(
-            self._url("zones/%s/pause" % zid), timeout=15).json(),
+            self._url("/zones/%s/pause" % zid), timeout=15).json(),
             lambda _r: (self._show("Остановлено."), self.refresh_status()))
 
     def energize(self):
         zid = self._zid()
         self._run(lambda: self.api.session.post(
-            self._url("zones/%s/energize" % zid), timeout=15).json(),
+            self._url("/zones/%s/energize" % zid), timeout=15).json(),
             lambda r: (self._show("ENERGIZE: %s, громкость %s" % (
                 r.get("playlist"), r.get("volume"))), self.refresh_status()))
 
@@ -402,7 +402,7 @@ class MusicTab(QWidget):
                 "master_volume": int(self.sld_master.value()),
                 "eq": {"A": self._eq_values("A"), "B": self._eq_values("B")}}
         def _do():
-            return self.api.session.post(self._url("zones/%s/dj" % zid),
+            return self.api.session.post(self._url("/zones/%s/dj" % zid),
                                          json=body, timeout=15).json()
         self._run(_do, lambda _r: (self._show("Пульт применён."),
                                    self.refresh_status()))
@@ -431,7 +431,7 @@ class MusicTab(QWidget):
     def fire_pad(self, sfx_id):
         zid = self._zid()
         self._run(lambda: self.api.session.post(
-            self._url("zones/%s/pad-fire" % zid),
+            self._url("/zones/%s/pad-fire" % zid),
             json={"sfx_id": sfx_id}, timeout=15).json(),
             lambda r: self._show("Пад: %s (%s)" % (r.get("sfx"), r.get("mode", "local"))))
 
@@ -450,6 +450,6 @@ class MusicTab(QWidget):
             vol = 80
         body = {"name": v.get("name"), "path": v.get("path"),
                 "volume": max(0, min(100, vol)), "sort": len(self._sfx) + 1}
-        self._run(lambda: self.api.session.post(self._url("sfx"),
+        self._run(lambda: self.api.session.post(self._url("/sfx"),
                                                 json=body, timeout=15).json(),
                   lambda _r: (self._show("Сэмпл добавлен."), self.load_sfx()))

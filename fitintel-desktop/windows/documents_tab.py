@@ -23,10 +23,10 @@ class DocumentsWorker(QThread):
 
     def run(self):
         try:
-            resp = self.api.session.get(self.api._url("documents"))
+            resp = self.api.session.get(self.api._url("/documents"))
             resp.raise_for_status()
             docs = resp.json().get("documents", [])
-            resp2 = self.api.session.get(self.api._url("document-templates"))
+            resp2 = self.api.session.get(self.api._url("/document-templates"))
             resp2.raise_for_status()
             _tpls_raw = resp2.json()
             tpls = _tpls_raw.get("templates", []) if isinstance(_tpls_raw, dict) else _tpls_raw
@@ -63,16 +63,16 @@ class DocumentsTab(QWidget):
         btn.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn.clicked.connect(self.refresh)
         row.addWidget(btn)
-        b_sign = QPushButton("Подписать")
+        b_sign = QPushButton(" Подписать")
         b_sign.setStyleSheet("QPushButton { background: #E6007E; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_sign.clicked.connect(self._sign_doc)
         row.addWidget(b_sign)
-        b_dl = QPushButton("PDF")
+        b_dl = QPushButton(" PDF")
         b_dl.setStyleSheet("QPushButton { background: #3B82F6; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_dl.clicked.connect(self._download_pdf)
         row.addWidget(b_dl)
-        self._btn_tpl = QPushButton("Шаблоны")
-        self._btn_doc = QPushButton("Документы")
+        self._btn_tpl = QPushButton(" Шаблоны")
+        self._btn_doc = QPushButton(" Документы")
         self._btn_tpl.setCheckable(True)
         self._btn_doc.setCheckable(True)
         self._btn_doc.setChecked(True)
@@ -133,7 +133,7 @@ class DocumentsTab(QWidget):
             self.table.setItem(i, 2, QTableWidgetItem(cmap.get(str(d.get("client_id")), "—")))
             st = str(d.get("status") or "—")
             if d.get("signed"):
-                st += "(подписан)"
+                st += " (подписан)"
             item = QTableWidgetItem(st)
             if d.get("signed"):
                 item.setForeground(QColor("#059669"))
@@ -161,7 +161,7 @@ class DocumentsTab(QWidget):
         tpl_id, tpl_code = v["template"]
         payload = {"type": tpl_code, "client_id": v["client_id"], "template_id": tpl_id}
         try:
-            r = self.api.session.post(self.api._url("documents"), json=payload)
+            r = self.api.session.post(self.api._url("/documents"), json=payload)
             r.raise_for_status()
             QMessageBox.information(self, "Готово", "Документ создан")
             self.refresh()
@@ -177,7 +177,7 @@ class DocumentsTab(QWidget):
             QMessageBox.warning(self, "Подпись", "ID документа не найден")
             return
         try:
-            r = self.api.session.post(self.api._url(f"documents/{doc_id}/sign"), json={})
+            r = self.api.session.post(self.api._url(f"/documents/{doc_id}/sign"), json={})
             r.raise_for_status()
             d = r.json()
             QMessageBox.information(self, "Подпись", d.get("message", "Подписано"))
@@ -194,7 +194,7 @@ class DocumentsTab(QWidget):
             QMessageBox.warning(self, "PDF", "ID документа не найден")
             return
         try:
-            r = self.api.session.get(self.api._url(f"documents/{doc_id}/download?format=pdf"))
+            r = self.api.session.get(self.api._url(f"/documents/{doc_id}/download?format=pdf"))
             r.raise_for_status()
             from PyQt6.QtWidgets import QFileDialog
             path, _ = QFileDialog.getSaveFileName(self, "Сохранить PDF", f"doc_{doc_id}.pdf", "PDF (*.pdf)")
@@ -233,14 +233,14 @@ def create_template_dialog(self):
     lay.addWidget(QLabel("Текст шаблона (можно использовать {client}, {tariff}, {days}):"))
     ed_body = QPlainTextEdit(); lay.addWidget(ed_body)
     btns = QHBoxLayout()
-    ok = QPushButton("Сохранить шаблон"); cancel = QPushButton("Отмена")
+    ok = QPushButton(" Сохранить шаблон"); cancel = QPushButton("Отмена")
     btns.addWidget(ok); btns.addWidget(cancel); lay.addLayout(btns)
     cancel.clicked.connect(d.reject)
     def _save():
         if not ed_name.text().strip():
             QMessageBox.warning(d, "Шаблон", "Введите название"); return
         try:
-            self.api._e55_post("document-templates", {"name": ed_name.text().strip(), "doc_type": cb.currentText(), "content": ed_body.toPlainText()})
+            self.api._e55_post("/document-templates", {"name": ed_name.text().strip(), "doc_type": cb.currentText(), "content": ed_body.toPlainText()})
             QMessageBox.information(d, "Шаблон", "Шаблон сохранён! Теперь он доступен в кнопке «📄 Из шаблона».")
             d.accept()
         except Exception as e:
@@ -256,7 +256,7 @@ try:
         _orig_init(self, *a, **kw)
         try:
             from PyQt6.QtWidgets import QPushButton
-            btn = QPushButton("Создать шаблон")
+            btn = QPushButton(" Создать шаблон")
             btn.clicked.connect(self.create_template_dialog)
             for b in self.findChildren(QPushButton):
                 if "шаблон" in b.text().lower():

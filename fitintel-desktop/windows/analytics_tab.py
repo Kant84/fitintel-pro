@@ -35,9 +35,9 @@ class AnalyticsTab(QWidget):
         ctl.addWidget(QLabel("Дней прогноза:"))
         self.sp_days = QSpinBox(); self.sp_days.setRange(1, 90); self.sp_days.setValue(7)
         ctl.addWidget(self.sp_days)
-        b1 = QPushButton("Обновить дашборд"); b1.clicked.connect(self.load_dashboard)
-        b2 = QPushButton("Пересчитать историю (56 дн)"); b2.clicked.connect(self.recalc)
-        b3 = QPushButton("Построить прогноз"); b3.clicked.connect(self.load_forecast)
+        b1 = QPushButton(" Обновить дашборд"); b1.clicked.connect(self.load_dashboard)
+        b2 = QPushButton(" Пересчитать историю (56 дн)"); b2.clicked.connect(self.recalc)
+        b3 = QPushButton(" Построить прогноз"); b3.clicked.connect(self.load_forecast)
         for b in (b1, b2, b3):
             ctl.addWidget(b)
         lay.addLayout(ctl)
@@ -50,7 +50,7 @@ class AnalyticsTab(QWidget):
 
     def load_dashboard(self):
         try:
-            d = self.api._e55_get("analytics/dashboard?club_id=1")
+            d = self.api._e55_get("/analytics/dashboard?club_id=1")
             self.lb_att.setText("Посещаемость сегодня: %s" % d.get("attendance_today", "—"))
             self.lb_rev.setText("Выручка сегодня: %s ₽" % d.get("revenue_today", "—"))
             self.lb_churn.setText("Риск оттока: %s" % d.get("churn_risk_count", "—"))
@@ -63,7 +63,7 @@ class AnalyticsTab(QWidget):
 
     def recalc(self):
         try:
-            r = self.api._e55_post("analytics/recalc?club_id=1&days=56", {})
+            r = self.api._e55_post("/analytics/recalc?club_id=1&days=56", {})
             QMessageBox.information(self, "Аналитика", "История пересчитана: " + str(r.get("metrics", "")))
             self.load_dashboard()
         except Exception as e:
@@ -71,7 +71,7 @@ class AnalyticsTab(QWidget):
 
     def load_forecast(self):
         try:
-            r = self.api._e55_post("analytics/forecast?club_id=1",
+            r = self.api._e55_post("/analytics/forecast?club_id=1",
                 {"metric": self._metric_code(), "days_ahead": self.sp_days.value()})
             hist = [(x["date"], x["value"]) for x in r.get("history", [])]
             fore = [(x["date"], x["forecast"]) for x in r.get("forecast", [])]

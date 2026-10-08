@@ -123,11 +123,11 @@ class PaymentsTab(QWidget):
         self._pay_action_btns = []
         for text, slot, is_pay_action in [
                 ("Обновить", self.reload_all, False),
-                ("Провести платёж", self.add_payment, False),
-                ("Подтвердить", self.complete_payment, True),
-                ("Возврат", self.refund_payment, True),
-                ("Отмена платежа", self.cancel_payment, True),
-                ("Экспорт CSV", self.export_csv, False)]:
+                (" Провести платёж", self.add_payment, False),
+                (" Подтвердить", self.complete_payment, True),
+                (" Возврат", self.refund_payment, True),
+                (" Отмена платежа", self.cancel_payment, True),
+                (" Экспорт CSV", self.export_csv, False)]:
             b = QPushButton(text)
             b.clicked.connect(slot)
             bar.addWidget(b)
@@ -139,23 +139,23 @@ class PaymentsTab(QWidget):
         bar2 = QHBoxLayout()
         self.lbl_shift = QLabel("Смена: —")
         bar2.addWidget(self.lbl_shift)
-        b_open = QPushButton("Открыть смену")
+        b_open = QPushButton(" Открыть смену")
         b_open.setToolTip("Открыть смену на фискальном регистраторе (АТОЛ ДТО)")
         b_open.clicked.connect(lambda: self._shift("open"))
-        b_close = QPushButton("Закрыть смену")
+        b_close = QPushButton(" Закрыть смену")
         b_close.setToolTip("Закрыть смену (Z-отчёт): итоги, гашение, остаток в «не снятый»")
         b_close.clicked.connect(lambda: self._shift("close"))
-        b_x = QPushButton("X-отчёт")
+        b_x = QPushButton(" X-отчёт")
         b_x.setToolTip("Промежуточный отчёт БЕЗ закрытия смены: итоги нал/безнал. "
                        "Используйте при смене кассиров днём — уходящий снимает X, "
                        "приходящий сверяет деньги, смена продолжается.")
         b_x.clicked.connect(self.x_report)
-        b_wd = QPushButton("Снятие кассы")
+        b_wd = QPushButton(" Снятие кассы")
         b_wd.setToolTip("Бухгалтер снимает остаток прошлых смен (обнуляет)")
         b_wd.clicked.connect(self.cash_withdrawal)
         b_check = QPushButton("Обновить статус")
         b_check.clicked.connect(self._shift_status)
-        b_set = QPushButton("Настройки кассы")
+        b_set = QPushButton(" Настройки кассы")
         b_set.setToolTip("Адрес АТОЛ, логин/пароль ДТО, ОФД — вместо ручных команд на сервере")
         b_set.clicked.connect(self.fiscal_settings)
         for b in (b_open, b_close, b_x, b_wd, b_check, b_set):
@@ -223,11 +223,11 @@ class PaymentsTab(QWidget):
     # ---------- fiscal shift (E31/E33) ----------
     def _fiscal_url(self, path):
         base = (getattr(self.api, "base_url", "") or "").rstrip("/")
-        return base + "fiscal" + path
+        return base + "/fiscal" + path
 
     def _shift(self, action):
         def _do():
-            r = self.api.session.post(self._fiscal_url("%s-shift" % action),
+            r = self.api.session.post(self._fiscal_url("/%s-shift" % action),
                                       timeout=30)
             r.raise_for_status()
             return r.json()
@@ -236,9 +236,9 @@ class PaymentsTab(QWidget):
             if action == "close":
                 QMessageBox.information(self, "Смена закрыта",
                     "Закрытая смена:\n"
-                    "Наличные: %s\n  Безнал: %s\n\n"
+                    "  Наличные: %s\n  Безнал: %s\n\n"
                     "Остаток на кассе (не снят бухгалтером):\n"
-                    "Наличные: %s\n  Безнал: %s"
+                    "  Наличные: %s\n  Безнал: %s"
                     % (_money(d.get("cash_total")), _money(d.get("card_total")),
                        _money(d.get("prev_cash")), _money(d.get("prev_card"))))
             else:
@@ -249,14 +249,14 @@ class PaymentsTab(QWidget):
     def x_report(self):
         """X-отчёт: итоги смены БЕЗ закрытия (сверка при пересменке)."""
         def _do():
-            r = self.api.session.post(self._fiscal_url("x-report"), timeout=30)
+            r = self.api.session.post(self._fiscal_url("/x-report"), timeout=30)
             r.raise_for_status()
             return r.json()
         def _done(d):
             d = d if isinstance(d, dict) else {}
             QMessageBox.information(self, "X-отчёт (без закрытия смены)",
                 "Итоги текущей смены:\n"
-                "Наличные: %s\n  Безнал: %s\n\n"
+                "  Наличные: %s\n  Безнал: %s\n\n"
                 "Смена остаётся ОТКРЫТОЙ — продажи продолжаются."
                 % (_money(d.get("cash_total")), _money(d.get("card_total"))))
             self._shift_status()
@@ -270,7 +270,7 @@ class PaymentsTab(QWidget):
                 QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
         def _do():
-            r = self.api.session.post(self._fiscal_url("cash-withdrawal"),
+            r = self.api.session.post(self._fiscal_url("/cash-withdrawal"),
                                       timeout=30)
             r.raise_for_status()
             return r.json()
@@ -285,7 +285,7 @@ class PaymentsTab(QWidget):
         """Окно настроек фискального регистратора: читает GET /fiscal/settings,
         сохраняет POST /fiscal/settings. Пустые поля = оставить прежние значения."""
         def _load():
-            r = self.api.session.get(self._fiscal_url("settings"), timeout=15)
+            r = self.api.session.get(self._fiscal_url("/settings"), timeout=15)
             r.raise_for_status()
             return r.json()
         def _ask(cur):
@@ -311,7 +311,7 @@ class PaymentsTab(QWidget):
                     "dto_login": (v.get("dto_login") or "").strip() or st.get("dto_login") or "",
                     "dto_password": (v.get("dto_password") or "").strip() or st.get("dto_password") or "",
                 }
-                r = self.api.session.post(self._fiscal_url("settings"), json={
+                r = self.api.session.post(self._fiscal_url("/settings"), json={
                     "driver": _ru_back(RU_DRV, v.get("driver") or RU_DRV["atol"]),
                     "port": "TCP",
                     "settings": settings,
@@ -325,7 +325,7 @@ class PaymentsTab(QWidget):
     def _shift_status(self):
         """Тихий опрос: ошибку показываем только в подписи, без баннера."""
         def _do():
-            r = self.api.session.get(self._fiscal_url("shift"), timeout=15)
+            r = self.api.session.get(self._fiscal_url("/shift"), timeout=15)
             r.raise_for_status()
             return r.json()
         def _ok(d):

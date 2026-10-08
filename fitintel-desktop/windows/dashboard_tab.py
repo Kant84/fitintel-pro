@@ -19,10 +19,10 @@ class DashboardTab(QWidget):
         self.tabs = QTabWidget()
         self.tabs.setMovable(True)  # вкладки можно перетаскивать местами
         lay.addWidget(self.tabs)
-        self.tabs.addTab(self._overview_tab(), "Обзор")
-        self.tabs.addTab(self._forecast_tab(), "Прогноз")
-        self.tabs.addTab(self._heatmap_tab(), "Тепловая карта")
-        self.tabs.addTab(self._ai_tab(), "AI Отток")
+        self.tabs.addTab(self._overview_tab(), " Обзор")
+        self.tabs.addTab(self._forecast_tab(), " Прогноз")
+        self.tabs.addTab(self._heatmap_tab(), " Тепловая карта")
+        self.tabs.addTab(self._ai_tab(), " AI Отток")
 
     # ---------- helpers ----------
     def _base(self):
@@ -69,8 +69,8 @@ class DashboardTab(QWidget):
         self.lb_seg.setStyleSheet("color:#39ff14; font-weight:bold; padding:6px;")
         v.addWidget(self.lb_seg)
         row = QHBoxLayout()
-        b1 = QPushButton("Обновить"); b1.clicked.connect(self.load_overview)
-        b2 = QPushButton("Пересчитать историю (56 дн)"); b2.clicked.connect(self.recalc)
+        b1 = QPushButton(" Обновить"); b1.clicked.connect(self.load_overview)
+        b2 = QPushButton(" Пересчитать историю (56 дн)"); b2.clicked.connect(self.recalc)
         row.addWidget(b1); row.addWidget(b2); row.addStretch(1)
         v.addLayout(row)
         v.addStretch(1)
@@ -78,7 +78,7 @@ class DashboardTab(QWidget):
 
     def load_overview(self):
         try:
-            d = self._get("analytics/dashboard?club_id=1")
+            d = self._get("/analytics/dashboard?club_id=1")
             self.c_att.setText(str(d.get("attendance_today", "—")))
             self.c_rev.setText(str(d.get("revenue_today", "—")))
             self.c_fc.setText(str(d.get("forecast_week_revenue", "—")))
@@ -87,7 +87,7 @@ class DashboardTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Обзор", str(e))
         try:
-            r = self._get("ai/churn/predict?limit=500")
+            r = self._get("/ai/churn/predict?limit=500")
             rows = r.get("at_risk", [])
             hi = sum(1 for x in rows if x.get("churn_prob", 0) >= 0.66)
             mid = sum(1 for x in rows if 0.33 <= x.get("churn_prob", 0) < 0.66)
@@ -98,7 +98,7 @@ class DashboardTab(QWidget):
 
     def recalc(self):
         try:
-            r = self._post("analytics/recalc?club_id=1&days=56")
+            r = self._post("/analytics/recalc?club_id=1&days=56")
             QMessageBox.information(self, "Пересчёт", "История пересчитана за 56 дней.")
             self.load_overview()
         except Exception as e:
@@ -119,7 +119,7 @@ class DashboardTab(QWidget):
         row.addWidget(QLabel("Дней:"))
         self.sp_d = QSpinBox(); self.sp_d.setRange(1, 90); self.sp_d.setValue(7)
         row.addWidget(self.sp_d)
-        b = QPushButton("Построить прогноз"); b.clicked.connect(self.load_forecast)
+        b = QPushButton(" Построить прогноз"); b.clicked.connect(self.load_forecast)
         row.addWidget(b); row.addStretch(1)
         tv.addLayout(row)
         self.chart = ChartWidget()
@@ -131,7 +131,7 @@ class DashboardTab(QWidget):
     def load_forecast(self):
         try:
             code = self.cb_m.currentData()
-            r = self._post("analytics/forecast?club_id=1", {"metric": code, "days_ahead": self.sp_d.value()})
+            r = self._post("/analytics/forecast?club_id=1", {"metric": code, "days_ahead": self.sp_d.value()})
             hist = [(x["date"], x["value"]) for x in r.get("history", [])]
             fore = [(x["date"], x["forecast"]) for x in r.get("forecast", [])]
             self.chart.set_data(hist, fore)
@@ -143,7 +143,7 @@ class DashboardTab(QWidget):
     # ---------- tab 3: heatmap ----------
     def _heatmap_tab(self):
         w = QWidget(); v = QVBoxLayout(w)
-        b = QPushButton("Загрузить тепловую карту"); b.clicked.connect(self.load_heatmap)
+        b = QPushButton(" Загрузить тепловую карту"); b.clicked.connect(self.load_heatmap)
         v.addWidget(b)
         self.hm = HeatmapWidget()
         v.addWidget(self.hm)
@@ -151,7 +151,7 @@ class DashboardTab(QWidget):
 
     def load_heatmap(self):
         try:
-            r = self._get("analytics/heatmap?club_id=1")
+            r = self._get("/analytics/heatmap?club_id=1")
             if r.get("ok"):
                 self.hm.set_grid(r["grid"])
             else:
@@ -163,9 +163,9 @@ class DashboardTab(QWidget):
     def _ai_tab(self):
         w = QWidget(); v = QVBoxLayout(w)
         row = QHBoxLayout()
-        b1 = QPushButton("Обучить / дообучить"); b1.clicked.connect(self.ai_train)
-        b2 = QPushButton("Обновить список риска"); b2.clicked.connect(self.ai_load)
-        b3 = QPushButton("Сверить прогнозы с фактом"); b3.clicked.connect(self.ai_resolve)
+        b1 = QPushButton(" Обучить / дообучить"); b1.clicked.connect(self.ai_train)
+        b2 = QPushButton(" Обновить список риска"); b2.clicked.connect(self.ai_load)
+        b3 = QPushButton(" Сверить прогнозы с фактом"); b3.clicked.connect(self.ai_resolve)
         for b in (b1, b2, b3):
             row.addWidget(b)
         self.lb_ai = QLabel("Модель: —")
@@ -187,7 +187,7 @@ class DashboardTab(QWidget):
 
     def ai_train(self):
         try:
-            r = self._post("ai/churn/train")
+            r = self._post("/ai/churn/train")
             if r.get("ok"):
                 QMessageBox.information(self, "AI", "Обучено! Примеров: %s, точность: %s" % (r.get("samples"), r.get("accuracy")))
                 self.ai_status()
@@ -198,7 +198,7 @@ class DashboardTab(QWidget):
 
     def ai_load(self):
         try:
-            r = self._get("ai/churn/predict?limit=100")
+            r = self._get("/ai/churn/predict?limit=100")
             rows = r.get("at_risk", [])
             self.tbl.setRowCount(len(rows))
             for i, x in enumerate(rows):
@@ -213,7 +213,7 @@ class DashboardTab(QWidget):
 
     def ai_resolve(self):
         try:
-            r = self._post("ai/churn/resolve")
+            r = self._post("/ai/churn/resolve")
             QMessageBox.information(self, "AI", "Сверено: %s, проверенная точность: %s" % (r.get("resolved"), r.get("validated_accuracy")))
             self.ai_status()
         except Exception as e:
@@ -221,7 +221,7 @@ class DashboardTab(QWidget):
 
     def ai_status(self):
         try:
-            r = self._get("ai/status")
+            r = self._get("/ai/status")
             self.lb_ai.setText("Модель: %s | примеров: %s | точность: %s" % (
                 "обучена" if r.get("trained") else "не обучена", r.get("samples", 0), r.get("accuracy")))
             hist = [(x["at"], x["accuracy"]) for x in r.get("accuracy_history", [])]

@@ -1,4 +1,4 @@
-"""E15: Браслеты и карты доступа — интеграция со СКУД (S80F, онлайн-замки)."""
+"""E15: Браслеты и карты доступа — интеграция со СКУД (ITC-30, S80F, онлайн-замки)."""
 from rfid.card_ops import RFIDCardOps
 from rfid.api_ops import RFIDApiOps
 from rfid.client_search import ClientSearch
@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 
-STYLE_DARK = """QWidget { background-color: #0f172a; color: #e2e8f0; font-family: "Segoe UI", "Inter"sans-serif; font-size: 13px; }
+STYLE_DARK = """
+QWidget { background-color: #0f172a; color: #e2e8f0; font-family: "Segoe UI", "Inter", sans-serif; font-size: 13px; }
 QGroupBox { border: 1px solid #334155; border-radius: 10px; margin-top: 12px; padding-top: 10px; font-weight: 600; color: #06b6d4; }
 QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 8px; }
 QLineEdit, QComboBox, QSpinBox { background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 8px 12px; color: #f1f5f9; selection-background-color: #ec4899; }
@@ -18,8 +19,8 @@ QLineEdit:focus, QComboBox:focus, QSpinBox:focus { border: 1px solid #ec4899; }
 QPushButton { border: none; border-radius: 0px; padding: 10px 18px; font-weight: 600; color: white; }
 QPushButton:hover { opacity: 0.85; }
 QPushButton:pressed { opacity: 0.7; }
-QPlainTextEdit { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 8px; color: #94a3b8; font-family: "Consolas"monospace; }
-QTextEdit { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px; color: #e2e8f0; font-family: "Segoe UI"sans-serif; font-size: 13px; }
+QPlainTextEdit { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 8px; color: #94a3b8; font-family: "Consolas", monospace; }
+QTextEdit { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px; color: #e2e8f0; font-family: "Segoe UI", sans-serif; font-size: 13px; }
 QTableWidget { background: #1e293b; border: 1px solid #334155; border-radius: 8px; gridline-color: #334155; color: #e2e8f0; }
 QTableWidget::item:selected { background: #ec4899; color: white; }
 QHeaderView::section { background: #1e293b; color: #06b6d4; padding: 8px; border: none; font-weight: 600; }
@@ -49,13 +50,13 @@ class _ResetWorker(QThread):
     def run(self):
         out = {"ok": False}
         try:
-            r = self.tab._req("POST", "reader/detect-card")
+            r = self.tab._req("POST", "/reader/detect-card")
             if isinstance(r, dict) and "_err" in r:
                 out["error"] = "Носитель не обнаружен"; self.done.emit(out); return
             uid = r.get("uid")
             out["uid"] = uid
             self.tab._rfid_card.reset_card(uid)                      # 1. очистка карты
-            r2 = self.tab._req("POST", "credentials/rfid/unbind-by-uid",
+            r2 = self.tab._req("POST", "/credentials/rfid/unbind-by-uid",
                                {"uid": uid})                          # 2. отвязка в БД
             out["unbind"] = r2
             out["ok"] = isinstance(r2, dict) and r2.get("ok") is True
@@ -83,9 +84,9 @@ class CredentialsTab(QWidget):
         lay.setSpacing(12)
         tabs = QTabWidget()
         tabs.setDocumentMode(True)
-        tabs.addTab(self._client_tab(), "Клиентская карта")
-        tabs.addTab(self._admin_tab(), "Программирование замков")
-        tabs.addTab(self._online_tab(), "Онлайн-замки")
+        tabs.addTab(self._client_tab(), "  Клиентская карта")
+        tabs.addTab(self._admin_tab(), "  Программирование замков")
+        tabs.addTab(self._online_tab(), "  Онлайн-замки")
         lay.addWidget(tabs)
 
     def _base(self):
@@ -101,7 +102,7 @@ class CredentialsTab(QWidget):
             if cfg.get("token"):
                 return cfg["token"]
             r = urllib.request.Request(
-                self._base() + "auth/login",
+                self._base() + "/auth/login",
                 data=json.dumps({"login": cfg.get("saved_login"),
                                  "password": cfg.get("saved_password")}).encode(),
                 headers={"Content-Type": "application/json"})
@@ -114,7 +115,7 @@ class CredentialsTab(QWidget):
     def _req(self, method, path, data=None):
         data = data or {}
         # /reader/* — НАПРЯМУЮ к USB-считывателю (pyscard), без сервера
-        if path.startswith("reader/"):
+        if path.startswith("/reader/"):
             return self._reader_local(path, data)
         # Через ApiClient: таймауты и авто-перелогин (E70) уже внутри
         if self.api is not None and hasattr(self.api, "session"):
@@ -139,17 +140,17 @@ class CredentialsTab(QWidget):
         if not hasattr(self, "_direct"):
             self._direct = DirectReader()
         rd = self._direct
-        if path == "reader/status":
+        if path == "/reader/status":
             return rd.status()
-        if path == "reader/detect-card":
+        if path == "/reader/detect-card":
             uid = rd.detect_uid()
             return {"uid": uid} if uid else {"_err": "no card"}
-        if path == "reader/read-sector":
+        if path == "/reader/read-sector":
             blocks = rd.read_sector(data.get("sector", 0),
                                     data.get("key_type", "B"),
                                     data.get("key_hex", KEY_B_ITC))
             return {"blocks": blocks} if blocks else {"_err": "read failed"}
-        if path == "reader/write":
+        if path == "/reader/write":
             ok = rd.write_block(data.get("sector", 0),
                                 data.get("block", 1),
                                 data.get("key_type", "B"),
@@ -169,7 +170,7 @@ class CredentialsTab(QWidget):
 
         top = QHBoxLayout()
         self.client_search = QLineEdit()
-        self.client_search.setPlaceholderText("ФИО, телефон или ID клиента...")
+        self.client_search.setPlaceholderText("  ФИО, телефон или ID клиента...")
         self.client_search.returnPressed.connect(self._search_client)
         top.addWidget(self.client_search, 4)
         b_search = QPushButton("Найти")
@@ -184,7 +185,7 @@ class CredentialsTab(QWidget):
         left_lay = QVBoxLayout(left)
         left_lay.setSpacing(10)
 
-        self.client_info = QGroupBox("Клиент не выбран")
+        self.client_info = QGroupBox("  Клиент не выбран")
         fl = QFormLayout(self.client_info)
         fl.setSpacing(8)
         self.lbl_name  = QLabel("—")
@@ -197,22 +198,22 @@ class CredentialsTab(QWidget):
 
         btn_grid = QHBoxLayout()
         btn_grid.setSpacing(8)
-        b_encode = QPushButton("Очистить носитель")
+        b_encode = QPushButton("  Очистить носитель")
         b_encode.setStyleSheet(BTN_SECONDARY)
         b_encode.setToolTip("Записать пустые данные — карта станет 'Пустая карта'")
         b_encode.clicked.connect(self._encode_card)
         btn_grid.addWidget(b_encode)
-        b_write = QPushButton("Привязать к клиенту")
+        b_write = QPushButton("  Привязать к клиенту")
         b_write.setStyleSheet(BTN_PRIMARY)
         b_write.setToolTip("Считать UID и привязать к выбранному клиенту")
         b_write.clicked.connect(self._write_credential)
         btn_grid.addWidget(b_write)
-        b_reset = QPushButton("Сброс к заводским")
+        b_reset = QPushButton("  Сброс к заводским")
         b_reset.setStyleSheet(BTN_DANGER)
         b_reset.setToolTip("Полный сброс Mifare — factory default")
         b_reset.clicked.connect(self._reset_card)
         btn_grid.addWidget(b_reset)
-        b_rent = QPushButton("Аренда шкафчика")
+        b_rent = QPushButton("  Аренда шкафчика")
         b_rent.setStyleSheet(BTN_WARNING)
         b_rent.setToolTip("Выдать/продлить или снять аренду шкафчика для выбранного клиента.\n"
                           "Арендатор может выходить из клуба с закрытым шкафчиком.")
@@ -220,11 +221,11 @@ class CredentialsTab(QWidget):
         btn_grid.addWidget(b_rent)
         left_lay.addLayout(btn_grid)
 
-        self.reader_status = QLabel("Считыватель не подключён")
+        self.reader_status = QLabel("  Считыватель не подключён")
         self.reader_status.setStyleSheet("color: #ef4444; font-weight: 600;")
         left_lay.addWidget(self.reader_status)
 
-        b_check = QPushButton("Проверить считыватель")
+        b_check = QPushButton("  Проверить считыватель")
         b_check.setStyleSheet(BTN_PURPLE)
         b_check.clicked.connect(self._check_reader)
         left_lay.addWidget(b_check)
@@ -250,7 +251,7 @@ class CredentialsTab(QWidget):
         self.tbl.setColumnWidth(3, 140)
         right_lay.addWidget(self.tbl, 1)
 
-        b_refresh = QPushButton("Обновить список")
+        b_refresh = QPushButton("  Обновить список")
         b_refresh.setStyleSheet(BTN_SECONDARY)
         b_refresh.clicked.connect(self._load_credentials)
         right_lay.addWidget(b_refresh)
@@ -273,8 +274,8 @@ class CredentialsTab(QWidget):
         self.lbl_name.setText((ln + " " + fn + " " + mn).strip())
         self.lbl_phone.setText(str(c.get("phone", "—")))
         self.lbl_id.setText(str(self._current_client_id))
-        self.client_info.setTitle("👤  " + self.lbl_name.text())
-        self._log(self.log, "Выбран: " + self.lbl_name.text())
+        self.client_info.setTitle("  " + self.lbl_name.text())
+        self._log(self.log, " Выбран: " + self.lbl_name.text())
         self._load_credentials()
 
     def _load_credentials(self):
@@ -282,7 +283,7 @@ class CredentialsTab(QWidget):
             return
         cid = str(self._current_client_id)
         self.tbl.setRowCount(0)
-        r = self._req("GET", "credentials/rfid/client/" + cid)
+        r = self._req("GET", "/credentials/rfid/client/" + cid)
         if isinstance(r, dict) and "_err" not in r:
             rows = r.get("credentials", r.get("items", []))
             for row in rows:
@@ -304,18 +305,18 @@ class CredentialsTab(QWidget):
         vendor = ""
         model = "KR-S50"
         cid = str(self._current_client_id)
-        self._log(self.log, "Поднесите браслет / карту к считывателю...")
-        self.reader_status.setText("Ожидание носителя...")
+        self._log(self.log, " Поднесите браслет / карту к считывателю...")
+        self.reader_status.setText("  Ожидание носителя...")
         self.reader_status.setStyleSheet("color: #f59e0b; font-weight: 600;")
-        r_detect = self._req("POST", "reader/detect-card")
+        r_detect = self._req("POST", "/reader/detect-card")
         if isinstance(r_detect, dict) and "_err" in r_detect:
-            self._log(self.log, "Носитель не обнаружен")
-            self.reader_status.setText("Носитель не найден")
+            self._log(self.log, " Носитель не обнаружен")
+            self.reader_status.setText("  Носитель не найден")
             self.reader_status.setStyleSheet("color: #ef4444; font-weight: 600;")
             return
         uid = r_detect.get("uid")
-        self._log(self.log, "UID считан: " + str(uid))
-        r = self._req("POST", "credentials/rfid/force-write", {
+        self._log(self.log, " UID считан: " + str(uid))
+        r = self._req("POST", "/credentials/rfid/force-write", {
             "client_id": cid,
             "credential_value": uid,
             "rfid_manufacturer": vendor,
@@ -324,19 +325,19 @@ class CredentialsTab(QWidget):
             "block": 1
         })
         if isinstance(r, dict) and "_err" not in r:
-            self._log(self.log, "Привязано: UID=" + str(uid))
+            self._log(self.log, " Привязано: UID=" + str(uid))
             # Сохраняем в локальный кэш для виджета
             client_name = self.lbl_name.text()
             self._rfid_api.save_to_cache(uid, client_name)
-            self.reader_status.setText("Готово")
+            self.reader_status.setText("  Готово")
             self.reader_status.setStyleSheet("color: #10b981; font-weight: 600;")
             self._load_credentials()
             self._refresh_widget()
         else:
             err = r.get("_body", {}) if isinstance(r, dict) else {}
             msg = err.get("detail", str(err)) if isinstance(err, dict) else str(err)
-            self._log(self.log, "Ошибка привязки: " + str(msg))
-            self.reader_status.setText("Ошибка записи")
+            self._log(self.log, " Ошибка привязки: " + str(msg))
+            self.reader_status.setText("  Ошибка записи")
             self.reader_status.setStyleSheet("color: #ef4444; font-weight: 600;")
 
     def _rental_dialog(self):
@@ -345,7 +346,7 @@ class CredentialsTab(QWidget):
             QMessageBox.warning(self, "Клиент", "Сначала выберите клиента")
             return
         dlg = QDialog(self)
-        dlg.setWindowTitle("Аренда шкафчика")
+        dlg.setWindowTitle(" Аренда шкафчика")
         dlg.setMinimumWidth(380)
         lay = QVBoxLayout(dlg)
         lay.setSpacing(10)
@@ -358,7 +359,7 @@ class CredentialsTab(QWidget):
         ed.setPlaceholderText("например 2027-10-04")
         lay.addWidget(ed)
         btns = QHBoxLayout()
-        b_ok = QPushButton("Сохранить")
+        b_ok = QPushButton("  Сохранить")
         b_ok.setStyleSheet(BTN_SUCCESS)
         b_cancel = QPushButton("Отмена")
         b_cancel.setStyleSheet(BTN_SECONDARY)
@@ -370,7 +371,7 @@ class CredentialsTab(QWidget):
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         valid_until = ed.text().strip() or None
-        r = self._req("POST", "credentials/locker-privilege", {
+        r = self._req("POST", "/credentials/locker-privilege", {
             "client_id": str(self._current_client_id),
             "locker_type": "RENTAL",
             "enabled": chk.isChecked(),
@@ -378,12 +379,12 @@ class CredentialsTab(QWidget):
         })
         if isinstance(r, dict) and "_err" not in r:
             if r.get("enabled"):
-                term = "до " + valid_until if valid_until else "бессрочно"
-                self._log(self.log, "Аренда выдана" + term + ": " + self.lbl_name.text())
+                term = ", до " + valid_until if valid_until else ", бессрочно"
+                self._log(self.log, " Аренда выдана" + term + ": " + self.lbl_name.text())
             else:
-                self._log(self.log, "Аренда снята: " + self.lbl_name.text())
+                self._log(self.log, " Аренда снята: " + self.lbl_name.text())
         else:
-            self._log(self.log, "Ошибка аренды: " + str(r.get("_body", r)))
+            self._log(self.log, " Ошибка аренды: " + str(r.get("_body", r)))
 
     def _clear_uid_cache(self, uid):
         """Убирает UID из rfid_uid_cache.json (виджет RFID Монитор)."""
@@ -399,7 +400,7 @@ class CredentialsTab(QWidget):
             pass
 
     def _reset_card(self):
-        self._log(self.log, "Поднесите носитель для сброса (работаем в фоне, UI не зависнет)...")
+        self._log(self.log, " Поднесите носитель для сброса (работаем в фоне, UI не зависнет)...")
         self._reset_w = _ResetWorker(self)
         self._reset_w.done.connect(self._reset_done)
         self._reset_w.start()
@@ -407,25 +408,25 @@ class CredentialsTab(QWidget):
     def _reset_done(self, out):
         uid = out.get("uid", "—")
         if out.get("ok") and (out.get("unbind") or {}).get("removed"):
-            self._log(self.log, f"UID {uid}: клиент отвязан на сервере, карта очищена, кэш сброшен")
+            self._log(self.log, f" UID {uid}: клиент отвязан на сервере, карта очищена, кэш сброшен")
         elif out.get("ok"):
-            self._log(self.log, f"UID {uid}: карта очищена (носитель в базе не был привязан)")
+            self._log(self.log, f" UID {uid}: карта очищена (носитель в базе не был привязан)")
         else:
-            self._log(self.log, f"UID {uid}: {out.get('error', out.get('unbind', 'неизвестная ошибка'))}")
+            self._log(self.log, f" UID {uid}: {out.get('error', out.get('unbind', 'неизвестная ошибка'))}")
         self._load_credentials()
         self._refresh_widget()
 
     def _check_reader(self):
         try:
-            r = self._req("GET", "reader/status")
+            r = self._req("GET", "/reader/status")
             if r.get("connected"):
-                self.reader_status.setText("🟢  " + str(r.get("reader_name", "Считыватель подключён")))
+                self.reader_status.setText("  " + str(r.get("reader_name", "Считыватель подключён")))
                 self.reader_status.setStyleSheet("color: #10b981; font-weight: 600;")
             else:
-                self.reader_status.setText("Считыватель не найден")
+                self.reader_status.setText("  Считыватель не найден")
                 self.reader_status.setStyleSheet("color: #ef4444; font-weight: 600;")
         except Exception as e:
-            self.reader_status.setText("🔴  " + str(e)[:50])
+            self.reader_status.setText("  " + str(e)[:50])
             self.reader_status.setStyleSheet("color: #ef4444; font-weight: 600;")
 
     def _admin_tab(self):
@@ -461,29 +462,29 @@ class CredentialsTab(QWidget):
 
         col1 = QVBoxLayout()
         col1.setSpacing(8)
-        col1.addWidget(make_btn("Очистить носитель", BTN_SECONDARY, "encode"))
-        col1.addWidget(make_btn("Сброс к заводским", BTN_DANGER, "reset_card"))
-        col1.addWidget(make_btn("Прочитать карту", BTN_PURPLE, "read"))
+        col1.addWidget(make_btn("  Очистить носитель", BTN_SECONDARY, "encode"))
+        col1.addWidget(make_btn("  Сброс к заводским", BTN_DANGER, "reset_card"))
+        col1.addWidget(make_btn("  Прочитать карту", BTN_PURPLE, "read"))
         grid.addLayout(col1)
 
         col2 = QVBoxLayout()
         col2.setSpacing(8)
-        col2.addWidget(make_btn("Карта доступа", BTN_PURPLE, "auth_card"))
-        col2.addWidget(make_btn("Мастер-карта", BTN_PRIMARY, "admin_card"))
-        col2.addWidget(make_btn("Назначить номер", BTN_SUCCESS, "assign_num"))
+        col2.addWidget(make_btn("  Карта доступа", BTN_PURPLE, "auth_card"))
+        col2.addWidget(make_btn("  Мастер-карта", BTN_PRIMARY, "admin_card"))
+        col2.addWidget(make_btn("  Назначить номер", BTN_SUCCESS, "assign_num"))
         grid.addLayout(col2)
 
         col3 = QVBoxLayout()
         col3.setSpacing(8)
-        col3.addWidget(make_btn("Режим личный", BTN_PURPLE, "individual"))
-        col3.addWidget(make_btn("Очистить замок", BTN_WARNING, "remove_mode"))
-        col3.addWidget(make_btn("Клонировать", BTN_SECONDARY, "clone"))
+        col3.addWidget(make_btn("  Режим личный", BTN_PURPLE, "individual"))
+        col3.addWidget(make_btn("  Очистить замок", BTN_WARNING, "remove_mode"))
+        col3.addWidget(make_btn("  Клонировать", BTN_SECONDARY, "clone"))
         grid.addLayout(col3)
 
         col4 = QVBoxLayout()
         col4.setSpacing(8)
-        col4.addWidget(make_btn("Сменить сектор", BTN_SUCCESS, "set_sector"))
-        col4.addWidget(make_btn("Перезагрузить замок", BTN_DANGER, "reset_lock"))
+        col4.addWidget(make_btn("  Сменить сектор", BTN_SUCCESS, "set_sector"))
+        col4.addWidget(make_btn("  Перезагрузить замок", BTN_DANGER, "reset_lock"))
         grid.addLayout(col4)
 
         lay.addLayout(grid)
@@ -500,7 +501,7 @@ class CredentialsTab(QWidget):
         sector = self.admin_sector.value()
         lock_num = self.lock_num.text().strip()
 
-        log.appendPlainText("DEBUG: cmd=" + str(cmd) + "sector=" + str(sector) + "lock_num='" + str(lock_num) + "'")
+        log.appendPlainText("DEBUG: cmd=" + str(cmd) + ", sector=" + str(sector) + ", lock_num='" + str(lock_num) + "'")
 
         if cmd == "encode":
             data_hex, block, ktype, khex = EMPTY_CARD, 1, "B", KEY_B_ITC
@@ -513,7 +514,7 @@ class CredentialsTab(QWidget):
                 num = int(lock_num)
                 data_hex, block, ktype, khex = _encode_locknum(num), 1, "B", KEY_B_ITC
             except ValueError:
-                log.appendPlainText("Введите номер шкафчика")
+                log.appendPlainText(" Введите номер шкафчика")
                 return
         elif cmd == "auth_card":
             data_hex, block, ktype, khex = "02000000000000000000000000000003", 1, "B", KEY_B_ITC
@@ -532,15 +533,15 @@ class CredentialsTab(QWidget):
                     num = sector
                     log.appendPlainText("DEBUG: используем admin_sector=" + str(num))
                 if not 0 <= num <= 15:
-                    log.appendPlainText("Сектор " + str(num) + "вне диапазона 0-15")
+                    log.appendPlainText(" Сектор " + str(num) + " вне диапазона 0-15")
                     return
                 data_hex = f"0204000000{num:02X}00000000000000000003"
                 block = 1
                 ktype = "B"
                 khex = KEY_B_ITC
-                log.appendPlainText("DEBUG: data_hex=" + data_hex + "(len=" + str(len(data_hex)) + ")")
+                log.appendPlainText("DEBUG: data_hex=" + data_hex + " (len=" + str(len(data_hex)) + ")")
             except ValueError as e:
-                log.appendPlainText("Введите номер сектора (ошибка: " + str(e) + ")")
+                log.appendPlainText(" Введите номер сектора (ошибка: " + str(e) + ")")
                 return
         elif cmd == "read":
             self._read_card_admin(log)
@@ -551,13 +552,13 @@ class CredentialsTab(QWidget):
         else:
             data_hex, block, ktype, khex = "0" * 32, 1, "A", KEY_A_ITC
 
-        log.appendPlainText("▶ " + cmd + "сектор " + str(sector) + "блок " + str(block))
-        log.appendPlainText("Поднесите карту к считывателю...")
-        r = self._req("POST", "reader/detect-card")
+        log.appendPlainText(" " + cmd + "  |  сектор " + str(sector) + "  |  блок " + str(block))
+        log.appendPlainText("  Поднесите карту к считывателю...")
+        r = self._req("POST", "/reader/detect-card")
         if isinstance(r, dict) and "_err" in r:
-            log.appendPlainText("Карта не обнаружена")
+            log.appendPlainText("  ❌ Карта не обнаружена")
             return
-        r2 = self._req("POST", "reader/write", {
+        r2 = self._req("POST", "/reader/write", {
             "sector": 0,
             "block": block,
             "key_type": ktype,
@@ -565,15 +566,15 @@ class CredentialsTab(QWidget):
             "data_hex": data_hex
         })
         if isinstance(r2, dict) and "_err" not in r2:
-            log.appendPlainText("Команда записана: " + data_hex[:16] + "...")
+            log.appendPlainText("  ✅ Команда записана: " + data_hex[:16] + "...")
             if cmd == "assign_num" and lock_num:
                 self.lock_num.setText(str(int(lock_num) + 1))
         else:
-            log.appendPlainText("Ошибка: " + str(r2.get("_body", str(r2))))
+            log.appendPlainText("  ❌ Ошибка: " + str(r2.get("_body", str(r2))))
 
     def _read_card_admin(self, log):
-        log.appendPlainText("Поднесите носитель для чтения...")
-        r = self._req("POST", "reader/read-sector", {
+        log.appendPlainText(" Поднесите носитель для чтения...")
+        r = self._req("POST", "/reader/read-sector", {
             "sector": 0,
             "key_type": "B",
             "key_hex": KEY_B_ITC
@@ -585,34 +586,34 @@ class CredentialsTab(QWidget):
             b1 = blocks.get("block_1", "")
             if b1.startswith("020B"):
                 num = int(b1[10:12], 16)
-                log.appendPlainText("Номер шкафчика: " + str(num))
+                log.appendPlainText("  🔒 Номер шкафчика: " + str(num))
             elif b1 == ADMIN_CARD:
-                log.appendPlainText("Администратор")
+                log.appendPlainText("  👤 Администратор")
             elif b1 == EMPTY_CARD:
-                log.appendPlainText("Пустая карта")
+                log.appendPlainText("  🔓 Пустая карта")
             else:
-                log.appendPlainText("Raw: " + str(b1))
+                log.appendPlainText("  📝 Raw: " + str(b1))
         else:
-            log.appendPlainText("Ошибка чтения: " + str(r.get("_body", str(r))))
+            log.appendPlainText("  ❌ Ошибка чтения: " + str(r.get("_body", str(r))))
 
     def _clone_card_admin(self, log):
-        log.appendPlainText("Поднесите ИСХОДНУЮ карту...")
-        r = self._req("POST", "reader/read-sector", {
+        log.appendPlainText(" Поднесите ИСХОДНУЮ карту...")
+        r = self._req("POST", "/reader/read-sector", {
             "sector": 0,
             "key_type": "B",
             "key_hex": KEY_B_ITC
         })
         if isinstance(r, dict) and "_err" in r:
-            log.appendPlainText("Не удалось прочитать")
+            log.appendPlainText("  ❌ Не удалось прочитать")
             return
         src = r.get("blocks", {}).get("block_1", "")
-        log.appendPlainText("Исходный block_1: " + str(src))
-        log.appendPlainText("Поднесите ЦЕЛЕВУЮ карту...")
-        r2 = self._req("POST", "reader/detect-card")
+        log.appendPlainText("  Исходный block_1: " + str(src))
+        log.appendPlainText("  Поднесите ЦЕЛЕВУЮ карту...")
+        r2 = self._req("POST", "/reader/detect-card")
         if isinstance(r2, dict) and "_err" in r2:
-            log.appendPlainText("Целевая карта не обнаружена")
+            log.appendPlainText("  ❌ Целевая карта не обнаружена")
             return
-        r3 = self._req("POST", "reader/write", {
+        r3 = self._req("POST", "/reader/write", {
             "sector": 0,
             "block": 1,
             "key_type": "B",
@@ -620,9 +621,9 @@ class CredentialsTab(QWidget):
             "data_hex": src
         })
         if isinstance(r3, dict) and "_err" not in r3:
-            log.appendPlainText("Клонирование завершено")
+            log.appendPlainText("  ✅ Клонирование завершено")
         else:
-            log.appendPlainText("Ошибка записи: " + str(r3.get("_body", str(r3))))
+            log.appendPlainText("  ❌ Ошибка записи: " + str(r3.get("_body", str(r3))))
 
     def _online_tab(self):
         w = QWidget()
@@ -636,7 +637,7 @@ class CredentialsTab(QWidget):
         self.ol_client.setPlaceholderText("UUID клиента...")
         f.addRow("Клиент ID:", self.ol_client)
         self.ol_provider = QComboBox()
-        self.ol_provider.addItems(["TTLock", "Cloud", "Sciener"])
+        self.ol_provider.addItems(["TTLock", " Cloud", "Sciener"])
         f.addRow("Провайдер:", self.ol_provider)
         self.ol_lock_id = QLineEdit()
         self.ol_lock_id.setPlaceholderText("ID замка в облаке...")
@@ -645,7 +646,7 @@ class CredentialsTab(QWidget):
         self.ol_pass.setPlaceholderText("Временный пароль (TTLock)...")
         f.addRow("Пароль:", self.ol_pass)
         lay.addLayout(f)
-        b = QPushButton("Создать цифровой ключ")
+        b = QPushButton("  Создать цифровой ключ")
         b.setStyleSheet(BTN_SUCCESS)
         b.setMinimumHeight(44)
         b.clicked.connect(self._create_online_key)
@@ -668,11 +669,11 @@ class CredentialsTab(QWidget):
             "password": self.ol_pass.text().strip() or None,
             "valid_until": None
         }
-        r = self._req("POST", "credentials/online-lock", payload)
+        r = self._req("POST", "/credentials/online-lock", payload)
         if isinstance(r, dict) and "_err" not in r:
-            self.ol_log.appendPlainText("Ключ создан: " + payload["lock_provider"] + " / " + payload["lock_id"])
+            self.ol_log.appendPlainText(" Ключ создан: " + payload["lock_provider"] + " / " + payload["lock_id"])
         else:
-            self.ol_log.appendPlainText("Ошибка: " + str(r.get("_body", str(r))))
+            self.ol_log.appendPlainText(" Ошибка: " + str(r.get("_body", str(r))))
 
     def _refresh_widget(self):
         """Обновляет виджет — сбрасывает _last_uid, чтобы сразу перечитать карту."""
