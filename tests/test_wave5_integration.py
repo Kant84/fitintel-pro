@@ -329,19 +329,21 @@ class TestEntryPolicy:
         assert can_enter(db_session, str(parent.id), at=NOW)
 
     def test_gym_access_full_day(self, client, auth_headers, db_session):
-        """GYM_ACCESS (без слота): оплаченный день — вход в любое время дня."""
+        """GYM_ACCESS (без слота): оплаченный день — вход в любое время дня.
+        Якорь — полдень UTC, чтобы «утро дня» не уезжало в вчера (флак времени)."""
+        NOON = datetime(2030, 3, 15, 12, 0, tzinfo=timezone.utc)
         c = _mk_client(db_session, "+79000000026")
         s = _mk_service(db_session, "Разовый зал")
         s.category = "GYM_ACCESS"
         db_session.commit()
-        when = (NOW + timedelta(hours=1)).isoformat()
+        when = (NOON + timedelta(hours=1)).isoformat()
         client.post(f"/api/v1/services/{s.id}/book",
                     json={"client_id": str(c.id), "booking_date": when},
                     headers=auth_headers)
         bid = str(db_session.query(ServiceBooking).filter_by(client_id=str(c.id)).first().id)
         client.post(f"/api/v1/services/bookings/{bid}/pay", headers=auth_headers)
-        # утро того же дня (задолго до «за 1 час») — пускает
-        morning = NOW - timedelta(hours=6)
+        # утро того же дня (09:00, задолго до «за 1 час») — пускает
+        morning = NOON - timedelta(hours=3)
         assert can_enter(db_session, str(c.id), at=morning)
 
 
