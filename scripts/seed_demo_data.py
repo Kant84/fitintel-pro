@@ -46,9 +46,35 @@ SERVICES = [
 ]
 
 
+
+def _ensure_booking_columns(db):
+    """Боевая таблица service_bookings могла создаться до Волны 5 —
+    гарантируем notes + колонки жизненного цикла (идемпотентно)."""
+    from sqlalchemy import text as _t
+    try:
+        if db.bind.dialect.name == "postgresql":
+            cols = {r[0] for r in db.execute(_t(
+                "SELECT column_name FROM information_schema.columns WHERE table_name='service_bookings'"))}
+            ddls = {"notes": "ALTER TABLE service_bookings ADD COLUMN notes TEXT",
+                    "confirmed_at": "ALTER TABLE service_bookings ADD COLUMN confirmed_at TIMESTAMP",
+                    "paid_at": "ALTER TABLE service_bookings ADD COLUMN paid_at TIMESTAMP",
+                    "reminded_at": "ALTER TABLE service_bookings ADD COLUMN reminded_at TIMESTAMP",
+                    "pinged_at": "ALTER TABLE service_bookings ADD COLUMN pinged_at TIMESTAMP",
+                    "price": "ALTER TABLE service_bookings ADD COLUMN price NUMERIC(10,2)",
+                    "source": "ALTER TABLE service_bookings ADD COLUMN source VARCHAR(20) NOT NULL DEFAULT 'api'"}
+            for col, ddl in ddls.items():
+                if col not in cols:
+                    db.execute(_t(ddl))
+            db.commit()
+    except Exception as e:
+        db.rollback()
+        print("ensure service_bookings:", str(e)[:120])
+
+
 def main():
     db = SessionLocal()
     try:
+        _ensure_booking_columns(db)
         trainers = db.query(TrainerProfile).all()
         clients = db.query(Client).filter(Client.is_active.is_(True)).limit(60).all()
         if not clients:
