@@ -1,4 +1,3 @@
-#app\api\v1\services.py
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
@@ -257,7 +256,7 @@ def get_service(
     return svc
 
 
-@router.patch("/services/{service_id}", )
+@router.put("/services/{service_id}", )
 def update_service(
     service_id: UUID,
     body: ServiceUpdate,
