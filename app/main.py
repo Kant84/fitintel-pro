@@ -476,3 +476,13 @@ try:
     print("W5 ui screen OK")
 except Exception as _w5ui:
     print("W5 ui screen:", str(_w5ui)[:120])
+    
+# === W5: статика (фото товаров) ===
+try:
+    from fastapi.staticfiles import StaticFiles
+    import os as _os
+    _os.makedirs("static/products", exist_ok=True)
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    print("W5 static OK")
+except Exception as _w5s:
+    print("W5 static:", _w5s)    

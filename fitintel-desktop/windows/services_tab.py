@@ -5,11 +5,32 @@ from PyQt6.QtWidgets import (
     QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox, QDialogButtonBox,
     QCheckBox, QTabWidget, QLabel
 )
-from PyQt6.QtCore import QThread, pyqtSignal
-from PyQt6.QtGui import QColor
+import urllib.request
+
+
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QUrl
+from PyQt6.QtGui import QColor, QPixmap, QDesktopServices
 
 from api import ApiClient
 from windows import theme
+
+
+class _PhotoLoader(QThread):
+    done = pyqtSignal(object)
+
+    def __init__(self, url: str):
+        super().__init__()
+        self.url = url
+
+    def run(self):
+        px = QPixmap()
+        try:
+            with urllib.request.urlopen(self.url, timeout=8) as r:
+                px.loadFromData(r.read())
+        except Exception:
+            pass
+        self.done.emit(px)
+
 
 CATEGORIES = ["SAUNA", "SOLARIUM", "POOL", "MASSAGE", "AEROBICS",
               "DANCE", "PERSONAL_TRAINER"]
@@ -278,8 +299,8 @@ class ShopTab(QWidget):
         v.addLayout(top)
 
         self.tbl = QTableWidget()
-        self.tbl.setColumnCount(4)
-        self.tbl.setHorizontalHeaderLabels(["Товар", "Цена ₽", "Остаток", "Ед."])
+        self.tbl.setColumnCount(5)
+        self.tbl.setHorizontalHeaderLabels(["Наименование товара", "Фото", "Количество", "Цена ₽", "Ед."])
         self.tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.tbl.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -300,12 +321,26 @@ class ShopTab(QWidget):
             self.tbl.setRowCount(len(self._products))
             for i, p in enumerate(self._products):
                 self.tbl.setItem(i, 0, QTableWidgetItem(str(p.get("name") or "—")))
-                self.tbl.setItem(i, 1, QTableWidgetItem(str(p.get("sale_price") or 0)))
+                photo = QLabel("—")
+                photo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                url = str(p.get("photo_url") or "")
+                if url:
+                    loader = _PhotoLoader(url)
+                    loader.done.connect(lambda px, lbl=photo: self._set_photo(lbl, px))
+                    loader.start()
+                self.tbl.setCellWidget(i, 1, photo)
+                self.tbl.setRowHeight(i, 56)
                 self.tbl.setItem(i, 2, QTableWidgetItem(str(p.get("quantity") or 0)))
-                self.tbl.setItem(i, 3, QTableWidgetItem(str(p.get("unit") or "шт")))
+                self.tbl.setItem(i, 3, QTableWidgetItem(str(p.get("sale_price") or 0)))
+                self.tbl.setItem(i, 4, QTableWidgetItem(str(p.get("unit") or "шт")))
         except Exception as e:
             self.tbl.setRowCount(1)
             self.tbl.setItem(0, 0, QTableWidgetItem(f"Ошибка: {e}"))
+
+    def _set_photo(self, lbl, px):
+        if px and not px.isNull():
+            lbl.setPixmap(px.scaled(48, 48, Qt.AspectRatioMode.KeepAspectRatio,
+                                    Qt.TransformationMode.SmoothTransformation))
 
     def _sell(self):
         idx = self.tbl.currentRow()

@@ -232,6 +232,19 @@ class ScheduleTab(QWidget):
         btn_refresh.clicked.connect(self.refresh)
         row.addWidget(btn_add)
         row.addWidget(btn_cancel)
+        btn_demo = QPushButton("Демо-данные")
+        btn_demo.setToolTip("Создать тестовых тренеров с фото, 6 занятий и записи (один раз)")
+        btn_demo.setStyleSheet("QPushButton { background: #eef2ff; border: 1px solid #a5b4fc; color: #3730a3; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
+        btn_demo.clicked.connect(self._seed_demo)
+        btn_crud = QPushButton("Изменить услугу")
+        btn_crud.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
+        btn_crud.clicked.connect(self._edit_service)
+        btn_del = QPushButton("Удалить услугу")
+        btn_del.setStyleSheet("QPushButton { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
+        btn_del.clicked.connect(self._delete_service)
+        row.addWidget(btn_demo)
+        row.addWidget(btn_crud)
+        row.addWidget(btn_del)
         row.addStretch()
         row.addWidget(btn_refresh)
         layout.addLayout(row)
@@ -368,6 +381,45 @@ class ScheduleTab(QWidget):
             self.trainers_lay.addWidget(card, i // 2, i % 2)
 
     # ---------- действия ----------
+
+    def _seed_demo(self):
+        r = self.api.session.post(self.api._url("/services/seed-demo"))
+        if r.status_code == 200:
+            QMessageBox.information(self, "Демо-данные", r.json().get("message", "Создано"))
+            self.refresh()
+        else:
+            QMessageBox.warning(self, "Демо-данные", f"{r.status_code}: {r.text[:200]}")
+
+    def _pick_service(self) -> dict | None:
+        if not self._services:
+            QMessageBox.information(self, "Услуги", "Нет услуг — нажмите «Демо-данные» или добавьте на экране «Услуги»")
+            return None
+        from PyQt6.QtWidgets import QInputDialog
+        names = [f"{i+1}. {s.get('name')}" for i, s in enumerate(self._services)]
+        item, ok = QInputDialog.getItem(self, "Выбор услуги", "Услуга:", names, 0, False)
+        if not ok:
+            return None
+        return self._services[int(item.split(".")[0]) - 1]
+
+    def _edit_service(self):
+        svc = self._pick_service()
+        if not svc:
+            return
+        from windows.services_tab import ServiceDialog
+        dlg = ServiceDialog(self.api, self._trainers, {}, service=svc, parent=self)
+        if dlg.exec() and getattr(dlg, "ok", False):
+            self.refresh()
+
+    def _delete_service(self):
+        svc = self._pick_service()
+        if not svc:
+            return
+        if QMessageBox.question(self, "Удаление услуги",
+                                f"Удалить «{svc.get('name')}»?") != QMessageBox.StandardButton.Yes:
+            return
+        r = self.api.session.delete(self.api._url(f"/services/{svc['id']}"))
+        (self.refresh() if r.status_code == 204 else
+         QMessageBox.warning(self, "Удаление", f"{r.status_code}: {r.text[:150]}"))
 
     def _add_booking(self):
         dlg = NewBookingDialog(self.api, self)
