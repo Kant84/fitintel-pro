@@ -10,16 +10,43 @@ from decimal import Decimal
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.v1.warehouse import _ensure_warehouse
 from app.models.warehouse import WarehouseProduct, BarSale
 from app.services.wallet_service import WalletService
+
+
+def _ensure_shop_tables(db: Session):
+    """Мини-миграция склада локально в сервисе (не зависит от api/v1/warehouse.py):
+    таблица warehouse_products + колонки photo_url/article (идемпотентно)."""
+    from sqlalchemy import text as _t
+    try:
+        if db.bind.dialect.name == "postgresql":
+            tabs = {r[0] for r in db.execute(_t(
+                "SELECT table_name FROM information_schema.tables WHERE table_name='warehouse_products'"))}
+            if "warehouse_products" not in tabs:
+                db.execute(_t(
+                    "CREATE TABLE warehouse_products (id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
+                    " club_id INTEGER NOT NULL DEFAULT 1, category_id UUID, name VARCHAR(200) NOT NULL,"
+                    " description TEXT, unit VARCHAR(20) DEFAULT 'шт', cost_price NUMERIC(10,2) DEFAULT 0,"
+                    " sale_price NUMERIC(10,2) NOT NULL DEFAULT 0, quantity NUMERIC(10,3) DEFAULT 0,"
+                    " min_quantity NUMERIC(10,3) DEFAULT 10, barcode VARCHAR(50), supplier VARCHAR(200),"
+                    " is_active BOOLEAN DEFAULT TRUE, photo_url VARCHAR(500), article VARCHAR(50),"
+                    " created_at TIMESTAMP DEFAULT now(), updated_at TIMESTAMP DEFAULT now())"))
+            cols = {r[0] for r in db.execute(_t(
+                "SELECT column_name FROM information_schema.columns WHERE table_name='warehouse_products'"))}
+            if "photo_url" not in cols:
+                db.execute(_t("ALTER TABLE warehouse_products ADD COLUMN photo_url VARCHAR(500)"))
+            if "article" not in cols:
+                db.execute(_t("ALTER TABLE warehouse_products ADD COLUMN article VARCHAR(50)"))
+            db.commit()
+    except Exception:
+        db.rollback()
 
 
 def buy_with_balance(db: Session, client_id, product_id, quantity: int = 1) -> dict:
     """Купить товар со списанием с баланса кошелька. HTTPException с понятным текстом."""
     if quantity < 1:
         raise HTTPException(400, "Количество должно быть ≥ 1")
-    _ensure_warehouse(db)
+    _ensure_shop_tables(db)
     p = (db.query(WarehouseProduct)
          .filter(WarehouseProduct.id == str(product_id),
                  WarehouseProduct.is_active.is_(True))
