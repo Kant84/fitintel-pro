@@ -46,7 +46,7 @@ def _kw_icon(text: str) -> str:
 def polish(root) -> None:
     """Дерево виджетов: у кнопок/вкладок срезать эмодзи-префикс и поставить
     неон-иконку по ключевому слову. Каждый виджет — в своём try."""
-    from PyQt6.QtWidgets import QAbstractButton, QTabWidget
+    from PyQt6.QtWidgets import QAbstractButton, QTabWidget, QCheckBox
     stack, seen = [root], set()
     while stack:
         w = stack.pop()
@@ -58,7 +58,13 @@ def polish(root) -> None:
         except Exception:
             pass
         try:
-            if isinstance(w, QAbstractButton):
+            if isinstance(w, QCheckBox):
+                # у чекбоксов иконки не нужны — только чистим эмодзи из текста
+                txt = w.text()
+                clean = _EMOJI_PREFIX.sub("", txt).strip()
+                if clean != txt:
+                    w.setText(clean)
+            elif isinstance(w, QAbstractButton):
                 txt = w.text()
                 clean = _EMOJI_PREFIX.sub("", txt).strip()
                 if clean != txt:

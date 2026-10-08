@@ -38,26 +38,19 @@ from paths import SETTINGS as SETTINGS_PATH
 
 TAB_REGISTRY = {
     "dashboard":     ("Главная", DashboardTab),
-    "analytics":     ("Аналитика", DashboardTab),
     "clients":       ("Клиенты", ClientsTab),
     "subscriptions": ("Абонементы", SubscriptionsTab),
-    "tariffs":       ("Тарифы", TariffsTab),
     "services":      ("Услуги", ServicesTab),
     "visits":        ("Входы/Выходы", VisitsTab),
     "schedule":      ("Расписание", ScheduleTab),
-    "payments":      ("Платежи", PaymentsTab),
     "music":         (" Музыка/DJ", MusicTab),
-    "reports":       ("Отчёты", ReportsTab),
-    "documents":     ("Документы", DocumentsTab),
     "users":         ("Пользователи", UsersTab),
-    "roles":         ("Роли и права", RolesTab),
-    "devices":       ("Устройства", DevicesTab),
     "face_id":       ("Face ID", FaceIDTab),
-    "license":       ("Лицензия", LicenseTab),
-    "ui_config":     ("Экраны ролей", UiConfigTab),
-    "setup":         ("Мастер установки", SetupTab),
     "settings":      ("Настройки", SettingsTab),
     "connections":   ("Подключения", ConnectionsTab),
+    # хабы: класс-заглушка, реальное построение — в MainWindow._make_widget
+    "accounting":    ("Бухгалтерия", QWidget),
+    "ai_center":     ("AI центр", QWidget),
 }
 
 DEFAULT_TABS = ["dashboard", "clients", "subscriptions", "tariffs", "visits", "services",
@@ -178,9 +171,16 @@ class MainWindow(QMainWindow):
         return ["dashboard"]
 
     def _make_widget(self, code: str):
-        cls = TAB_REGISTRY[code][1]
         if code == "settings":
-            return SettingsTab(self.api, self)
+            from windows.settings_hub_tab import SettingsHubTab
+            return SettingsHubTab(self.api, self)
+        if code == "accounting":
+            from windows.finance_hub_tab import FinanceHubTab
+            return FinanceHubTab(self.api)
+        if code == "ai_center":
+            from windows.ai_hub_tab import AIHubTab
+            return AIHubTab(self.api)
+        cls = TAB_REGISTRY[code][1]
         return cls(self.api)
 
     def _build_tab(self, code: str):
@@ -461,47 +461,8 @@ except Exception as _e17e:
     print("[E17] wire FAIL:", _e17e)
 
 
-# === E18_COMMERCE_WIRED ===
-try:
-    from windows.commerce_tab import CommerceTab
-    TAB_REGISTRY["commerce"] = (" Коммерция", CommerceTab)
-    print("E18 commerce tab OK")
-except Exception as _e18ui:
-    print("E18 commerce tab FAIL:", _e18ui)
-
-
-# === E19_EXPORT_WIRED ===
-try:
-    from windows.export_tab import ExportTab
-    TAB_REGISTRY["export"] = (" Экспорт", ExportTab)
-    print("E19 export tab OK")
-except Exception as _e19ui:
-    print("E19 export tab FAIL:", _e19ui)
-
-
-# === E20_ACCOUNTING_WIRED ===
-try:
-    from windows.accounting_tab import AccountingTab
-    TAB_REGISTRY["accounting"] = (" Бухгалтерия", AccountingTab)
-    print("E20 accounting tab OK")
-except Exception as _e20ui:
-    print("E20 accounting tab FAIL:", _e20ui)
-
-
-# === E21_AA_WIRED ===
-try:
-    from windows.aa_integration_tab import AAIntegrationTab
-    # E21: replaced by integrations_tab
-    print("E21 A&A tab OK")
-except Exception as _e21ui:
-    print("E21 A&A tab FAIL:", _e21ui)
-
-
-# === E21_INTEGRATIONS_WIRED ===
-try:
-    from windows.integrations_tab import IntegrationsTab
-    TAB_REGISTRY["integrations"] = (" Интеграции", IntegrationsTab)
-    print("E21 integrations tab OK")
+# [W5] commerce/export/accounting/integrations объединены в хабы — E-блоки отключены
+# [W5] «Интеграции» — подвкладка хаба «Настройки»
 except Exception as _e21ui:
     print("E21 integrations tab FAIL:", _e21ui)
 
@@ -547,10 +508,6 @@ try:
 except Exception as e:
     print("Self password change FAIL:", e)
     
-# === W5: вкладка «Параметры клуба» ===
-try:
-    from windows.club_params_tab import ClubParamsTab
-    TAB_REGISTRY["club_params"] = (" Параметры клуба", ClubParamsTab)
-    print("W5 club_params tab OK")
+# [W5] «Параметры клуба» — подвкладка хаба «Настройки»
 except Exception as _w5t:
     print("W5 club_params tab FAIL:", _w5t)    
