@@ -105,7 +105,7 @@ class UsersTab(QWidget):
     def _load_roles(self):
         """Роли из RBAC (без системных client/device и superadmin)."""
         try:
-            resp = self.api.session.get(self.api._url("rbac/roles-matrix"))
+            resp = self.api.session.get(self.api._url("/rbac/roles-matrix"))
             resp.raise_for_status()
             body = resp.json()
             rows = body.get("roles", body) if isinstance(body, dict) else body
@@ -142,7 +142,7 @@ class UsersTab(QWidget):
             QMessageBox.warning(self, "Ошибка", "Логин и пароль обязательны")
             return
         try:
-            r = self.api.session.post(self.api._url("users/"), json={
+            r = self.api.session.post(self.api._url("/users/"), json={
                 "username": v["username"],
                 "email": v["email"],
                 "password": v["password"],
@@ -151,7 +151,7 @@ class UsersTab(QWidget):
             uid = r.json().get("id")
             if uid and v.get("role"):
                 r2 = self.api.session.post(
-                    self.api._url(f"users/{uid}/roles/assign"),
+                    self.api._url(f"/users/{uid}/roles/assign"),
                     json={"role_code": v["role"]})
                 r2.raise_for_status()
             self.refresh()
@@ -179,7 +179,7 @@ class UsersTab(QWidget):
                 QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
         try:
-            r = self.api.session.delete(self.api._url(f"users/{uid}"))
+            r = self.api.session.delete(self.api._url(f"/users/{uid}"))
             r.raise_for_status()
             self.refresh()
         except Exception as e:

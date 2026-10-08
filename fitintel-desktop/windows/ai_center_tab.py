@@ -22,9 +22,9 @@ class AICenterTab(QWidget):
         lay.addLayout(row)
 
         ctl = QHBoxLayout()
-        b1 = QPushButton("Обучить / дообучить"); b1.clicked.connect(self.train)
-        b2 = QPushButton("Список риска оттока"); b2.clicked.connect(self.load_risk)
-        b3 = QPushButton("Сверить прогнозы с фактом"); b3.clicked.connect(self.resolve)
+        b1 = QPushButton(" Обучить / дообучить"); b1.clicked.connect(self.train)
+        b2 = QPushButton(" Список риска оттока"); b2.clicked.connect(self.load_risk)
+        b3 = QPushButton(" Сверить прогнозы с фактом"); b3.clicked.connect(self.resolve)
         b4 = QPushButton("ℹ Статус модели"); b4.clicked.connect(self.load_status)
         for b in (b1, b2, b3, b4):
             ctl.addWidget(b)
@@ -39,7 +39,7 @@ class AICenterTab(QWidget):
 
     def train(self):
         try:
-            r = self.api._e55_post("ai/churn/train", {})
+            r = self.api._e55_post("/ai/churn/train", {})
             if r.get("ok"):
                 QMessageBox.information(self, "AI", "Модель обучена! Примеров: %s, точность: %s" % (r.get("samples"), r.get("accuracy")))
                 self.load_status()
@@ -50,7 +50,7 @@ class AICenterTab(QWidget):
 
     def load_risk(self):
         try:
-            r = self.api._e55_get("ai/churn/predict?limit=50")
+            r = self.api._e55_get("/ai/churn/predict?limit=50")
             rows = r.get("at_risk", [])
             self.tbl.setRowCount(len(rows))
             for i, x in enumerate(rows):
@@ -65,7 +65,7 @@ class AICenterTab(QWidget):
 
     def resolve(self):
         try:
-            r = self.api._e55_post("ai/churn/resolve", {})
+            r = self.api._e55_post("/ai/churn/resolve", {})
             QMessageBox.information(self, "AI",
                 "Сверено прогнозов: %s\nПроверенная точность: %s" % (r.get("resolved"), r.get("validated_accuracy")))
             self.load_status()
@@ -74,7 +74,7 @@ class AICenterTab(QWidget):
 
     def load_status(self):
         try:
-            r = self.api._e55_get("ai/status")
+            r = self.api._e55_get("/ai/status")
             self.lb_status.setText("Модель: " + ("обучена (%s)" % r.get("trained_at", "")[:16] if r.get("trained") else "не обучена"))
             self.lb_acc.setText("Точность: %s" % (r.get("accuracy") if r.get("accuracy") is not None else "—"))
             self.lb_samples.setText("Примеров: %s" % r.get("samples", 0))

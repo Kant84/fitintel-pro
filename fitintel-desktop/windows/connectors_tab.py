@@ -34,7 +34,7 @@ class ConnectorsTab(QWidget):
         lay.setContentsMargins(8, 8, 8, 8)
 
         bar = QHBoxLayout()
-        b_add = QPushButton("Добавить подключение")
+        b_add = QPushButton(" Добавить подключение")
         b_add.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_add.clicked.connect(self._add)
         bar.addWidget(b_add)
@@ -42,14 +42,14 @@ class ConnectorsTab(QWidget):
         b_del.setStyleSheet("QPushButton { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_del.clicked.connect(self._delete)
         bar.addWidget(b_del)
-        b_test = QPushButton("Тест связи")
+        b_test = QPushButton(" Тест связи")
         b_test.clicked.connect(self._test)
         bar.addWidget(b_test)
-        b_sync = QPushButton("Синхронизировать")
+        b_sync = QPushButton(" Синхронизировать")
         b_sync.setStyleSheet("QPushButton { background: #2563eb; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_sync.clicked.connect(self._sync)
         bar.addWidget(b_sync)
-        b_log = QPushButton("Журнал")
+        b_log = QPushButton(" Журнал")
         b_log.clicked.connect(self._log)
         bar.addWidget(b_log)
         b_ref = QPushButton("Обновить")
@@ -79,7 +79,7 @@ class ConnectorsTab(QWidget):
         w.start()
 
     def _base(self):
-        return self.api._url("connectors")
+        return self.api._url("/connectors")
 
     def refresh(self):
         self._run(lambda: self.api.session.get(self._base(), timeout=30).json(),
@@ -138,7 +138,7 @@ class ConnectorsTab(QWidget):
     def _test(self):
         cid = self._cid()
         if cid:
-            self._run(lambda: self.api.session.post(self._base() + f"{cid}/test", timeout=60).json(),
+            self._run(lambda: self.api.session.post(self._base() + f"/{cid}/test", timeout=60).json(),
                       lambda r: QMessageBox.information(self, "Тест связи", json.dumps(r, ensure_ascii=False, indent=2)[:500]))
 
     def _sync(self):
@@ -146,24 +146,24 @@ class ConnectorsTab(QWidget):
         if not cid:
             return
         def _do():
-            r = self.api.session.post(self._base() + f"{cid}/sync", timeout=300)
+            r = self.api.session.post(self._base() + f"/{cid}/sync", timeout=300)
             r.raise_for_status()
             return r.json()
         def _show(r):
             lines = []
             for x in r.get("results", []):
                 if x.get("status") == "success":
-                    lines.append(f"{x['entity']}: создано {x.get('created',0)}, обновлено {x.get('updated',0)}, пропущено {x.get('skipped',0)}")
+                    lines.append(f" {x['entity']}: создано {x.get('created',0)}, обновлено {x.get('updated',0)}, пропущено {x.get('skipped',0)}")
                 else:
-                    lines.append(f"{x['entity']}: {x.get('message','')[:150]}")
-            QMessageBox.information(self, "Синхронизация", "n".join(lines) or "Нет результатов")
+                    lines.append(f" {x['entity']}: {x.get('message','')[:150]}")
+            QMessageBox.information(self, "Синхронизация", "\n".join(lines) or "Нет результатов")
             self.refresh()
         self._run(_do, _show)
 
     def _log(self):
         cid = self._cid()
         if cid:
-            self._run(lambda: self.api.session.get(self._base() + f"{cid}/log", timeout=30).json(),
+            self._run(lambda: self.api.session.get(self._base() + f"/{cid}/log", timeout=30).json(),
                       self._show_log)
 
     def _show_log(self, data):
@@ -174,7 +174,7 @@ class ConnectorsTab(QWidget):
         txt = QPlainTextEdit()
         txt.setReadOnly(True)
         rows = data.get("entries", []) if isinstance(data, dict) else []
-        txt.setPlainText("n".join(f"{e.get('at','')[:19]}  {e.get('entity',''):15s} "
+        txt.setPlainText("\n".join(f"{e.get('at','')[:19]}  {e.get('entity',''):15s} "
                                    f"{e.get('records',0):4d}  {e.get('status',''):8s} {e.get('message','')}"
                                    for e in rows) or "Журнал пуст")
         v.addWidget(txt)

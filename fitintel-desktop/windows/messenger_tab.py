@@ -88,8 +88,8 @@ class MessengerTab(QWidget):
         v = QVBoxLayout(w)
         bar = QHBoxLayout()
         for text, slot in [("Обновить", self.load_chats),
-                           ("Синхронизировать MAX", self.sync_max),
-                           ("Демо-чат", self.demo)]:
+                           (" Синхронизировать MAX", self.sync_max),
+                           (" Демо-чат", self.demo)]:
             b = QPushButton(text)
             b.clicked.connect(slot)
             bar.addWidget(b)
@@ -141,7 +141,7 @@ class MessengerTab(QWidget):
 
     def _fill_msgs(self, rows):
         rows = rows if isinstance(rows, list) else []
-        self.history.setPlainText("n".join(
+        self.history.setPlainText("\n".join(
             "[%s] %s: %s" % (str(m.get("created_at") or "")[:16],
                              "Клиент" if m.get("direction") == "in" else "Вы",
                              m.get("body")) for m in rows) or "(пусто)")
@@ -154,8 +154,8 @@ class MessengerTab(QWidget):
             return
         self.input.clear()
         def _done(res):
-            via = "и ушёл в MAX" if isinstance(res, dict) and res.get("sent_to_max") \
-                  else "(MAX не настроен — сохранён локально)"
+            via = " и ушёл в MAX" if isinstance(res, dict) and res.get("sent_to_max") \
+                  else " (MAX не настроен — сохранён локально)"
             self._show("Отправлено" + via)
             self.load_messages(self.chats.currentRow())
             self.load_chats()
@@ -201,7 +201,7 @@ class MessengerTab(QWidget):
         self.txt_promo.setPlaceholderText(
             "Текст сообщения: акция, скидка, напоминание...")
         v.addWidget(self.txt_promo, 1)
-        b = QPushButton("Отправить")
+        b = QPushButton(" Отправить")
         b.clicked.connect(self.do_broadcast)
         v.addWidget(b)
         note = QLabel("Рассылка уходит тем, у кого есть привязка MAX (подвкладка "
@@ -303,13 +303,13 @@ class MessengerTab(QWidget):
         w = QWidget()
         v = QVBoxLayout(w)
         note = QLabel("Автоправила напоминаний:\n"
-                      "Абонемент истекает через 3 дня или меньше → напоминание о продлении\n"
-                      "Клиент не был в клубе 14+ дней → «мы скучаем»\n"
+                      "• Абонемент истекает через 3 дня или меньше → напоминание о продлении\n"
+                      "• Клиент не был в клубе 14+ дней → «мы скучаем»\n"
                       "Повтор в тот же день не создаётся (защита от спама). "
                       "Отправка — по привязкам MAX (см. «Журнал»).")
         note.setWordWrap(True)
         v.addWidget(note)
-        b = QPushButton("Сгенерировать напоминания сейчас")
+        b = QPushButton(" Сгенерировать напоминания сейчас")
         b.clicked.connect(self.run_reminders)
         v.addWidget(b)
         v.addStretch(1)
@@ -329,7 +329,7 @@ class MessengerTab(QWidget):
         v = QVBoxLayout(w)
         bar = QHBoxLayout()
         for text, slot in [("Обновить", self.load_journal),
-                           ("Отправить ожидающие", self.dispatch)]:
+                           (" Отправить ожидающие", self.dispatch)]:
             b = QPushButton(text)
             b.clicked.connect(slot)
             bar.addWidget(b)

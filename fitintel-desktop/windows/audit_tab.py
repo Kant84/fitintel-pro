@@ -1,164 +1,239 @@
-# -*- coding: utf-8 -*-
-"""E71: Экран «История» — журнал аудита (кто/когда/что изменил)."""
-import json
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QLabel, QComboBox, QLineEdit, QTableWidget, QTableWidgetItem,
-    QHeaderView, QDateEdit)
-from PyQt6.QtCore import QThread, pyqtSignal, QDate
+"""FitIntel Pro — Роли и права: редактируемая матрица (галочки + сохранение)."""
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QMessageBox,
+    QTableWidget, QTableWidgetItem, QHeaderView, QSplitter, QAbstractItemView
+)
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
-from . import theme
-from .form_dialog import FormDialog
+from api import ApiClient
+from windows import theme
+from windows.form_dialog import FormDialog
 
 
-class AuditWorker(QThread):
+def _err_text(e) -> str:
+    resp = getattr(e, "response", None)
+    if resp is not None:
+        try:
+            d = resp.json().get("detail")
+            if d:
+                return str(d)
+        except Exception:
+            pass
+        return "Ошибка сервера %s" % resp.status_code
+    return str(e)
+
+
+class _Get(QThread):
     done = pyqtSignal(object)
-    fail = pyqtSignal(str)
-
-    def __init__(self, fn, parent=None):
-        super().__init__(parent)
-        self._fn = fn
-
+    fail = pyqtSignal(object)
+    def __init__(self, api, path):
+        super().__init__()
+        self.api, self.path = api, path
     def run(self):
         try:
-            self.done.emit(self._fn())
+            r = self.api.session.get(self.api._url(self.path), timeout=20)
+            r.raise_for_status()
+            self.done.emit(r.json())
         except Exception as e:
-            self.fail.emit(str(e))
+            self.fail.emit(e)
 
 
-def _t(name, *args):
-    f = getattr(theme, name, None)
-    if not callable(f):
-        return ""
-    for a in (args, ()):
-        try:
-            return f(*a)
-        except TypeError:
-            continue
-        except Exception:
-            return ""
-    return ""
+class RolesTab(QWidget):
+    """Слева — роли, справа — все права с галочками. Сохранение = diff на сервер."""
 
-
-class AuditTab(QWidget):
-    def __init__(self, api, parent=None):
-        super().__init__(parent)
+    def __init__(self, api: ApiClient):
+        super().__init__()
         self.api = api
-        self._workers = []
-        self.setStyleSheet(_t("widget_style"))
-        v = QVBoxLayout(self)
+        self._roles = []          # [{id, code, name, perms:set(perm_id)}]
+        self._perms = []          # [{id, code, name}]
+        self._edits = {}          # role_id -> set(perm_id) (рабочая копия)
+        self._loading = False
+        self._build_ui()
+        self.refresh()
 
-        self.banner = QLabel("")
-        self.banner.setWordWrap(True)
-        self.banner.hide()
-        v.addWidget(self.banner)
+    # ---------- UI ----------
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
 
-        bar = QHBoxLayout()
-        bar.addWidget(QLabel("Сущность:"))
-        self.cmb_entity = QComboBox()
-        self.cmb_entity.addItem("Все", None)
-        for code, label in [("user", "Пользователи"), ("client", "Клиенты"),
-                            ("payment", "Платежи"), ("subscription", "Абонементы"),
-                            ("visit", "Визиты"), ("role", "Роли")]:
-            self.cmb_entity.addItem(label, code)
-        bar.addWidget(self.cmb_entity)
-        bar.addWidget(QLabel("Действие:"))
-        self.cmb_action = QComboBox()
-        self.cmb_action.addItem("Все", None)
-        for code, label in [("created", "Создано"), ("updated", "Изменено"),
-                            ("deleted", "Удалено")]:
-            self.cmb_action.addItem(label, code)
-        bar.addWidget(self.cmb_action)
-        bar.addWidget(QLabel("Кто:"))
-        self.ed_actor = QLineEdit()
-        self.ed_actor.setPlaceholderText("логин")
-        self.ed_actor.setMaximumWidth(130)
-        bar.addWidget(self.ed_actor)
-        self.dt_from = QDateEdit(QDate.currentDate().addMonths(-1))
-        self.dt_from.setCalendarPopup(True)
-        self.dt_from.setDisplayFormat("yyyy-MM-dd")
-        bar.addWidget(self.dt_from)
-        self.dt_to = QDateEdit(QDate.currentDate())
-        self.dt_to.setCalendarPopup(True)
-        self.dt_to.setDisplayFormat("yyyy-MM-dd")
-        bar.addWidget(self.dt_to)
-        b_load = QPushButton("Загрузить")
-        b_load.clicked.connect(self.load)
-        bar.addWidget(b_load)
-        b_ret = QPushButton("Срок хранения…")
-        b_ret.clicked.connect(self.retention_dialog)
-        bar.addWidget(b_ret)
-        bar.addStretch(1)
-        v.addLayout(bar)
+        top = QHBoxLayout()
+        self.lbl_hint = QLabel("Выберите роль слева → отметьте права галочками → «💾 Сохранить»")
+        top.addWidget(self.lbl_hint, 1)
+        b = QPushButton(" Обновить")
+        b.clicked.connect(self.refresh)
+        top.addWidget(b)
+        self.b_save = QPushButton(" Сохранить изменения")
+        self.b_save.setEnabled(False)
+        self.b_save.clicked.connect(self._save)
+        top.addWidget(self.b_save)
+        layout.addLayout(top)
 
-        self.tbl = QTableWidget(0, 6)
-        self.tbl.setHorizontalHeaderLabels(
-            ["Когда", "Кто", "Действие", "Сущность", "ID", "Детали"])
-        self.tbl.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
-        self.tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tbl.setStyleSheet(_t("table_style"))
-        v.addWidget(self.tbl, 1)
-        self.load()
+        split = QSplitter(Qt.Orientation.Horizontal)
 
-    def _run(self, fn, cb):
-        w = AuditWorker(fn, self)
-        w.done.connect(cb)
-        w.fail.connect(lambda m: self._show(m, ok=False))
-        self._workers.append(w)
-        w.finished.connect(lambda: self._workers.remove(w) if w in self._workers else None)
-        w.start()
+        self.tbl_roles = QTableWidget(0, 2)
+        self.tbl_roles.setHorizontalHeaderLabels(["Роль", "Код"])
+        self.tbl_roles.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.tbl_roles.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tbl_roles.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.tbl_roles.setAlternatingRowColors(True)
+        self.tbl_roles.setStyleSheet(theme.table_style())
+        self.tbl_roles.itemSelectionChanged.connect(self._on_role_selected)
+        split.addWidget(self.tbl_roles)
 
-    def _show(self, msg, ok=True):
-        self.banner.setText(str(msg))
-        self.banner.setStyleSheet(_t("banner_style", ok))
-        self.banner.show()
+        self.tbl_perms = QTableWidget(0, 2)
+        self.tbl_perms.setHorizontalHeaderLabels(["✓", "Право"])
+        self.tbl_perms.setColumnWidth(0, 40)
+        self.tbl_perms.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.tbl_perms.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tbl_perms.setAlternatingRowColors(True)
+        self.tbl_perms.setStyleSheet(theme.table_style())
+        self.tbl_perms.itemChanged.connect(self._on_perm_toggled)
+        split.addWidget(self.tbl_perms)
+        split.setSizes([300, 520])
+        layout.addWidget(split, 1)
 
-    def load(self):
-        params = {
-            "limit": 500,
-            "date_from": self.dt_from.date().toString("yyyy-MM-dd"),
-            "date_to": self.dt_to.date().toString("yyyy-MM-dd"),
-        }
-        if self.cmb_entity.currentData():
-            params["entity"] = self.cmb_entity.currentData()
-        if self.cmb_action.currentData():
-            params["action"] = self.cmb_action.currentData()
-        if self.ed_actor.text().strip():
-            params["actor"] = self.ed_actor.text().strip()
-        self._run(lambda: self.api.session.get(
-            self.api._url("audit"), params=params).json(), self._fill)
+        self.status = QLabel("")
+        layout.addWidget(self.status)
 
-    def _fill(self, data):
-        rows = data.get("entries", []) if isinstance(data, dict) else []
-        self.tbl.setRowCount(len(rows))
-        for i, e in enumerate(rows):
-            self.tbl.setItem(i, 0, QTableWidgetItem(str(e.get("at") or "")))
-            self.tbl.setItem(i, 1, QTableWidgetItem(str(e.get("actor") or "")))
-            self.tbl.setItem(i, 2, QTableWidgetItem(str(e.get("action") or "")))
-            self.tbl.setItem(i, 3, QTableWidgetItem(str(e.get("entity_type") or "")))
-            self.tbl.setItem(i, 4, QTableWidgetItem(str(e.get("entity_id") or "")[:8]))
-            detail = str(e.get("message") or "")
-            diff = e.get("after_data") or e.get("before_data")
-            if diff:
-                detail += " | " + json.dumps(diff, ensure_ascii=False, default=str)[:140]
-            self.tbl.setItem(i, 5, QTableWidgetItem(detail))
-        self._show(f"Записей: {len(rows)}")
+    # ---------- загрузка ----------
+    def refresh(self):
+        self.status.setText("Загрузка ролей и прав…")
+        self._loading = True
+        w1 = _Get(self.api, "/roles/")
+        w1.done.connect(self._roles_loaded)
+        w1.fail.connect(self._load_fail)
+        w1.start()
+        self._w1 = w1
 
-    def retention_dialog(self):
-        self._run(lambda: self.api.session.get(
-            self.api._url("audit/retention")).json(), self._ret_show)
+    def _roles_loaded(self, data):
+        roles = data if isinstance(data, list) else []
+        self._roles = []
+        for r in roles:
+            perms = set()
+            for rp in (r.get("role_permissions") or []):
+                p = rp.get("permission") if isinstance(rp, dict) else None
+                if p and p.get("id"):
+                    perms.add(str(p["id"]))
+            self._roles.append({
+                "id": str(r.get("id")),
+                "code": r.get("code") or "",
+                "name": r.get("name") or r.get("code") or "—",
+                "perms": perms,
+            })
+        self._edits = {r["id"]: set(r["perms"]) for r in self._roles}
+        w2 = _Get(self.api, "/permissions/")
+        w2.done.connect(self._perms_loaded)
+        w2.fail.connect(self._load_fail)
+        w2.start()
+        self._w2 = w2
 
-    def _ret_show(self, data):
-        labels = [("Месяц", 30), ("Полгода", 180), ("Год", 365),
-                  ("2 года", 730), ("Бессрочно", 0)]
-        cur = int(data.get("days", 365))
-        dlg = FormDialog("Срок хранения истории",
-                         [("period", "Хранить историю", "combo",
-                           [(f"{n} ({d} дн.)", d) for n, d in labels])], self)
-        dlg._widgets["period"][1].setCurrentIndex(
-            next((i for i, (_, d) in enumerate(labels) if d == cur), 2))
-        if not dlg.exec():
+    def _perms_loaded(self, data):
+        perms = data if isinstance(data, list) else []
+        self._perms = [{"id": str(p.get("id")), "code": p.get("code") or "",
+                        "name": p.get("name") or p.get("code") or ""}
+                       for p in perms if p.get("id")]
+        self._render_roles()
+        self._loading = False
+        self.status.setText("Готово: %d ролей, %d прав. Права применяются сразу после сохранения."
+                            % (len(self._roles), len(self._perms)))
+
+    def _load_fail(self, e):
+        self._loading = False
+        self.status.setText("Ошибка загрузки: %s" % _err_text(e))
+
+    # ---------- отрисовка ----------
+    def _render_roles(self):
+        self.tbl_roles.setRowCount(len(self._roles))
+        for i, r in enumerate(self._roles):
+            self.tbl_roles.setItem(i, 0, QTableWidgetItem(r["name"]))
+            self.tbl_roles.setItem(i, 1, QTableWidgetItem(r["code"]))
+
+    def _current_role(self):
+        row = self.tbl_roles.currentRow()
+        if 0 <= row < len(self._roles):
+            return self._roles[row]
+        return None
+
+    def _on_role_selected(self):
+        role = self._current_role()
+        self._render_perms(role)
+
+    def _render_perms(self, role):
+        self._loading = True
+        self.tbl_perms.setRowCount(len(self._perms))
+        checked = self._edits.get(role["id"], set()) if role else set()
+        for i, p in enumerate(self._perms):
+            it = QTableWidgetItem()
+            it.setData(Qt.ItemDataRole.UserRole, p["id"])
+            it.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
+            it.setCheckState(Qt.CheckState.Checked if p["id"] in checked
+                             else Qt.CheckState.Unchecked)
+            self.tbl_perms.setItem(i, 0, it)
+            name = "%s — %s" % (p["code"], p["name"]) if p["name"] and p["name"] != p["code"] else p["code"]
+            self.tbl_perms.setItem(i, 1, QTableWidgetItem(name))
+        self._loading = False
+        self.b_save.setEnabled(role is not None)
+
+    def _on_perm_toggled(self, item):
+        if self._loading:
             return
-        days = dlg.values()["period"]
-        self._run(lambda: self.api.session.post(
-            self.api._url("audit/retention"), json={"days": days}).json(),
-            lambda r: (self._show(f"Срок хранения: {r.get('days')} дн."), self.load()))
+        role = self._current_role()
+        if not role or item.column() != 0:
+            return
+        pid = item.data(Qt.ItemDataRole.UserRole)
+        if item.checkState() == Qt.CheckState.Checked:
+            self._edits[role["id"]].add(pid)
+        else:
+            self._edits[role["id"]].discard(pid)
+
+    # ---------- сохранение ----------
+    def _save(self):
+        role = self._current_role()
+        if not role:
+            return
+        if role["code"] == "admin":
+            ret = QMessageBox.question(self, "Роль admin",
+                "Вы редактируете системную роль admin. Продолжить?")
+            if ret != QMessageBox.StandardButton.Yes:
+                return
+        orig, now = role["perms"], self._edits[role["id"]]
+        to_add = [p for p in (now - orig)]
+        to_del = [p for p in (orig - now)]
+        if not to_add and not to_del:
+            self.status.setText("Изменений нет.")
+            return
+        self.b_save.setEnabled(False)
+        self.status.setText("Сохранение: +%d / −%d прав…" % (len(to_add), len(to_del)))
+        self._save_role(role, to_add, to_del, ok=0, fail=0)
+
+    def _save_role(self, role, to_add, to_del, ok, fail):
+        if to_add:
+            pid = to_add[0]
+            try:
+                r = self.api.session.post(self.api._url("/roles/%s/permissions" % role["id"]),
+                                          json={"permission_id": pid}, timeout=15)
+                r.raise_for_status()
+                ok += 1
+            except Exception:
+                fail += 1
+            self._save_role(role, to_add[1:], to_del, ok, fail)
+            return
+        if to_del:
+            pid = to_del[0]
+            try:
+                r = self.api.session.delete(
+                    self.api._url("/roles/%s/permissions/%s" % (role["id"], pid)), timeout=15)
+                r.raise_for_status()
+                ok += 1
+            except Exception:
+                fail += 1
+            self._save_role(role, [], to_del[1:], ok, fail)
+            return
+        # всё применено
+        self._edits[role["id"]] = set(role["perms"])  # перечитаем ниже
+        msg = "Сохранено. Применено изменений: %d" % ok
+        if fail:
+            msg += ", ошибок: %d (проверьте право roles.manage)" % fail
+        self.status.setText(msg)
+        self.refresh()

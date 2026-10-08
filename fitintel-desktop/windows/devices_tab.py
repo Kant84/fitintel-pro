@@ -134,7 +134,7 @@ class DevicesTab(QWidget):
         if dlg.exec() != FormDialog.DialogCode.Accepted:
             return
         try:
-            r = self.api.session.post(self.api._url("dal/devices/discover"),
+            r = self.api.session.post(self.api._url("/dal/devices/discover"),
                                       json={"driver_id": dlg.values()["driver_id"]})
             r.raise_for_status()
             res = r.json()
@@ -160,7 +160,7 @@ class DevicesTab(QWidget):
             QMessageBox.warning(self, "Ошибка", "Заполните название и подключение")
             return
         try:
-            r = self.api.session.post(self.api._url("dal/devices"), json=v)
+            r = self.api.session.post(self.api._url("/dal/devices"), json=v)
             r.raise_for_status()
             self.refresh()
         except Exception as e:

@@ -39,16 +39,16 @@ class ServicesWorker(QThread):
 
     def run(self):
         try:
-            r1 = self.api.session.get(self.api._url("services"))
+            r1 = self.api.session.get(self.api._url("/services"))
             r1.raise_for_status()
             services = r1.json()
             try:
-                r2 = self.api.session.get(self.api._url("trainers/profiles"))
+                r2 = self.api.session.get(self.api._url("/trainers/profiles"))
                 trainers = r2.json() if r2.status_code == 200 else []
             except Exception:
                 trainers = []
             try:
-                r3 = self.api.session.get(self.api._url("users"))
+                r3 = self.api.session.get(self.api._url("/users"))
                 users = r3.json() if r3.status_code == 200 else []
                 if isinstance(users, dict):
                     users = users.get("items", []) 
@@ -110,7 +110,7 @@ class ServiceDialog(QDialog):
                 umap[str(u["id"])] = str(nm)
 
         self.trainer = QComboBox()
-        self.trainer.addItem("без тренера —", None)
+        self.trainer.addItem("— без тренера —", None)
         for p in trainers:
             self.trainer.addItem(_trainer_name(p, umap),
                                  p.get("user_id") or p.get("id"))
@@ -154,12 +154,12 @@ class ServiceDialog(QDialog):
         try:
             if self.service.get("id"):
                 resp = self.api.session.put(
-                    self.api._url(f"services/{self.service['id']}"),
+                    self.api._url(f"/services/{self.service['id']}"),
                     json={k: v for k, v in payload.items()
                           if k in ("name", "price", "is_active", "max_capacity",
                                    "duration_minutes", "category", "trainer_id")})
             else:
-                resp = self.api.session.post(self.api._url("services"), json=payload)
+                resp = self.api.session.post(self.api._url("/services"), json=payload)
             if resp.status_code in (200, 201):
                 self.ok = True
                 self.accept()
@@ -241,7 +241,7 @@ class TrainerDialog(QDialog):
             "max_clients_per_day": int(self.max_clients.value()),
         }
         try:
-            resp = self.api.session.post(self.api._url("trainers/profiles"), json=payload)
+            resp = self.api.session.post(self.api._url("/trainers/profiles"), json=payload)
             if resp.status_code == 201:
                 self.ok = True
                 self.accept()
@@ -267,7 +267,7 @@ class ShopTab(QWidget):
         self.lbl_info = QLabel("Каталог склада (продажа — на кассе, оплата любым способом).")
         top.addWidget(self.lbl_info)
         top.addStretch()
-        btn_sell = QPushButton("Продать")
+        btn_sell = QPushButton(" Продать")
         btn_sell.setStyleSheet("QPushButton { background: #059669; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn_sell.clicked.connect(self._sell)
         btn_ref = QPushButton("Обновить")
@@ -290,7 +290,7 @@ class ShopTab(QWidget):
 
     def refresh(self):
         try:
-            r = self.api.session.get(self.api._url("warehouse/products"), params={"club_id": 1})
+            r = self.api.session.get(self.api._url("/warehouse/products"), params={"club_id": 1})
             if r.status_code != 200:
                 self.tbl.setRowCount(1)
                 self.tbl.setItem(0, 0, QTableWidgetItem(f"Склад недоступен: {r.status_code}"))
@@ -327,7 +327,7 @@ class ShopTab(QWidget):
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         try:
-            r = self.api.session.post(self.api._url("warehouse/bar/sales"), json={
+            r = self.api.session.post(self.api._url("/warehouse/bar/sales"), json={
                 "club_id": 1,
                 "payment_method": pay.currentData(),
                 "items": [{"item_type": "product",
@@ -369,13 +369,13 @@ class ServicesTab(QWidget):
 
         row = QHBoxLayout()
         for text, handler, style in (
-            ("Добавить услугу", self._add,
+            (" Добавить услугу", self._add,
              "QPushButton { background: #059669; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; }"),
-            ("Назначить тренера", self._edit,
+            (" Назначить тренера", self._edit,
              "QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }"),
-            ("Удалить", self._delete,
+            (" Удалить", self._delete,
              "QPushButton { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; border-radius: 6px; padding: 8px 16px; font-weight: 600; }"),
-            ("Новый тренер", self._new_trainer,
+            (" Новый тренер", self._new_trainer,
              "QPushButton { background: #eef2ff; border: 1px solid #a5b4fc; color: #3730a3; border-radius: 6px; padding: 8px 16px; font-weight: 600; }"),
         ):
             b = QPushButton(text)
@@ -401,7 +401,7 @@ class ServicesTab(QWidget):
         inner.addWidget(self.table)
         tabs.addTab(host, "Услуги")
         self._shop = ShopTab(self.api)
-        tabs.addTab(self._shop, "Магазин")
+        tabs.addTab(self._shop, " Магазин")
 
     def refresh(self):
         self.worker = ServicesWorker(self.api)
@@ -479,7 +479,7 @@ class ServicesTab(QWidget):
         ) != QMessageBox.StandardButton.Yes:
             return
         try:
-            resp = self.api.session.delete(self.api._url(f"services/{s['id']}"))
+            resp = self.api.session.delete(self.api._url(f"/services/{s['id']}"))
             if resp.status_code == 204:
                 self.refresh()
             else:

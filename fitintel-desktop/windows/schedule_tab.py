@@ -34,16 +34,16 @@ class ScheduleWorker(QThread):
 
     def run(self):
         try:
-            r1 = self.api.session.get(self.api._url("services"))
+            r1 = self.api.session.get(self.api._url("/services"))
             r1.raise_for_status()
             services = r1.json() if isinstance(r1.json(), list) else []
             try:
-                r2 = self.api.session.get(self.api._url("trainers/profiles"))
+                r2 = self.api.session.get(self.api._url("/trainers/profiles"))
                 trainers = r2.json() if r2.status_code == 200 else []
             except Exception:
                 trainers = []
             try:
-                r3 = self.api.session.get(self.api._url("users"))
+                r3 = self.api.session.get(self.api._url("/users"))
                 users = r3.json() if r3.status_code == 200 else []
                 if isinstance(users, dict):
                     users = users.get("items", [])
@@ -69,7 +69,7 @@ class BookingsWorker(QThread):
 
     def run(self):
         try:
-            resp = self.api.session.get(self.api._url("services/trainer-schedule"))
+            resp = self.api.session.get(self.api._url("/services/trainer-schedule"))
             resp.raise_for_status()
             rows = resp.json()
             if isinstance(rows, dict):
@@ -102,7 +102,7 @@ class NewBookingDialog(QDialog):
         self.service = QComboBox()
         self._services = []
         try:
-            resp = api.session.get(api._url("services"))
+            resp = api.session.get(api._url("/services"))
             resp.raise_for_status()
             for s in resp.json():
                 if s.get("is_active", True):
@@ -133,7 +133,7 @@ class NewBookingDialog(QDialog):
         service_id = self._services[self.service.currentIndex()][0]
         try:
             resp = self.api.session.post(
-                self.api._url(f"services/{service_id}/book"),
+                self.api._url(f"/services/{service_id}/book"),
                 json={"client_id": str(client_id),
                       "booking_date": self.when.dateTime().toString("yyyy-MM-ddTHH:mm:ss")})
             if resp.status_code == 201:
@@ -221,7 +221,7 @@ class ScheduleTab(QWidget):
         layout.setSpacing(12)
 
         row = QHBoxLayout()
-        btn_add = QPushButton("Добавить запись")
+        btn_add = QPushButton(" Добавить запись")
         btn_add.setStyleSheet("QPushButton { background: #059669; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn_add.clicked.connect(self._add_booking)
         btn_cancel = QPushButton("Отменить запись")
@@ -249,7 +249,7 @@ class ScheduleTab(QWidget):
         self.grid_week.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.grid_week.setStyleSheet(theme.table_style())
         v.addWidget(self.grid_week)
-        self.tabs.addTab(w_grid, "Занятия по дням")
+        self.tabs.addTab(w_grid, " Занятия по дням")
 
         # --- подвкладка 2: тренеры ---
         self.trainers_scroll = QScrollArea()
@@ -257,7 +257,7 @@ class ScheduleTab(QWidget):
         self.trainers_host = QWidget()
         self.trainers_lay = QGridLayout(self.trainers_host)
         self.trainers_scroll.setWidget(self.trainers_host)
-        self.tabs.addTab(self.trainers_scroll, "Тренеры")
+        self.tabs.addTab(self.trainers_scroll, " Тренеры")
 
         # --- подвкладка 3: записи ---
         self.table = QTableWidget()
@@ -268,7 +268,7 @@ class ScheduleTab(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
         self.table.setStyleSheet(theme.table_style())
-        self.tabs.addTab(self.table, "Записи")
+        self.tabs.addTab(self.table, " Записи")
 
     # ---------- загрузка ----------
 
@@ -336,7 +336,7 @@ class ScheduleTab(QWidget):
         for i, t in enumerate(sorted(times)):
             self.grid_week.setItem(i, 0, QTableWidgetItem(t))
             for d in range(7):
-                v = "n".join(cells.get((d, t), []))
+                v = "\n".join(cells.get((d, t), []))
                 it = QTableWidgetItem(v)
                 if v:
                     it.setForeground(QColor("#065f46"))
@@ -390,7 +390,7 @@ class ScheduleTab(QWidget):
                                 ) != QMessageBox.StandardButton.Yes:
             return
         try:
-            resp = self.api.session.post(self.api._url(f"services/bookings/{bid}/cancel"))
+            resp = self.api.session.post(self.api._url(f"/services/bookings/{bid}/cancel"))
             if resp.status_code in (200, 201, 204):
                 QMessageBox.information(self, "Отмена записи", "Запись отменена")
                 self.refresh()

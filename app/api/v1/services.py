@@ -1,3 +1,4 @@
+#app\api\v1\services.py
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
@@ -165,6 +166,78 @@ def create_service(
     return svc
 
 
+@router.get("/services/trainer-schedule")
+def get_trainer_schedule(
+    trainer_id: Optional[UUID] = Query(None),
+    db: Session = Depends(_deps),
+    current_user: User = Depends(get_current_user),
+):
+    """Расписание тренеров: ближайшие активные записи."""
+    q = db.query(ServiceBooking).join(Service).filter(
+        Service.trainer_id.isnot(None),
+        ServiceBooking.status == "BOOKED",
+        ServiceBooking.booking_date >= datetime.now(timezone.utc),
+    )
+    if trainer_id:
+        q = q.filter(Service.trainer_id == trainer_id)
+    rows = q.order_by(ServiceBooking.booking_date).limit(100).all()
+    out = []
+    for b in rows:
+        out.append({
+            "id": str(b.id),
+            "booking_date": b.booking_date.isoformat() if b.booking_date else None,
+            "status": b.status,
+            "notes": b.notes,
+            "client_name": (b.client.first_name + " " + (b.client.last_name or "")) if b.client else None,
+            "service_name": b.service.name if b.service else None,
+            "trainer_name": (b.service.trainer.full_name if b.service and b.service.trainer else None),
+        })
+    return out
+
+
+
+
+# --- Волна 5: жизненный цикл брони (фиксированные пути — ВЫШЕ /{service_id}) ---
+@router.get("/services/bookings/upcoming")
+def upcoming_bookings(
+    db: Session = Depends(_deps),
+    current_user: User = Depends(require_permission("bookings.read")),
+):
+    """Ближайшие активные брони (десктоп + свип)."""
+    rows = (db.query(ServiceBooking)
+            .filter(ServiceBooking.status.in_(["BOOKED", "CONFIRMED", "PAID"]),
+                    ServiceBooking.booking_date >= datetime.now(timezone.utc) - timedelta(hours=2))
+            .order_by(ServiceBooking.booking_date)
+            .limit(200).all())
+    return [{
+        "id": str(b.id), "service_id": str(b.service_id), "client_id": str(b.client_id),
+        "booking_date": b.booking_date.isoformat() if b.booking_date else None,
+        "status": b.status, "price": b.price,
+        "client_name": (b.client.first_name + " " + (b.client.last_name or "")) if b.client else None,
+        "service_name": b.service.name if b.service else None,
+        "confirmed_at": b.confirmed_at.isoformat() if b.confirmed_at else None,
+        "paid_at": b.paid_at.isoformat() if b.paid_at else None,
+    } for b in rows]
+
+
+@router.get("/services/bookings/client/{client_id}")
+def client_bookings(
+    client_id: UUID,
+    db: Session = Depends(_deps),
+    current_user: User = Depends(get_current_user),
+):
+    """Записи клиента (бот «Мои записи», десктоп)."""
+    rows = (db.query(ServiceBooking)
+            .filter(ServiceBooking.client_id == str(client_id))
+            .order_by(ServiceBooking.booking_date.desc())
+            .limit(50).all())
+    return [{
+        "id": str(b.id), "booking_date": b.booking_date.isoformat() if b.booking_date else None,
+        "status": b.status, "price": b.price, "service_name": b.service.name if b.service else None,
+    } for b in rows]
+
+
+
 @router.get("/services/{service_id}", )
 def get_service(
     service_id: UUID,
@@ -238,35 +311,6 @@ def book_service(
 
     db.refresh(new_booking)
     return svc  # фронт ожидает ServiceOut
-
-
-@router.get("/services/trainer-schedule")
-def get_trainer_schedule(
-    trainer_id: Optional[UUID] = Query(None),
-    db: Session = Depends(_deps),
-    current_user: User = Depends(get_current_user),
-):
-    """Расписание тренеров: ближайшие активные записи."""
-    q = db.query(ServiceBooking).join(Service).filter(
-        Service.trainer_id.isnot(None),
-        ServiceBooking.status == "BOOKED",
-        ServiceBooking.booking_date >= datetime.now(timezone.utc),
-    )
-    if trainer_id:
-        q = q.filter(Service.trainer_id == trainer_id)
-    rows = q.order_by(ServiceBooking.booking_date).limit(100).all()
-    out = []
-    for b in rows:
-        out.append({
-            "id": str(b.id),
-            "booking_date": b.booking_date.isoformat() if b.booking_date else None,
-            "status": b.status,
-            "notes": b.notes,
-            "client_name": (b.client.first_name + " " + (b.client.last_name or "")) if b.client else None,
-            "service_name": b.service.name if b.service else None,
-            "trainer_name": (b.service.trainer.full_name if b.service and b.service.trainer else None),
-        })
-    return out
 
 
 @router.get("/services/{service_id}/availability")
@@ -343,45 +387,6 @@ def cancel_booking(
 
 
 # --- Волна 5: жизненный цикл брони ---
-
-@router.get("/services/bookings/upcoming")
-def upcoming_bookings(
-    db: Session = Depends(_deps),
-    current_user: User = Depends(require_permission("bookings.read")),
-):
-    """Ближайшие активные брони (десктоп + свип)."""
-    rows = (db.query(ServiceBooking)
-            .filter(ServiceBooking.status.in_(["BOOKED", "CONFIRMED", "PAID"]),
-                    ServiceBooking.booking_date >= datetime.now(timezone.utc) - timedelta(hours=2))
-            .order_by(ServiceBooking.booking_date)
-            .limit(200).all())
-    return [{
-        "id": str(b.id), "service_id": str(b.service_id), "client_id": str(b.client_id),
-        "booking_date": b.booking_date.isoformat() if b.booking_date else None,
-        "status": b.status, "price": b.price,
-        "client_name": (b.client.first_name + " " + (b.client.last_name or "")) if b.client else None,
-        "service_name": b.service.name if b.service else None,
-        "confirmed_at": b.confirmed_at.isoformat() if b.confirmed_at else None,
-        "paid_at": b.paid_at.isoformat() if b.paid_at else None,
-    } for b in rows]
-
-
-@router.get("/services/bookings/client/{client_id}")
-def client_bookings(
-    client_id: UUID,
-    db: Session = Depends(_deps),
-    current_user: User = Depends(get_current_user),
-):
-    """Записи клиента (бот «Мои записи», десктоп)."""
-    rows = (db.query(ServiceBooking)
-            .filter(ServiceBooking.client_id == str(client_id))
-            .order_by(ServiceBooking.booking_date.desc())
-            .limit(50).all())
-    return [{
-        "id": str(b.id), "booking_date": b.booking_date.isoformat() if b.booking_date else None,
-        "status": b.status, "price": b.price, "service_name": b.service.name if b.service else None,
-    } for b in rows]
-
 
 @router.post("/services/bookings/{booking_id}/confirm")
 def confirm_booking(

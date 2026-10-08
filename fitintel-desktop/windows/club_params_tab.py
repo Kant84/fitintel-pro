@@ -24,10 +24,10 @@ class ParamsWorker(QThread):
 
     def run(self):
         try:
-            r = self.api.session.get(self.api._url("club-params"))
+            r = self.api.session.get(self.api._url("/club-params"))
             r.raise_for_status()
             self.finished.emit(r.json())
-            r2 = self.api.session.get(self.api._url("bot-labels"))
+            r2 = self.api.session.get(self.api._url("/bot-labels"))
             if r2.status_code == 200:
                 self.labels.emit(r2.json().get("labels", {}))
         except Exception as e:
@@ -61,7 +61,7 @@ class ClubParamsTab(QWidget):
         self.tbl_params.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.tbl_params.setStyleSheet(theme.table_style())
         self.tbl_params.itemDoubleClicked.connect(self._edit_param)
-        self.tabs.addTab(self.tbl_params, "Временные параметры")
+        self.tabs.addTab(self.tbl_params, " Временные параметры")
 
         self.tbl_labels = QTableWidget()
         self.tbl_labels.setColumnCount(2)
@@ -70,7 +70,7 @@ class ClubParamsTab(QWidget):
         self.tbl_labels.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.tbl_labels.setStyleSheet(theme.table_style())
         self.tbl_labels.itemDoubleClicked.connect(self._edit_label)
-        self.tabs.addTab(self.tbl_labels, "Лейблы бота")
+        self.tabs.addTab(self.tbl_labels, " Лейблы бота")
         layout.addWidget(self.tabs, 1)
 
         row = QHBoxLayout()
@@ -116,7 +116,7 @@ class ClubParamsTab(QWidget):
         if not ok or val == cur:
             return
         try:
-            r = self.api.session.put(self.api._url(f"club-params/{key}"), json={"value": val})
+            r = self.api.session.put(self.api._url(f"/club-params/{key}"), json={"value": val})
             if r.status_code == 200:
                 QMessageBox.information(self, "Сохранено", f"{key} = {val}")
                 self.refresh()
@@ -133,7 +133,7 @@ class ClubParamsTab(QWidget):
         if not ok or val == cur:
             return
         try:
-            r = self.api.session.put(self.api._url(f"bot-labels/{key}"), json={"value": val})
+            r = self.api.session.put(self.api._url(f"/bot-labels/{key}"), json={"value": val})
             if r.status_code == 200:
                 self.refresh()
             else:
