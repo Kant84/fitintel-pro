@@ -233,6 +233,57 @@ def _step_registration(db: Session, uid: int, text: str) -> str:
     return _menu()
 
 
+def _shop_kind(db: Session, uid: int, text: str) -> str:
+    """Магазин: 1 — занятия/услуги (запись), 2 — товары (оплата с баланса)."""
+    t = _norm(text)
+    if t in ("1", "услуги", "занятия"):
+        return _shop(db, uid)
+    if t in ("2", "товары", "товар"):
+        return _goods(db, uid)
+    return "Магазин:\n1. Занятия и услуги (запись)\n2. Товары (оплата с баланса)\n\nОтветьте номером."
+
+
+def _goods(db: Session, uid: int) -> str:
+    """Каталог товаров для покупки с баланса (серверный склад)."""
+    from app.models.warehouse import WarehouseProduct
+    try:
+        rows = (db.query(WarehouseProduct)
+                .filter(WarehouseProduct.is_active.is_(True),
+                        WarehouseProduct.quantity > 0)
+                .order_by(WarehouseProduct.name).limit(20).all())
+    except Exception:
+        return "Товары доступны на ресепшене (склад не настроен)."
+    if not rows:
+        return "Товары закончились или не завезены — уточните на ресепшене."
+    lines = ["🛍 Товары (оплата с баланса ЛК). Выберите номер:"]
+    for i, p in enumerate(rows, 1):
+        price = float(p.sale_price or 0)
+        lines.append(f"{i}. {p.name} — {price:.0f} ₽ (остаток: {float(p.quantity or 0):.0f})")
+    _set_state(db, uid, "SHOP_GOODS", {"ids": [str(p.id) for p in rows]})
+    return "\n".join(lines)
+
+
+def _goods_pick(db: Session, uid: int, text: str, row) -> str:
+    """Покупка товара со списанием баланса."""
+    _, data = _get_state(db, uid)
+    ids = data.get("ids", [])
+    if not text.strip().isdigit() or not (1 <= int(text) <= len(ids)):
+        return "Напишите номер товара из списка."
+    from app.services.shop_service import buy_with_balance
+    try:
+        res = buy_with_balance(db, str(row[0]), ids[int(text) - 1], 1)
+    except HTTPException as e:
+        detail = e.detail if isinstance(e.detail, str) else str(e.detail)
+        if "Недостаточно средств" in detail or "Доступно" in detail:
+            return (f"Не хватает средств на балансе ({detail}).\n"
+                    f"Пополните баланс на ресепшене (нал/карта/СБП).")
+        return f"Покупка не прошла: {detail}"
+    _clear(db, uid)
+    return (f"✅ Куплено: «{res['product']}» — {res['total']:.0f} ₽ оплачено с баланса.\n"
+            f"💰 Остаток баланса: {res['balance']:.2f} ₽\n"
+            f"Заберите товар на ресепшене (назовите номер телефона).\n\n" + _menu())
+
+
 def _shop(db: Session, uid: int) -> str:
     svcs = db.query(Service).filter(Service.is_active.is_(True)).order_by(Service.name).limit(20).all()
     if not svcs:
@@ -435,6 +486,10 @@ def handle(db: Session, max_user_id: int, text: str) -> str | None:
         if not row:
             _clear(db, max_user_id)
             return "Нужна привязка карточки: сообщите номер телефона администратору или на ресепшене."
+        if state == "SHOP_KIND":
+            return _shop_kind(db, max_user_id, text)
+        if state == "SHOP_GOODS":
+            return _goods_pick(db, max_user_id, text, row)
         if state == "SHOP_PICK":
             return _shop_pick(db, max_user_id, text)
         if state == "BOOK_PICK_WHO":
@@ -491,7 +546,8 @@ def handle(db: Session, max_user_id: int, text: str) -> str | None:
 
     # пункты меню
     if t in ("1", "магазин", "услуги", "товары"):
-        return _shop(db, max_user_id)
+        _set_state(db, max_user_id, "SHOP_KIND", {})
+        return "Магазин:\n1. Занятия и услуги (запись)\n2. Товары (оплата с баланса)\n\nОтветьте номером."
     if t in ("2", "расписание", "занятия"):
         svcs = db.query(Service).filter(Service.is_active.is_(True)).all()
         lines = ["🗓 Расписание (запись по номеру):"] if svcs else []
