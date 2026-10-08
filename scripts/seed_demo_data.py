@@ -61,7 +61,8 @@ def _ensure_booking_columns(db):
                     "reminded_at": "ALTER TABLE service_bookings ADD COLUMN reminded_at TIMESTAMP",
                     "pinged_at": "ALTER TABLE service_bookings ADD COLUMN pinged_at TIMESTAMP",
                     "price": "ALTER TABLE service_bookings ADD COLUMN price NUMERIC(10,2)",
-                    "source": "ALTER TABLE service_bookings ADD COLUMN source VARCHAR(20) NOT NULL DEFAULT 'api'"}
+                    "source": "ALTER TABLE service_bookings ADD COLUMN source VARCHAR(20) NOT NULL DEFAULT 'api'",
+                    "updated_at": "ALTER TABLE service_bookings ADD COLUMN updated_at TIMESTAMP DEFAULT now()"}
             for col, ddl in ddls.items():
                 if col not in cols:
                     db.execute(_t(ddl))
