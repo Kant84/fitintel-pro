@@ -232,17 +232,12 @@ class ScheduleTab(QWidget):
         btn_refresh.clicked.connect(self.refresh)
         row.addWidget(btn_add)
         row.addWidget(btn_cancel)
-        btn_demo = QPushButton("Демо-данные")
-        btn_demo.setToolTip("Создать тестовых тренеров с фото, 6 занятий и записи (один раз)")
-        btn_demo.setStyleSheet("QPushButton { background: #eef2ff; border: 1px solid #a5b4fc; color: #3730a3; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
-        btn_demo.clicked.connect(self._seed_demo)
         btn_crud = QPushButton("Изменить услугу")
         btn_crud.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn_crud.clicked.connect(self._edit_service)
         btn_del = QPushButton("Удалить услугу")
         btn_del.setStyleSheet("QPushButton { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn_del.clicked.connect(self._delete_service)
-        row.addWidget(btn_demo)
         row.addWidget(btn_crud)
         row.addWidget(btn_del)
         row.addStretch()
@@ -381,14 +376,6 @@ class ScheduleTab(QWidget):
             self.trainers_lay.addWidget(card, i // 2, i % 2)
 
     # ---------- действия ----------
-
-    def _seed_demo(self):
-        r = self.api.session.post(self.api._url("/services/seed-demo"))
-        if r.status_code == 200:
-            QMessageBox.information(self, "Демо-данные", r.json().get("message", "Создано"))
-            self.refresh()
-        else:
-            QMessageBox.warning(self, "Демо-данные", f"{r.status_code}: {r.text[:200]}")
 
     def _pick_service(self) -> dict | None:
         if not self._services:
