@@ -1,0 +1,912 @@
+╤ЄЁєъЄєЁр яряюъ Єюьр Bot
+╤хЁшщэ√щ эюьхЁ Єюьр: 00000009 9873:EDD1
+E:\FITNEXUS AI\FITINTEL AI\APP
+ж   .gitignore
+ж   .license_key
+ж   .license_state
+ж   components.json
+ж   eslint.config.js
+ж   index.html
+ж   info.md
+ж   main.py
+ж   main_debug.py
+ж   package-lock.json
+ж   package.json
+ж   postcss.config.js
+ж   README.md
+ж   tailwind.config.js
+ж   tsconfig.app.json
+ж   tsconfig.json
+ж   tsconfig.node.json
+ж   vite.config.ts
+ж   __init__.py
+ж   
++---api
+ж   ж   dependencies.py
+ж   ж   __init__.py
+ж   ж   
+ж   +---v1
+ж   ж   ж   aa_bridge.py
+ж   ж   ж   access.py
+ж   ж   ж   access_cache.py
+ж   ж   ж   access_control.py
+ж   ж   ж   ai_engine.py
+ж   ж   ж   analytics.py
+ж   ж   ж   analytics_ai.py
+ж   ж   ж   analytics_chart.py
+ж   ж   ж   analytics_dashboard.py
+ж   ж   ж   audit.py
+ж   ж   ж   auth.py
+ж   ж   ж   auth_debug.py
+ж   ж   ж   auto.py
+ж   ж   ж   booking_widget.py
+ж   ж   ж   branding.py
+ж   ж   ж   cash_desk.py
+ж   ж   ж   chat.py
+ж   ж   ж   chats.py
+ж   ж   ж   clients.py
+ж   ж   ж   client_history.py
+ж   ж   ж   client_verification.py
+ж   ж   ж   club_params.py
+ж   ж   ж   commercial.py
+ж   ж   ж   connectors.py
+ж   ж   ж   corporate.py
+ж   ж   ж   credentials.py
+ж   ж   ж   dal.py
+ж   ж   ж   devices.py
+ж   ж   ж   documents.py
+ж   ж   ж   documents_bulk.py
+ж   ж   ж   document_templates.py
+ж   ж   ж   dynamic_qr.py
+ж   ж   ж   equipment.py
+ж   ж   ж   exports.py
+ж   ж   ж   export_api.py
+ж   ж   ж   face_id.py
+ж   ж   ж   feature_flags.py
+ж   ж   ж   feature_flags_adv.py
+ж   ж   ж   fiscal.py
+ж   ж   ж   gamification.py
+ж   ж   ж   hardware.py
+ж   ж   ж   health.py
+ж   ж   ж   health_extended.py
+ж   ж   ж   integrations.py
+ж   ж   ж   integrations_config.py
+ж   ж   ж   kerong.py
+ж   ж   ж   license_api.py
+ж   ж   ж   lockers.py
+ж   ж   ж   marketing.py
+ж   ж   ж   max_bot.py
+ж   ж   ж   max_bot_fsm.py
+ж   ж   ж   messenger.py
+ж   ж   ж   ml.py
+ж   ж   ж   niche.py
+ж   ж   ж   notifications.py
+ж   ж   ж   online_sessions.py
+ж   ж   ж   online_training.py
+ж   ж   ж   ops.py
+ж   ж   ж   payments.py
+ж   ж   ж   permissions.py
+ж   ж   ж   phone_verify.py
+ж   ж   ж   print.py
+ж   ж   ж   rbac.py
+ж   ж   ж   reader.py
+ж   ж   ж   receipts.py
+ж   ж   ж   recurring.py
+ж   ж   ж   referrals.py
+ж   ж   ж   reporting.py
+ж   ж   ж   reports_ops.py
+ж   ж   ж   rfid_reader.py
+ж   ж   ж   roles.py
+ж   ж   ж   sales.py
+ж   ж   ж   seasonal.py
+ж   ж   ж   selfservice.py
+ж   ж   ж   self_learning.py
+ж   ж   ж   services.py
+ж   ж   ж   setup.py
+ж   ж   ж   skud_itconnect.py
+ж   ж   ж   sse.py
+ж   ж   ж   subscriptions.py
+ж   ж   ж   subscription_lifecycle.py
+ж   ж   ж   tariffs.py
+ж   ж   ж   telegram.py
+ж   ж   ж   trainers.py
+ж   ж   ж   ui_config.py
+ж   ж   ж   users.py
+ж   ж   ж   video_ai.py
+ж   ж   ж   video_alerts.py
+ж   ж   ж   visits.py
+ж   ж   ж   wallet.py
+ж   ж   ж   warehouse.py
+ж   ж   ж   ws_alerts.py
+ж   ж   ж   yookassa.py
+ж   ж   ж   __init__.py
+ж   ж   ж   
+ж   ж   +---endpoints
+ж   ж   ж   ж   accounting.py
+ж   ж   ж   ж   fiscal.py
+ж   ж   ж   ж   
+ж   ж   ж   L---__pycache__
+ж   ж   ж           accounting.cpython-311.pyc
+ж   ж   ж           fiscal.cpython-311.pyc
+ж   ж   ж           
+ж   ж   +---music
+ж   ж   ж   ж   agent.py
+ж   ж   ж   ж   deps.py
+ж   ж   ж   ж   dj.py
+ж   ж   ж   ж   license.py
+ж   ж   ж   ж   playlists.py
+ж   ж   ж   ж   schedule.py
+ж   ж   ж   ж   sfx.py
+ж   ж   ж   ж   zones.py
+ж   ж   ж   ж   __init__.py
+ж   ж   ж   ж   
+ж   ж   ж   L---__pycache__
+ж   ж   ж           agent.cpython-311.pyc
+ж   ж   ж           deps.cpython-311.pyc
+ж   ж   ж           dj.cpython-311.pyc
+ж   ж   ж           license.cpython-311.pyc
+ж   ж   ж           playlists.cpython-311.pyc
+ж   ж   ж           schedule.cpython-311.pyc
+ж   ж   ж           sfx.cpython-311.pyc
+ж   ж   ж           zones.cpython-311.pyc
+ж   ж   ж           __init__.cpython-311.pyc
+ж   ж   ж           
+ж   ж   L---__pycache__
+ж   ж           aa_bridge.cpython-311.pyc
+ж   ж           access.cpython-311.pyc
+ж   ж           access_cache.cpython-311.pyc
+ж   ж           ai_engine.cpython-311.pyc
+ж   ж           analytics.cpython-311.pyc
+ж   ж           analytics_ai.cpython-311.pyc
+ж   ж           analytics_api.cpython-311.pyc
+ж   ж           analytics_chart.cpython-311.pyc
+ж   ж           analytics_dashboard.cpython-311.pyc
+ж   ж           audit.cpython-311.pyc
+ж   ж           auth.cpython-311.pyc
+ж   ж           auth_debug.cpython-311.pyc
+ж   ж           auto.cpython-311.pyc
+ж   ж           booking_widget.cpython-311.pyc
+ж   ж           branding.cpython-311.pyc
+ж   ж           cash_desk.cpython-311.pyc
+ж   ж           chat.cpython-311.pyc
+ж   ж           chats.cpython-311.pyc
+ж   ж           clients.cpython-311.pyc
+ж   ж           client_history.cpython-311.pyc
+ж   ж           client_verification.cpython-311.pyc
+ж   ж           club_params.cpython-311.pyc
+ж   ж           commercial.cpython-311.pyc
+ж   ж           connectors.cpython-311.pyc
+ж   ж           corporate.cpython-311.pyc
+ж   ж           credentials.cpython-311.pyc
+ж   ж           dal.cpython-311.pyc
+ж   ж           devices.cpython-311.pyc
+ж   ж           documents.cpython-311.pyc
+ж   ж           documents_bulk.cpython-311.pyc
+ж   ж           document_templates.cpython-311.pyc
+ж   ж           dynamic_qr.cpython-311.pyc
+ж   ж           equipment.cpython-311.pyc
+ж   ж           exports.cpython-311.pyc
+ж   ж           export_api.cpython-311.pyc
+ж   ж           face_id.cpython-311.pyc
+ж   ж           feature_flags.cpython-311.pyc
+ж   ж           feature_flags_adv.cpython-311.pyc
+ж   ж           fiscal.cpython-311.pyc
+ж   ж           gamification.cpython-311.pyc
+ж   ж           hardware.cpython-311.pyc
+ж   ж           health.cpython-311.pyc
+ж   ж           integrations.cpython-311.pyc
+ж   ж           integrations_config.cpython-311.pyc
+ж   ж           kerong.cpython-311.pyc
+ж   ж           license_api.cpython-311.pyc
+ж   ж           lockers.cpython-311.pyc
+ж   ж           marketing.cpython-311.pyc
+ж   ж           max_bot.cpython-311.pyc
+ж   ж           max_bot_fsm.cpython-311.pyc
+ж   ж           messenger.cpython-311.pyc
+ж   ж           ml.cpython-311.pyc
+ж   ж           music.cpython-311.pyc
+ж   ж           niche.cpython-311.pyc
+ж   ж           notifications.cpython-311.pyc
+ж   ж           online_sessions.cpython-311.pyc
+ж   ж           online_training.cpython-311.pyc
+ж   ж           ops.cpython-311.pyc
+ж   ж           payments.cpython-311.pyc
+ж   ж           permissions.cpython-311.pyc
+ж   ж           phone_verify.cpython-311.pyc
+ж   ж           print.cpython-311.pyc
+ж   ж           rbac.cpython-311.pyc
+ж   ж           reader.cpython-311.pyc
+ж   ж           receipts.cpython-311.pyc
+ж   ж           recurring.cpython-311.pyc
+ж   ж           referrals.cpython-311.pyc
+ж   ж           reporting.cpython-311.pyc
+ж   ж           reports.cpython-311.pyc
+ж   ж           reports_ops.cpython-311.pyc
+ж   ж           rfid_reader.cpython-311.pyc
+ж   ж           roles.cpython-311.pyc
+ж   ж           sales.cpython-311.pyc
+ж   ж           seasonal.cpython-311.pyc
+ж   ж           selfservice.cpython-311.pyc
+ж   ж           self_learning.cpython-311.pyc
+ж   ж           services.cpython-311.pyc
+ж   ж           setup.cpython-311.pyc
+ж   ж           skud_itconnect.cpython-311.pyc
+ж   ж           sse.cpython-311.pyc
+ж   ж           subscriptions.cpython-311.pyc
+ж   ж           subscription_lifecycle.cpython-311.pyc
+ж   ж           tariffs.cpython-311.pyc
+ж   ж           tariffs_fix.cpython-311.pyc
+ж   ж           telegram.cpython-311.pyc
+ж   ж           trainers.cpython-311.pyc
+ж   ж           ui_config.cpython-311.pyc
+ж   ж           users.cpython-311.pyc
+ж   ж           video_ai.cpython-311.pyc
+ж   ж           video_alerts.cpython-311.pyc
+ж   ж           visits.cpython-311.pyc
+ж   ж           wallet.cpython-311.pyc
+ж   ж           warehouse.cpython-311.pyc
+ж   ж           ws_alerts.cpython-311.pyc
+ж   ж           yookassa.cpython-311.pyc
+ж   ж           __init__.cpython-311.pyc
+ж   ж           
+ж   L---__pycache__
+ж           dependencies.cpython-311.pyc
+ж           __init__.cpython-311.pyc
+ж           
++---core
+ж   ж   config.py
+ж   ж   constants.py
+ж   ж   exceptions.py
+ж   ж   license_guard.py
+ж   ж   license_public.pem
+ж   ж   logger.py
+ж   ж   logging.py
+ж   ж   qr.py
+ж   ж   security.py
+ж   ж   __init__.py
+ж   ж   
+ж   L---__pycache__
+ж           config.cpython-311.pyc
+ж           license_guard.cpython-311.pyc
+ж           logger.cpython-311.pyc
+ж           security.cpython-311.pyc
+ж           __init__.cpython-311.pyc
+ж           
++---db
+ж   ж   base.py
+ж   ж   session.py
+ж   ж   __init__.py
+ж   ж   
+ж   +---seed
+ж   ж   ж   apply_hotfix.py
+ж   ж   ж   full_seeder.py
+ж   ж   ж   run_seed.py
+ж   ж   ж   seed_admin.py
+ж   ж   ж   seed_permissions.py
+ж   ж   ж   seed_roles.py
+ж   ж   ж   __init__.py
+ж   ж   ж   
+ж   ж   L---__pycache__
+ж   ж           apply_hotfix.cpython-311.pyc
+ж   ж           full_seeder.cpython-311.pyc
+ж   ж           seed_permissions.cpython-311.pyc
+ж   ж           
+ж   L---__pycache__
+ж           base.cpython-311.pyc
+ж           session.cpython-311.pyc
+ж           __init__.cpython-311.pyc
+ж           
++---dto
+ж       __init__.py
+ж       
++---hardware
+ж   ж   base.py
+ж   ж   manager.py
+ж   ж   registry.py
+ж   ж   rfid_reader.py
+ж   ж   __init__.py
+ж   ж   
+ж   +---drivers
+ж   ж   ж   acs_acr1252u.py
+ж   ж   ж   era.py
+ж   ж   ж   generic_http.py
+ж   ж   ж   generic_modbus.py
+ж   ж   ж   generic_mqtt.py
+ж   ж   ж   kerong.py
+ж   ж   ж   x1.py
+ж   ж   ж   __init__.py
+ж   ж   ж   
+ж   ж   L---__pycache__
+ж   ж           acs_acr1252u.cpython-311.pyc
+ж   ж           era.cpython-311.pyc
+ж   ж           generic_http.cpython-311.pyc
+ж   ж           generic_modbus.cpython-311.pyc
+ж   ж           generic_mqtt.cpython-311.pyc
+ж   ж           kerong.cpython-311.pyc
+ж   ж           x1.cpython-311.pyc
+ж   ж           __init__.cpython-311.pyc
+ж   ж           
+ж   L---__pycache__
+ж           base.cpython-311.pyc
+ж           manager.cpython-311.pyc
+ж           registry.cpython-311.pyc
+ж           rfid_reader.cpython-311.pyc
+ж           __init__.cpython-311.pyc
+ж           
++---integrations
+ж   ж   __init__.py
+ж   ж   
+ж   +---devices
+ж   ж       __init__.py
+ж   ж       
+ж   +---email
+ж   ж       __init__.py
+ж   ж       
+ж   +---max
+ж   ж   ж   service.py
+ж   ж   ж   verification.py
+ж   ж   ж   __init__.py
+ж   ж   ж   
+ж   ж   L---__pycache__
+ж   ж           service.cpython-311.pyc
+ж   ж           verification.cpython-311.pyc
+ж   ж           __init__.cpython-311.pyc
+ж   ж           
+ж   +---one_c
+ж   ж       __init__.py
+ж   ж       
+ж   +---payments
+ж   ж       __init__.py
+ж   ж       
+ж   +---sms
+ж   ж       __init__.py
+ж   ж       
+ж   +---telegram
+ж   ж       __init__.py
+ж   ж       
+ж   +---webhooks
+ж   ж       __init__.py
+ж   ж       
+ж   L---__pycache__
+ж           __init__.cpython-311.pyc
+ж           
++---middleware
+ж       license_middleware.py
+ж       __init__.py
+ж       
++---ml
+ж   ж   adaptive_ui.py
+ж   ж   auto_scheduler.py
+ж   ж   churn_model.py
+ж   ж   event_logger.py
+ж   ж   feature_store.py
+ж   ж   pricing_engine.py
+ж   ж   self_heal.py
+ж   ж   send_time_optimizer.py
+ж   ж   __init__.py
+ж   ж   
+ж   L---__pycache__
+ж           auto_scheduler.cpython-311.pyc
+ж           churn_model.cpython-311.pyc
+ж           events.cpython-311.pyc
+ж           event_logger.cpython-311.pyc
+ж           feature_store.cpython-311.pyc
+ж           pricing_engine.cpython-311.pyc
+ж           self_heal.cpython-311.pyc
+ж           __init__.cpython-311.pyc
+ж           
++---models
+ж   ж   access.py
+ж   ж   access_cache.py
+ж   ж   access_log.py
+ж   ж   analytics.py
+ж   ж   audit.py
+ж   ж   cash_desk_session.py
+ж   ж   cash_operation.py
+ж   ж   chat.py
+ж   ж   client.py
+ж   ж   client_event.py
+ж   ж   commercial.py
+ж   ж   credential.py
+ж   ж   device.py
+ж   ж   discount.py
+ж   ж   document.py
+ж   ж   dynamic_qr.py
+ж   ж   equipment.py
+ж   ж   export.py
+ж   ж   external_sync_log.py
+ж   ж   face_id.py
+ж   ж   feature_flag.py
+ж   ж   gamification_level.py
+ж   ж   hall.py
+ж   ж   hardware_device.py
+ж   ж   integration.py
+ж   ж   locker.py
+ж   ж   locker_privilege.py
+ж   ж   locker_session.py
+ж   ж   marketing_campaign.py
+ж   ж   marketing_trigger.py
+ж   ж   max_bot.py
+ж   ж   notification.py
+ж   ж   online_session.py
+ж   ж   payment.py
+ж   ж   permission.py
+ж   ж   product.py
+ж   ж   receipt.py
+ж   ж   role.py
+ж   ж   role_permission.py
+ж   ж   sale.py
+ж   ж   service.py
+ж   ж   subscription.py
+ж   ж   subscription_event.py
+ж   ж   tariff.py
+ж   ж   telegram.py
+ж   ж   trainer.py
+ж   ж   user.py
+ж   ж   user_role.py
+ж   ж   video_alert.py
+ж   ж   visit.py
+ж   ж   wallet.py
+ж   ж   wallet_transaction.py
+ж   ж   warehouse.py
+ж   ж   yookassa.py
+ж   ж   __init__.py
+ж   ж   
+ж   L---__pycache__
+ж           access_cache.cpython-311.pyc
+ж           access_log.cpython-311.pyc
+ж           analytics.cpython-311.pyc
+ж           audit.cpython-311.pyc
+ж           cash_desk_session.cpython-311.pyc
+ж           cash_operation.cpython-311.pyc
+ж           chat.cpython-311.pyc
+ж           client.cpython-311.pyc
+ж           client_event.cpython-311.pyc
+ж           commercial.cpython-311.pyc
+ж           credential.cpython-311.pyc
+ж           device.cpython-311.pyc
+ж           document.cpython-311.pyc
+ж           dynamic_qr.cpython-311.pyc
+ж           equipment.cpython-311.pyc
+ж           export.cpython-311.pyc
+ж           face_id.cpython-311.pyc
+ж           feature_flag.cpython-311.pyc
+ж           gamification_level.cpython-311.pyc
+ж           hardware_device.cpython-311.pyc
+ж           integration.cpython-311.pyc
+ж           locker.cpython-311.pyc
+ж           locker_privilege.cpython-311.pyc
+ж           locker_session.cpython-311.pyc
+ж           marketing_campaign.cpython-311.pyc
+ж           max_bot.cpython-311.pyc
+ж           notification.cpython-311.pyc
+ж           online_session.cpython-311.pyc
+ж           payment.cpython-311.pyc
+ж           permission.cpython-311.pyc
+ж           receipt.cpython-311.pyc
+ж           role.cpython-311.pyc
+ж           role_permission.cpython-311.pyc
+ж           sale.cpython-311.pyc
+ж           service.cpython-311.pyc
+ж           subscription.cpython-311.pyc
+ж           subscription_event.cpython-311.pyc
+ж           tariff.cpython-311.pyc
+ж           telegram.cpython-311.pyc
+ж           trainer.cpython-311.pyc
+ж           user.cpython-311.pyc
+ж           user_role.cpython-311.pyc
+ж           video_alert.cpython-311.pyc
+ж           visit.cpython-311.pyc
+ж           wallet.cpython-311.pyc
+ж           wallet_transaction.cpython-311.pyc
+ж           warehouse.cpython-311.pyc
+ж           __init__.cpython-311.pyc
+ж           
++---repositories
+ж   ж   access_cache_repository.py
+ж   ж   access_log_repository.py
+ж   ж   access_repository.py
+ж   ж   cash_desk_repository.py
+ж   ж   client_event_repository.py
+ж   ж   client_repository.py
+ж   ж   credential_repository.py
+ж   ж   device_repository.py
+ж   ж   document_repository.py
+ж   ж   external_sync_repository.py
+ж   ж   locker_privilege_repository.py
+ж   ж   locker_repository.py
+ж   ж   locker_session_repository.py
+ж   ж   payment_repository.py
+ж   ж   receipt_repository.py
+ж   ж   role_repository.py
+ж   ж   subscription_repository.py
+ж   ж   tariff_repository.py
+ж   ж   user_repository.py
+ж   ж   visit_repository.py
+ж   ж   wallet_repository.py
+ж   ж   __init__.py
+ж   ж   
+ж   L---__pycache__
+ж           access_cache_repository.cpython-311.pyc
+ж           cash_desk_repository.cpython-311.pyc
+ж           client_event_repository.cpython-311.pyc
+ж           client_repository.cpython-311.pyc
+ж           credential_repository.cpython-311.pyc
+ж           device_repository.cpython-311.pyc
+ж           document_repository.cpython-311.pyc
+ж           payment_repository.cpython-311.pyc
+ж           receipt_repository.cpython-311.pyc
+ж           role_repository.cpython-311.pyc
+ж           subscription_repository.cpython-311.pyc
+ж           tariff_repository.cpython-311.pyc
+ж           user_repository.cpython-311.pyc
+ж           visit_repository.cpython-311.pyc
+ж           wallet_repository.cpython-311.pyc
+ж           __init__.cpython-311.pyc
+ж           
++---routers
+ж   ж   face_id.py
+ж   ж   license.py
+ж   ж   __init__.py
+ж   ж   
+ж   L---__pycache__
+ж           license.cpython-311.pyc
+ж           __init__.cpython-311.pyc
+ж           
++---schemas
+ж   ж   access.py
+ж   ж   access_cache.py
+ж   ж   access_log.py
+ж   ж   analytics.py
+ж   ж   auth.py
+ж   ж   cash_desk.py
+ж   ж   client.py
+ж   ж   client_event.py
+ж   ж   credential.py
+ж   ж   device.py
+ж   ж   document.py
+ж   ж   dynamic_qr.py
+ж   ж   enums.py
+ж   ж   face_id.py
+ж   ж   feature_flag.py
+ж   ж   locker.py
+ж   ж   locker_privilege.py
+ж   ж   locker_session.py
+ж   ж   payment.py
+ж   ж   permission.py
+ж   ж   rbac.py
+ж   ж   receipt.py
+ж   ж   report.py
+ж   ж   role.py
+ж   ж   role_permission.py
+ж   ж   sale.py
+ж   ж   sale_temp.py
+ж   ж   service.py
+ж   ж   subscription.py
+ж   ж   subscription_event.py
+ж   ж   tariff.py
+ж   ж   trainer.py
+ж   ж   user.py
+ж   ж   user_role.py
+ж   ж   video_alert.py
+ж   ж   visit.py
+ж   ж   wallet.py
+ж   ж   __init__.py
+ж   ж   
+ж   L---__pycache__
+ж           access.cpython-311.pyc
+ж           access_cache.cpython-311.pyc
+ж           analytics.cpython-311.pyc
+ж           auth.cpython-311.pyc
+ж           cash_desk.cpython-311.pyc
+ж           client.cpython-311.pyc
+ж           client_event.cpython-311.pyc
+ж           credential.cpython-311.pyc
+ж           dynamic_qr.cpython-311.pyc
+ж           enums.cpython-311.pyc
+ж           face_id.cpython-311.pyc
+ж           feature_flag.cpython-311.pyc
+ж           locker.cpython-311.pyc
+ж           payment.cpython-311.pyc
+ж           permission.cpython-311.pyc
+ж           rbac.cpython-311.pyc
+ж           receipt.cpython-311.pyc
+ж           report.cpython-311.pyc
+ж           role.cpython-311.pyc
+ж           role_permission.cpython-311.pyc
+ж           sale.cpython-311.pyc
+ж           service.cpython-311.pyc
+ж           subscription.cpython-311.pyc
+ж           subscription_event.cpython-311.pyc
+ж           tariff.cpython-311.pyc
+ж           trainer.cpython-311.pyc
+ж           user.cpython-311.pyc
+ж           video_alert.cpython-311.pyc
+ж           visit.cpython-311.pyc
+ж           wallet.cpython-311.pyc
+ж           __init__.cpython-311.pyc
+ж           
++---services
+ж   ж   access_cache_service.py
+ж   ж   access_service.py
+ж   ж   analytics_service.py
+ж   ж   audit_service.py
+ж   ж   auth_service.py
+ж   ж   booking_sweep.py
+ж   ж   bot_scenarios.py
+ж   ж   cash_desk_service.py
+ж   ж   chat_service.py
+ж   ж   client_history_service.py
+ж   ж   client_service.py
+ж   ж   commercial_service.py
+ж   ж   credential_service.py
+ж   ж   device_protocols.py
+ж   ж   device_service.py
+ж   ж   document_service.py
+ж   ж   email_queue_service.py
+ж   ж   email_service.py
+ж   ж   entry_policy.py
+ж   ж   export_service.py
+ж   ж   face_id_service.py
+ж   ж   fiscal_service.py
+ж   ж   gamification_service.py
+ж   ж   integration_service.py
+ж   ж   license_service.py
+ж   ж   locker_service.py
+ж   ж   marketing_service.py
+ж   ж   notification_service.py
+ж   ж   offline_sync_service.py
+ж   ж   online_training_service.py
+ж   ж   payment_service.py
+ж   ж   print_service.py
+ж   ж   qr_service.py
+ж   ж   rbac_guard.py
+ж   ж   rbac_service.py
+ж   ж   receipt_service.py
+ж   ж   report_service.py
+ж   ж   role_permission_service.py
+ж   ж   role_service.py
+ж   ж   sale_service.py
+ж   ж   sbp_service.py
+ж   ж   scheduler_service.py
+ж   ж   subscription_lifecycle_service.py
+ж   ж   subscription_service.py
+ж   ж   tariff_service.py
+ж   ж   telegram_bot_service.py
+ж   ж   terminal_emulator.py
+ж   ж   trainer_service.py
+ж   ж   user_role_service.py
+ж   ж   user_service.py
+ж   ж   visit_service.py
+ж   ж   wallet_service.py
+ж   ж   yookassa_service.py
+ж   ж   __init__.py
+ж   ж   
+ж   +---accounting
+ж   ж   ж   internal_accounting.py
+ж   ж   ж   onec_integration.py
+ж   ж   ж   __init__.py
+ж   ж   ж   
+ж   ж   L---__pycache__
+ж   ж           internal_accounting.cpython-311.pyc
+ж   ж           onec_integration.cpython-311.pyc
+ж   ж           __init__.cpython-311.pyc
+ж   ж           
+ж   +---bank
+ж   ж   ж   universal_bank.py
+ж   ж   ж   __init__.py
+ж   ж   ж   
+ж   ж   L---__pycache__
+ж   ж           universal_bank.cpython-311.pyc
+ж   ж           __init__.cpython-311.pyc
+ж   ж           
+ж   +---connectors
+ж   ж   ж   base.py
+ж   ж   ж   fitness1c.py
+ж   ж   ж   sync_engine.py
+ж   ж   ж   __init__.py
+ж   ж   ж   
+ж   ж   L---__pycache__
+ж   ж           base.cpython-311.pyc
+ж   ж           fitness1c.cpython-311.pyc
+ж   ж           sync_engine.cpython-311.pyc
+ж   ж           __init__.cpython-311.pyc
+ж   ж           
+ж   +---fiscal
+ж   ж   ж   universal_fiscal.py
+ж   ж   ж   __init__.py
+ж   ж   ж   
+ж   ж   L---__pycache__
+ж   ж           universal_fiscal.cpython-311.pyc
+ж   ж           __init__.cpython-311.pyc
+ж   ж           
+ж   L---__pycache__
+ж           access_cache_service.cpython-311.pyc
+ж           access_service.cpython-311.pyc
+ж           analytics_service.cpython-311.pyc
+ж           audit_service.cpython-311.pyc
+ж           auth_service.cpython-311.pyc
+ж           booking_sweep.cpython-311.pyc
+ж           bot_scenarios.cpython-311.pyc
+ж           cash_desk_service.cpython-311.pyc
+ж           chat_service.cpython-311.pyc
+ж           client_history_service.cpython-311.pyc
+ж           client_service.cpython-311.pyc
+ж           commercial_service.cpython-311.pyc
+ж           credential_service.cpython-311.pyc
+ж           device_protocols.cpython-311.pyc
+ж           device_service.cpython-311.pyc
+ж           document_service.cpython-311.pyc
+ж           email_queue_service.cpython-311.pyc
+ж           entry_policy.cpython-311.pyc
+ж           export_service.cpython-311.pyc
+ж           face_id_service.cpython-311.pyc
+ж           gamification_service.cpython-311.pyc
+ж           integration_service.cpython-311.pyc
+ж           license_service.cpython-311.pyc
+ж           locker_service.cpython-311.pyc
+ж           marketing_service.cpython-311.pyc
+ж           notification_service.cpython-311.pyc
+ж           online_training_service.cpython-311.pyc
+ж           payment_service.cpython-311.pyc
+ж           print_service.cpython-311.pyc
+ж           qr_service.cpython-311.pyc
+ж           rbac_guard.cpython-311.pyc
+ж           rbac_service.cpython-311.pyc
+ж           receipt_service.cpython-311.pyc
+ж           report_service.cpython-311.pyc
+ж           role_permission_service.cpython-311.pyc
+ж           role_service.cpython-311.pyc
+ж           sale_service.cpython-311.pyc
+ж           sbp_service.cpython-311.pyc
+ж           subscription_lifecycle_service.cpython-311.pyc
+ж           subscription_service.cpython-311.pyc
+ж           tariff_service.cpython-311.pyc
+ж           telegram_bot_service.cpython-311.pyc
+ж           trainer_service.cpython-311.pyc
+ж           user_role_service.cpython-311.pyc
+ж           user_service.cpython-311.pyc
+ж           visit_service.cpython-311.pyc
+ж           wallet_service.cpython-311.pyc
+ж           yookassa_service.cpython-311.pyc
+ж           __init__.cpython-311.pyc
+ж           
++---src
+ж   ж   App.css
+ж   ж   App.tsx
+ж   ж   index.css
+ж   ж   main.tsx
+ж   ж   
+ж   +---components
+ж   ж   L---ui
+ж   ж           accordion.tsx
+ж   ж           alert-dialog.tsx
+ж   ж           alert.tsx
+ж   ж           aspect-ratio.tsx
+ж   ж           avatar.tsx
+ж   ж           badge.tsx
+ж   ж           breadcrumb.tsx
+ж   ж           button-group.tsx
+ж   ж           button.tsx
+ж   ж           calendar.tsx
+ж   ж           card.tsx
+ж   ж           carousel.tsx
+ж   ж           chart.tsx
+ж   ж           checkbox.tsx
+ж   ж           collapsible.tsx
+ж   ж           command.tsx
+ж   ж           context-menu.tsx
+ж   ж           dialog.tsx
+ж   ж           drawer.tsx
+ж   ж           dropdown-menu.tsx
+ж   ж           empty.tsx
+ж   ж           field.tsx
+ж   ж           form.tsx
+ж   ж           hover-card.tsx
+ж   ж           input-group.tsx
+ж   ж           input-otp.tsx
+ж   ж           input.tsx
+ж   ж           item.tsx
+ж   ж           kbd.tsx
+ж   ж           label.tsx
+ж   ж           menubar.tsx
+ж   ж           navigation-menu.tsx
+ж   ж           pagination.tsx
+ж   ж           popover.tsx
+ж   ж           progress.tsx
+ж   ж           radio-group.tsx
+ж   ж           resizable.tsx
+ж   ж           scroll-area.tsx
+ж   ж           select.tsx
+ж   ж           separator.tsx
+ж   ж           sheet.tsx
+ж   ж           sidebar.tsx
+ж   ж           skeleton.tsx
+ж   ж           slider.tsx
+ж   ж           sonner.tsx
+ж   ж           spinner.tsx
+ж   ж           switch.tsx
+ж   ж           table.tsx
+ж   ж           tabs.tsx
+ж   ж           textarea.tsx
+ж   ж           toggle-group.tsx
+ж   ж           toggle.tsx
+ж   ж           tooltip.tsx
+ж   ж           
+ж   +---hooks
+ж   ж       use-mobile.ts
+ж   ж       
+ж   +---layouts
+ж   ж       AdminLayout.tsx
+ж   ж       ClientLayout.tsx
+ж   ж       
+ж   +---pages
+ж   ж   ж   Home.tsx
+ж   ж   ж   
+ж   ж   +---admin
+ж   ж   ж       AccessPage.tsx
+ж   ж   ж       AnalyticsPage.tsx
+ж   ж   ж       ClientsPage.tsx
+ж   ж   ж       DashboardPage.tsx
+ж   ж   ж       DevicesPage.tsx
+ж   ж   ж       FinancePage.tsx
+ж   ж   ж       SettingsPage.tsx
+ж   ж   ж       SubscriptionsPage.tsx
+ж   ж   ж       VisitsPage.tsx
+ж   ж   ж       
+ж   ж   +---auth
+ж   ж   ж       LoginPage.tsx
+ж   ж   ж       
+ж   ж   L---client
+ж   ж           ClientSubscriptionsPage.tsx
+ж   ж           ClientVisitsPage.tsx
+ж   ж           ClientWalletPage.tsx
+ж   ж           ProfilePage.tsx
+ж   ж           
+ж   L---store
+ж           authStore.ts
+ж           
++---static
+ж   L---trainer-pwa
+ж           icon-192.png
+ж           icon-512.png
+ж           index.html
+ж           manifest.json
+ж           sw.js
+ж           
++---tasks
+ж   ж   access_control.py
+ж   ж   analytics.py
+ж   ж   cleanup.py
+ж   ж   finance.py
+ж   ж   ml.py
+ж   ж   notifications.py
+ж   ж   notifications_max.py
+ж   ж   sync_lockers.py
+ж   ж   sync_one_c.py
+ж   ж   sync_skud.py
+ж   ж   visits.py
+ж   ж   __init__.py
+ж   ж   
+ж   L---__pycache__
+ж           ml.cpython-311.pyc
+ж           __init__.cpython-311.pyc
+ж           
++---templates
+ж       __init__.py
+ж       
++---utils
+ж   ж   datetime.py
+ж   ж   pagination.py
+ж   ж   qr.py
+ж   ж   validators.py
+ж   ж   __init__.py
+ж   ж   
+ж   L---__pycache__
+ж           validators.cpython-311.pyc
+ж           __init__.cpython-311.pyc
+ж           
+L---__pycache__
+        main.cpython-311.pyc
+        __init__.cpython-311.pyc
+        

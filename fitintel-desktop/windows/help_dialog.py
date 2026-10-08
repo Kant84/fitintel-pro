@@ -489,7 +489,29 @@ HELP_TEXTS = {
         " Мастер можно пройти позже: он доступен в sidebar в любой момент."
     ),
 
-    # ─────────────────────────── КОММЕРЦИЯ ───────────────────────────
+    "Параметры клуба": (
+        "ПАРАМЕТРЫ КЛУБА\n\n"
+        "Все временные правила работы клуба и тексты бота MAX — в одном окне. "
+        "Изменения применяются сразу, без перезапуска сервера.\n\n"
+        "ПОДВКЛАДКА «ВРЕМЕННЫЕ ПАРАМЕТРЫ»:\n"
+        "• SLOT_MINUTES — длительность слота тренера (минут)\n"
+        "• ENTRY_WINDOW_BEFORE_HOURS / ENTRY_WINDOW_AFTER_HOURS — окно входа на занятие\n"
+        "• ENTRY_STAY_UNTIL_CLOSE — «вошёл и остаёшься до конца дня» (true/false)\n"
+        "• GYM_ACCESS_FULL_DAY — разовый вход в зал: весь день оплаты\n"
+        "• QR_TTL_MINUTES — время жизни QR (минут)\n"
+        "• QR_REFRESH_COOLDOWN_SECONDS — пауза между обновлениями QR в боте\n"
+        "• REMIND_BEFORE_HOURS / LAST_REMIND_BEFORE_HOURS — напоминания о записи\n"
+        "• CONFIRM_DEADLINE_HOURS — дедлайн подтверждения (иначе бронь сгорит)\n"
+        "• CANCEL_WINDOW_HOURS — бесплатная отмена записи\n"
+        "• ONLINE_BOOKING_ENABLED — вкл/выкл онлайн-запись из MAX\n"
+        "• CHILD_MAX_AGE — возраст ребёнка до (полных лет)\n\n"
+        "ПОДВКЛАДКА «ЛЕЙБЛЫ БОТА»:\n"
+        "Тексты кнопок и сообщений бота (TXT.MENU.*, TXT.QR.* и т.д.) — "
+        "переименуйте под свой клуб.\n\n"
+        "РЕДАКТИРОВАНИЕ: двойной клик по строке → введите значение → Enter. "
+        "Кэш сервера обновляется в течение минуты."
+    ),
+    # ─────────────────────────── КОММЕРЦИЯ ─────────────────────────--
     "Коммерция": (
         "КОММЕРЦИЯ / WHITE-LABEL\n\n"
         " ВКЛАДКА «WHITE-LABEL» — брендирование под ваш клуб:\n"
@@ -591,13 +613,31 @@ def _current_title(mw):
 
 
 def _clean_title(title: str) -> str:
-    """Убирает эмодзи/иконку в начале: '🔔 Уведомления' → 'Уведомления'."""
-    return re.sub(r"[^0-9A-Za-zА-Яа-яЁё]+", "", title).strip()
+    """Убирает ТОЛЬКО ведущую эмодзи/иконку: '🔔 Уведомления' → 'Уведомления'.
+    Пробелы и слэши ВНУТРИ названия ('Музыка/DJ', 'Входы/Выходы') сохраняет."""
+    return re.sub(r"^[^0-9A-Za-zА-Яа-яЁё]+", "", title).strip()
+
+
+def _active_subtab_title(mw) -> str:
+    """Если текущий экран — хаб с QTabWidget, вернуть заголовок активной
+    подвкладки (у каждой подвкладки — СВОЯ инструкция). Иначе пусто."""
+    stack = getattr(mw, "stack", None)
+    if stack is None:
+        return ""
+    cur = stack.currentWidget()
+    if cur is None:
+        return ""
+    from PyQt6.QtWidgets import QTabWidget
+    tw = cur.findChild(QTabWidget)
+    if tw is not None and tw.count():
+        return _clean_title(tw.tabText(tw.currentIndex()))
+    return ""
 
 
 def show_help(mw):
-    """Открывает прокручиваемое окно инструкции вместо QMessageBox."""
-    title = _clean_title(_current_title(mw))
+    """Открывает прокручиваемое окно инструкции вместо QMessageBox.
+    В хабах — инструкция активной ПОДВКЛАДКИ, не общая."""
+    title = _active_subtab_title(mw) or _clean_title(_current_title(mw))
     title = _ALIASES.get(title, title)
     text = HELP_TEXTS.get(title, DEFAULT_HELP)
     dlg = QDialog(mw)
