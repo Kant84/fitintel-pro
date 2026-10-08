@@ -291,16 +291,26 @@ class ShopTab(QWidget):
         btn_sell = QPushButton(" Продать")
         btn_sell.setStyleSheet("QPushButton { background: #059669; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn_sell.clicked.connect(self._sell)
+        top.addWidget(btn_sell)
+        for text, slot, color, fg in (
+            ("＋ Добавить товар", self._add_product, "#10b981", "white"),
+            ("Изменить", self._edit_product, "#f1f5f9", "#475569"),
+            ("Удалить", self._delete_product, "#fee2e2", "#b91c1c"),
+            ("Загрузить фото", self._upload_photo, "#eef2ff", "#3730a3"),
+        ):
+            b = QPushButton(text)
+            b.setStyleSheet(f"QPushButton {{ background: {color}; color: {fg}; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 14px; font-weight: 600; }}")
+            b.clicked.connect(slot)
+            top.addWidget(b)
         btn_ref = QPushButton("Обновить")
         btn_ref.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
         btn_ref.clicked.connect(self.refresh)
-        top.addWidget(btn_sell)
         top.addWidget(btn_ref)
         v.addLayout(top)
 
         self.tbl = QTableWidget()
-        self.tbl.setColumnCount(5)
-        self.tbl.setHorizontalHeaderLabels(["Наименование товара", "Фото", "Количество", "Цена ₽", "Ед."])
+        self.tbl.setColumnCount(6)
+        self.tbl.setHorizontalHeaderLabels(["Артикул", "Наименование товара", "Фото", "Количество", "Цена ₽", "Ед."])
         self.tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.tbl.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -320,19 +330,20 @@ class ShopTab(QWidget):
             self._products = rows if isinstance(rows, list) else rows.get("items", [])
             self.tbl.setRowCount(len(self._products))
             for i, p in enumerate(self._products):
-                self.tbl.setItem(i, 0, QTableWidgetItem(str(p.get("name") or "—")))
+                self.tbl.setItem(i, 0, QTableWidgetItem(str(p.get("article") or "—")))
+                self.tbl.setItem(i, 1, QTableWidgetItem(str(p.get("name") or "—")))
                 photo = QLabel("—")
                 photo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                url = str(p.get("photo_url") or "")
+                url = self._abs(str(p.get("photo_url") or ""))
                 if url:
                     loader = _PhotoLoader(url)
                     loader.done.connect(lambda px, lbl=photo: self._set_photo(lbl, px))
                     loader.start()
-                self.tbl.setCellWidget(i, 1, photo)
+                self.tbl.setCellWidget(i, 2, photo)
                 self.tbl.setRowHeight(i, 56)
-                self.tbl.setItem(i, 2, QTableWidgetItem(str(p.get("quantity") or 0)))
-                self.tbl.setItem(i, 3, QTableWidgetItem(str(p.get("sale_price") or 0)))
-                self.tbl.setItem(i, 4, QTableWidgetItem(str(p.get("unit") or "шт")))
+                self.tbl.setItem(i, 3, QTableWidgetItem(str(p.get("quantity") or 0)))
+                self.tbl.setItem(i, 4, QTableWidgetItem(str(p.get("sale_price") or 0)))
+                self.tbl.setItem(i, 5, QTableWidgetItem(str(p.get("unit") or "шт")))
         except Exception as e:
             self.tbl.setRowCount(1)
             self.tbl.setItem(0, 0, QTableWidgetItem(f"Ошибка: {e}"))
@@ -341,6 +352,101 @@ class ShopTab(QWidget):
         if px and not px.isNull():
             lbl.setPixmap(px.scaled(48, 48, Qt.AspectRatioMode.KeepAspectRatio,
                                     Qt.TransformationMode.SmoothTransformation))
+
+    def _abs(self, url: str) -> str:
+        if not url:
+            return ""
+        if url.startswith("http"):
+            return url
+        base = (getattr(self.api, "base_url", "") or "").rstrip("/")
+        root = base[:-len("/api/v1")] if base.endswith("/api/v1") else base
+        return root + url
+
+    def _product_dialog(self, p=None):
+        from PyQt6.QtWidgets import QDialogButtonBox
+        p = p or {}
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Товар" if p else "Новый товар")
+        f = QFormLayout(dlg)
+        ed_art = QLineEdit(str(p.get("article") or ""))
+        ed_name = QLineEdit(str(p.get("name") or ""))
+        sp_price = QDoubleSpinBox(); sp_price.setRange(0, 10000000); sp_price.setValue(float(p.get("sale_price") or 0))
+        sp_qty = QSpinBox(); sp_qty.setRange(0, 1000000); sp_qty.setValue(int(float(p.get("quantity") or 0)))
+        ed_photo = QLineEdit(str(p.get("photo_url") or "")); ed_photo.setPlaceholderText("URL фото или загрузите кнопкой")
+        f.addRow("Артикул:", ed_art)
+        f.addRow("Наименование:", ed_name)
+        f.addRow("Цена ₽:", sp_price)
+        f.addRow("Количество:", sp_qty)
+        f.addRow("Фото (URL):", ed_photo)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        bb.button(QDialogButtonBox.StandardButton.Save).setText("Сохранить")
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        f.addRow(bb)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return None
+        if not ed_name.text().strip():
+            QMessageBox.warning(self, "Товар", "Укажите наименование")
+            return None
+        return {"article": ed_art.text().strip(), "name": ed_name.text().strip(),
+                "sale_price": float(sp_price.value()), "quantity": sp_qty.value(),
+                "photo_url": ed_photo.text().strip() or None}
+
+    def _add_product(self):
+        data = self._product_dialog()
+        if not data:
+            return
+        data["club_id"] = 1
+        r = self.api.session.post(self.api._url("/warehouse/products-create"), json=data)
+        (self.refresh() if r.status_code == 201 else
+         QMessageBox.warning(self, "Товар", f"{r.status_code}: {r.text[:150]}"))
+
+    def _edit_product(self):
+        idx = self.tbl.currentRow()
+        if idx < 0 or idx >= len(self._products):
+            QMessageBox.information(self, "Товар", "Выберите товар в таблице")
+            return
+        p = self._products[idx]
+        data = self._product_dialog(p)
+        if not data:
+            return
+        r = self.api.session.put(self.api._url(f"/warehouse/products/{p['id']}"), json=data)
+        (self.refresh() if r.status_code == 200 else
+         QMessageBox.warning(self, "Товар", f"{r.status_code}: {r.text[:150]}"))
+
+    def _delete_product(self):
+        idx = self.tbl.currentRow()
+        if idx < 0 or idx >= len(self._products):
+            QMessageBox.information(self, "Товар", "Выберите товар в таблице")
+            return
+        p = self._products[idx]
+        if QMessageBox.question(self, "Удаление товара", f"Удалить «{p.get('name')}»?"
+                                ) != QMessageBox.StandardButton.Yes:
+            return
+        r = self.api.session.delete(self.api._url(f"/warehouse/products/{p['id']}"))
+        (self.refresh() if r.status_code == 204 else
+         QMessageBox.warning(self, "Товар", f"{r.status_code}: {r.text[:150]}"))
+
+    def _upload_photo(self):
+        from PyQt6.QtWidgets import QFileDialog
+        idx = self.tbl.currentRow()
+        if idx < 0 or idx >= len(self._products):
+            QMessageBox.information(self, "Фото", "Выберите товар в таблице")
+            return
+        p = self._products[idx]
+        path, _ = QFileDialog.getOpenFileName(self, "Фото товара", "", "Изображения (*.jpg *.jpeg *.png *.webp)")
+        if not path:
+            return
+        try:
+            with open(path, "rb") as fh:
+                r = self.api.session.post(self.api._url(f"/warehouse/products/{p['id']}/photo"),
+                                          files={"file": (os.path.basename(path), fh, "image/jpeg")})
+            if r.status_code == 200:
+                QMessageBox.information(self, "Фото", "Фото загружено")
+                self.refresh()
+            else:
+                QMessageBox.warning(self, "Фото", f"{r.status_code}: {r.text[:150]}")
+        except Exception as e:
+            QMessageBox.critical(self, "Фото", str(e))
 
     def _sell(self):
         idx = self.tbl.currentRow()
