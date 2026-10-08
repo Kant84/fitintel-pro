@@ -286,20 +286,22 @@ class TestEntryPolicy:
 
     def test_stay_until_close(self, client, auth_headers, db_session):
         """ENTRY_STAY_UNTIL_CLOSE=true: вход вечером в день занятия разрешён
-        (окно AFTER=1ч давно прошло, но «до конца дня»)."""
+        (окно AFTER=1ч давно прошло, но «до конца дня»). Якорь — полдень UTC,
+        чтобы проверка не пересекала полночь (флак времени теста)."""
+        NOON = datetime(2030, 3, 15, 12, 0, tzinfo=timezone.utc)   # пятница, полдень
         client.put("/api/v1/club-params/ENTRY_STAY_UNTIL_CLOSE",
                    json={"value": "true"}, headers=auth_headers)
         try:
             c = _mk_client(db_session, "+79000000025")
             s = _mk_service(db_session, "Вечернее занятие")
-            when = (NOW + timedelta(hours=2)).isoformat()
+            when = (NOON + timedelta(hours=2)).isoformat()
             client.post(f"/api/v1/services/{s.id}/book",
                         json={"client_id": str(c.id), "booking_date": when},
                         headers=auth_headers)
             bid = str(db_session.query(ServiceBooking).filter_by(client_id=str(c.id)).first().id)
             client.post(f"/api/v1/services/bookings/{bid}/pay", headers=auth_headers)
-            # 8 часов ПОСЛЕ начала: AFTER=1ч нарушено, но until_close спасает
-            assert can_enter(db_session, str(c.id), at=NOW + timedelta(hours=10))
+            # 8 часов ПОСЛЕ начала (20:00 того же дня): AFTER=1ч нарушено, until_close спасает
+            assert can_enter(db_session, str(c.id), at=NOON + timedelta(hours=10))
         finally:
             client.put("/api/v1/club-params/ENTRY_STAY_UNTIL_CLOSE",
                        json={"value": "false"}, headers=auth_headers)

@@ -1,8 +1,8 @@
 """W5: базовый хаб с ЛЕНИВЫМИ подвкладками.
-Подвкладка строится при первом открытии (как вкладки в main_window):
-нет лавины сетевых запросов при старте, нет зависаний. При постройке
-прогоняется polish() — неон-иконки на кнопках подвкладки."""
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTabWidget
+Подвкладка строится при первом открытии. ВАЖНО: _build защищён от реентерабельности —
+_currentChanged заблокирован на время remove/insert, отметка о постройке ставится ДО
+мутации (иначе setCurrentIndex перезапускает _build -> бесконечный цикл -> зависание)."""
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QLabel
 
 
 class HubTab(QWidget):
@@ -17,7 +17,7 @@ class HubTab(QWidget):
         self.tabs.setMovable(True)
         lay.addWidget(self.tabs)
         self._built = set()
-        for i, (title, _fn) in enumerate(specs):
+        for title, _fn in specs:
             self.tabs.addTab(QWidget(), title)   # placeholder
         self.tabs.currentChanged.connect(self._build)
         self._build(0)
@@ -25,25 +25,30 @@ class HubTab(QWidget):
     def _build(self, index: int):
         if index in self._built or not (0 <= index < len(self._specs)):
             return
+        self._built.add(index)                    # ОТМЕТКА ДО мутации — защита от реентерабельности
         title, fn = self._specs[index]
         try:
             widget = fn()
         except Exception as e:
-            from PyQt6.QtWidgets import QLabel
             widget = QLabel(f"Не удалось загрузить «{title}»: {e}")
         try:
             from windows.icons import polish
             polish(widget)
         except Exception:
             pass
-        cur = self.tabs.currentIndex()
-        self.tabs.removeTab(index)
-        self.tabs.insertTab(index, widget, title)
-        self.tabs.setCurrentIndex(cur if cur >= 0 else 0)
-        self._built.add(index)
+        self.tabs.blockSignals(True)              # remove/insert не дёргают currentChanged
+        try:
+            self.tabs.removeTab(index)
+            self.tabs.insertTab(index, widget, title)
+            if self.tabs.currentIndex() < 0:
+                self.tabs.setCurrentIndex(index)
+        finally:
+            self.tabs.blockSignals(False)
 
     def refresh(self):
-        """F5: обновить текущую подвкладку, если умеет."""
         w = self.tabs.currentWidget()
         if hasattr(w, "refresh"):
             w.refresh()
+
+
+print("[hub_base] W5 v2.1 загружен: ленивые хабы (reentrancy-safe)")
