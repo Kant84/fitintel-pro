@@ -23,7 +23,8 @@ MENU_TEXT = (
     "4. 📋 Мои записи\n"
     "5. 🔳 QR на вход\n"
     "6. 🎁 Бонусы\n"
-    "7. 👶 Мои дети\n\n"
+    "7. 👶 Мои дети\n"
+    "8. 💳 Пополнить баланс\n\n"
     "Ответьте номером или словом (например: «1» или «магазин»)."
 )
 
@@ -231,6 +232,30 @@ def _step_registration(db: Session, uid: int, text: str) -> str:
         return (f"Готово, {data['first_name']}! Карточка создана и привязана.\n\n" + _menu())
 
     return _menu()
+
+
+def _wallet_topup_ask(db: Session, uid: int) -> str:
+    _set_state(db, uid, "WALLET_TOPUP", {})
+    return "Пополнение баланса онлайн (банковская карта). Напишите сумму в рублях (от 50 до 50 000):"
+
+
+def _wallet_topup_do(db: Session, uid: int, text: str, row) -> str:
+    t = (text or "").strip().replace(" ", "").replace("₽", "").replace("руб", "")
+    try:
+        amount = int(t)
+    except ValueError:
+        return "Напишите сумму числом, например: 1000"
+    from app.services.shop_service import create_balance_topup
+    try:
+        res = create_balance_topup(db, str(row[0]), amount)
+    except HTTPException as e:
+        detail = e.detail if isinstance(e.detail, str) else str(e.detail)
+        return f"Не получилось создать платёж: {detail}"
+    _clear(db, uid)
+    note = "\n(тестовый режим без ключей ЮKassa — оплата эмулируется)" if res.get("test_mode") else ""
+    return (f"💳 Пополнение на {amount} ₽\n"
+            f"Ссылка для оплаты картой:\n{res['payment_url']}\n\n"
+            f"После оплаты баланс пополнится автоматически.{note}\n\n" + _menu())
 
 
 def _shop_kind(db: Session, uid: int, text: str) -> str:
@@ -486,6 +511,8 @@ def handle(db: Session, max_user_id: int, text: str) -> str | None:
         if not row:
             _clear(db, max_user_id)
             return "Нужна привязка карточки: сообщите номер телефона администратору или на ресепшене."
+        if state == "WALLET_TOPUP":
+            return _wallet_topup_do(db, max_user_id, text, row)
         if state == "SHOP_KIND":
             return _shop_kind(db, max_user_id, text)
         if state == "SHOP_GOODS":
@@ -566,6 +593,8 @@ def handle(db: Session, max_user_id: int, text: str) -> str | None:
         _set_state(db, max_user_id, "SHOP_PICK", {"ids": [str(s.id) for s in svcs]})
         return ("👤 Личный тренер — выберите услугу:\n" +
                 "\n".join(f"{i}. {s.name}" for i, s in enumerate(svcs[:20], 1)))
+    if t in ("8", "пополнить", "пополнить баланс"):
+        return _wallet_topup_ask(db, max_user_id)
     if t in ("7", "дети", "мои дети", "ребёнок", "ребенок"):
         kids = _my_children(db, row[0])
         lines = ["👶 Ваши дети:"]

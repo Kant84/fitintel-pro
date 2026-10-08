@@ -52,3 +52,44 @@ def buy_with_balance(db: Session, client_id, product_id, quantity: int = 1) -> d
     db.commit()
     return {"ok": True, "product": p.name, "quantity": quantity,
             "total": float(total), "balance": float(wallet.balance)}
+
+
+def create_balance_topup(db: Session, client_id, amount: float, description: str = "Пополнение баланса ЛК") -> dict:
+    """Создать онлайн-платёж для пополнения кошелька (ЮKassa).
+    Webhook /yookassa/webhook (payment.succeeded) зачисляет сумму на кошелёк сам.
+    Без ключей YOOKASSA_* — тестовый режим (ссылка-заглушка)."""
+    import uuid as _uuid
+    from datetime import datetime as _dt, timezone as _tz
+    from sqlalchemy import text as _t
+    from app.services.yookassa_service import YooKassaService
+
+    if amount < 50 or amount > 50000:
+        raise HTTPException(400, "Сумма пополнения: от 50 до 50 000 ₽")
+
+    svc = YooKassaService(db)
+    if svc.enabled:
+        r = svc.create_payment(amount, description, return_url="")
+        if "error" in r:
+            raise HTTPException(502, f"ЮKassa: {r['error']}")
+        yk_id = r.get("id") or f"yk-{_uuid.uuid4().hex[:16]}"
+        url = (r.get("confirmation") or {}).get("confirmation_url", "")
+        test = False
+    else:
+        yk_id = f"yk-{_uuid.uuid4().hex[:16]}"
+        url = f"https://yookassa.ru/payments/{yk_id}?test=true"
+        test = True
+
+    now = _dt.now(_tz.utc)
+    cols = {r[0] for r in db.execute(_t(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='payments'"))}
+    data = {"id": str(_uuid.uuid4()), "client_id": str(client_id), "amount": amount,
+            "currency": "RUB", "payment_method": "bank_card", "status": "pending",
+            "external_payment_id": yk_id, "payment_system": "yookassa",
+            "notes": description, "payment_direction": "incoming",
+            "payment_category": "service",
+            "created_at": now, "updated_at": now}
+    data = {k: v for k, v in data.items() if k in cols}
+    db.execute(_t(f"INSERT INTO payments ({', '.join(data)}) "
+                  f"VALUES ({', '.join(':'+k for k in data)})"), data)
+    db.commit()
+    return {"payment_id": data["id"], "payment_url": url, "test_mode": test}
