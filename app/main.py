@@ -101,7 +101,7 @@ from app.api.v1.ops import router as ops_router
 from app.api.v1.ui_config import router as ui_config_router
 from app.api.v1.music import router as music_router
 from app.api.v1.club_params import router as club_params_router
-
+from app.api.v1.shop import router as shop_router
 
 # === ROUTES ===
 app.include_router(connectors_router, prefix=settings.API_V1_PREFIX)
@@ -125,6 +125,7 @@ app.include_router(access_router, prefix=settings.API_V1_PREFIX)
 app.include_router(reports_ops_router, prefix=settings.API_V1_PREFIX)
 app.include_router(music_router, prefix=settings.API_V1_PREFIX)
 app.include_router(club_params_router, prefix=settings.API_V1_PREFIX)
+app.include_router(shop_router, prefix=settings.API_V1_PREFIX)
 # === Prometheus metrics ===
 try:
     import time as _time
