@@ -424,3 +424,8 @@ def _ensure_max_bot_settings() -> None:
         _c.execute(_t("CREATE TABLE IF NOT EXISTS max_bot_settings (id INTEGER PRIMARY KEY DEFAULT 1, bot_token TEXT, webhook_secret TEXT, updated_at TIMESTAMP DEFAULT now())"))
 
 _ensure_max_bot_settings()  # W5 ensure: auto-repair schema on start
+
+
+@router.api_route("/webhook", methods=["GET", "HEAD"])
+def _max_bot_webhook_service_check() -> dict:
+    return {"ok": True}
