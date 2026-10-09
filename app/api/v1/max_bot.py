@@ -425,6 +425,17 @@ def _ensure_max_bot_settings() -> None:
 
 _ensure_max_bot_settings()  # W5 ensure: auto-repair schema on start
 
-@router.get("/webhook")
-def _max_bot_webhook_service_check() -> dict:
-    return {"ok": True}
+# W5: GET-обработчик webhook на тот же роутер, что и POST (без угадывания имени)
+from fastapi import APIRouter as _AR, Request as _RQ
+import logging as _lg
+
+for _o in list(globals().values()):
+    if isinstance(_o, _AR) and any(
+        getattr(_rt, "path", "") == "/webhook" and "POST" in (getattr(_rt, "methods", None) or set())
+        for _rt in _o.routes
+    ):
+        @_o.get("/webhook")
+        def _max_bot_webhook_get_probe(request: _RQ) -> dict:
+            _lg.getLogger("maxbot").info("GET webhook query: %s", dict(request.query_params))
+            return {"ok": True}
+        break
