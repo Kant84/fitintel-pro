@@ -25,6 +25,7 @@ from api import ApiClient
 from windows import theme
 
 DATA_DIR = Path(__file__).parents[1]
+SHOP_SETTINGS = DATA_DIR / "shop_settings.json"
 PRODUCTS_JSON = DATA_DIR / "shop_products.json"
 SALES_JSON = DATA_DIR / "shop_sales.json"
 PHOTOS_DIR = DATA_DIR / "shop_photos"
@@ -67,6 +68,7 @@ class ShopTab(QWidget):
             ("Изменить", self._edit_product, "#f1f5f9", "#475569"),
             ("Удалить", self._delete_product, "#fee2e2", "#b91c1c"),
             ("Загрузить фото", self._upload_photo, "#eef2ff", "#3730a3"),
+            ("Настройки Магазина", self._settings_dialog, "#fdf4ff", "#a21caf"),
             ("Обновить", self.refresh, "#f1f5f9", "#475569"),
         ):
             b = QPushButton(text)
@@ -86,23 +88,75 @@ class ShopTab(QWidget):
         v.addWidget(self.tbl, 1)
         self.refresh()
 
+    # ---------- настройки ----------
+
+    def _shop_cfg(self) -> dict:
+        try:
+            if SHOP_SETTINGS.exists():
+                return json.loads(SHOP_SETTINGS.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+        return {"mode": "auto", "club_id": 1}
+
+    def _settings_dialog(self):
+        from PyQt6.QtWidgets import QComboBox, QDialogButtonBox
+        cfg = self._shop_cfg()
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Настройки Магазина")
+        f = QFormLayout(dlg)
+        cb = QComboBox()
+        cb.addItem("Авто (сервер, при сбое — киоск)", "auto")
+        cb.addItem("Только серверный склад", "server")
+        cb.addItem("Только локальный киоск", "kiosk")
+        cb.setCurrentIndex({"auto": 0, "server": 1, "kiosk": 2}.get(cfg.get("mode", "auto"), 0))
+        sp = QSpinBox(); sp.setRange(1, 999999); sp.setValue(int(cfg.get("club_id", 1)))
+        f.addRow("Режим склада:", cb)
+        f.addRow("ID клуба (склад):", sp)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        bb.button(QDialogButtonBox.StandardButton.Save).setText("Сохранить")
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        f.addRow(bb)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            SHOP_SETTINGS.write_text(json.dumps({"mode": cb.currentData(), "club_id": sp.value()},
+                                                ensure_ascii=False, indent=2), encoding="utf-8")
+            self.refresh()
+
     # ---------- данные ----------
 
     def refresh(self):
+        cfg = self._shop_cfg()
+        if cfg.get("mode") == "kiosk":
+            self._switch_kiosk("Режим: локальный киоск (shop_settings.json)")
+            return
+        if cfg.get("mode") == "server":
+            self._load_server(cfg, force=True)
+            return
+        self._load_server(cfg, force=False)
+
+    def _load_server(self, cfg, force: bool):
         try:
             r = self.api.session.get(self.api._url("/warehouse/products"),
-                                     params={"club_id": 1}, timeout=8)
+                                     params={"club_id": int(cfg.get("club_id", 1))}, timeout=8)
             if r.status_code == 200:
                 rows = r.json()
                 self._products = rows if isinstance(rows, list) else rows.get("items", [])
                 self._server_mode = True
-                self.lbl_info.setText("Серверный склад (warehouse)")
+                self.lbl_info.setText(f"Серверный склад (warehouse, клуб {cfg.get('club_id', 1)})")
                 self._render()
                 return
         except Exception:
             pass
+        if force:
+            self._server_mode = True
+            self._products = []
+            self.lbl_info.setText(f"Серверный склад недоступен (клуб {cfg.get('club_id', 1)}): {r.status_code if 'r' in dir() else 'сеть'} — проверьте warehouse на сервере")
+            self._render()
+            return
+        self._switch_kiosk("Локальная эмуляция склада (киоск): данные в shop_products.json")
+
+    def _switch_kiosk(self, label: str):
         self._server_mode = False
-        self.lbl_info.setText("Локальная эмуляция склада (киоск): данные в shop_products.json")
+        self.lbl_info.setText(label)
         self._products = self._load_local()
         self._render()
 

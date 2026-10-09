@@ -88,23 +88,27 @@ def create_balance_topup(db: Session, client_id, amount: float, description: str
     import uuid as _uuid
     from datetime import datetime as _dt, timezone as _tz
     from sqlalchemy import text as _t
-    from app.services.yookassa_service import YooKassaService
 
     if amount < 50 or amount > 50000:
         raise HTTPException(400, "Сумма пополнения: от 50 до 50 000 ₽")
 
-    svc = YooKassaService(db)
-    if svc.enabled:
-        r = svc.create_payment(amount, description, return_url="")
-        if "error" in r:
-            raise HTTPException(502, f"ЮKassa: {r['error']}")
-        yk_id = r.get("id") or f"yk-{_uuid.uuid4().hex[:16]}"
-        url = (r.get("confirmation") or {}).get("confirmation_url", "")
-        test = False
-    else:
-        yk_id = f"yk-{_uuid.uuid4().hex[:16]}"
-        url = f"https://yookassa.ru/payments/{yk_id}?test=true"
-        test = True
+    # 1) банковский эквайринг (Сбер/Тинькофф из server_settings.BANK_CONFIG)
+    bank_res = None
+    try:
+        from app.api.v1.bank_online import create_bank_payment
+        bank_res = create_bank_payment(db, client_id, amount, description)
+    except HTTPException:
+        raise
+    except Exception:
+        bank_res = None
+    if bank_res:
+        # платёж уже записан create_bank_payment
+        return {"payment_id": None, "payment_url": bank_res["payment_url"],
+                "test_mode": False}
+    # 2) тестовый режим (ссылка-заглушка)
+    yk_id = f"yk-{_uuid.uuid4().hex[:16]}"
+    url = f"https://yookassa.ru/payments/{yk_id}?test=true"
+    test = True
 
     now = _dt.now(_tz.utc)
     cols = {r[0] for r in db.execute(_t(
