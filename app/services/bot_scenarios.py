@@ -212,6 +212,15 @@ def _step_registration(db: Session, uid: int, text: str) -> str:
             data["birth_date"] = date(y, mo, d).isoformat()
         except ValueError:
             return "Такой даты не бывает. Ещё раз:"
+        # W5: телефон уже в базе -> привязываем существующую карточку вместо ошибки
+        _ex = db.execute(sql_text(
+            "SELECT id, first_name FROM clients WHERE phone=:p LIMIT 1"),
+            {"p": data["phone"]}).first()
+        if _ex:
+            _bind(db, uid, _ex[0])
+            _save_source(db, _ex[0], data.get("source"))
+            _clear(db, uid)
+            return (f"Карточка найдена ({_ex[1]}) и привязана к вашему MAX.\n\n" + _menu())
         # создание клиента
         try:
             c = Client(first_name=data["first_name"], last_name=data["last_name"],
