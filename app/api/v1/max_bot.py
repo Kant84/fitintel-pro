@@ -108,7 +108,7 @@ def _ensure_bot_tables(db: Session):
             bound_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"""))
     db.execute(sql_text("""
         CREATE TABLE IF NOT EXISTS max_bot_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             max_user_id BIGINT,
             command TEXT,
             payload TEXT,
