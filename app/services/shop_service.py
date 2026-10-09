@@ -124,3 +124,13 @@ def create_balance_topup(db: Session, client_id, amount: float, description: str
                   f"VALUES ({', '.join(':'+k for k in data)})"), data)
     db.commit()
     return {"payment_id": data["id"], "payment_url": url, "test_mode": test}
+
+
+def _ensure_shop_club_id() -> None:
+    from app.db.session import engine as _e
+    from sqlalchemy import text as _t
+    with _e.begin() as _c:
+        _c.execute(_t("ALTER TABLE warehouse_products ADD COLUMN IF NOT EXISTS club_id INTEGER DEFAULT 1"))
+        _c.execute(_t("UPDATE warehouse_products SET club_id = 1 WHERE club_id IS NULL"))
+
+_ensure_shop_club_id()  # W5 ensure: auto-repair schema on start
