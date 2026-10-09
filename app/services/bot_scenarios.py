@@ -609,6 +609,23 @@ def handle(db: Session, max_user_id: int, text: str) -> str | None:
         _set_state(db, max_user_id, "CHILD_FIO", {})
         return "ФИО ребёнка одной строкой (например: Иванова Мария):"
 
+    if t in ("5", "qr", "вход", "пропуск"):
+        return ("🔳 QR на вход: напишите команду /qr — получите одноразовый QR "
+                "(живёт несколько минут, обновляется кнопкой). QR доступен при активном абонементе "
+                "или оплаченном занятии.")
+    if t in ("6", "бонусы", "бонус"):
+        bal = None
+        try:
+            from sqlalchemy import text as _t
+            r = db.execute(_t("SELECT balance FROM wallets WHERE replace(client_id,'-','')=:c"),
+                           {"c": str(row[0]).replace("-", "")}).first()
+            bal = float(r[0]) if r else None
+        except Exception:
+            pass
+        parts = [get_label("TXT.BONUSES.SOON", "Программа бонусов скоро появится!")]
+        if bal is not None:
+            parts.insert(0, f"💰 Баланс: {bal:.2f} ₽")
+        return "\n".join(parts) + "\n\n" + _menu()
     if t in ("4", "мои записи", "записи"):
         _my_menu_prep(db, max_user_id)
         return _my_bookings(db, row)
