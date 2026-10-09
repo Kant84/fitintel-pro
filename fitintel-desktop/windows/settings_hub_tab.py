@@ -2,6 +2,7 @@
 from windows.hub_base import HubTab
 
 _MOD2CLS = {
+    "services_settings_tab": ("_Get", "Сервисы"),
     "setup_tab": "SetupTab",
     "ui_config_tab": "UiConfigTab",
     "license_tab": "LicenseTab",
