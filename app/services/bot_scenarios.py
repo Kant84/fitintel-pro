@@ -507,6 +507,10 @@ def _my_confirm(db: Session, uid: int, text: str, row) -> str:
 # ---------------- точка входа ----------------
 
 def handle(db: Session, max_user_id: int, text: str) -> str | None:
+
+    if _norm(text or "") in ("0", "меню", "назад"):
+        _clear(db, max_user_id)
+        return _menu()
     """Возвращает ответ, если сценарий обработал сообщение, иначе None (команды)."""
     _ensure(db)
     t = _norm(text)

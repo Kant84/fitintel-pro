@@ -323,12 +323,29 @@ def _try_send_reply(db: Session, max_user_id: int, reply: dict):
     s = _get_settings(db)
     if not s.get("bot_token"):
         return
+    import re as _re
+    clean = _re.sub(r"([\u2700-\u27BF]|\U0001F1E6-\U0001F251|\U0001F300-\U0001F5FF|\U0001F600-\U0001F64F|\U0001F680-\U0001F6FF|\U0001F900-\U0001F9FF|\u2B00-\u2BFF|\uFE0F)", "", text_body)
+    clean = _re.sub(r"[ \t]+\n", "\n", clean).strip()
     try:
-        requests.post("https://platform-api.max.ru/messages",
-                      params={"user_id": int(max_user_id)},
-                      json={"text": text_body[:4000]},
-                      headers={"Authorization": s["bot_token"]},
-                      timeout=5)
+        from app.services.bot_keyboards import keyboard_for
+        _kb = keyboard_for(text_body)
+    except Exception:
+        _kb = None
+    _body = {"text": clean[:4000]}
+    if _kb:
+        _body["attachments"] = [_kb]
+    try:
+        _r = requests.post("https://platform-api.max.ru/messages",
+                           params={"user_id": int(max_user_id)},
+                           json=_body,
+                           headers={"Authorization": s["bot_token"]},
+                           timeout=5)
+        if _r.status_code >= 400 and _kb:
+            requests.post("https://platform-api.max.ru/messages",
+                          params={"user_id": int(max_user_id)},
+                          json={"text": clean[:4000]},
+                          headers={"Authorization": s["bot_token"]},
+                          timeout=5)
     except Exception:
         pass
 
@@ -348,11 +365,17 @@ async def max_bot_webhook(request: Request,
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
     update = body.get("update", body)
-    msg = (update.get("message") or update.get("callback_query") or {})
-    sender = msg.get("sender") or msg.get("from") or {}
-    max_user_id = sender.get("user_id")
-    inner = msg.get("body") or {}
-    text = msg.get("text") or inner.get("text") or msg.get("data") or ""
+    _cb = update.get("message_callback") or {}
+    if _cb:
+        from app.services.bot_keyboards import payload_to_text
+        max_user_id = (_cb.get("user") or {}).get("user_id")
+        text = payload_to_text(_cb.get("payload") or "")
+    else:
+        msg = (update.get("message") or {})
+        sender = msg.get("sender") or msg.get("from") or {}
+        max_user_id = sender.get("user_id")
+        inner = msg.get("body") or {}
+        text = msg.get("text") or inner.get("text") or msg.get("data") or ""
 
     if not max_user_id:
         return {"ok": True}
