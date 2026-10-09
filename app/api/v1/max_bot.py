@@ -425,7 +425,6 @@ def _ensure_max_bot_settings() -> None:
 
 _ensure_max_bot_settings()  # W5 ensure: auto-repair schema on start
 
-
-@router.api_route("/webhook", methods=["GET", "HEAD"])
+@router.get("/webhook")
 def _max_bot_webhook_service_check() -> dict:
     return {"ok": True}
