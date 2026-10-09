@@ -426,7 +426,11 @@ def _ensure_max_bot_settings() -> None:
 _ensure_max_bot_settings()  # W5 ensure: auto-repair schema on start
 
 @router.get("/max-bot/webhook")
-def _max_bot_webhook_get_check(request: Request) -> dict:
+async def _max_bot_webhook_get_check(request: Request) -> dict:
     import logging
-    logging.getLogger("maxbot").info("GET webhook query: %s", dict(request.query_params))
+    _b = await request.body()
+    logging.getLogger("maxbot").info(
+        "GET webhook query=%s headers=%s body=%s",
+        dict(request.query_params), dict(request.headers), _b[:3000],
+    )
     return {"ok": True}
