@@ -327,8 +327,10 @@ def _try_send_reply(db: Session, max_user_id: int, reply: dict):
     clean = _re.sub(r"([\u2700-\u27BF]|\U0001F1E6-\U0001F251|\U0001F300-\U0001F5FF|\U0001F600-\U0001F64F|\U0001F680-\U0001F6FF|\U0001F900-\U0001F9FF|\u2B00-\u2BFF|\uFE0F)", "", text_body)
     clean = _re.sub(r"[ \t]+\n", "\n", clean).strip()
     try:
-        from app.services.bot_keyboards import keyboard_for
-        _kb = keyboard_for(text_body)
+        from app.services import bot_keyboards as _bk
+        _kb = _bk.keyboard_for(text_body)
+        if getattr(_bk, "LAUNCHER_TEXT", None):
+            clean = _bk.LAUNCHER_TEXT
     except Exception:
         _kb = None
     _body = {"text": clean[:4000]}
