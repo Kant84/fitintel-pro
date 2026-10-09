@@ -335,10 +335,11 @@ def _try_send_reply(db: Session, max_user_id: int, reply: dict):
 
 @router.post("/max-bot/webhook")
 async def max_bot_webhook(request: Request,
-                          db: Session = Depends(get_db),
-                          x_max_bot_secret: str = Header(default="")):
+                          db: Session = Depends(get_db)):
     _ensure_bot_tables(db)
-    if not _verify_secret(db, x_max_bot_secret):
+    _sec = (request.headers.get("X-Max-Bot-Api-Secret")
+            or request.headers.get("X-Max-Bot-Secret") or "")
+    if not _verify_secret(db, _sec):
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
 
     try:
