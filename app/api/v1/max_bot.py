@@ -415,3 +415,12 @@ def cron_notify_bookings(db: Session = Depends(get_db)):
             "message": f"Напоминание: завтра запись на «{r[2]}» ({bd_str}).",
         })
     return {"notifications": notifications, "count": len(notifications)}
+
+
+def _ensure_max_bot_settings() -> None:
+    from app.db.session import engine as _e
+    from sqlalchemy import text as _t
+    with _e.begin() as _c:
+        _c.execute(_t("CREATE TABLE IF NOT EXISTS max_bot_settings (id INTEGER PRIMARY KEY DEFAULT 1, bot_token TEXT, webhook_secret TEXT, updated_at TIMESTAMP DEFAULT now())"))
+
+_ensure_max_bot_settings()  # W5 ensure: auto-repair schema on start
