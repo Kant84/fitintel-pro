@@ -455,6 +455,8 @@ async def get_dashboard(
 def _ensure_warehouse_club_id() -> None:
     from app.db.session import engine as _e
     from sqlalchemy import text as _t
+    from app.models.warehouse import WarehouseProduct
+    WarehouseProduct.__table__.create(_e, checkfirst=True)
     with _e.begin() as _c:
         _c.execute(_t("ALTER TABLE warehouse_products ADD COLUMN IF NOT EXISTS club_id INTEGER DEFAULT 1"))
         _c.execute(_t("UPDATE warehouse_products SET club_id = 1 WHERE club_id IS NULL"))
