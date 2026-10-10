@@ -329,8 +329,8 @@ def _try_send_reply(db: Session, max_user_id: int, reply: dict):
     try:
         from app.services import bot_keyboards as _bk
         _kb = _bk.keyboard_for(text_body)
-        if getattr(_bk, "LAUNCHER_TEXT", None):
-            clean = _bk.LAUNCHER_TEXT
+        if _link:
+            clean = "Приложение клуба (откройте ссылку):\n" + _link
     except Exception:
         _kb = None
     _body = {"text": clean[:4000]}
