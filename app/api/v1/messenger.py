@@ -21,7 +21,7 @@ if engine is None:
 
 router = APIRouter(tags=["messenger"])
 MAX_API = "https://platform-api.max.ru"
-MAX_API_LP = "https://platform-api2.max.ru"
+MAX_API_LP = "https://platform-api.max.ru"
 
 DEFAULT_SETTINGS = {
     "enabled": True,
