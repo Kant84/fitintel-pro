@@ -458,3 +458,14 @@ def demo():
                   {"c": "demo-client-1", "m": "12345678",
                    "n": "Иван Петров (демо)", "t": now})
     return {"ok": True, "chat_id": cid}
+
+# === _max_token W5 fallback: токен из «Настройки приложения» (max_bot_settings);
+# старая таблица integration_settings у новых клубов отсутствует ===
+def _max_token():  # noqa: F811
+    try:
+        with engine.connect() as c:
+            row = c.execute(text(
+                "SELECT bot_token FROM max_bot_settings WHERE id=1")).first()
+        return (row[0] if row else None) or None
+    except Exception:
+        return None
