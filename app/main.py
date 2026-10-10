@@ -104,6 +104,7 @@ from app.api.v1.club_params import router as club_params_router
 from app.api.v1.shop import router as shop_router
 from app.api.v1.server_settings import router as server_settings_router
 from app.api.v1.bank_online import router as bank_online_router
+from app.api.v1.miniapp_config import router as miniapp_config_router
 # === ROUTES ===
 app.include_router(connectors_router, prefix=settings.API_V1_PREFIX)
 app.include_router(dynamic_qr_router, prefix=settings.API_V1_PREFIX)
@@ -129,6 +130,7 @@ app.include_router(club_params_router, prefix=settings.API_V1_PREFIX)
 app.include_router(shop_router, prefix=settings.API_V1_PREFIX)
 app.include_router(server_settings_router, prefix=settings.API_V1_PREFIX)
 app.include_router(bank_online_router, prefix=settings.API_V1_PREFIX)
+app.include_router(miniapp_config_router, prefix=settings.API_V1_PREFIX)
 # === Prometheus metrics ===
 try:
     import time as _time
