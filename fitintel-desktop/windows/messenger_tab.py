@@ -58,7 +58,6 @@ class MessengerTab(QWidget):
 
         self.sub = QTabWidget()
         v.addWidget(self.sub, 1)
-        self._build_botcfg()
         self._build_chats()
         self._build_broadcast()
         self._build_bindings()
@@ -68,7 +67,6 @@ class MessengerTab(QWidget):
         self.load_bindings()
         self.load_journal()
         self._run(self.api.get_clients, self._fill_clients)
-        self.load_botcfg()
 
     # ---------- infra ----------
     def _run(self, fn, cb):
@@ -373,70 +371,3 @@ class MessengerTab(QWidget):
                                         % (r.get("sent"), r.get("failed"))
                                         if isinstance(r, dict) else r),
                              self.load_journal()))
-
-    # ---------- 0. Настройки бота ----------
-    def _build_botcfg(self):
-        w = QWidget()
-        v = QVBoxLayout(w)
-        note = QLabel("Привязка бота MAX этого клуба. Токен — из кабинета MAX для бизнеса "
-                      "(кнопка «Получить токен»). Адрес сервера — публичный URL этой системы, "
-                      "как её видит интернет (например https://club.example.ru или "
-                      "https://11.22.33.44). После сохранения webhook подписывается автоматически, "
-                      "на сервер заходить не нужно.")
-        note.setWordWrap(True)
-        v.addWidget(note)
-        self.ed_bottoken = QLineEdit()
-        self.ed_bottoken.setEchoMode(QLineEdit.EchoMode.Password)
-        self.ed_bottoken.setPlaceholderText("Токен бота MAX")
-        v.addWidget(self.ed_bottoken)
-        self.ed_apiurl = QLineEdit()
-        self.ed_apiurl.setPlaceholderText("Адрес сервера, например https://club.example.ru")
-        v.addWidget(self.ed_apiurl)
-        bar = QHBoxLayout()
-        b1 = QPushButton(" Сохранить")
-        b1.clicked.connect(self.save_botcfg)
-        b2 = QPushButton(" Проверить")
-        b2.clicked.connect(self.check_botcfg)
-        bar.addWidget(b1); bar.addWidget(b2); bar.addStretch(1)
-        v.addLayout(bar)
-        self.lbl_botcfg = QLabel("")
-        self.lbl_botcfg.setWordWrap(True)
-        v.addWidget(self.lbl_botcfg)
-        v.addStretch(1)
-        self.sub.addTab(w, "Настройки бота")
-
-    def load_botcfg(self):
-        self._run(self.api.get_bot_config, self._fill_botcfg)
-
-    def _fill_botcfg(self, r):
-        if not isinstance(r, dict):
-            return
-        if not self.ed_apiurl.text():
-            self.ed_apiurl.setText(r.get("api_url") or "")
-        self.lbl_botcfg.setText("Токен: " + ("установлен (…%s)" % r.get("bot_token_tail")
-                                              if r.get("bot_token_set") else "не задан"))
-
-    def save_botcfg(self):
-        body = {}
-        t = self.ed_bottoken.text().strip()
-        u = self.ed_apiurl.text().strip()
-        if t:
-            body["bot_token"] = t
-        if u:
-            body["api_url"] = u
-        if not body:
-            self._show("Заполни токен или адрес сервера.", ok=False)
-            return
-        def _done(r):
-            self.ed_bottoken.clear()
-            self._show("Сохранено. Подписка webhook обновлена автоматически.")
-            self.load_botcfg()
-        self._run(lambda: self.api.save_bot_config(body), _done)
-
-    def check_botcfg(self):
-        def _done(r):
-            if isinstance(r, dict):
-                self._show("Токен: %s. Адрес: %s" % (
-                    "OK (…%s)" % r.get("bot_token_tail") if r.get("bot_token_set") else "не задан",
-                    r.get("api_url") or "—"))
-        self._run(self.api.get_bot_config, _done)
