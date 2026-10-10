@@ -460,3 +460,64 @@ async def _max_bot_webhook_get_check(request: Request) -> dict:
         dict(request.query_params), dict(request.headers), _b[:3000],
     )
     return {"ok": True}
+
+# === W5: конфигурация из десктопа (токен, адрес сервера) ===
+from pydantic import BaseModel as _BaseModel
+
+
+class BotConfigIn(_BaseModel):
+    bot_token: str | None = None
+    app_url: str | None = None
+    api_url: str | None = None
+
+
+def _cfg_row(db):
+    _ensure_bot_tables(db)
+    try:
+        db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS app_url TEXT"))
+        db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS api_url TEXT"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    return db.execute(sql_text(
+        "SELECT bot_token, app_url, api_url, webhook_secret FROM max_bot_settings WHERE id=1")).first()
+
+
+def _autosubscribe(db, token: str) -> None:
+    try:
+        r = _cfg_row(db)
+        api_base = ((r[2] if r and r[2] else "https://fixintel.ru").rstrip("/"))
+        sec = (r[3] if r and r[3] else "fitintel-w5")
+        requests.post("https://platform-api.max.ru/subscriptions",
+                      headers={"Authorization": token},
+                      json={"url": api_base + "/api/v1/max-bot/webhook", "secret": sec},
+                      timeout=10)
+    except Exception as _e:
+        print("W5 autosubscribe:", str(_e)[:120])
+
+
+@router.get("/max-bot/config")
+def get_bot_config(db: Session = Depends(get_db)):
+    r = _cfg_row(db)
+    t = (r[0] if r else "") or ""
+    return {"bot_token_set": bool(t), "bot_token_tail": t[-6:],
+            "app_url": (r[1] if r else "") or "", "api_url": (r[2] if r else "") or ""}
+
+
+@router.post("/max-bot/config")
+def set_bot_config(body: BotConfigIn, db: Session = Depends(get_db)):
+    r = _cfg_row(db)
+    tok = body.bot_token or (r[0] if r else None)
+    if body.bot_token is not None:
+        db.execute(sql_text("INSERT INTO max_bot_settings (id, bot_token) VALUES (1,:t) "
+                            "ON CONFLICT (id) DO UPDATE SET bot_token=:t"), {"t": body.bot_token})
+    if body.app_url is not None:
+        db.execute(sql_text("INSERT INTO max_bot_settings (id, app_url) VALUES (1,:v) "
+                            "ON CONFLICT (id) DO UPDATE SET app_url=:v"), {"v": body.app_url})
+    if body.api_url is not None:
+        db.execute(sql_text("INSERT INTO max_bot_settings (id, api_url) VALUES (1,:v) "
+                            "ON CONFLICT (id) DO UPDATE SET api_url=:v"), {"v": body.api_url})
+    db.commit()
+    if tok:
+        _autosubscribe(db, tok)
+    return {"ok": True}
