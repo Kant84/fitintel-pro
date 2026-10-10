@@ -1,7 +1,7 @@
 """Волна 5: магазин (склад) + покупки с баланса кошелька ЛК.
 
-- схема склада самочинится при старте: таблица, колонки club_id/article/photo_url,
-  DEFAULT для id (у старых таблиц его не было) и демо-товары при пустом складе;
+- схема склада самочинится при старте (таблица, колонки club_id/article/photo_url, DEFAULT id);
+- наполнение — только из десктопа («Магазин»); здесь демо-данных НЕТ;
 - buy_with_balance: атомарно  остаток -> WalletService.withdraw -> списание -> BarSale;
 - create_balance_topup: онлайн-пополнение (банк из BANK_CONFIG, иначе тест-режим).
 """
@@ -14,16 +14,8 @@ from sqlalchemy.orm import Session
 from app.models.warehouse import WarehouseProduct, BarSale
 from app.services.wallet_service import WalletService
 
-_DEMO = [
-    ("Протеиновый коктейль", "PR-001", 350),
-    ("Вода 0.5", "WA-001", 100),
-    ("Батончик энергетический", "BT-001", 150),
-    ("Изотоник", "IS-001", 200),
-]
-
 
 def _apply_schema(exe) -> None:
-    """exe: вызываемый execute (Session.execute или Connection.execute)."""
     tabs = {r[0] for r in exe(_t(
         "SELECT table_name FROM information_schema.tables WHERE table_name='warehouse_products'"))}
     if "warehouse_products" not in tabs:
@@ -40,7 +32,6 @@ def _apply_schema(exe) -> None:
             "article VARCHAR(50),"
             "created_at TIMESTAMP DEFAULT now(), updated_at TIMESTAMP DEFAULT now())"))
     else:
-        # у старых таблиц id был WITHOUT DEFAULT — чиним
         exe(_t("ALTER TABLE warehouse_products ALTER COLUMN id SET DEFAULT gen_random_uuid()"))
     cols = {r[0] for r in exe(_t(
         "SELECT column_name FROM information_schema.columns WHERE table_name='warehouse_products'"))}
@@ -53,14 +44,17 @@ def _apply_schema(exe) -> None:
         exe(_t("ALTER TABLE warehouse_products ADD COLUMN article VARCHAR(50)"))
 
 
-def _seed_demo(exe) -> None:
-    n = exe(_t("SELECT count(*) FROM warehouse_products")).scalar()
-    if n:
-        return
-    for name, art, price in _DEMO:
-        exe(_t(
-            "INSERT INTO warehouse_products (club_id,name,article,sale_price,quantity,unit,is_active)"
-            " VALUES (1,:n,:a,:p,20,'шт',TRUE)"), {"n": name, "a": art, "p": price})
+def _ensure_shop_schema_startup() -> None:
+    from app.db.session import engine as _e
+    try:
+        with _e.begin() as c:
+            _apply_schema(c.execute)
+        print("W5 shop schema OK")
+    except Exception as _e2:
+        print("W5 shop schema:", str(_e2)[:120])
+
+
+_ensure_shop_schema_startup()
 
 
 def _ensure_shop_schema(db: Session) -> None:
@@ -68,24 +62,9 @@ def _ensure_shop_schema(db: Session) -> None:
         if db.bind.dialect.name != "postgresql":
             return
         _apply_schema(db.execute)
-        _seed_demo(db.execute)
         db.commit()
     except Exception:
         db.rollback()
-
-
-def _ensure_shop_schema_startup() -> None:
-    from app.db.session import engine as _e
-    try:
-        with _e.begin() as c:
-            _apply_schema(c.execute)
-            _seed_demo(c.execute)
-        print("W5 shop schema OK")
-    except Exception as _e2:
-        print("W5 shop schema:", str(_e2)[:120])
-
-
-_ensure_shop_schema_startup()  # W5: auto-repair + demo goods on start
 
 
 def buy_with_balance(db: Session, client_id, product_id, quantity: int = 1) -> dict:
@@ -139,3 +118,27 @@ def create_balance_topup(db: Session, client_id, amount: float, description: str
         from app.api.v1.bank_online import create_bank_payment
         bank_res = create_bank_payment(db, client_id, amount, description)
     except HTTPException:
+        raise
+    except Exception:
+        bank_res = None
+    if bank_res:
+        return {"payment_id": None, "payment_url": bank_res["payment_url"],
+                "test_mode": False}
+
+    yk_id = f"yk-{_uuid.uuid4().hex[:16]}"
+    url = f"https://yookassa.ru/payments/{yk_id}?test=true"
+
+    now = _dt.now(_tz.utc)
+    cols = {r[0] for r in db.execute(_t(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='payments'"))}
+    data = {"id": str(_uuid.uuid4()), "client_id": str(client_id), "amount": amount,
+            "currency": "RUB", "payment_method": "bank_card", "status": "pending",
+            "external_payment_id": yk_id, "payment_system": "yookassa",
+            "notes": description, "payment_direction": "incoming",
+            "payment_category": "service",
+            "created_at": now, "updated_at": now}
+    data = {k: v for k, v in data.items() if k in cols}
+    db.execute(_t(f"INSERT INTO payments ({', '.join(data)}) "
+                  f"VALUES ({', '.join(':' + k for k in data)})"), data)
+    db.commit()
+    return {"payment_id": data["id"], "payment_url": url, "test_mode": True}
