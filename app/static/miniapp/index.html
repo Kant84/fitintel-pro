@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Клуб</title>
+<style>
+:root{--mint:#00f0ff;--bg:#07070f;--panel:#0e0e1d;--row:#171732;--text:#e8e8ff;--muted:#9a9ac0;--line:#26264a;--mag:#ff2bd6}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Segoe UI',Inter,Roboto,sans-serif;background:var(--bg);color:var(--text);padding-bottom:86px}
+#app{max-width:520px;margin:0 auto;padding:14px}
+.top{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--mint);margin:6px 2px 12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:22px 12px;text-align:center;cursor:pointer}
+.tile svg{width:44px;height:44px;stroke:var(--mint)}
+.tile div{margin-top:8px;font-size:14px;font-weight:600}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:16px;margin-bottom:12px}
+.row{display:flex;align-items:center;gap:14px;padding:13px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.row:last-child{border-bottom:0}
+.row .t{flex:1;font-size:16px}
+.row .v{font-size:15px;color:var(--muted)}
+.h2{font-size:12px;letter-spacing:.14em;color:var(--muted);margin:18px 4px 10px;font-weight:700}
+.hscroll{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px}
+.trainer{flex:0 0 120px;text-align:center}
+.trainer .ph{width:120px;height:150px;border-radius:18px;background:var(--row) center/cover;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;border:1px solid var(--line)}
+.trainer .nm{margin-top:6px;font-size:13px;font-weight:600}
+.svc{padding:14px 4px;border-bottom:1px solid var(--line)}
+.svc:last-child{border:0}
+.svc .n{font-size:16px;font-weight:600}
+.svc .p{font-size:14px;color:var(--muted);margin-top:2px}
+.day{font-size:13px;letter-spacing:.1em;color:var(--mag);margin:14px 4px 8px;font-weight:800}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+nav button{flex:1;background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--muted);cursor:pointer;padding:6px 0}
+nav button.on{color:var(--text)}
+nav .bub{width:52px;height:34px;border-radius:18px;display:flex;align-items:center;justify-content:center}
+nav button.on .bub{background:var(--mag)}
+nav svg{width:22px;height:22px;stroke:currentColor}
+input,textarea{width:100%;padding:15px;border:1px solid var(--line);border-radius:14px;font-size:16px;margin-bottom:10px;background:var(--bg);color:var(--text)}
+.btn{display:block;width:100%;padding:15px;border:1px solid var(--mint);border-radius:14px;background:transparent;color:var(--mint);font-size:16px;font-weight:700;cursor:pointer;text-align:center}
+.btn.solid{background:var(--mint);color:#050510;border:0}
+.mut{color:var(--muted);font-size:14px;text-align:center;margin:14px 0}
+.err{background:#2a0a14;color:var(--mag);border:1px solid var(--mag);border-radius:12px;padding:10px 14px;font-size:14px;margin-bottom:10px;display:none}
+.back{display:inline-block;color:var(--mint);font-size:14px;margin-bottom:12px;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav id="nav"></nav>
+<script>
+const API='https://fixintel.ru/api/v1';
+let CFG={club_name:'Клуб',slogan:'',accent:'#00f0ff',support_phone:'',support_email:'',hours:''};
+let token=localStorage.getItem('fit_token')||'';
+let me=JSON.parse(localStorage.getItem('fit_user')||'null');
+let tab='home';
+const IC={
+home:'<path d="M3 11.5 12 3l9 8.5"/><path d="M5.5 10v11h13V10"/>',
+store:'<path d="M4.5 9.5 5.8 4.5h12.4l1.3 5"/><path d="M4.5 9.5a2.3 2.3 0 0 0 4.6 0 2.3 2.3 0 0 0 4.7 0 2.3 2.3 0 0 0 4.7 0"/><path d="M5.5 11.5V20h13v-8.5M9.8 20v-5.5h4.4V20"/>',
+dumb:'<path d="M4 9.5v5M7.5 6.5v11M16.5 6.5v11M20 9.5v5M7.5 12h9"/>',
+cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+menu:'<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6l1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2"/>',
+qr:'<rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="3.5" width="7" height="7" rx="1"/><rect x="3.5" y="13.5" width="7" height="7" rx="1"/><path d="M13.5 13.5h3v3h-3zM20.5 13.5v.01M13.5 20.5v.01M17.5 17h3v3.5h-3z"/>'};
+const svg=n=>'<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+IC[n]+'</svg>';
+async function api(p,o={}){const r=await fetch(API+p,{...o,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})}});
+if(r.status===401){logout();throw new Error('auth')}if(!r.ok)throw new Error(r.status);return r.json()}
+function logout(){token='';me=null;localStorage.clear();tab='home';render()}
+async function boot(){try{CFG={...CFG,...(await (await fetch(API+'/miniapp/config')).json())};
+if(CFG.accent)document.documentElement.style.setProperty('--mint',CFG.accent);
+if(!token){render();return}
+try{me=await api('/auth/me')}catch(e){if(e.message!=='auth')me=null}render()}catch(e){render()}}
+const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function go(t){tab=t;render()}
+function render(){const a=document.getElementById('app');
+if(!token){a.innerHTML=`<div class="top">ВХОД</div><div class="card">
+<div style="font-size:20px;font-weight:800;margin-bottom:4px">${esc(CFG.club_name)}</div>
+${CFG.slogan?`<div style="color:var(--muted);font-size:13px;margin-bottom:12px">${esc(CFG.slogan)}</div>`:'<div style="margin-bottom:12px"></div>'}
+<div id="err" class="err"></div>
+<input id="lg" placeholder="Логин" autocomplete="username">
+<input id="pw" type="password" placeholder="Пароль" autocomplete="current-password">
+<button class="btn solid" onclick="doLogin()">Войти</button>
+<div class="mut">Вход как в десктоп-приложении. Нет пароля — на ресепшене клуба.</div></div>`;
+document.getElementById('nav').innerHTML='';return}
+const V={home:vHome,shop:vShop,services:vServices,schedule:vSchedule,menu:vMenu,qr:vQr,trainings:()=>vList('ТРЕНИРОВКИ','/services/trainer-schedule','Нет записей'),visits:()=>vList('ПОСЕЩЕНИЯ','/visits','Посещений пока нет'),subs:()=>vList('ИСТОРИЯ ПОДПИСОК','/subscriptions/my','Нет подписок'),club:vClub,profile:vProfile,review:vReview,support:vSupport};
+a.innerHTML=(V[tab]||vHome)();
+if(['home','shop','services','schedule','trainings','visits','subs'].includes(tab))load(tab);
+document.getElementById('nav').innerHTML=[['home','Главная','home'],['shop','Магазин','store'],['services','Услуги','dumb'],['schedule','Расписание','cal'],['menu','Меню','menu']]
+.map(([k,l,i])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')"><span class="bub">${svg(i)}</span>${l}</button>`).join('')}
+async function doLogin(){const l=document.getElementById('lg').value.trim(),p=document.getElementById('pw').value;
+try{const r=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login:l,password:p})});
+const j=await r.json();if(!r.ok||!j.access_token)throw new Error('Неверный логин или пароль');
+token=j.access_token;localStorage.setItem('fit_token',token);
+try{me=await api('/auth/me')}catch(e){me={full_name:l}}
+localStorage.setItem('fit_user',JSON.stringify(me));tab='home';render()}catch(e){const er=document.getElementById('err');er.style.display='block';er.textContent=e.message}}
+function vHome(){return `<div class="top">${esc(CFG.club_name).toUpperCase()}</div>
+<div class="grid2"><div class="tile" onclick="go('qr')">${svg('qr')}<div>QR-код</div></div>
+<div class="tile" onclick="go('shop')">${svg('store')}<div>Купить</div></div></div>
+<div class="card" style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+<div><div style="font-size:16px;font-weight:700">Загруженность клуба</div><div style="font-size:26px;font-weight:800">0 чел.</div></div>
+<div style="width:64px;height:64px;border-radius:50%;background:var(--row);display:flex;align-items:center;justify-content:center;font-weight:700">0%</div></div>
+<div class="h2">НАШИ ТРЕНЕРЫ</div><div class="hscroll" id="trainers"><span class="mut">Загрузка…</span></div>`}
+function vShop(){return `<div class="top">МАГАЗИН</div><div id="goods"><span class="mut">Загрузка…</span></div>`}
+function vServices(){return `<div class="top">УСЛУГИ</div><div class="card" id="svclist"><span class="mut">Загрузка…</span></div>`}
+function vSchedule(){return `<div class="top">РАСПИСАНИЕ</div><div id="sched"><span class="mut">Загрузка…</span></div>`}
+function vQr(){const id=(me&&(me.id||me.user_id))||'guest';
+const data=encodeURIComponent('fitintel:profile:'+id);
+return `<span class="back" onclick="go('home')">‹ Назад</span><div class="top">QR ПРОФИЛЯ</div>
+<div class="card" style="text-align:center"><img style="width:280px;height:280px;border-radius:12px" src="https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${data}">
+<div class="mut">Покажите на входе в клуб</div></div>`}
+function vList(title,path,empty){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">${title}</div><div class="card" id="lst"><span class="mut">Загрузка…</span></div>
+<script>loadList('${path}','${empty}')<\/script>`}
+function vClub(){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">О КЛУБЕ</div>
+<div class="card"><div style="font-size:20px;font-weight:800">${esc(CFG.club_name)}</div>
+${CFG.slogan?`<div class="mut" style="text-align:left">${esc(CFG.slogan)}</div>`:''}
+<div class="svc"><div class="p">Часы работы: ${esc(CFG.hours)}</div></div></div>`}
+function vProfile(){const rows=me?Object.entries(me).map(([k,v])=>`<div class="svc"><div class="n" style="font-size:14px">${esc(k)}</div><div class="p">${esc(String(v))}</div></div>`).join(''):'—';
+return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">ПРОФИЛЬ</div><div class="card">${rows}</div>
+<button class="btn" onclick="logout()">Выйти</button>`}
+function vReview(){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">ОСТАВИТЬ ОТЗЫВ</div>
+<div class="card"><input id="rvt" placeholder="Тема"><textarea id="rvx" rows="4" placeholder="Текст отзыва"></textarea>
+<button class="btn solid" onclick="sendReview()">Отправить</button></div>`}
+function vSupport(){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">ПОДДЕРЖКА</div>
+<div class="card"><div class="svc"><div class="n">${esc(CFG.support_phone||'—')}</div><div class="p">Телефон</div></div>
+<div class="svc"><div class="n">${esc(CFG.support_email||'—')}</div><div class="p">Email</div></div></div>`}
+function sendReview(){const t=document.getElementById('rvt').value,x=document.getElementById('rvx').value;
+location.href='mailto:'+(CFG.support_email||'support@fixintel.ru')+'?subject='+encodeURIComponent('Отзыв: '+t)+'&body='+encodeURIComponent(x)}
+function vMenu(){const n=me?(me.full_name||me.name||me.fio||'Пользователь'):'Пользователь';
+return `<div class="top">МЕНЮ</div><div class="card" style="display:flex;gap:14px;align-items:center" onclick="go('profile')">
+<div style="width:64px;height:64px;border-radius:50%;border:2px solid var(--mint);display:flex;align-items:center;justify-content:center"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#9a9ac0" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M5 20.5c.5-3.8 3.4-5.7 7-5.7s6.5 1.9 7 5.7"/></svg></div>
+<div><div style="font-size:19px;font-weight:800">${esc(n)}</div><div style="color:var(--muted);font-size:14px">${esc(me&&me.phone||'')}</div></div></div>
+<div class="grid2"><div class="tile" onclick="go('qr')">${svg('qr')}<div>Мой QR</div></div>
+<div class="tile" onclick="go('subs')">${svg('cal')}<div>Абонемент</div></div></div>
+<div class="h2">МОЯ ИСТОРИЯ</div><div class="card">
+<div class="row" onclick="go('trainings')"><span class="t">Тренировки</span><span class="v">›</span></div>
+<div class="row" onclick="go('visits')"><span class="t">Посещения</span><span class="v">›</span></div>
+<div class="row" onclick="go('subs')"><span class="t">История подписок</span><span class="v">›</span></div></div>
+<div class="h2">ДОПОЛНИТЕЛЬНО</div><div class="card">
+<div class="row" onclick="go('qr')"><span class="t">Сгенерировать QR профиля</span><span class="v">›</span></div>
+<div class="row" onclick="go('club')"><span class="t">О клубе</span><span class="v">›</span></div>
+<div class="row" onclick="go('profile')"><span class="t">Профиль</span><span class="v">›</span></div>
+<div class="row" onclick="go('review')"><span class="t">Оставить отзыв</span><span class="v">›</span></div>
+<div class="row" onclick="go('support')"><span class="t">Поддержка</span><span class="v">›</span></div></div>`}
+async function load(t){
+if(t==='home'){try{const r=await api('/trainers/profiles');const rows=r.items||r;
+document.getElementById('trainers').innerHTML=(rows||[]).map(x=>{const ph=x.photo_url?(x.photo_url.startsWith('http')?x.photo_url:'https://fixintel.ru'+x.photo_url):'';
+return `<div class="trainer"><div class="ph" ${ph?`style="background-image:url('${ph}')"`:''}>${ph?'':'Фото'}</div><div class="nm">${esc(x.full_name||x.name||'')}</div></div>`}).join('')||'<span class="mut">Скоро</span>'}catch(e){document.getElementById('trainers').innerHTML='<span class="mut">Скоро</span>'}}
+if(t==='shop'){try{const g=await api('/warehouse/products');const rows=g.items||g;
+document.getElementById('goods').innerHTML=rows.length?rows.map(p=>`<div class="card"><div class="svc"><div class="n">${esc(p.name)}</div><div class="p">${esc(p.article||'')} · ${Number(p.sale_price||p.price||0)} ₽ · остаток: ${Number(p.quantity||0)}</div></div></div>`).join(''):'<div class="mut">Товары появятся скоро</div>'}catch(e){document.getElementById('goods').innerHTML='<div class="mut">Товары появятся скоро</div>'}}
+if(t==='services'){try{const s=await api('/services');const rows=s.items||s;
+document.getElementById('svclist').innerHTML=rows.map(x=>`<div class="svc"><div class="n">${esc(x.name)}</div><div class="p">${Number(x.price||0)} ₽</div></div>`).join('')||'—'}catch(e){document.getElementById('svclist').innerHTML='<span class="mut">Скоро</span>'}}
+if(t==='schedule'){try{const s=await api('/services/trainer-schedule');const rows=s.items||s;
+const mine=me?(rows||[]).filter(b=>!b.client_name||b.client_name===(me.full_name||me.name||'')):(rows||[]);
+if(!mine.length){document.getElementById('sched').innerHTML='<div class="mut">Записей нет. Запишитесь на ресепшене.</div>';return}
+const by={};mine.forEach(b=>{const d=(b.booking_date||'').slice(0,10);(by[d]=by[d]||[]).push(b)});
+document.getElementById('sched').innerHTML=Object.keys(by).sort().map(d=>`<div class="day">${d.split('-').reverse().join('.')}</div><div class="card">`+by[d].map(b=>`<div class="svc"><div class="n">${esc(b.service_name||'Занятие')}</div><div class="p">${(b.booking_date||'').slice(11,16)} · ${esc(b.trainer_name||'')} · ${esc(b.status||'')}</div></div>`).join('')+'</div>').join('')}catch(e){document.getElementById('sched').innerHTML='<div class="mut">Скоро</div>'}}
+if(['trainings','visits','subs'].includes(t)){const map={trainings:['/services/trainer-schedule','Нет записей'],visits:['/visits','Посещений пока нет'],subs:['/subscriptions/my','Нет подписок']};
+const[path,empty]=map[t];try{const r=await api(path);const rows=r.items||r;
+document.getElementById('lst').innerHTML=(rows&&rows.length)?rows.map(b=>`<div class="svc"><div class="n">${esc(b.service_name||b.entry_time||b.tariff_name||JSON.stringify(b).slice(0,60))}</div><div class="p">${esc(b.booking_date||b.entry_time||b.created_at||'')}</div></div>`).join(''):`<div class="mut">${empty}</div>`}catch(e){document.getElementById('lst').innerHTML=`<div class="mut">${empty}</div>`}}}
+boot();
+</script>
+</body>
+</html>

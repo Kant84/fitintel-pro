@@ -13,4 +13,7 @@ def miniapp_config() -> dict:
         "slogan": get_param("WL.SLOGAN", "") or "",
         "logo_url": get_param("WL.LOGO_URL", "") or "",
         "accent": get_param("WL.COLOR_ACCENT", "#00f0ff") or "#00f0ff",
+        "support_phone": get_param("WL.SUPPORT_PHONE", "") or "",
+        "support_email": get_param("WL.SUPPORT_EMAIL", "") or "",
+        "hours": get_param("WL.HOURS", "Будни 8:30–23:00") or "",
     }
