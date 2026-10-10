@@ -2,7 +2,7 @@
 import re
 
 # ВАЖНО: впишите URL мини-приложения из кабинета MAX (поле «Мини-приложение»)
-APP_URL = "https://ВПИШИТЕ-URL-МИНИ-ПРИЛОЖЕНИЯ"
+APP_URL = "https://fixintel.ru/static/miniapp/index.html"
 
 LAUNCHER_TEXT = "Приложение клуба:\n" + APP_URL
 

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Клуб</title>
+<style>
+:root{--mint:#2fd0b8;--bg:#f4f6f5;--card:#fff;--text:#14181a;--muted:#8a9499;--line:#e7ecea}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,Inter,Roboto,sans-serif;background:var(--bg);color:var(--text);padding-bottom:86px}
+#app{max-width:520px;margin:0 auto;padding:14px}
+.top{font-size:13px;font-weight:800;letter-spacing:.12em;margin:6px 2px 12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tile{background:var(--card);border-radius:20px;padding:22px 12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.05);cursor:pointer;border:1px solid var(--line)}
+.tile svg{width:44px;height:44px;stroke:var(--text)}
+.tile div{margin-top:8px;font-size:14px;font-weight:600}
+.card{background:var(--card);border-radius:20px;padding:16px;margin-bottom:12px;border:1px solid var(--line)}
+.row{display:flex;align-items:center;gap:14px;padding:13px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.row:last-child{border-bottom:0}
+.row .ic{width:40px;height:40px;border-radius:50%;background:#eef1f0;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.row .ic svg{width:20px;height:20px;stroke:var(--text)}
+.row .t{flex:1;font-size:16px}
+.row .v{font-size:15px;color:var(--muted)}
+.h2{font-size:12px;letter-spacing:.14em;color:var(--muted);margin:18px 4px 10px;font-weight:700}
+.hscroll{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px}
+.trainer{flex:0 0 120px;text-align:center}
+.trainer .ph{width:120px;height:150px;border-radius:18px;background:#e9edec center/cover;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
+.trainer .nm{margin-top:6px;font-size:13px;font-weight:600}
+.svc{padding:14px 4px;border-bottom:1px solid var(--line)}
+.svc:last-child{border:0}
+.svc .n{font-size:16px;font-weight:600}
+.svc .p{font-size:14px;color:var(--muted);margin-top:2px}
+nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+nav button{flex:1;background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--muted);cursor:pointer;padding:6px 0}
+nav button.on{color:var(--text)}
+nav .bub{width:52px;height:34px;border-radius:18px;display:flex;align-items:center;justify-content:center}
+nav button.on .bub{background:var(--mint)}
+nav svg{width:22px;height:22px;stroke:currentColor}
+input{width:100%;padding:15px;border:1px solid var(--line);border-radius:14px;font-size:16px;margin-bottom:10px;background:#fff}
+.btn{width:100%;padding:15px;border:0;border-radius:14px;background:var(--mint);font-size:16px;font-weight:700;cursor:pointer}
+.btn.ghost{background:#eef1f0}
+.mut{color:var(--muted);font-size:14px;text-align:center;margin:14px 0}
+.err{background:#fdeaea;color:#a33;border-radius:12px;padding:10px 14px;font-size:14px;margin-bottom:10px;display:none}
+.chip{display:inline-block;background:#eef1f0;border-radius:12px;padding:6px 12px;font-size:13px;margin:0 6px 8px 0}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav id="nav"></nav>
+<script>
+const API='https://fixintel.ru/api/v1';
+let token=localStorage.getItem('fit_token')||'';
+let me=JSON.parse(localStorage.getItem('fit_user')||'null');
+let tab='home';
+const IC={
+home:'<path d="M3 11.5 12 3l9 8.5"/><path d="M5.5 10v11h13V10"/>',
+store:'<path d="M4.5 9.5 5.8 4.5h12.4l1.3 5"/><path d="M4.5 9.5a2.3 2.3 0 0 0 4.6 0 2.3 2.3 0 0 0 4.7 0 2.3 2.3 0 0 0 4.7 0"/><path d="M5.5 11.5V20h13v-8.5M9.8 20v-5.5h4.4V20"/>',
+dumb:'<path d="M4 9.5v5M7.5 6.5v11M16.5 6.5v11M20 9.5v5M7.5 12h9"/>',
+cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+menu:'<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6l1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2"/>'};
+const svg=n=>'<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+IC[n]+'</svg>';
+async function api(path,opts={}){const r=await fetch(API+path,{...opts,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})}});
+if(r.status===401){logout();throw new Error('auth')}if(!r.ok)throw new Error(r.status);return r.json()}
+const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function logout(){token='';me=null;localStorage.clear();render()}
+async function boot(){if(!token){render();return}
+try{me=await api('/auth/me')}catch(e){if(e.message!=='auth'){me=null}}render()}
+function render(){const a=document.getElementById('app');
+if(!token){a.innerHTML=`<div class="top">ВХОД</div><div class="card">
+<div style="font-size:20px;font-weight:800;margin-bottom:14px">Мурманск Гольфстрим</div>
+<div id="err" class="err"></div>
+<input id="lg" placeholder="Телефон или логин" autocomplete="username">
+<input id="pw" type="password" placeholder="Пароль" autocomplete="current-password">
+<button class="btn" onclick="doLogin()">Войти</button>
+<div class="mut">Нет пароля — получите на ресепшене клуба</div></div>`;
+document.getElementById('nav').innerHTML='';return}
+const V={home:vHome,shop:vShop,services:vServices,schedule:vSchedule,menu:vMenu};
+a.innerHTML=V[tab]();
+document.getElementById('nav').innerHTML=[['home','Главная','home'],['shop','Магазин','store'],['services','Услуги','dumb'],['schedule','Расписание','cal'],['menu','Меню','menu']]
+.map(([k,l,i])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')"><span class="bub">${svg(i)}</span>${l}</button>`).join('');
+if(tab==='home')loadHome();if(tab==='shop')loadShop();if(tab==='services')loadServices();if(tab==='schedule')loadSchedule()}
+function go(t){tab=t;render()}
+async function doLogin(){const l=document.getElementById('lg').value.trim(),p=document.getElementById('pw').value;
+try{const r=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login:l,password:p})});
+const j=await r.json();if(!r.ok||!j.access_token)throw new Error(j.detail||'неверный логин/пароль');
+token=j.access_token;localStorage.setItem('fit_token',token);
+try{me=await api('/auth/me')}catch(e){me={full_name:l,phone:l}}
+localStorage.setItem('fit_user',JSON.stringify(me));tab='home';render()}catch(e){const er=document.getElementById('err');er.style.display='block';er.textContent=e.message}}
+function vHome(){return `<div class="top">МУРМАНСК ГОЛЬФСТРИМ</div>
+<div class="grid2"><div class="tile" onclick="go('menu')">${svg('menu').replace('40','34')}<div>QR-код</div></div>
+<div class="tile" onclick="go('shop')">${svg('store')}<div>Купить</div></div></div>
+<div class="card" style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+<div><div style="font-size:16px;font-weight:700">Загруженность клуба</div><div style="font-size:26px;font-weight:800">0 чел.</div></div>
+<div style="width:64px;height:64px;border-radius:50%;background:#eef1f0;display:flex;align-items:center;justify-content:center;font-weight:700">0%</div></div>
+<div class="h2">НАШИ ТРЕНЕРЫ</div><div class="hscroll" id="trainers"><span class="mut">Загрузка…</span></div>`}
+async function loadHome(){try{const t=await api('/trainers/profiles');
+document.getElementById('trainers').innerHTML=(t.items||t||[]).map(x=>{const ph=x.photo_url?(x.photo_url.startsWith('http')?x.photo_url:'https://fixintel.ru'+x.photo_url):'';
+return `<div class="trainer"><div class="ph" ${ph?`style="background-image:url('${ph}')"`:''}>${ph?'':'Фото'}</div><div class="nm">${esc(x.full_name||x.name||'')}</div></div>`}).join('')||'<span class="mut">Скоро</span>'}catch(e){document.getElementById('trainers').innerHTML='<span class="mut">Скоро</span>'}}
+function vShop(){return `<div class="top">МАГАЗИН</div><div id="goods"><span class="mut">Загрузка…</span></div>`}
+async function loadShop(){try{const g=await api('/warehouse/products');
+const rows=g.items||g;document.getElementById('goods').innerHTML=rows.length?rows.map(p=>`<div class="card"><div class="svc"><div class="n">${esc(p.name)}</div><div class="p">${esc(p.article||'')} · ${Number(p.sale_price||p.price||0)} ₽ · остаток: ${Number(p.quantity||0)}</div></div></div>`).join(''):'<div class="mut">Товары появятся скоро</div>'}catch(e){document.getElementById('goods').innerHTML='<div class="mut">Товары появятся скоро</div>'}}
+function vServices(){return `<div class="top">УСЛУГИ</div><div class="card" id="svclist"><span class="mut">Загрузка…</span></div>`}
+async function loadServices(){try{const s=await api('/services');const rows=s.items||s;
+document.getElementById('svclist').innerHTML=rows.map(x=>`<div class="svc"><div class="n">${esc(x.name)}</div><div class="p">${Number(x.price||0)} ₽</div></div>`).join('')||'—'}catch(e){document.getElementById('svclist').innerHTML='<span class="mut">Скоро</span>'}}
+function vSchedule(){return `<div class="top">РАСПИСАНИЕ</div><div class="card" id="sched"><span class="mut">Загрузка…</span></div>`}
+async function loadSchedule(){try{const s=await api('/services/trainer-schedule');
+document.getElementById('sched').innerHTML='<pre style="white-space:pre-wrap;font-size:13px">'+esc(JSON.stringify(s,null,1))+'</pre>'}catch(e){document.getElementById('sched').innerHTML='<span class="mut">Скоро</span>'}}
+function vMenu(){const n=me?(me.full_name||me.name||'Пользователь'):'Пользователь';
+return `<div class="top">МЕНЮ</div><div class="card" style="display:flex;gap:14px;align-items:center">
+<div style="width:64px;height:64px;border-radius:50%;border:2px solid var(--mint);display:flex;align-items:center;justify-content:center"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#8a9499" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M5 20.5c.5-3.8 3.4-5.7 7-5.7s6.5 1.9 7 5.7"/></svg></div>
+<div><div style="font-size:19px;font-weight:800">${esc(n)}</div><div style="color:var(--muted);font-size:14px">${esc(me&&me.phone||'')}</div></div></div>
+<div class="grid2"><div class="tile"><div style="font-size:15px">Мой баланс</div><div style="font-size:22px;font-weight:800" id="bal">—</div></div>
+<div class="tile"><div style="font-size:15px">Мои бонусы</div><div style="font-size:22px;font-weight:800">0 ₽</div></div></div>
+<div class="h2">МОЯ ИСТОРИЯ</div><div class="card">
+${['Тренировки','Посещения','История подписок'].map(t=>`<div class="row" ><span class="t">${t}</span><span class="v">›</span></div>`).join('')}</div>
+<div class="h2">ДОПОЛНИТЕЛЬНО</div><div class="card">
+${['Сгенерировать QR профиля','О клубе','Профиль','Оставить отзыв','Поддержка'].map(t=>`<div class="row"><span class="t">${t}</span><span class="v">›</span></div>`).join('')}</div>
+<button class="btn ghost" style="margin-top:6px" onclick="logout()">Выйти</button>`}
+boot();
+</script>
+</body>
+</html>
