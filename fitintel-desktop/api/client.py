@@ -649,3 +649,15 @@ def _e70_init(self, base_url="http://localhost:8001/api/v1"):
 
 ApiClient.__init__ = _e70_init
 # ========================== E70_EXT END ==========================
+
+# ============================ E71_EXT ============================
+def get_bot_config(self):
+    return _e55_get(self, "/max-bot/config")
+
+def save_bot_config(self, body):
+    return _e55_post(self, "/max-bot/config", body)
+
+_g71 = globals()
+for _n in ["get_bot_config", "save_bot_config"]:
+    setattr(ApiClient, _n, _g71[_n])
+# ========================== E71_EXT END ==========================
