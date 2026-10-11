@@ -103,8 +103,8 @@ services:
     healthcheck:
       disable: true               # healthcheck образа для API, воркеру не нужен
 
-  postgres_test:
 volumes:
+  postgres_test:
   face_photos:
 
 networks:
