@@ -118,7 +118,7 @@ class CommerceTab(QWidget):
         b_save = QPushButton("💾 Сохранить")
         b_save.clicked.connect(self.save_brand)
         btns.addWidget(b_load)
-        b_up = QPushButton("📎 Логотип из файла")
+        b_up = QPushButton("📎 Логотип из файла (JPG/PNG, авто 512×512)")
         b_up.clicked.connect(self.upload_logo)
         btns.addWidget(b_up)
         btns.addWidget(b_save)

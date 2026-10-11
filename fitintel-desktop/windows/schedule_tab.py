@@ -269,7 +269,7 @@ class ScheduleTab(QWidget):
         tv = QVBoxLayout(trainers_box)
         tv.setContentsMargins(0, 0, 0, 0)
         brow = QHBoxLayout()
-        b_ph = QPushButton(" Фото тренера")
+        b_ph = QPushButton(" Фото тренера (JPG/PNG, авто 400×400)")
         b_ph.clicked.connect(self.upload_trainer_photo)
         brow.addWidget(b_ph)
         brow.addStretch(1)
