@@ -326,9 +326,17 @@ def _try_send_reply(db: Session, max_user_id: int, reply: dict):
     import re as _re
     clean = _re.sub(r"([\u2700-\u27BF]|\U0001F1E6-\U0001F251|\U0001F300-\U0001F5FF|\U0001F600-\U0001F64F|\U0001F680-\U0001F6FF|\U0001F900-\U0001F9FF|\u2B00-\u2BFF|\uFE0F)", "", text_body)
     clean = _re.sub(r"[ \t]+\n", "\n", clean).strip()
+    _link = None
+    try:
+        _r = db.execute(sql_text("SELECT app_url, api_url FROM max_bot_settings WHERE id=1")).first()
+        _base = (_r[1] if _r and _r[1] else "https://fixintel.ru").rstrip("/")
+        _app = (_r[0] if _r and _r[0] else _base + "/static/miniapp/index.html")
+        _link = _app + ("&" if "?" in _app else "?") + "s=" + _base + "/api/v1"
+    except Exception:
+        pass
     try:
         from app.services import bot_keyboards as _bk
-        _kb = _bk.keyboard_for(text_body)
+        _kb = _bk.keyboard_for(text_body, _link)
         if _link:
             clean = "Приложение клуба (откройте ссылку):\n" + _link
     except Exception:
@@ -469,6 +477,11 @@ class BotConfigIn(_BaseModel):
     bot_token: str | None = None
     app_url: str | None = None
     api_url: str | None = None
+    about: str | None = None
+    hours: str | None = None
+    support_phone: str | None = None
+    support_email: str | None = None
+    payments_enabled: bool | None = None
 
 
 def _cfg_row(db):
@@ -476,11 +489,16 @@ def _cfg_row(db):
     try:
         db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS app_url TEXT"))
         db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS api_url TEXT"))
+        db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS about TEXT"))
+        db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS hours TEXT"))
+        db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS support_phone TEXT"))
+        db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS support_email TEXT"))
+        db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS payments_enabled BOOLEAN DEFAULT TRUE"))
         db.commit()
     except Exception:
         db.rollback()
     return db.execute(sql_text(
-        "SELECT bot_token, app_url, api_url, webhook_secret FROM max_bot_settings WHERE id=1")).first()
+        "SELECT bot_token, app_url, api_url, webhook_secret, about, hours, support_phone, support_email, payments_enabled FROM max_bot_settings WHERE id=1")).first()
 
 
 def _autosubscribe(db, token: str) -> None:
@@ -501,7 +519,10 @@ def get_bot_config(db: Session = Depends(get_db)):
     r = _cfg_row(db)
     t = (r[0] if r else "") or ""
     return {"bot_token_set": bool(t), "bot_token_tail": t[-6:],
-            "app_url": (r[1] if r else "") or "", "api_url": (r[2] if r else "") or ""}
+            "app_url": (r[1] if r else "") or "", "api_url": (r[2] if r else "") or "",
+            "about": (r[4] if r else "") or "", "hours": (r[5] if r else "") or "",
+            "support_phone": (r[6] if r else "") or "", "support_email": (r[7] if r else "") or "",
+            "payments_enabled": (bool(r[8]) if r and r[8] is not None else True)}
 
 
 @router.post("/max-bot/config")
@@ -517,6 +538,12 @@ def set_bot_config(body: BotConfigIn, db: Session = Depends(get_db)):
     if body.api_url is not None:
         db.execute(sql_text("INSERT INTO max_bot_settings (id, api_url) VALUES (1,:v) "
                             "ON CONFLICT (id) DO UPDATE SET api_url=:v"), {"v": body.api_url})
+    for col, val in (("about", body.about), ("hours", body.hours),
+                     ("support_phone", body.support_phone), ("support_email", body.support_email)):
+        if val is not None:
+            db.execute(sql_text(f"INSERT INTO max_bot_settings (id, {col}) VALUES (1,:v) ON CONFLICT (id) DO UPDATE SET {col}=:v"), {"v": val})
+    if body.payments_enabled is not None:
+        db.execute(sql_text("INSERT INTO max_bot_settings (id, payments_enabled) VALUES (1,:v) ON CONFLICT (id) DO UPDATE SET payments_enabled=:v"), {"v": bool(body.payments_enabled)})
     db.commit()
     if tok:
         _autosubscribe(db, tok)

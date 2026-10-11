@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Клуб</title>
+<!-- ПУТЬ ФАЙЛА: static/miniapp/index.html (репозиторий) -> контейнер /app/static/miniapp/index.html -> https://fixintel.ru/static/miniapp/index.html. ЕДИНСТВЕННАЯ копия. Копия в app/static — УДАЛЕНА (не обслуживалась). -->
 <style>
 :root{--mint:#00f0ff;--bg:#07070f;--panel:#0e0e1d;--row:#171732;--text:#e8e8ff;--muted:#9a9ac0;--line:#26264a;--mag:#ff2bd6}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -48,7 +49,7 @@ input,textarea{width:100%;padding:15px;border:1px solid var(--line);border-radiu
 <nav id="nav"></nav>
 <script>
 const API=(new URLSearchParams(location.search).get('s')||'/api/v1');
-let CFG={club_name:'Клуб',slogan:'',accent:'#00f0ff',support_phone:'',support_email:'',hours:''};
+let CFG={club_name:'Клуб',slogan:'',accent:'#00f0ff',support_phone:'',support_email:'',hours:'',about:'',payments_enabled:true};
 let token=localStorage.getItem('fit_token')||'';
 let me=JSON.parse(localStorage.getItem('fit_user')||'null');
 let tab='home';
@@ -92,12 +93,12 @@ try{me=await api('/auth/me')}catch(e){me={full_name:l}}
 localStorage.setItem('fit_user',JSON.stringify(me));tab='home';render()}catch(e){const er=document.getElementById('err');er.style.display='block';er.textContent=e.message}}
 function vHome(){return `<div class="top">${esc(CFG.club_name).toUpperCase()}</div>
 <div class="grid2"><div class="tile" onclick="go('qr')">${svg('qr')}<div>QR-код</div></div>
-<div class="tile" onclick="go('shop')">${svg('store')}<div>Купить</div></div></div>
+${CFG.payments_enabled===false?`<div class="tile" onclick="go('services')">${svg('dumb')}<div>Услуги</div></div>`:`<div class="tile" onclick="go('shop')">${svg('store')}<div>Купить</div></div>`}</div>
 <div class="card" style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
 <div><div style="font-size:16px;font-weight:700">Загруженность клуба</div><div style="font-size:26px;font-weight:800">0 чел.</div></div>
 <div style="width:64px;height:64px;border-radius:50%;background:var(--row);display:flex;align-items:center;justify-content:center;font-weight:700">0%</div></div>
 <div class="h2">НАШИ ТРЕНЕРЫ</div><div class="hscroll" id="trainers"><span class="mut">Загрузка…</span></div>`}
-function vShop(){return `<div class="top">МАГАЗИН</div><div id="goods"><span class="mut">Загрузка…</span></div>`}
+function vShop(){if(CFG.payments_enabled===false)return `<div class="top">МАГАЗИН</div><div class="mut">Покупки через приложение временно отключены клубом</div>`;return `<div class="top">МАГАЗИН</div><div id="goods"><span class="mut">Загрузка…</span></div>`}
 function vServices(){return `<div class="top">УСЛУГИ</div><div class="card" id="svclist"><span class="mut">Загрузка…</span></div>`}
 function vSchedule(){return `<div class="top">РАСПИСАНИЕ</div><div id="sched"><span class="mut">Загрузка…</span></div>`}
 function vQr(){const id=(me&&(me.id||me.user_id))||'guest';
@@ -120,7 +121,8 @@ function vReview(){return `<span class="back" onclick="go('menu')">‹ Наза�
 function vSupport(){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">ПОДДЕРЖКА</div>
 <div class="card"><div class="svc"><div class="n">${esc(CFG.support_phone||'—')}</div><div class="p">Телефон</div></div>
 <div class="svc"><div class="n">${esc(CFG.support_email||'—')}</div><div class="p">Email</div></div></div>`}
-function sendReview(){const t=document.getElementById('rvt').value,x=document.getElementById('rvx').value;
+async function sendReview(){const t=document.getElementById('rvt').value,x=document.getElementById('rvx').value;
+try{await fetch(API+'/miniapp/feedback',{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify({theme:t,body:x,client_id:me?(me.id||''):''})});}catch(e){}
 location.href='mailto:'+(CFG.support_email||'support@fixintel.ru')+'?subject='+encodeURIComponent('Отзыв: '+t)+'&body='+encodeURIComponent(x)}
 function vMenu(){const n=me?(me.full_name||me.name||me.fio||'Пользователь'):'Пользователь';
 return `<div class="top">МЕНЮ</div><div class="card" style="display:flex;gap:14px;align-items:center" onclick="go('profile')">
@@ -139,7 +141,7 @@ return `<div class="top">МЕНЮ</div><div class="card" style="display:flex;gap
 <div class="row" onclick="go('review')"><span class="t">Оставить отзыв</span><span class="v">›</span></div>
 <div class="row" onclick="go('support')"><span class="t">Поддержка</span><span class="v">›</span></div></div>`}
 async function load(t){
-if(t==='home'){try{const r=await api('/trainers/profiles');const rows=r.items||r;
+if(t==='home'){try{const r=await api('/trainers/profiles');const rows=r.items||r.profiles||r.trainers||r.data||r;
 document.getElementById('trainers').innerHTML=(rows||[]).map(x=>{const ph=x.photo_url?(x.photo_url.startsWith('http')?x.photo_url:'https://fixintel.ru'+x.photo_url):'';
 return `<div class="trainer"><div class="ph" ${ph?`style="background-image:url('${ph}')"`:''}>${ph?'':'Фото'}</div><div class="nm">${esc(x.full_name||x.name||'')}</div></div>`}).join('')||'<span class="mut">Скоро</span>'}catch(e){document.getElementById('trainers').innerHTML='<span class="mut">Скоро</span>'}}
 if(t==='shop'){try{const g=await api('/warehouse/products');const rows=g.items||g;
@@ -147,7 +149,7 @@ document.getElementById('goods').innerHTML=rows.length?rows.map(p=>`<div class="
 if(t==='services'){try{const s=await api('/services');const rows=s.items||s;
 document.getElementById('svclist').innerHTML=rows.map(x=>`<div class="svc"><div class="n">${esc(x.name)}</div><div class="p">${Number(x.price||0)} ₽</div></div>`).join('')||'—'}catch(e){document.getElementById('svclist').innerHTML='<span class="mut">Скоро</span>'}}
 if(t==='schedule'){try{const s=await api('/services/trainer-schedule');const rows=s.items||s;
-const mine=me?(rows||[]).filter(b=>!b.client_name||b.client_name===(me.full_name||me.name||'')):(rows||[]);
+const mine=(rows||[]);
 if(!mine.length){document.getElementById('sched').innerHTML='<div class="mut">Записей нет. Запишитесь на ресепшене.</div>';return}
 const by={};mine.forEach(b=>{const d=(b.booking_date||'').slice(0,10);(by[d]=by[d]||[]).push(b)});
 document.getElementById('sched').innerHTML=Object.keys(by).sort().map(d=>`<div class="day">${d.split('-').reverse().join('.')}</div><div class="card">`+by[d].map(b=>`<div class="svc"><div class="n">${esc(b.service_name||'Занятие')}</div><div class="p">${(b.booking_date||'').slice(11,16)} · ${esc(b.trainer_name||'')} · ${esc(b.status||'')}</div></div>`).join('')+'</div>').join('')}catch(e){document.getElementById('sched').innerHTML='<div class="mut">Скоро</div>'}}

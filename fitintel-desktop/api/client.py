@@ -661,3 +661,8 @@ _g71 = globals()
 for _n in ["get_bot_config", "save_bot_config"]:
     setattr(ApiClient, _n, _g71[_n])
 # ========================== E71_EXT END ==========================
+
+def get_feedbacks(self):
+    return _e55_get(self, "/miniapp/feedback")
+
+setattr(ApiClient, "get_feedbacks", get_feedbacks)

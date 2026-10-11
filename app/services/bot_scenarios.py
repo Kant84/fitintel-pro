@@ -508,8 +508,11 @@ def _my_confirm(db: Session, uid: int, text: str, row) -> str:
 
 def handle(db: Session, max_user_id: int, text: str) -> str | None:
 
-    if _norm(text or "") in ("0", "меню", "назад"):
+    _t0 = _norm(text or "")
+    if _t0 in ("0", "меню", "назад", "/start", "start", "старт", "привет"):
         _clear(db, max_user_id)
+        if not _find_client_row(db, max_user_id):
+            return _start_registration(db, max_user_id)
         return _menu()
     """Возвращает ответ, если сценарий обработал сообщение, иначе None (команды)."""
     _ensure(db)
