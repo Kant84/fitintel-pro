@@ -224,3 +224,33 @@ async def check_features(
         "status": sub.status if sub else None,
         "features": features
     }
+
+# === W5: загрузка фото тренера (десктоп -> приложение) ===
+import os as _os5
+import shutil as _sh5
+from fastapi import File as _F5, UploadFile as _UF5
+from sqlalchemy import text as _T5
+from app.db.session import engine as _E5
+
+
+@router.post("/trainers/profiles/{profile_id}/photo")
+def upload_trainer_photo(profile_id: str, file: _UF5 = _F5(...)):
+    _os5.makedirs("static/trainers", exist_ok=True)
+    dest = "static/trainers/%s.jpg" % profile_id
+    with open(dest, "wb") as _fh:
+        _sh5.copyfileobj(file.file, _fh)
+    pub = ""
+    try:
+        with _E5.connect() as _c:
+            _r = _c.execute(_T5("SELECT api_url FROM max_bot_settings WHERE id=1")).first()
+        pub = (_r[0] if _r and _r[0] else "").rstrip("/")
+    except Exception:
+        pass
+    url = (pub or "") + "/static/trainers/%s.jpg" % profile_id
+    with _E5.begin() as _c:
+        for _tbl in ("trainer_profiles", "trainers"):
+            try:
+                _c.execute(_T5("UPDATE %s SET photo_url=:u WHERE id=:i" % _tbl), {"u": url, "i": profile_id})
+            except Exception:
+                pass
+    return {"ok": True, "url": url}
