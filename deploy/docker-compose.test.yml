@@ -51,7 +51,7 @@ services:
       MKL_NUM_THREADS: "1"
     volumes:
       - face_photos:/app/data/face_photos   # опциональное хранение фото лиц (если клуб включил)
-      - ../static:/app/static:ro
+      - ../static:/app/static
       - ./uploads_data/brand:/app/static/brand
       - ./uploads_data/products:/app/static/products
       - ./uploads_data/trainers:/app/static/trainers
