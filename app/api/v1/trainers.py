@@ -313,8 +313,18 @@ from app.db.session import engine as _E5
 def upload_trainer_photo(profile_id: str, file: _UF5 = _F5(...)):
     _os5.makedirs("static/trainers", exist_ok=True)
     dest = "static/trainers/%s.jpg" % profile_id
+    try:
+        from PIL import Image
+        import io as _io5
+        _img = Image.open(file.file).convert("RGB")
+        _img.thumbnail((400, 400))
+        _buf = _io5.BytesIO()
+        _img.save(_buf, "JPEG", quality=85)
+        _data = _buf.getvalue()
+    except Exception as _e5:
+        return {"ok": False, "error": "фото не обработано: %s" % str(_e5)[:120]}
     with open(dest, "wb") as _fh:
-        _sh5.copyfileobj(file.file, _fh)
+        _fh.write(_data)
     pub = ""
     try:
         with _E5.connect() as _c:

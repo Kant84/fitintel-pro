@@ -145,6 +145,16 @@ from fastapi import File as _File, UploadFile as _UploadFile
 def upload_logo(file: _UploadFile = _File(...)):
     _os.makedirs("static/brand", exist_ok=True)
     dest = "static/brand/logo.jpg"
+    try:
+        from PIL import Image
+        import io as _io5
+        _img = Image.open(file.file).convert("RGB")
+        _img.thumbnail((512, 512))
+        _buf = _io5.BytesIO()
+        _img.save(_buf, "JPEG", quality=88)
+        _data = _buf.getvalue()
+    except Exception as _e5:
+        return {"ok": False, "error": "лого не обработано: %s" % str(_e5)[:120]}
     with open(dest, "wb") as _f:
-        _shutil.copyfileobj(file.file, _f)
+        _f.write(_data)
     return {"ok": True, "url": "/static/brand/logo.jpg"}
