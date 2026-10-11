@@ -328,21 +328,15 @@ def _try_send_reply(db: Session, max_user_id: int, reply: dict):
     clean = _re.sub(r"[ \t]+\n", "\n", clean).strip()
     _link = None
     try:
-        _r = db.execute(sql_text("SELECT app_url, api_url, bot_name FROM max_bot_settings WHERE id=1")).first()
+        _r = db.execute(sql_text("SELECT app_url, api_url FROM max_bot_settings WHERE id=1")).first()
         _base = (_r[1] if _r and _r[1] else "https://fixintel.ru").rstrip("/")
-        _bn = (_r[2] if _r else "") or ""
-        if _bn:
-            _link = "https://max.ru/%s?startapp" % _bn
-        else:
-            _app = (_r[0] if _r and _r[0] else _base + "/static/miniapp/index.html")
-            _link = _app + ("&" if "?" in _app else "?") + "s=" + _base + "/api/v1"
+        _app = (_r[0] if _r and _r[0] else _base + "/static/miniapp/index.html")
+        _link = _app + ("&" if "?" in _app else "?") + "s=" + _base + "/api/v1"
     except Exception:
         pass
     try:
         from app.services import bot_keyboards as _bk
         _kb = _bk.keyboard_for(text_body, _link)
-        if _link and _link.startswith("https://max.ru"):
-            _kb = None  # кнопка-link всегда открывает браузер; диплинк в тексте -> внутри MAX
         if _link:
             clean = "Приложение клуба (откройте ссылку):\n" + _link
     except Exception:
