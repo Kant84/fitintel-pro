@@ -529,7 +529,6 @@ try:
         _orig_init_clk(self, *a, **kw)
         try:
             act = _ActClk(" Табло с часами (F11)", self)
-            act.setShortcut("F11")
             act.triggered.connect(self._open_clock_board)
             for a_ in self.menuBar().actions():
                 if a_.text().strip().lower().startswith("файл"):

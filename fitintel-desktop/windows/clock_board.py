@@ -4,7 +4,7 @@
 Поверх окон, не перехватывает фокус, не мешает работе. Esc или ✕ — закрыть."""
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton
 from PyQt6.QtCore import QTimer, Qt, QDateTime
-from PyQt6.QtGui import QFont, QGuiApplication
+from PyQt6.QtGui import QFont, QGuiApplication, QKeySequence, QShortcut
 
 
 class ClockBoardDialog(QDialog):
@@ -46,6 +46,9 @@ class ClockBoardDialog(QDialog):
         b.clicked.connect(self._do_close)
         lay.addWidget(b)
 
+        sc = QShortcut(QKeySequence("Esc"), self)
+        sc.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        sc.activated.connect(self._do_close)
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(1000)
