@@ -26,6 +26,8 @@ services:
     restart: unless-stopped
 
   api:
+    volumes:
+      - static_data:/app/static
     build: ..                      # <-- собираем из исходников, не из registry
     env_file:
       - .env
