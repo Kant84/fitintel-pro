@@ -341,6 +341,8 @@ def _try_send_reply(db: Session, max_user_id: int, reply: dict):
     try:
         from app.services import bot_keyboards as _bk
         _kb = _bk.keyboard_for(text_body, _link)
+        if _link and _link.startswith("https://max.ru"):
+            _kb = None  # кнопка-link всегда открывает браузер; диплинк в тексте -> внутри MAX
         if _link:
             clean = "Приложение клуба (откройте ссылку):\n" + _link
     except Exception:
