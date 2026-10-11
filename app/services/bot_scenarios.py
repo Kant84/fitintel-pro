@@ -245,7 +245,7 @@ def _step_registration(db: Session, uid: int, text: str) -> str:
 
 def _wallet_topup_ask(db: Session, uid: int) -> str:
     _set_state(db, uid, "WALLET_TOPUP", {})
-    return "Пополнение баланса онлайн (банковская карта). Напишите сумму в рублях (от 50 до 50 000):"
+    return "Пополнение баланса онлайн (банковская карта). Напишите сумму в рублях (от 50 до 50 000) или «меню» для выхода:"
 
 
 def _wallet_topup_do(db: Session, uid: int, text: str, row) -> str:
@@ -302,7 +302,7 @@ def _goods_pick(db: Session, uid: int, text: str, row) -> str:
     _, data = _get_state(db, uid)
     ids = data.get("ids", [])
     if not text.strip().isdigit() or not (1 <= int(text) <= len(ids)):
-        return "Напишите номер товара из списка."
+        return "Напишите номер товара из списка (или «меню» для выхода)."
     from app.services.shop_service import buy_with_balance
     try:
         res = buy_with_balance(db, str(row[0]), ids[int(text) - 1], 1)
@@ -335,7 +335,7 @@ def _shop_pick(db: Session, uid: int, text: str) -> str:
     _, data = _get_state(db, uid)
     ids = data.get("ids", [])
     if not text.strip().isdigit() or not (1 <= int(text) <= len(ids)):
-        return "Напишите номер услуги из списка."
+        return "Напишите номер услуги из списка (или «меню» для выхода)."
     svc = db.get(Service, ids[int(text) - 1])
     if not svc:
         return "Услуга не найдена. Попробуйте снова: /start"
