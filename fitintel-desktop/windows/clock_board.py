@@ -43,7 +43,7 @@ class ClockBoardDialog(QDialog):
             "border: none; border-radius: 6px; font-size: 12px; }"
             "QPushButton:hover { background: #334155; color: #f87171; }")
         b.setToolTip("Закрыть часы")
-        b.clicked.connect(self.close)
+        b.clicked.connect(self._do_close)
         lay.addWidget(b)
 
         self._timer = QTimer(self)
@@ -66,3 +66,16 @@ class ClockBoardDialog(QDialog):
             self.close()
         else:
             super().keyPressEvent(ev)
+
+    def _do_close(self):
+        print("[DEBUG] clock: нажата кнопка ✕")
+        self.close()
+        self.deleteLater()
+
+    def closeEvent(self, ev):
+        print("[DEBUG] clock: closeEvent вызван")
+        try:
+            self._timer.stop()
+        except Exception as e:
+            print("[DEBUG] clock: timer stop:", e)
+        super().closeEvent(ev)

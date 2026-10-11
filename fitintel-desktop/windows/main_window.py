@@ -370,20 +370,28 @@ class MainWindow(QMainWindow):
     
     def _open_clock_board(self):
         try:
-            from windows.clock_board import ClockBoardDialog
             old = getattr(self, "_clock_board", None)
             if old is not None:
                 try:
+                    print("[DEBUG] clock: повторное F11 -> закрываем табло")
                     old.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    print("[DEBUG] clock: ошибка закрытия:", e)
+                self._clock_board = None
+                return
+            from windows.clock_board import ClockBoardDialog
             club = str(self.user.get("club_name", "") or "")
             dlg = ClockBoardDialog(self, club_name=club)
-            self._clock_board = dlg   # ссылка — иначе окно съест сборщик мусора
-            dlg.show()                # БЕЗ exec(): немодально, desktop работает
+            self._clock_board = dlg
+            dlg.finished.connect(lambda _r: setattr(self, "_clock_board", None))
+            print("[DEBUG] clock: табло открыто:", dlg)
+            dlg.show()
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             QMessageBox.warning(self, "Табло", str(e)[:150])
-            
+
+
 # ============================ E56_WIRED ============================
 try:
     from windows.integrations_tab import IntegrationsTab
