@@ -265,7 +265,17 @@ class ScheduleTab(QWidget):
         self.trainers_host = QWidget()
         self.trainers_lay = QGridLayout(self.trainers_host)
         self.trainers_scroll.setWidget(self.trainers_host)
-        self.tabs.addTab(self.trainers_scroll, " Тренеры")
+        trainers_box = QWidget()
+        tv = QVBoxLayout(trainers_box)
+        tv.setContentsMargins(0, 0, 0, 0)
+        brow = QHBoxLayout()
+        b_ph = QPushButton(" Фото тренера")
+        b_ph.clicked.connect(self.upload_trainer_photo)
+        brow.addWidget(b_ph)
+        brow.addStretch(1)
+        tv.addLayout(brow)
+        tv.addWidget(self.trainers_scroll, 1)
+        self.tabs.addTab(trainers_box, " Тренеры")
 
         # --- подвкладка 3: записи ---
         self.table = QTableWidget()
@@ -442,3 +452,36 @@ class ScheduleTab(QWidget):
                 QMessageBox.warning(self, "Не удалось отменить", f"{resp.status_code}: {detail}")
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))
+
+    def upload_trainer_photo(self):
+        if not self._trainers:
+            QMessageBox.information(self, "Тренеры", "Список тренеров пуст")
+            return
+        from PyQt6.QtWidgets import QInputDialog, QFileDialog
+        names = []
+        for p in self._trainers:
+            uid = str(p.get("user_id") or p.get("id") or "")
+            names.append(self._umap.get(uid) or p.get("full_name") or p.get("specialization") or uid[:8])
+        name, ok = QInputDialog.getItem(self, "Фото тренера", "Тренер:", names, 0, False)
+        if not ok:
+            return
+        prof = self._trainers[names.index(name)]
+        pid = str(prof.get("id"))
+        path, _ = QFileDialog.getOpenFileName(self, "Фото тренера", "", "Images (*.png *.jpg *.jpeg)")
+        if not path:
+            return
+        try:
+            pub = ""
+            try:
+                pub = (self.api.get_bot_config().get("api_url") or "").rstrip("/")
+            except Exception:
+                pass
+            base = pub or self.api.base_url.rsplit("/api/v1", 1)[0]
+            with open(path, "rb") as fh:
+                r = self.api.session.post(base + "/api/v1/trainers/profiles/" + pid + "/photo",
+                                          files={"file": fh}, headers={"Content-Type": None}, timeout=60)
+            r.raise_for_status()
+            QMessageBox.information(self, "Фото тренера", "Фото опубликовано. В приложении — после обновления страницы.")
+            self.refresh()
+        except Exception as e:
+            QMessageBox.warning(self, "Фото тренера", str(e)[:200])
