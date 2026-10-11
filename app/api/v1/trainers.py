@@ -333,10 +333,13 @@ def upload_trainer_photo(profile_id: str, file: _UF5 = _F5(...)):
     except Exception:
         pass
     url = (pub or "") + "/static/trainers/%s.jpg" % profile_id
+    upd = {}
     with _E5.begin() as _c:
         for _tbl in ("trainer_profiles", "trainers"):
             try:
-                _c.execute(_T5("UPDATE %s SET photo_url=:u WHERE id::text=:i" % _tbl), {"u": url, "i": profile_id})
-            except Exception:
-                pass
-    return {"ok": True, "url": url}
+                r = _c.execute(_T5("UPDATE %s SET photo_url=:u WHERE id::text=:i" % _tbl),
+                               {"u": url, "i": profile_id})
+                upd[_tbl] = r.rowcount
+            except Exception as _ue:
+                upd[_tbl] = "ERR: %s" % str(_ue)[:120]
+    return {"ok": True, "url": url, "updated": upd}
