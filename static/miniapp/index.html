@@ -49,7 +49,7 @@ input,textarea{width:100%;padding:15px;border:1px solid var(--line);border-radiu
 <nav id="nav"></nav>
 <script>
 const API=(new URLSearchParams(location.search).get('s')||'/api/v1');
-let CFG={club_name:'Клуб',slogan:'',accent:'#00f0ff',support_phone:'',support_email:'',hours:'',about:'',payments_enabled:true};
+let CFG={club_name:'Клуб',slogan:'',accent:'#00f0ff',support_phone:'',support_email:'',hours:'',about:'',payments_enabled:true,logo_url:''};
 let token=localStorage.getItem('fit_token')||'';
 let me=JSON.parse(localStorage.getItem('fit_user')||'null');
 let tab='home';
@@ -144,7 +144,7 @@ async function load(t){
 if(t==='home'){try{const r=await api('/trainers/profiles');const rows=r.items||r.profiles||r.trainers||r.data||r;
 document.getElementById('trainers').innerHTML=(rows||[]).map(x=>{const ph=x.photo_url?(x.photo_url.startsWith('http')?x.photo_url:'https://fixintel.ru'+x.photo_url):'';
 return `<div class="trainer"><div class="ph" ${ph?`style="background-image:url('${ph}')"`:''}>${ph?'':'Фото'}</div><div class="nm">${esc(x.full_name||x.name||'')}</div></div>`}).join('')||'<span class="mut">Скоро</span>'}catch(e){document.getElementById('trainers').innerHTML='<span class="mut">Скоро</span>'}}
-if(t==='shop'){try{const g=await api('/warehouse/products');const rows=g.items||g;
+if(t==='shop'){try{const g=await api('/warehouse/products?club_id=1');const rows=g.items||g;
 document.getElementById('goods').innerHTML=rows.length?rows.map(p=>`<div class="card"><div class="svc"><div class="n">${esc(p.name)}</div><div class="p">${esc(p.article||'')} · ${Number(p.sale_price||p.price||0)} ₽ · остаток: ${Number(p.quantity||0)}</div></div></div>`).join(''):'<div class="mut">Товары появятся скоро — уточните на ресепшене</div>'}catch(e){document.getElementById('goods').innerHTML='<div class="mut">Товары появятся скоро</div>'}}
 if(t==='services'){try{const s=await api('/services');const rows=s.items||s;
 document.getElementById('svclist').innerHTML=rows.map(x=>`<div class="svc"><div class="n">${esc(x.name)}</div><div class="p">${Number(x.price||0)} ₽</div></div>`).join('')||'—'}catch(e){document.getElementById('svclist').innerHTML='<span class="mut">Скоро</span>'}}

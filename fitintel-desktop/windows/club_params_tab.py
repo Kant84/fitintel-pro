@@ -143,6 +143,9 @@ class ClubParamsTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))
 
+from PyQt6.QtWidgets import QLineEdit, QPlainTextEdit, QCheckBox, QFormLayout
+
+
 # === W5: «Настройки приложения» ===
 class BotCfgWorker(QThread):
     done = pyqtSignal(object)
