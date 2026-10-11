@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1F4E78">
+    <title>FitIntel PRO — Кабинет тренера</title>
+    <link rel="manifest" href="/static/trainer-pwa/manifest.json">
+    <link rel="apple-touch-icon" href="/static/trainer-pwa/icon-192.png">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5;
+            color: #333;
+            padding-bottom: 70px;
+        }
+        .header {
+            background: #1F4E78;
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header h1 { font-size: 18px; font-weight: 600; }
+        .header .date { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+        
+        .card {
+            background: white;
+            margin: 10px;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        .stat-item {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1F4E78;
+        }
+        .stat-label {
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+        }
+        
+        .schedule-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .schedule-item:last-child { border-bottom: none; }
+        .schedule-time {
+            width: 60px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1F4E78;
+        }
+        .schedule-info { flex: 1; }
+        .schedule-title { font-size: 14px; font-weight: 500; }
+        .schedule-client { font-size: 12px; color: #888; margin-top: 2px; }
+        .schedule-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .status-scheduled { background: #e3f2fd; color: #1976d2; }
+        .status-attended { background: #e8f5e9; color: #388e3c; }
+        .status-missed { background: #ffebee; color: #d32f2f; }
+        
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .btn-primary {
+            background: #1F4E78;
+            color: white;
+        }
+        .btn-success {
+            background: #4caf50;
+            color: white;
+        }
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+        
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+        .nav-item {
+            text-align: center;
+            font-size: 11px;
+            color: #888;
+            text-decoration: none;
+        }
+        .nav-item.active { color: #1F4E78; }
+        .nav-icon { font-size: 20px; display: block; margin-bottom: 2px; }
+        
+        .kpi-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .kpi-row:last-child { border-bottom: none; }
+        .kpi-label { font-size: 13px; color: #666; }
+        .kpi-value { font-size: 13px; font-weight: 600; }
+        .kpi-positive { color: #4caf50; }
+        .kpi-negative { color: #f44336; }
+        
+        .hidden { display: none; }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+        
+        .error {
+            background: #ffebee;
+            color: #d32f2f;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>👤 Кабинет тренера</h1>
+        <div class="date" id="currentDate">Загрузка...</div>
+    </div>
+
+    <!-- Dashboard View -->
+    <div id="view-dashboard">
+        <!-- Stats -->
+        <div class="card">
+            <div class="card-title">Сегодня</div>
+            <div class="stat-grid">
+                <div class="stat-item">
+                    <div class="stat-value" id="todaySessions">0</div>
+                    <div class="stat-label">Тренировок</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="todayAttended">0</div>
+                    <div class="stat-label">Пришли</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="todayRevenue">0</div>
+                    <div class="stat-label">Выручка, ₽</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="monthSalary">0</div>
+                    <div class="stat-label">Зарплата, ₽</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Schedule -->
+        <div class="card">
+            <div class="card-title">Расписание</div>
+            <div id="scheduleList">
+                <div class="loading">Загрузка...</div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-title">Быстрые действия</div>
+            <button class="btn btn-primary" onclick="showSaleForm()">💰 Оформить продажу</button>
+            <button class="btn btn-success" onclick="refreshData()">🔄 Обновить</button>
+        </div>
+    </div>
+
+    <!-- KPI View -->
+    <div id="view-kpi" class="hidden">
+        <div class="card">
+            <div class="card-title">KPI за месяц</div>
+            <div id="kpiData">
+                <div class="loading">Загрузка...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sale Form -->
+    <div id="view-sale" class="hidden">
+        <div class="card">
+            <div class="card-title">Оформить продажу</div>
+            <div style="margin-bottom: 10px;">
+                <label style="font-size: 13px; color: #666;">Клиент:</label>
+                <select id="saleClient" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-top: 5px;">
+                    <option value="">Выберите клиента...</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label style="font-size: 13px; color: #666;">Товар/Услуга:</label>
+                <input type="text" id="saleProduct" placeholder="Название" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-top: 5px;">
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label style="font-size: 13px; color: #666;">Сумма:</label>
+                <input type="number" id="saleAmount" placeholder="0" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-top: 5px;">
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label style="font-size: 13px; color: #666;">Тип:</label>
+                <select id="saleType" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-top: 5px;">
+                    <option value="product">Товар</option>
+                    <option value="service">Услуга</option>
+                    <option value="package">Пакет</option>
+                    <option value="membership">Абонемент</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label style="font-size: 13px; color: #666;">Оплата:</label>
+                <select id="salePayment" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-top: 5px;">
+                    <option value="card">Карта</option>
+                    <option value="cash">Наличные</option>
+                    <option value="sbp">СБП</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="submitSale()">✅ Подтвердить</button>
+            <button class="btn" style="background: #f0f0f0; color: #666;" onclick="showDashboard()">❌ Отмена</button>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+        <a href="#" class="nav-item active" onclick="showDashboard(); return false;">
+            <span class="nav-icon">📊</span>
+            Главная
+        </a>
+        <a href="#" class="nav-item" onclick="showKpi(); return false;">
+            <span class="nav-icon">💰</span>
+            KPI
+        </a>
+        <a href="#" class="nav-item" onclick="showSaleForm(); return false;">
+            <span class="nav-icon">➕</span>
+            Продажа
+        </a>
+    </div>
+
+    <script>
+        // API Config
+        const API_URL = window.location.origin;
+        let authToken = localStorage.getItem('trainer_token') || '';
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('currentDate').textContent = new Date().toLocaleDateString('ru-RU', {
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+            });
+            
+            if (!authToken) {
+                showLogin();
+            } else {
+                refreshData();
+            }
+        });
+
+        // Views
+        function showDashboard() {
+            document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
+            document.getElementById('view-dashboard').classList.remove('hidden');
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item')[0].classList.add('active');
+        }
+
+        function showKpi() {
+            document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
+            document.getElementById('view-kpi').classList.remove('hidden');
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item')[1].classList.add('active');
+            loadKpi();
+        }
+
+        function showSaleForm() {
+            document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
+            document.getElementById('view-sale').classList.remove('hidden');
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item')[2].classList.add('active');
+            loadClients();
+        }
+
+        function showLogin() {
+            // Simple login prompt
+            const login = prompt('Логин:');
+            const password = prompt('Пароль:');
+            if (login && password) {
+                loginUser(login, password);
+            }
+        }
+
+        // API Calls
+        async function apiCall(endpoint, method = 'GET', body = null) {
+            const options = {
+                method,
+                headers: {
+                    'Authorization': Bearer ,
+                    'Content-Type': 'application/json'
+                }
+            };
+            if (body) options.body = JSON.stringify(body);
+            
+            try {
+                const response = await fetch(${API_URL}, options);
+                if (response.status === 401) {
+                    localStorage.removeItem('trainer_token');
+                    showLogin();
+                    return null;
+                }
+                return await response.json();
+            } catch (e) {
+                console.error('API Error:', e);
+                return null;
+            }
+        }
+
+        async function loginUser(login, password) {
+            const response = await fetch(${API_URL}/api/v1/auth/login, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ login, password })
+            });
+            const data = await response.json();
+            if (data.access_token) {
+                authToken = data.access_token;
+                localStorage.setItem('trainer_token', authToken);
+                refreshData();
+            } else {
+                alert('Ошибка входа');
+            }
+        }
+
+        async function refreshData() {
+            // Dashboard
+            const dashboard = await apiCall('/api/v1/trainers/dashboard');
+            if (dashboard) {
+                document.getElementById('todaySessions').textContent = dashboard.today_bookings || 0;
+                document.getElementById('todayAttended').textContent = dashboard.today_attended || 0;
+                document.getElementById('todayRevenue').textContent = (dashboard.month_revenue || 0).toLocaleString();
+                document.getElementById('monthSalary').textContent = (dashboard.month_commission || 0).toLocaleString();
+            }
+
+            // Schedule
+            const schedule = await apiCall('/api/v1/trainers/schedules/today');
+            if (schedule) {
+                const list = document.getElementById('scheduleList');
+                if (schedule.length === 0) {
+                    list.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">Нет тренировок на сегодня</div>';
+                } else {
+                    list.innerHTML = schedule.map(s => 
+                        <div class="schedule-item">
+                            <div class="schedule-time"></div>
+                            <div class="schedule-info">
+                                <div class="schedule-title"></div>
+                                <div class="schedule-client"></div>
+                            </div>
+                            <div class="schedule-status status-"></div>
+                        </div>
+                    ).join('');
+                }
+            }
+        }
+
+        async function loadKpi() {
+            const now = new Date();
+            const yearMonth = ${now.getFullYear()}-;
+            const kpi = await apiCall(/api/v1/trainers/kpi/);
+            
+            if (kpi) {
+                document.getElementById('kpiData').innerHTML = 
+                    <div class="kpi-row">
+                        <span class="kpi-label">Тренировок:</span>
+                        <span class="kpi-value"></span>
+                    </div>
+                    <div class="kpi-row">
+                        <span class="kpi-label">Клиентов:</span>
+                        <span class="kpi-value"></span>
+                    </div>
+                    <div class="kpi-row">
+                        <span class="kpi-label">Ставка:</span>
+                        <span class="kpi-value"> ₽/час</span>
+                    </div>
+                    <div class="kpi-row">
+                        <span class="kpi-label">Базовая зарплата:</span>
+                        <span class="kpi-value"> ₽</span>
+                    </div>
+                    <div class="kpi-row">
+                        <span class="kpi-label">Комиссия:</span>
+                        <span class="kpi-value"> ₽</span>
+                    </div>
+                    <div class="kpi-row">
+                        <span class="kpi-label">Бонусы:</span>
+                        <span class="kpi-value kpi-positive">+ ₽</span>
+                    </div>
+                    <div class="kpi-row">
+                        <span class="kpi-label">Штрафы:</span>
+                        <span class="kpi-value kpi-negative">- ₽</span>
+                    </div>
+                    <div class="kpi-row" style="border-top: 2px solid #1F4E78; margin-top: 10px; padding-top: 10px;">
+                        <span class="kpi-label" style="font-size: 15px; font-weight: 600;">Зарплата:</span>
+                        <span class="kpi-value" style="font-size: 18px; color: #1F4E78;"> ₽</span>
+                    </div>
+                ;
+            }
+        }
+
+        async function loadClients() {
+            // Заглушка — в реальном приложении загружать список клиентов
+            const select = document.getElementById('saleClient');
+            select.innerHTML = '<option value="473d5de8-3f46-4c95-9950-dd0c49c9a8d3">Limit Test (+79995954206)</option>';
+        }
+
+        async function submitSale() {
+            const clientId = document.getElementById('saleClient').value;
+            const productName = document.getElementById('saleProduct').value;
+            const amount = parseFloat(document.getElementById('saleAmount').value);
+            const saleType = document.getElementById('saleType').value;
+            const paymentMethod = document.getElementById('salePayment').value;
+
+            if (!clientId || !productName || !amount) {
+                alert('Заполните все поля');
+                return;
+            }
+
+            const result = await apiCall('/api/v1/trainers/sales', 'POST', {
+                client_id: clientId,
+                product_name: productName,
+                amount: amount,
+                sale_type: saleType,
+                payment_method: paymentMethod
+            });
+
+            if (result) {
+                alert(Продажа оформлена! Комиссия:  ₽);
+                showDashboard();
+                refreshData();
+            }
+        }
+
+        // PWA Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/trainer-pwa/sw.js').catch(console.error);
+        }
+    </script>
+</body>
+</html>
