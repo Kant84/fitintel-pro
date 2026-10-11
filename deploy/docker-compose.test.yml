@@ -51,7 +51,9 @@ services:
       MKL_NUM_THREADS: "1"
     volumes:
       - face_photos:/app/data/face_photos   # опциональное хранение фото лиц (если клуб включил)
-      - static_data:/app/static
+      - ./uploads_data/brand:/app/static/brand
+      - ./uploads_data/products:/app/static/products
+      - ./uploads_data/trainers:/app/static/trainers
     depends_on:
       db:
         condition: service_healthy
@@ -100,8 +102,6 @@ services:
     healthcheck:
       disable: true               # healthcheck образа для API, воркеру не нужен
 
-volumes:
-  static_data:
   postgres_test:
   face_photos:
 
