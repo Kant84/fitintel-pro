@@ -328,10 +328,14 @@ def _try_send_reply(db: Session, max_user_id: int, reply: dict):
     clean = _re.sub(r"[ \t]+\n", "\n", clean).strip()
     _link = None
     try:
-        _r = db.execute(sql_text("SELECT app_url, api_url FROM max_bot_settings WHERE id=1")).first()
+        _r = db.execute(sql_text("SELECT app_url, api_url, bot_name FROM max_bot_settings WHERE id=1")).first()
         _base = (_r[1] if _r and _r[1] else "https://fixintel.ru").rstrip("/")
-        _app = (_r[0] if _r and _r[0] else _base + "/static/miniapp/index.html")
-        _link = _app + ("&" if "?" in _app else "?") + "s=" + _base + "/api/v1"
+        _bn = (_r[2] if _r else "") or ""
+        if _bn:
+            _link = "https://max.ru/%s?startapp" % _bn
+        else:
+            _app = (_r[0] if _r and _r[0] else _base + "/static/miniapp/index.html")
+            _link = _app + ("&" if "?" in _app else "?") + "s=" + _base + "/api/v1"
     except Exception:
         pass
     try:
@@ -498,6 +502,7 @@ def _cfg_row(db):
         db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS payments_enabled BOOLEAN DEFAULT TRUE"))
         db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS info_email TEXT"))
         db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS feedback_email TEXT"))
+        db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS bot_name TEXT"))
         db.commit()
     except Exception:
         db.rollback()
@@ -514,6 +519,16 @@ def _autosubscribe(db, token: str) -> None:
                       headers={"Authorization": token},
                       json={"url": api_base + "/api/v1/max-bot/webhook", "secret": sec},
                       timeout=10)
+        try:
+            me = requests.get("https://platform-api.max.ru/me",
+                              headers={"Authorization": token}, timeout=10).json()
+            un = (me.get("username") or "").strip()
+            if un:
+                db.execute(sql_text("INSERT INTO max_bot_settings (id, bot_name) VALUES (1,:v) "
+                                    "ON CONFLICT (id) DO UPDATE SET bot_name=:v"), {"v": un})
+                db.commit()
+        except Exception:
+            pass
     except Exception as _e:
         print("W5 autosubscribe:", str(_e)[:120])
 
