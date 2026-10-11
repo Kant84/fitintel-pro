@@ -205,6 +205,7 @@ class BotSettingsWidget(QWidget):
         w = BotCfgWorker(fn)
         w.done.connect(cb)
         w.fail.connect(lambda m: self.lbl.setText("Ошибка: " + m))
+        self._worker = w  # держим ссылку: иначе GC уничтожит поток -> краш Qt
         w.start()
 
     def load(self):

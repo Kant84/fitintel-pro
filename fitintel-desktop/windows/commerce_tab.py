@@ -118,6 +118,9 @@ class CommerceTab(QWidget):
         b_save = QPushButton("💾 Сохранить")
         b_save.clicked.connect(self.save_brand)
         btns.addWidget(b_load)
+        b_up = QPushButton("📎 Логотип из файла")
+        b_up.clicked.connect(self.upload_logo)
+        btns.addWidget(b_up)
         btns.addWidget(b_save)
         lay.addLayout(btns)
         self.brand_status = QLabel("")
@@ -143,6 +146,22 @@ class CommerceTab(QWidget):
             data["powered_by"] = self.cb_powered.isChecked()
             _req("POST", "/brand/settings", data)
             self.brand_status.setText("✅ Сохранено")
+        except Exception as e:
+            self.brand_status.setText("❌ " + str(e)[:150])
+
+    def upload_logo(self):
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(self, "Логотип клуба", "", "Images (*.png *.jpg *.jpeg)")
+        if not path:
+            return
+        try:
+            base = self.api.base_url.rsplit("/api/v1", 1)[0]
+            with open(path, "rb") as fh:
+                r = self.api.session.post(base + "/api/v1/brand/logo", files={"file": fh}, timeout=60)
+            r.raise_for_status()
+            url = base + r.json().get("url", "")
+            self.f["logo_url"].setText(url)
+            self.brand_status.setText("Логотип загружен. Нажмите «Сохранить».")
         except Exception as e:
             self.brand_status.setText("❌ " + str(e)[:150])
 
