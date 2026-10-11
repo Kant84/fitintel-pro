@@ -198,21 +198,6 @@ class UsersTab(QWidget):
         self.table.setItem(0, 0, QTableWidgetItem(f"Ошибка загрузки: {msg}"))
 
 
-# === E63_PRINT ===
-try:
-    from windows.print_helper import add_print_button as _e63_apb
-    _e63_orig = UsersTab.__init__
-    def _e63_init(self, *a, **kw):
-        _e63_orig(self, *a, **kw)
-        try:
-            _e63_apb(self, "Пользователи")
-        except Exception as e:
-            print("print btn:", e)
-    UsersTab.__init__ = _e63_init
-    print("E63 print OK: users_tab.py")
-except Exception as e:
-    print("E63 FAIL:", e)
-
     def _edit_user(self):
         row = self.table.currentRow()
         if row < 0:
@@ -239,3 +224,18 @@ except Exception as e:
             self.refresh()
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e)[:200])
+
+# === E63_PRINT ===
+try:
+    from windows.print_helper import add_print_button as _e63_apb
+    _e63_orig = UsersTab.__init__
+    def _e63_init(self, *a, **kw):
+        _e63_orig(self, *a, **kw)
+        try:
+            _e63_apb(self, "Пользователи")
+        except Exception as e:
+            print("print btn:", e)
+    UsersTab.__init__ = _e63_init
+    print("E63 print OK: users_tab.py")
+except Exception as e:
+    print("E63 FAIL:", e)
