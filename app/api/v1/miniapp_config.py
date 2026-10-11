@@ -1,4 +1,4 @@
-# W5: конфиг мини-приложения + локальный QR + отзывы
+# W5: конфиг мини-приложения: brand (branding_settings/White-label) + настройки приложения + QR + отзывы
 import urllib.parse as _up
 import uuid as _uuid
 from datetime import datetime as _dt, timezone as _tz
@@ -13,29 +13,43 @@ from app.db.session import engine as _e
 router = APIRouter()
 
 
-def _club_cfg():
+def _brand() -> dict:
     try:
         with _e.connect() as c:
-            row = c.execute(_t("SELECT about, hours, support_phone, support_email, payments_enabled FROM max_bot_settings WHERE id=1")).first()
+            row = c.execute(_t("SELECT * FROM branding_settings WHERE id=1")).mappings().first()
+        return dict(row) if row else {}
+    except Exception:
+        return {}
+
+
+def _app_cfg() -> dict:
+    try:
+        with _e.connect() as c:
+            row = c.execute(_t("SELECT about, hours, support_phone, support_email, info_email, feedback_email, payments_enabled FROM max_bot_settings WHERE id=1")).first()
     except Exception:
         row = None
     g = lambda i, d="": (row[i] if row and row[i] else d)
     return {"about": g(0), "hours": g(1), "support_phone": g(2), "support_email": g(3),
-            "payments_enabled": (bool(row[4]) if row and row[4] is not None else True)}
+            "info_email": g(4), "feedback_email": g(5),
+            "payments_enabled": (bool(row[6]) if row and row[6] is not None else True)}
 
 
 @router.get("/miniapp/config")
 def miniapp_config() -> dict:
-    c = _club_cfg()
+    b = _brand()
+    a = _app_cfg()
     return {
-        "club_name": get_param("WL.CLUB_NAME", None) or get_param("CLUB_NAME", "Клуб"),
-        "slogan": get_param("WL.SLOGAN", "") or "",
-        "accent": get_param("WL.COLOR_ACCENT", "#00f0ff") or "#00f0ff",
-        "about": c["about"] or (get_param("WL.ABOUT", "") or ""),
-        "hours": c["hours"] or "Будни 8:30-23:00",
-        "support_phone": c["support_phone"],
-        "support_email": c["support_email"],
-        "payments_enabled": c["payments_enabled"],
+        "club_name": b.get("club_name") or get_param("WL.CLUB_NAME", None) or get_param("CLUB_NAME", "Клуб"),
+        "slogan": b.get("tagline") or "",
+        "logo_url": b.get("logo_url") or "",
+        "accent": b.get("accent_color") or "#00f0ff",
+        "about": a["about"],
+        "hours": a["hours"] or "Будни 8:30-23:00",
+        "support_phone": a["support_phone"] or b.get("support_phone") or "",
+        "support_email": a["support_email"] or b.get("support_email") or "",
+        "info_email": a["info_email"] or "",
+        "feedback_email": a["feedback_email"] or a["support_email"] or b.get("support_email") or "",
+        "payments_enabled": a["payments_enabled"],
     }
 
 
