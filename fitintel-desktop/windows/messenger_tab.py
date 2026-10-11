@@ -63,9 +63,11 @@ class MessengerTab(QWidget):
         self._build_bindings()
         self._build_reminders()
         self._build_journal()
+        self._build_feedback()
         self.load_chats()
         self.load_bindings()
         self.load_journal()
+        self.load_feedback()
         self._run(self.api.get_clients, self._fill_clients)
 
     # ---------- infra ----------
@@ -167,14 +169,6 @@ class MessengerTab(QWidget):
                                         % (r.get("imported", 0) if isinstance(r, dict) else 0)),
                              self.load_chats()))
                              
-    # === W5: конфигурация бота MAX ===
-    def get_bot_config(self):
-        return self._get("/max-bot/config")
-        
-
-    def save_bot_config(self, body: dict):
-        return self._post("/max-bot/config", body)  
-        
 
     def demo(self):
         self._run(self.api.demo_chat,
@@ -371,3 +365,33 @@ class MessengerTab(QWidget):
                                         % (r.get("sent"), r.get("failed"))
                                         if isinstance(r, dict) else r),
                              self.load_journal()))
+
+    # ---------- 6. Отзывы ----------
+    def _build_feedback(self):
+        w = QWidget()
+        v = QVBoxLayout(w)
+        bar = QHBoxLayout()
+        b = QPushButton("Обновить")
+        b.clicked.connect(self.load_feedback)
+        bar.addWidget(b)
+        bar.addStretch(1)
+        v.addLayout(bar)
+        self.tbl_fb = QTableWidget(0, 4)
+        self.tbl_fb.setHorizontalHeaderLabels(["Дата", "Клиент", "Тема", "Текст"])
+        self.tbl_fb.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.tbl_fb.setStyleSheet(_t("table_style"))
+        v.addWidget(self.tbl_fb, 1)
+        self.sub.addTab(w, "Отзывы")
+
+    def load_feedback(self):
+        self._run(self.api.get_feedbacks, self._fill_feedback)
+
+    def _fill_feedback(self, data):
+        rows = data.get("items", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+        self.tbl_fb.setRowCount(0)
+        for f in rows:
+            r = self.tbl_fb.rowCount()
+            self.tbl_fb.insertRow(r)
+            for j, val in enumerate([str(f.get("created_at") or "")[:19], f.get("client_id"),
+                                     f.get("theme"), (f.get("body") or "")[:120]]):
+                self.tbl_fb.setItem(r, j, QTableWidgetItem(str(val or "")))
