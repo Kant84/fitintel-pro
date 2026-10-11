@@ -73,7 +73,7 @@ const imgu=u=>{if(!u)return '';if(u.startsWith('http')&&!u.includes('fixintel.ru
 function go(t){tab=t;render()}
 function render(){const a=document.getElementById('app');
 if(!token){a.innerHTML=`<div class="top">ВХОД</div><div class="card">
-<div style="font-size:20px;font-weight:800;margin-bottom:4px">${esc(CFG.club_name)}</div>
+${CFG.logo_url?`<img src="${esc(CFG.logo_url)}" style="max-height:44px;max-width:180px;border-radius:8px;margin-bottom:8px">`:""}<div style="font-size:20px;font-weight:800;margin-bottom:4px">${esc(CFG.club_name)}</div>
 ${CFG.slogan?`<div style="color:var(--muted);font-size:13px;margin-bottom:12px">${esc(CFG.slogan)}</div>`:'<div style="margin-bottom:12px"></div>'}
 <div id="err" class="err"></div>
 <input id="lg" placeholder="Логин" autocomplete="username">
@@ -92,13 +92,13 @@ const j=await r.json();if(!r.ok||!j.access_token)throw new Error('Неверны
 token=j.access_token;localStorage.setItem('fit_token',token);
 try{me=await api('/auth/me')}catch(e){me={full_name:l}}
 localStorage.setItem('fit_user',JSON.stringify(me));tab='home';render()}catch(e){const er=document.getElementById('err');er.style.display='block';er.textContent=e.message}}
-function vHome(){return `<div class="top">${esc(CFG.club_name).toUpperCase()}</div>
+function vHome(){return `${CFG.logo_url?`<img src="${esc(CFG.logo_url)}" style="max-height:36px;max-width:160px;border-radius:8px;margin:2px 2px 8px">`:""}<div class="top">${esc(CFG.club_name).toUpperCase()}</div>
 <div class="grid2"><div class="tile" onclick="go('qr')">${svg('qr')}<div>QR-код</div></div>
 ${CFG.payments_enabled===false?`<div class="tile" onclick="go('services')">${svg('dumb')}<div>Услуги</div></div>`:`<div class="tile" onclick="go('shop')">${svg('store')}<div>Купить</div></div>`}</div>
 <div class="card" style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
 <div><div style="font-size:16px;font-weight:700">Загруженность клуба</div><div style="font-size:26px;font-weight:800">0 чел.</div></div>
 <div style="width:64px;height:64px;border-radius:50%;background:var(--row);display:flex;align-items:center;justify-content:center;font-weight:700">0%</div></div>
-<div class="h2">НАШИ ТРЕНЕРЫ</div><div class="hscroll" id="trainers"><span class="mut">Загрузка…</span></div>`}
+<div class="h2">НАШИ ТРЕНЕРЫ</div><div id="w5dbg" class="mut" style="font-size:10px;text-align:left"></div><div class="hscroll" id="trainers"><span class="mut">Загрузка…</span></div>`}
 function vShop(){if(CFG.payments_enabled===false)return `<div class="top">МАГАЗИН</div><div class="mut">Покупки через приложение временно отключены клубом</div>`;return `<div class="top">МАГАЗИН</div><div id="goods"><span class="mut">Загрузка…</span></div>`}
 function vServices(){return `<div class="top">УСЛУГИ</div><div class="card" id="svclist"><span class="mut">Загрузка…</span></div>`}
 function vSchedule(){return `<div class="top">РАСПИСАНИЕ</div><div id="sched"><span class="mut">Загрузка…</span></div>`}
@@ -142,7 +142,7 @@ return `<div class="top">МЕНЮ</div><div class="card" style="display:flex;gap
 <div class="row" onclick="go('review')"><span class="t">Оставить отзыв</span><span class="v">›</span></div>
 <div class="row" onclick="go('support')"><span class="t">Поддержка</span><span class="v">›</span></div></div>`}
 async function load(t){
-if(t==='home'){try{const r=await api('/trainers/profiles');const rows=Array.isArray(r)?r:(r.items||r.profiles||r.trainers||r.data||[]);
+if(t==='home'){try{const r=await api('/trainers/profiles');const _d=document.getElementById('w5dbg');if(_d)_d.textContent='W5DBG logo='+(CFG.logo_url||'—')+' | t0='+(Array.isArray(r)?(r[0]&&r[0].photo_url)||'—':'obj');const rows=Array.isArray(r)?r:(r.items||r.profiles||r.trainers||r.data||[]);
 document.getElementById('trainers').innerHTML=(rows||[]).map(x=>{const ph=imgu(x.photo_url);
 return `<div class="trainer"><div class="ph" ${ph?`style="background-image:url('${ph}')"`:''}>${ph?'':'Фото'}</div><div class="nm">${esc(x.full_name||x.name||x.specialization||'')}</div></div>`}).join('')||'<span class="mut">Скоро</span>'}catch(e){document.getElementById('trainers').innerHTML='<span class="mut">Скоро</span>'}}
 if(t==='shop'){try{const g=await api('/warehouse/products?club_id=1');const rows=g.items||g;
