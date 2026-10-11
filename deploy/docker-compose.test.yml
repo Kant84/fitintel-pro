@@ -26,8 +26,6 @@ services:
     restart: unless-stopped
 
   api:
-    volumes:
-      - static_data:/app/static
     build: ..                      # <-- собираем из исходников, не из registry
     env_file:
       - .env
@@ -53,6 +51,7 @@ services:
       MKL_NUM_THREADS: "1"
     volumes:
       - face_photos:/app/data/face_photos   # опциональное хранение фото лиц (если клуб включил)
+      - static_data:/app/static
     depends_on:
       db:
         condition: service_healthy
@@ -102,6 +101,7 @@ services:
       disable: true               # healthcheck образа для API, воркеру не нужен
 
 volumes:
+  static_data:
   postgres_test:
   face_photos:
 
