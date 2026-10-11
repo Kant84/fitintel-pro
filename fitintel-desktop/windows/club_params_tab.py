@@ -175,6 +175,8 @@ class BotSettingsWidget(QWidget):
         self.ed_hours = QLineEdit()
         self.ed_phone = QLineEdit()
         self.ed_email = QLineEdit()
+        self.ed_info = QLineEdit()
+        self.ed_femail = QLineEdit()
         self.chk_pay = QCheckBox("Оплата услуг и товаров через приложение (баланс)")
         f.addRow("Токен бота MAX:", self.ed_token)
         f.addRow("Адрес сервера:", self.ed_url)
@@ -182,6 +184,8 @@ class BotSettingsWidget(QWidget):
         f.addRow("Часы работы:", self.ed_hours)
         f.addRow("Телефон поддержки:", self.ed_phone)
         f.addRow("Email поддержки:", self.ed_email)
+        f.addRow("Email info:", self.ed_info)
+        f.addRow("Email для отзывов:", self.ed_femail)
         f.addRow(self.chk_pay)
         v.addLayout(f)
         bar = QHBoxLayout()
@@ -212,6 +216,8 @@ class BotSettingsWidget(QWidget):
         self.ed_hours.setText(r.get("hours") or "")
         self.ed_phone.setText(r.get("support_phone") or "")
         self.ed_email.setText(r.get("support_email") or "")
+        self.ed_info.setText(r.get("info_email") or "")
+        self.ed_femail.setText(r.get("feedback_email") or "")
         self.chk_pay.setChecked(bool(r.get("payments_enabled", True)))
         self.lbl.setText("Токен: " + ("установлен (…%s)" % r.get("bot_token_tail") if r.get("bot_token_set") else "не задан"))
 
@@ -219,6 +225,8 @@ class BotSettingsWidget(QWidget):
         body = {"api_url": self.ed_url.text().strip(), "about": self.ed_about.toPlainText().strip(),
                 "hours": self.ed_hours.text().strip(), "support_phone": self.ed_phone.text().strip(),
                 "support_email": self.ed_email.text().strip(),
+                "info_email": self.ed_info.text().strip(),
+                "feedback_email": self.ed_femail.text().strip(),
                 "payments_enabled": bool(self.chk_pay.isChecked())}
         t = self.ed_token.text().strip()
         if t:

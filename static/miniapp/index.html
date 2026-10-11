@@ -123,7 +123,7 @@ function vSupport(){return `<span class="back" onclick="go('menu')">‹ Наза
 <div class="svc"><div class="n">${esc(CFG.support_email||'—')}</div><div class="p">Email</div></div></div>`}
 async function sendReview(){const t=document.getElementById('rvt').value,x=document.getElementById('rvx').value;
 try{await fetch(API+'/miniapp/feedback',{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify({theme:t,body:x,client_id:me?(me.id||''):''})});}catch(e){}
-location.href='mailto:'+(CFG.support_email||'support@fixintel.ru')+'?subject='+encodeURIComponent('Отзыв: '+t)+'&body='+encodeURIComponent(x)}
+location.href='mailto:'+(CFG.feedback_email||CFG.support_email||'support@fitintel.ru')+'?subject='+encodeURIComponent('Отзыв: '+t)+'&body='+encodeURIComponent(x)}
 function vMenu(){const n=me?(me.full_name||me.name||me.fio||'Пользователь'):'Пользователь';
 return `<div class="top">МЕНЮ</div><div class="card" style="display:flex;gap:14px;align-items:center" onclick="go('profile')">
 <div style="width:64px;height:64px;border-radius:50%;border:2px solid var(--mint);display:flex;align-items:center;justify-content:center"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#9a9ac0" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M5 20.5c.5-3.8 3.4-5.7 7-5.7s6.5 1.9 7 5.7"/></svg></div>

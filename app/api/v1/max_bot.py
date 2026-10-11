@@ -482,6 +482,8 @@ class BotConfigIn(_BaseModel):
     support_phone: str | None = None
     support_email: str | None = None
     payments_enabled: bool | None = None
+    info_email: str | None = None
+    feedback_email: str | None = None
 
 
 def _cfg_row(db):
@@ -494,11 +496,13 @@ def _cfg_row(db):
         db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS support_phone TEXT"))
         db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS support_email TEXT"))
         db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS payments_enabled BOOLEAN DEFAULT TRUE"))
+        db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS info_email TEXT"))
+        db.execute(sql_text("ALTER TABLE max_bot_settings ADD COLUMN IF NOT EXISTS feedback_email TEXT"))
         db.commit()
     except Exception:
         db.rollback()
     return db.execute(sql_text(
-        "SELECT bot_token, app_url, api_url, webhook_secret, about, hours, support_phone, support_email, payments_enabled FROM max_bot_settings WHERE id=1")).first()
+        "SELECT bot_token, app_url, api_url, webhook_secret, about, hours, support_phone, support_email, payments_enabled, info_email, feedback_email FROM max_bot_settings WHERE id=1")).first()
 
 
 def _autosubscribe(db, token: str) -> None:
@@ -522,7 +526,8 @@ def get_bot_config(db: Session = Depends(get_db)):
             "app_url": (r[1] if r else "") or "", "api_url": (r[2] if r else "") or "",
             "about": (r[4] if r else "") or "", "hours": (r[5] if r else "") or "",
             "support_phone": (r[6] if r else "") or "", "support_email": (r[7] if r else "") or "",
-            "payments_enabled": (bool(r[8]) if r and r[8] is not None else True)}
+            "payments_enabled": (bool(r[8]) if r and r[8] is not None else True),
+            "info_email": (r[9] if r else "") or "", "feedback_email": (r[10] if r else "") or ""}
 
 
 @router.post("/max-bot/config")
@@ -539,7 +544,8 @@ def set_bot_config(body: BotConfigIn, db: Session = Depends(get_db)):
         db.execute(sql_text("INSERT INTO max_bot_settings (id, api_url) VALUES (1,:v) "
                             "ON CONFLICT (id) DO UPDATE SET api_url=:v"), {"v": body.api_url})
     for col, val in (("about", body.about), ("hours", body.hours),
-                     ("support_phone", body.support_phone), ("support_email", body.support_email)):
+                     ("support_phone", body.support_phone), ("support_email", body.support_email),
+                     ("info_email", body.info_email), ("feedback_email", body.feedback_email)):
         if val is not None:
             db.execute(sql_text(f"INSERT INTO max_bot_settings (id, {col}) VALUES (1,:v) ON CONFLICT (id) DO UPDATE SET {col}=:v"), {"v": val})
     if body.payments_enabled is not None:
