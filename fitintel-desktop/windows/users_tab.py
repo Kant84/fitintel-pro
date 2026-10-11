@@ -46,6 +46,10 @@ class UsersTab(QWidget):
         b_add.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_add.clicked.connect(self._add)
         row.addWidget(b_add)
+        b_edit = QPushButton(" Изменить")
+        b_edit.setStyleSheet("QPushButton { background: #3b82f6; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        b_edit.clicked.connect(self._edit_user)
+        row.addWidget(b_edit)
         b_del = QPushButton("Удалить")
         b_del.setStyleSheet("QPushButton { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_del.clicked.connect(self._delete)
@@ -131,6 +135,7 @@ class UsersTab(QWidget):
     def _add(self):
         dlg = FormDialog("Новый пользователь", [
             ("username", "Логин *"),
+            ("full_name", "ФИО (видят клиенты в приложении)"),
             ("email", "Email *"),
             ("password", "Пароль *"),
             ("role", "Роль *", "combo", self._load_roles()),
@@ -142,11 +147,14 @@ class UsersTab(QWidget):
             QMessageBox.warning(self, "Ошибка", "Логин и пароль обязательны")
             return
         try:
-            r = self.api.session.post(self.api._url("/users/"), json={
+            _payload = {
                 "username": v["username"],
                 "email": v["email"],
                 "password": v["password"],
-            })
+            }
+            if v.get("full_name"):
+                _payload["full_name"] = v["full_name"]
+            r = self.api.session.post(self.api._url("/users/"), json=_payload)
             r.raise_for_status()
             uid = r.json().get("id")
             if uid and v.get("role"):
@@ -204,3 +212,30 @@ try:
     print("E63 print OK: users_tab.py")
 except Exception as e:
     print("E63 FAIL:", e)
+
+    def _edit_user(self):
+        row = self.table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "Изменение", "Выберите пользователя в таблице")
+            return
+        item = self.table.item(row, 0)
+        uid = item.data(Qt.ItemDataRole.UserRole) if item else None
+        login = item.text() if item else "?"
+        if not uid:
+            QMessageBox.warning(self, "Изменение", "ID не найден — нажмите «Обновить»")
+            return
+        dlg = FormDialog("Пользователь: " + login, [
+            ("full_name", "ФИО (имя для клиентов)"),
+            ("email", "Email"),
+        ], self)
+        if dlg.exec() != FormDialog.DialogCode.Accepted:
+            return
+        v = {k: val for k, val in dlg.values().items() if val}
+        if not v:
+            return
+        try:
+            r = self.api.session.patch(self.api._url(f"/users/{uid}"), json=v)
+            r.raise_for_status()
+            self.refresh()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", str(e)[:200])
