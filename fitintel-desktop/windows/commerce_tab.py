@@ -113,7 +113,7 @@ class CommerceTab(QWidget):
         self.cb_powered = QCheckBox("Показывать «Powered by FitIntel»")
         lay.addWidget(self.cb_powered)
         btns = QHBoxLayout()
-        b_load = QPushButton("🔄 Загрузить")
+        b_load = QPushButton("🔄 Прочитать с сервера")
         b_load.clicked.connect(self.load_brand)
         b_save = QPushButton("💾 Сохранить")
         b_save.clicked.connect(self.save_brand)
@@ -155,7 +155,13 @@ class CommerceTab(QWidget):
         if not path:
             return
         try:
-            base = self.api.base_url.rsplit("/api/v1", 1)[0]
+            pub = ""
+            try:
+                cfg = self.api.get_bot_config()
+                pub = (cfg.get("api_url") or "").rstrip("/")
+            except Exception:
+                pass
+            base = pub or self.api.base_url.rsplit("/api/v1", 1)[0]
             with open(path, "rb") as fh:
                 r = self.api.session.post(base + "/api/v1/brand/logo", files={"file": fh}, headers={"Content-Type": None}, timeout=60)
             r.raise_for_status()
