@@ -5,7 +5,8 @@
 """
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QMessageBox, QInputDialog,
-    QTableWidget, QTableWidgetItem, QHeaderView, QTabWidget, QLabel
+    QTableWidget, QTableWidgetItem, QHeaderView, QTabWidget, QLabel,
+    QLineEdit, QPlainTextEdit, QCheckBox, QFormLayout
 )
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -71,6 +72,7 @@ class ClubParamsTab(QWidget):
         self.tbl_labels.setStyleSheet(theme.table_style())
         self.tbl_labels.itemDoubleClicked.connect(self._edit_label)
         self.tabs.addTab(self.tbl_labels, " Лейблы бота")
+        self.tabs.addTab(BotSettingsWidget(self.api), " Настройки приложения")
         layout.addWidget(self.tabs, 1)
 
         row = QHBoxLayout()
@@ -140,3 +142,96 @@ class ClubParamsTab(QWidget):
                 QMessageBox.warning(self, "Не сохранено", r.text()[:200])
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))
+
+# === W5: «Настройки приложения» ===
+class BotCfgWorker(QThread):
+    done = pyqtSignal(object)
+    fail = pyqtSignal(str)
+    def __init__(self, fn):
+        super().__init__()
+        self._fn = fn
+    def run(self):
+        try:
+            self.done.emit(self._fn())
+        except Exception as e:
+            self.fail.emit(str(e))
+
+
+class BotSettingsWidget(QWidget):
+    def __init__(self, api):
+        super().__init__()
+        self.api = api
+        v = QVBoxLayout(self)
+        note = QLabel("Привязка бота MAX и тексты приложения. Токен — из кабинета MAX. "
+                      "Адрес сервера — публичный URL системы (тест: https://fixintel.ru). "
+                      "Всё сохраняется на сервере и сразу отображается в приложении и боте.")
+        note.setWordWrap(True)
+        v.addWidget(note)
+        f = QFormLayout()
+        self.ed_token = QLineEdit(); self.ed_token.setEchoMode(QLineEdit.EchoMode.Password)
+        self.ed_token.setPlaceholderText("оставьте пустым, чтобы не менять")
+        self.ed_url = QLineEdit(); self.ed_url.setPlaceholderText("https://адрес-сервера")
+        self.ed_about = QPlainTextEdit(); self.ed_about.setMaximumHeight(70)
+        self.ed_hours = QLineEdit()
+        self.ed_phone = QLineEdit()
+        self.ed_email = QLineEdit()
+        self.chk_pay = QCheckBox("Оплата услуг и товаров через приложение (баланс)")
+        f.addRow("Токен бота MAX:", self.ed_token)
+        f.addRow("Адрес сервера:", self.ed_url)
+        f.addRow("О клубе:", self.ed_about)
+        f.addRow("Часы работы:", self.ed_hours)
+        f.addRow("Телефон поддержки:", self.ed_phone)
+        f.addRow("Email поддержки:", self.ed_email)
+        f.addRow(self.chk_pay)
+        v.addLayout(f)
+        bar = QHBoxLayout()
+        b1 = QPushButton(" Сохранить"); b1.clicked.connect(self.save)
+        b2 = QPushButton(" Проверить"); b2.clicked.connect(self.check)
+        bar.addWidget(b1); bar.addWidget(b2); bar.addStretch(1)
+        v.addLayout(bar)
+        self.lbl = QLabel(""); self.lbl.setWordWrap(True)
+        v.addWidget(self.lbl)
+        v.addStretch(1)
+        self.load()
+
+    def _run(self, fn, cb):
+        w = BotCfgWorker(fn)
+        w.done.connect(cb)
+        w.fail.connect(lambda m: self.lbl.setText("Ошибка: " + m))
+        w.start()
+
+    def load(self):
+        self._run(self.api.get_bot_config, self._fill)
+
+    def _fill(self, r):
+        if not isinstance(r, dict):
+            return
+        if not self.ed_url.text():
+            self.ed_url.setText(r.get("api_url") or "")
+        self.ed_about.setPlainText(r.get("about") or "")
+        self.ed_hours.setText(r.get("hours") or "")
+        self.ed_phone.setText(r.get("support_phone") or "")
+        self.ed_email.setText(r.get("support_email") or "")
+        self.chk_pay.setChecked(bool(r.get("payments_enabled", True)))
+        self.lbl.setText("Токен: " + ("установлен (…%s)" % r.get("bot_token_tail") if r.get("bot_token_set") else "не задан"))
+
+    def save(self):
+        body = {"api_url": self.ed_url.text().strip(), "about": self.ed_about.toPlainText().strip(),
+                "hours": self.ed_hours.text().strip(), "support_phone": self.ed_phone.text().strip(),
+                "support_email": self.ed_email.text().strip(),
+                "payments_enabled": bool(self.chk_pay.isChecked())}
+        t = self.ed_token.text().strip()
+        if t:
+            body["bot_token"] = t
+        def _done(r):
+            self.ed_token.clear()
+            self.lbl.setText("Сохранено. Подписка webhook обновлена автоматически.")
+            self.load()
+        self._run(lambda: self.api.save_bot_config(body), _done)
+
+    def check(self):
+        self._run(self.api.get_bot_config,
+                  lambda r: self.lbl.setText("Токен: %s. Адрес: %s. Платежи: %s" % (
+                      "OK (…%s)" % r.get("bot_token_tail") if r.get("bot_token_set") else "не задан",
+                      r.get("api_url") or "—",
+                      "вкл" if r.get("payments_enabled", True) else "выкл")))
