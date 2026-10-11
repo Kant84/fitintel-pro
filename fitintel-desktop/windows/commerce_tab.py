@@ -157,7 +157,7 @@ class CommerceTab(QWidget):
         try:
             base = self.api.base_url.rsplit("/api/v1", 1)[0]
             with open(path, "rb") as fh:
-                r = self.api.session.post(base + "/api/v1/brand/logo", files={"file": fh}, timeout=60)
+                r = self.api.session.post(base + "/api/v1/brand/logo", files={"file": fh}, headers={"Content-Type": None}, timeout=60)
             r.raise_for_status()
             url = base + r.json().get("url", "")
             self.f["logo_url"].setText(url)
