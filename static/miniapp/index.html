@@ -69,6 +69,7 @@ if(CFG.accent)document.documentElement.style.setProperty('--mint',CFG.accent);
 if(!token){render();return}
 try{me=await api('/auth/me')}catch(e){if(e.message!=='auth')me=null}render()}catch(e){render()}}
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const imgu=u=>{if(!u)return '';if(u.startsWith('http')&&!u.includes('fixintel.ru'))return API+'/miniapp/img?src='+encodeURIComponent(u);return u.startsWith('http')?u:'https://fixintel.ru'+u;};
 function go(t){tab=t;render()}
 function render(){const a=document.getElementById('app');
 if(!token){a.innerHTML=`<div class="top">ВХОД</div><div class="card">
@@ -141,9 +142,9 @@ return `<div class="top">МЕНЮ</div><div class="card" style="display:flex;gap
 <div class="row" onclick="go('review')"><span class="t">Оставить отзыв</span><span class="v">›</span></div>
 <div class="row" onclick="go('support')"><span class="t">Поддержка</span><span class="v">›</span></div></div>`}
 async function load(t){
-if(t==='home'){try{const r=await api('/trainers/profiles');const rows=r.items||r.profiles||r.trainers||r.data||r;
-document.getElementById('trainers').innerHTML=(rows||[]).map(x=>{const ph=x.photo_url?(x.photo_url.startsWith('http')?x.photo_url:'https://fixintel.ru'+x.photo_url):'';
-return `<div class="trainer"><div class="ph" ${ph?`style="background-image:url('${ph}')"`:''}>${ph?'':'Фото'}</div><div class="nm">${esc(x.full_name||x.name||'')}</div></div>`}).join('')||'<span class="mut">Скоро</span>'}catch(e){document.getElementById('trainers').innerHTML='<span class="mut">Скоро</span>'}}
+if(t==='home'){try{const r=await api('/trainers/profiles');const rows=Array.isArray(r)?r:(r.items||r.profiles||r.trainers||r.data||[]);
+document.getElementById('trainers').innerHTML=(rows||[]).map(x=>{const ph=imgu(x.photo_url);
+return `<div class="trainer"><div class="ph" ${ph?`style="background-image:url('${ph}')"`:''}>${ph?'':'Фото'}</div><div class="nm">${esc(x.full_name||x.name||x.specialization||'')}</div></div>`}).join('')||'<span class="mut">Скоро</span>'}catch(e){document.getElementById('trainers').innerHTML='<span class="mut">Скоро</span>'}}
 if(t==='shop'){try{const g=await api('/warehouse/products?club_id=1');const rows=g.items||g;
 document.getElementById('goods').innerHTML=rows.length?rows.map(p=>`<div class="card"><div class="svc"><div class="n">${esc(p.name)}</div><div class="p">${esc(p.article||'')} · ${Number(p.sale_price||p.price||0)} ₽ · остаток: ${Number(p.quantity||0)}</div></div></div>`).join(''):'<div class="mut">Товары появятся скоро — уточните на ресепшене</div>'}catch(e){document.getElementById('goods').innerHTML='<div class="mut">Товары появятся скоро</div>'}}
 if(t==='services'){try{const s=await api('/services');const rows=s.items||s;
