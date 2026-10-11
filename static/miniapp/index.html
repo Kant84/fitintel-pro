@@ -53,6 +53,7 @@ let CFG={club_name:'Клуб',slogan:'',accent:'#00f0ff',support_phone:'',suppor
 let token=localStorage.getItem('fit_token')||'';
 let me=JSON.parse(localStorage.getItem('fit_user')||'null');
 let tab='home';
+let UMAP={};
 const IC={
 home:'<path d="M3 11.5 12 3l9 8.5"/><path d="M5.5 10v11h13V10"/>',
 store:'<path d="M4.5 9.5 5.8 4.5h12.4l1.3 5"/><path d="M4.5 9.5a2.3 2.3 0 0 0 4.6 0 2.3 2.3 0 0 0 4.7 0 2.3 2.3 0 0 0 4.7 0"/><path d="M5.5 11.5V20h13v-8.5M9.8 20v-5.5h4.4V20"/>',
@@ -67,7 +68,9 @@ function logout(){token='';me=null;localStorage.clear();tab='home';render()}
 async function boot(){try{CFG={...CFG,...(await (await fetch(API+'/miniapp/config')).json())};
 if(CFG.accent)document.documentElement.style.setProperty('--mint',CFG.accent);
 if(!token){render();return}
-try{me=await api('/auth/me')}catch(e){if(e.message!=='auth')me=null}render()}catch(e){render()}}
+try{me=await api('/auth/me')}catch(e){if(e.message!=='auth')me=null}
+try{const _u=await api('/users');(Array.isArray(_u)?_u:(_u.items||[])).forEach(x=>{UMAP[String(x.id)]=x.full_name||x.username||''})}catch(e){}
+render()}catch(e){render()}}
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const imgu=u=>{if(!u)return '';if(u.startsWith('http')&&!u.includes('fixintel.ru'))return API+'/miniapp/img?src='+encodeURIComponent(u);return u.startsWith('http')?u:'https://fixintel.ru'+u;};
 function go(t){tab=t;render()}
@@ -145,7 +148,7 @@ return `<div class="top">МЕНЮ</div><div class="card" style="display:flex;gap
 async function load(t){
 if(t==='home'){try{const r=await api('/trainers/profiles');const rows=Array.isArray(r)?r:(r.items||r.profiles||r.trainers||r.data||[]);
 document.getElementById('trainers').innerHTML=(rows||[]).map(x=>{const ph=imgu(x.photo_url);
-return `<div class="trainer"><div class="ph" ${ph?`style="background-image:url('${ph}')"`:''}>${ph?'':'Фото'}</div><div class="nm">${esc(x.full_name||x.name||x.specialization||'')}</div></div>`}).join('')||'<span class="mut">Скоро</span>'}catch(e){document.getElementById('trainers').innerHTML='<span class="mut">Скоро</span>'}}
+return `<div class="trainer"><div class="ph" ${ph?`style="background-image:url('${ph}')"`:''}>${ph?'':'Фото'}</div><div class="nm">${esc(UMAP[String(x.user_id)]||x.specialization||'')}</div>${(UMAP[String(x.user_id)]&&(x.specialization||''))?`<div style="font-size:11px;color:var(--muted)">${esc(x.specialization||'')}</div>`:''}</div>`}).join('')||'<span class="mut">Скоро</span>'}catch(e){document.getElementById('trainers').innerHTML='<span class="mut">Скоро</span>'}}
 if(t==='shop'){try{const g=await api('/warehouse/products?club_id=1');const rows=g.items||g;
 document.getElementById('goods').innerHTML=rows.length?rows.map(p=>`<div class="card"><div class="svc"><div class="n">${esc(p.name)}</div><div class="p">${esc(p.article||'')} · ${Number(p.sale_price||p.price||0)} ₽ · остаток: ${Number(p.quantity||0)}</div></div></div>`).join(''):'<div class="mut">Товары появятся скоро — уточните на ресепшене</div>'}catch(e){document.getElementById('goods').innerHTML='<div class="mut">Товары появятся скоро</div>'}}
 if(t==='services'){try{const s=await api('/services');const rows=s.items||s;
