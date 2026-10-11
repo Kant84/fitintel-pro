@@ -133,3 +133,18 @@ def brand_summary():
         s = c.execute(text("SELECT * FROM branding_settings WHERE id=1")).mappings().first()
         t = c.execute(text("SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE active) AS a FROM tenants")).mappings().first()
     return {"settings": dict(s) if s else {}, "tenants_total": t["n"], "tenants_active": t["a"]}
+
+# === W5: загрузка логотипа клуба (файл с десктопа) ===
+import os as _os
+import shutil as _shutil
+
+from fastapi import File as _File, UploadFile as _UploadFile
+
+
+@router.post("/brand/logo")
+def upload_logo(file: _UploadFile = _File(...)):
+    _os.makedirs("static/brand", exist_ok=True)
+    dest = "static/brand/logo.jpg"
+    with open(dest, "wb") as _f:
+        _shutil.copyfileobj(file.file, _f)
+    return {"ok": True, "url": "/static/brand/logo.jpg"}
