@@ -326,7 +326,7 @@ def upload_trainer_photo(profile_id: str, file: _UF5 = _F5(...)):
     with _E5.begin() as _c:
         for _tbl in ("trainer_profiles", "trainers"):
             try:
-                _c.execute(_T5("UPDATE %s SET photo_url=:u WHERE id=:i" % _tbl), {"u": url, "i": profile_id})
+                _c.execute(_T5("UPDATE %s SET photo_url=:u WHERE id::text=:i" % _tbl), {"u": url, "i": profile_id})
             except Exception:
                 pass
     return {"ok": True, "url": url}
