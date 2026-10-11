@@ -112,6 +112,7 @@ function vList(title,path,empty){return `<span class="back" onclick="go('menu')"
 function vClub(){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">О КЛУБЕ</div>
 <div class="card"><div style="font-size:20px;font-weight:800">${esc(CFG.club_name)}</div>
 ${CFG.slogan?`<div class="mut" style="text-align:left">${esc(CFG.slogan)}</div>`:''}
+${CFG.about?`<div class="svc"><div class="p" style="white-space:pre-wrap">${esc(CFG.about)}</div></div>`:''}
 <div class="svc"><div class="p">Часы работы: ${esc(CFG.hours)}</div></div></div>`}
 function vProfile(){const rows=me?Object.entries(me).map(([k,v])=>`<div class="svc"><div class="n" style="font-size:14px">${esc(k)}</div><div class="p">${esc(String(v))}</div></div>`).join(''):'—';
 return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">ПРОФИЛЬ</div><div class="card">${rows}</div>
