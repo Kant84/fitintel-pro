@@ -512,3 +512,23 @@ except Exception as e:
 # [W5] «Параметры клуба» — подвкладка хаба «Настройки»
 except Exception as _w5t:
     print("W5 club_params tab FAIL:", _w5t)    
+
+# === W5: табло с часами в меню «Файл» ===
+try:
+    from PyQt6.QtGui import QAction as _ActClk
+    _orig_init_clk = MainWindow.__init__
+    def _mw_init_clk(self, *a, **kw):
+        _orig_init_clk(self, *a, **kw)
+        try:
+            act = _ActClk(" Табло с часами (F11)", self)
+            act.setShortcut("F11")
+            act.triggered.connect(self._open_clock_board)
+            for a_ in self.menuBar().actions():
+                if a_.text().strip().lower().startswith("файл"):
+                    a_.menu().addAction(act)
+                    break
+        except Exception as _e:
+            print("clock menu:", _e)
+    MainWindow.__init__ = _mw_init_clk
+except Exception as _e:
+    print("clock menu FAIL:", _e)
