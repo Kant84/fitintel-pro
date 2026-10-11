@@ -454,18 +454,34 @@ class ScheduleTab(QWidget):
             QMessageBox.critical(self, "Ошибка", str(e))
 
     def upload_trainer_photo(self):
-        if not self._trainers:
+        from PyQt6.QtWidgets import QInputDialog, QFileDialog
+        try:
+            r2 = self.api.session.get(self.api._url("/trainers/profiles"), timeout=20)
+            r2.raise_for_status()
+            profs = r2.json()
+            profs = profs if isinstance(profs, list) else []
+        except Exception:
+            profs = list(getattr(self, "_trainers", []) or [])
+        try:
+            r3 = self.api.session.get(self.api._url("/users"), timeout=20)
+            users = r3.json() if r3.status_code == 200 else []
+            if isinstance(users, dict):
+                users = users.get("items", [])
+            umap = {str(u.get("id")): str(u.get("full_name") or u.get("username") or "")
+                    for u in users if u.get("id")}
+        except Exception:
+            umap = dict(getattr(self, "_umap", {}) or {})
+        if not profs:
             QMessageBox.information(self, "Тренеры", "Список тренеров пуст")
             return
-        from PyQt6.QtWidgets import QInputDialog, QFileDialog
         names = []
-        for p in self._trainers:
+        for p in profs:
             uid = str(p.get("user_id") or p.get("id") or "")
-            names.append(self._umap.get(uid) or p.get("full_name") or p.get("specialization") or uid[:8])
+            names.append(umap.get(uid) or p.get("full_name") or p.get("specialization") or uid[:8])
         name, ok = QInputDialog.getItem(self, "Фото тренера", "Тренер:", names, 0, False)
         if not ok:
             return
-        prof = self._trainers[names.index(name)]
+        prof = profs[names.index(name)]
         pid = str(prof.get("id"))
         path, _ = QFileDialog.getOpenFileName(self, "Фото тренера", "", "Images (*.png *.jpg *.jpeg)")
         if not path:
