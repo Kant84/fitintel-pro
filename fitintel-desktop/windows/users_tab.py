@@ -173,7 +173,7 @@ class UsersTab(QWidget):
         if row < 0:
             QMessageBox.information(self, "Удаление", "Сначала выберите пользователя в таблице")
             return
-        item = self.table.item(row, 0)
+        item = self.table.item(row, 1)
         uid = item.data(Qt.ItemDataRole.UserRole) if item else None
         login = item.text() if item else "?"
         if not uid:
