@@ -312,6 +312,8 @@ async def turnstile_qr_scan(
                 _data["notes"] = "Служебный пропуск, user " + str(client_id)
             if "created_at" in _cols:
                 _data["created_at"] = _dt.now(_tz.utc)
+            if "updated_at" in _cols:
+                _data["updated_at"] = _dt.now(_tz.utc)
             if _data:
                 db.execute(_t("INSERT INTO visits (" + ", ".join(_data) + ") VALUES (" +
                                ", ".join(":" + k for k in _data) + ")"), _data)
