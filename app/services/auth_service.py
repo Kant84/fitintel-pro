@@ -249,9 +249,10 @@ class AuthService:
             import re as _re
             _norm = _re.sub(r"\D", "", str(login or ""))[-10:]
             _lu = str(login or "").strip().lower()
-            user = (self.db.query(User).filter(User.phone == str(login or "").strip()).first()
-                    or (self.db.query(User).filter(User.phone.like("%" + _norm)).first() if len(_norm) >= 10 else None)
-                    or (self.db.query(User).filter(User.email == _lu).first() if "@" in _lu else None))
+            from app.models.user import User as _U
+            user = (self.db.query(_U).filter(_U.phone == str(login or "").strip()).first()
+                    or (self.db.query(_U).filter(_U.phone.like("%" + _norm)).first() if len(_norm) >= 10 else None)
+                    or (self.db.query(_U).filter(_U.email == _lu).first() if "@" in _lu else None))
         
         # если пользователь не найден, вызываем исключение
         if not user:
