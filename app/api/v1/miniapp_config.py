@@ -320,7 +320,7 @@ from app.api.dependencies import get_current_user as _gcu
 
 
 @router.get("/miniapp/me")
-def miniapp_me(current=Depends(_gcu), db: _S = _Dep(_gdb)):
+def miniapp_me(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     uid = str(current.id)
     u = db.execute(_t("SELECT username, email, phone, full_name FROM users WHERE id=:i"), {"i": uid}).first()
     c = db.execute(_t("SELECT id, first_name, last_name, birth_date, phone, email FROM clients WHERE user_id=:u LIMIT 1"), {"u": uid}).first()
@@ -337,7 +337,7 @@ def miniapp_me(current=Depends(_gcu), db: _S = _Dep(_gdb)):
 
 # === W6: баланс и бонусы клиента ===
 @router.get("/miniapp/wallet")
-def miniapp_wallet(current=Depends(_gcu), db: _S = _Dep(_gdb)):
+def miniapp_wallet(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     uid = str(current.id)
     c = db.execute(_t("SELECT id FROM clients WHERE user_id=:u LIMIT 1"), {"u": uid}).first()
     out = {"balance": None, "bonuses": None}
