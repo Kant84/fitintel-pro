@@ -666,3 +666,8 @@ def get_feedbacks(self):
     return _e55_get(self, "/miniapp/feedback")
 
 setattr(ApiClient, "get_feedbacks", get_feedbacks)
+
+def mark_chat_read(self, chat_id):
+    return _e55_post(self, "/messenger/chats/%s/read" % chat_id, {})
+
+setattr(ApiClient, "mark_chat_read", mark_chat_read)
