@@ -293,9 +293,9 @@ async def turnstile_qr_scan(
                 _parts = str(_who).split(None, 1)
                 _fn = _parts[0] if _parts else str(_who)
                 _ln = _parts[1] if len(_parts) > 1 else "(sotrudnik)"
-                db.execute(_t("INSERT INTO clients (id, first_name, last_name, phone, gender, client_category, status, is_active, created_at, updated_at) "
-                              "VALUES (:i,:fn,:ln,:p,'unknown','standard','active',TRUE, now(), now()) ON CONFLICT DO NOTHING"),
-                           {"i": _svc, "fn": _fn[:60], "ln": _ln[:60], "p": ("S:" + str(client_id))[:20]})
+                db.execute(_t("INSERT INTO clients (id, first_name, last_name, phone, email, gender, client_category, status, is_active, created_at, updated_at) "
+                              "VALUES (:i,:fn,:ln,:p,:em,'НЕ_УКАЗАН','STAFF','ACTIVE',TRUE, now(), now()) ON CONFLICT DO NOTHING"),
+                           {"i": _svc, "fn": _fn[:60], "ln": _ln[:60], "p": ("S:" + str(client_id))[:20], "em": ("S:" + str(client_id))[:20] + "@staff.local"})
                 db.commit()
             _data = {"client_id": _svc, "access_granted": True}
             if "id" in _cols:
