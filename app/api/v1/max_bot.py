@@ -390,6 +390,29 @@ async def max_bot_webhook(request: Request,
     if not max_user_id:
         return {"ok": True}
 
+    # W5: входящее от клиента -> таблицы чатов десктопа (двусторонность)
+    if str(text or "").strip():
+        try:
+            import uuid as _uuid
+            from datetime import datetime as _dt, timezone as _tz
+            _msg = (update.get("message") or {})
+            _sender = _msg.get("sender") or _msg.get("from") or {}
+            _chat = str(((_msg.get("recipient") or {}).get("chat_id")) or max_user_id)
+            _name = str(_sender.get("name") or _sender.get("first_name") or "Клиент")[:120]
+            _now = _dt.now(_tz.utc)
+            if not db.execute(sql_text("SELECT chat_id FROM messenger_chats WHERE chat_id=:c"), {"c": _chat}).fetchone():
+                db.execute(sql_text("INSERT INTO messenger_chats(chat_id, client_name, source, last_message, updated_at) VALUES(:c,:n,'max',:l,:t)"),
+                           {"c": _chat, "n": _name, "l": str(text)[:500], "t": _now})
+            else:
+                db.execute(sql_text("UPDATE messenger_chats SET last_message=:l, updated_at=:t WHERE chat_id=:c"),
+                           {"l": str(text)[:500], "t": _now, "c": _chat})
+            db.execute(sql_text("INSERT INTO messenger_messages(id, chat_id, direction, body, created_at) VALUES(:i,:c,'in',:b,:t)"),
+                       {"i": _uuid.uuid4().hex, "c": _chat, "b": str(text)[:2000], "t": _now})
+            db.commit()
+        except Exception as _e:
+            db.rollback()
+            print("W5 incoming save:", str(_e)[:120])
+
     reply = _handle_command(db, int(max_user_id), str(text))
     _log(db, int(max_user_id), str(text)[:50], body, reply)
 
