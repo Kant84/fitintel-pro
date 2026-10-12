@@ -285,7 +285,7 @@ async def turnstile_qr_scan(
                              {"i": str(client_id)}).first()
             _who = ((_un[0] or _un[1]) if _un else None) or str(client_id)
             _row = db.execute(_t("SELECT id FROM clients WHERE phone=:p LIMIT 1"),
-                              {"p": "__staff__:" + str(client_id)}).first()
+                              {"p": ("S:" + str(client_id))[:20]}).first()
             if _row:
                 _svc = str(_row[0])
             else:
@@ -295,7 +295,7 @@ async def turnstile_qr_scan(
                 _ln = _parts[1] if len(_parts) > 1 else "(sotrudnik)"
                 db.execute(_t("INSERT INTO clients (id, first_name, last_name, phone, created_at) "
                               "VALUES (:i,:fn,:ln,:p, now()) ON CONFLICT DO NOTHING"),
-                           {"i": _svc, "fn": _fn[:60], "ln": _ln[:60], "p": "__staff__:" + str(client_id)})
+                           {"i": _svc, "fn": _fn[:60], "ln": _ln[:60], "p": ("S:" + str(client_id))[:20]})
                 db.commit()
             _data = {"client_id": _svc}
             if "id" in _cols:
