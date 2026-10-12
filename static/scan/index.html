@@ -35,6 +35,7 @@ h1{font-size:15px;letter-spacing:.12em;color:var(--mint);margin:6px 0 10px;font-
 </div>
 <video id="cam" autoplay playsinline muted></video>
 <div id="status" class="wait">Запуск камеры…</div>
+<div id="dbg" class="mut" style="color:#ff9a3c"></div>
 <div id="devname"></div>
 <div class="row2"><input id="manual" placeholder="ручной ввод QR"><button onclick="handle(document.getElementById('manual').value)">Проверить</button></div>
 <div class="mut">ID контроллера указывается один раз — он сохранится в этом браузере</div>
@@ -44,9 +45,12 @@ let _busy=false,_last='';
 function DEV(){return localStorage.getItem('term_dev')||''}
 function ZONE(){return document.getElementById('zone').value}
 function setStatus(t,cls){const e=document.getElementById('status');e.textContent=t;e.className=cls||''}
+function dbg(t){const e=document.getElementById('dbg');if(e)e.textContent=t}
+window.onerror=function(m,src,l){dbg('JS-ошибка: '+m+' (строка '+l+')');setStatus('Ошибка страницы — пришлите текст ниже','err')};
 function beep(ok){try{const c=new (window.AudioContext||window.webkitAudioContext)();const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=ok?880:220;g.gain.value=0.15;o.start();setTimeout(()=>{o.stop();c.close()},180)}catch(e){}}
 function saveSetup(){const v=document.getElementById('dev').value.trim();localStorage.setItem('term_dev',v);document.getElementById('devname').textContent=v?('Контроллер: '+v+(ZONE()==='exit'?' · выход':' · вход')):'Контроллер не задан';setStatus(v?'Готов. Покажите QR-код':'Укажите device_id контроллера из «Подключения»',v?'wait':'err')}
 async function handle(qr){qr=(qr||'').trim();if(!qr||_busy)return;
+dbg('считан код: '+qr.slice(0,60)+'…');
 const dev=DEV();if(!dev){setStatus('Сначала укажите device_id контроллера','err');return}
 _busy=true;setStatus('Проверка…','wait');
 try{const r=await fetch(API+'/dynamic-qr/turnstile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({qr_payload:qr,device_id:dev,zone:ZONE()})});
@@ -54,8 +58,11 @@ const j=await r.json().catch(()=>({}));
 if(r.ok&&j.access_granted){beep(true);setStatus('✅ ДОСТУП РАЗРЕШЁН'+(j.reason?' — '+j.reason:''),'ok')}
 else{beep(false);setStatus('⛔ ВХОД ЗАПРЕЩЁН: '+(j.detail||'отклонено'),'err')}}catch(e){setStatus('Ошибка сети: '+e.message,'err')}
 setTimeout(()=>{_busy=false;_last=''},2500)}
-async function startCamera(){try{const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});document.getElementById('cam').srcObject=st;scan()}catch(e){setStatus('Камера недоступна ('+e.message+') — ручной ввод','err')}}
-async function scan(){if(!('BarcodeDetector' in window)){setStatus('Нет BarcodeDetector — используйте Chrome/Edge или ручной ввод','err');return}
+async function startCamera(){
+if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){setStatus('Браузер не умеет камеру — откройте в Chrome/Edge','err');dbg('нет getUserMedia');return}
+try{const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});document.getElementById('cam').srcObject=st;dbg('камера: поток получен, ищу QR…');scan()}
+catch(e){setStatus('Камера недоступна — разрешите доступ (иконка в адресной строке)','err');dbg('getUserMedia: '+e.name+' '+e.message)}}
+async function scan(){if(!('BarcodeDetector' in window)){setStatus('Нет BarcodeDetector — только Chrome/Edge (не Firefox/Safari)','err');dbg('BarcodeDetector отсутствует в этом браузере');return}
 const bd=new BarcodeDetector({formats:['qr_code']});
 const tick=async()=>{const v=document.getElementById('cam');if(v.readyState===4){try{const codes=await bd.detect(v);if(codes.length){const val=codes[0].rawValue;if(val&&val!==_last&&!_busy){_last=val;document.getElementById('manual').value=val;handle(val)}}}catch(e){}}
 requestAnimationFrame(tick)};tick()}
