@@ -11,7 +11,7 @@ class DynamicQRCreate(BaseModel):
 
 class DynamicQRResponse(BaseModel):
     id: UUID  # <-- Меняем int на UUID
-    client_id: UUID
+    client_id: UUID | None = None
     qr_payload: str
     expires_at: datetime
     created_at: datetime
