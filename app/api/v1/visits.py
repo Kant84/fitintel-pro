@@ -323,8 +323,22 @@ def get_visit_stats(
     active = sum(1 for v in visits if v.status == "ACTIVE")
     completed = sum(1 for v in visits if v.status == "COMPLETED")
     denied = sum(1 for v in visits if v.access_granted == False)
+
+    from datetime import date as _dte, timedelta as _tdl
+    _today = _dte.today()
+    _week = _today - _tdl(days=_today.weekday())
+    _month = _today.replace(day=1)
+
+    def _vd(v):
+        try:
+            return v.entry_time.date() if v.entry_time else None
+        except Exception:
+            return None
     
     return {
+        "today": sum(1 for v in visits if _vd(v) == _today),
+        "week": sum(1 for v in visits if _vd(v) and _vd(v) >= _week),
+        "month": sum(1 for v in visits if _vd(v) and _vd(v) >= _month),
         "total_visits": total,
         "active_visits": active,
         "completed_visits": completed,
