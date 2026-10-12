@@ -30,6 +30,20 @@ MAX_ATTEMPTS = 5
 _PROVIDERS = {"smsru": True, "twilio": True, "telegram": True, "whatsapp": True, "max": True, "email": True}
 PROVIDER_ORDER = ["smsru", "twilio", "whatsapp", "telegram"]
 
+def _ensure_table():
+    from app.db.session import engine as _e
+    with _e.begin() as c:
+        c.execute(text("CREATE TABLE IF NOT EXISTS phone_verifications ("
+                       "id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
+                       "phone VARCHAR(24) NOT NULL, code VARCHAR(8) NOT NULL,"
+                       "provider VARCHAR(20), attempts INTEGER DEFAULT 0,"
+                       "verified BOOLEAN DEFAULT FALSE,"
+                       "expires_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT now(),"
+                       "updated_at TIMESTAMPTZ DEFAULT now())"))
+
+
+_ensure_table()
+
 
 def _insert(db: Session, table: str, data: dict):
     rows = db.execute(text(
