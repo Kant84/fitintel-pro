@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="https://st.max.ru/js/max-web-app.js"></script>
 <title>Клуб</title>
 <!-- ПУТЬ ФАЙЛА: static/miniapp/index.html (репозиторий) -> контейнер /app/static/miniapp/index.html -> https://fixintel.ru/static/miniapp/index.html. ЕДИНСТВЕННАЯ копия. Копия в app/static — УДАЛЕНА (не обслуживалась). -->
 <style>
@@ -67,7 +68,7 @@ if(r.status===401){logout();throw new Error('auth')}if(!r.ok)throw new Error(r.s
 function logout(){token='';me=null;localStorage.clear();tab='home';render()}
 async function boot(){try{CFG={...CFG,...(await (await fetch(API+'/miniapp/config')).json())};
 if(CFG.accent)document.documentElement.style.setProperty('--mint',CFG.accent);
-if(!token){render();return}
+if(!token){if(await maxBoot()){render();return}render();return}
 try{me=await api('/auth/me')}catch(e){if(e.message!=='auth')me=null}
 try{const _u=await api('/users');(Array.isArray(_u)?_u:(_u.items||[])).forEach(x=>{UMAP[String(x.id)]=x.full_name||x.username||''})}catch(e){}
 render()}catch(e){render()}}
@@ -100,7 +101,34 @@ const j=await r.json();if(!r.ok||!j.access_token)throw new Error('Неверны
 token=j.access_token;localStorage.setItem('fit_token',token);
 try{me=await api('/auth/me')}catch(e){me={full_name:l}}
 localStorage.setItem('fit_user',JSON.stringify(me));tab='home';render()}catch(e){const er=document.getElementById('err');er.style.display='block';er.textContent=e.message}}
+let BRIDGE=null;
+async function maxBoot(){
+if(!window.WebApp||!WebApp.initData)return false;
+try{const r=await fetch(API+'/max-bridge/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:WebApp.initData})});
+const j=await r.json().catch(()=>({}));
+if(j&&j.access_token){token=j.access_token;localStorage.setItem('fit_token',token);try{me=await api('/auth/me')}catch(e){me=null}localStorage.setItem('fit_user',JSON.stringify(me||{}));return true}
+if(j&&j.registered===false){BRIDGE=j}}catch(e){}
+return false}
+async function regViaMax(){
+const g=id=>document.getElementById(id).value.trim();
+if(g('bm_pw')!==g('bm_pw2'))return alert('Пароли не совпадают');
+let ct;try{ct=await WebApp.requestContact()}catch(e){return alert('Без подтверждения телефона регистрация невозможна')}
+if(!ct||!ct.phone)return alert('Телефон не получен');
+try{const r=await fetch(API+'/max-bridge/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:WebApp.initData,full_name:g('bm_fn'),birth_year:g('bm_by')?parseInt(g('bm_by')):null,password:g('bm_pw'),phone:ct.phone,contact_hash:ct.hash,contact_auth_date:ct.authDate})});
+const j=await r.json().catch(()=>({}));if(!r.ok||!j.access_token){alert(j.detail||'Ошибка регистрации');return}
+token=j.access_token;localStorage.setItem('fit_token',token);try{me=await api('/auth/me')}catch(e){me={full_name:g('bm_fn')}}
+localStorage.setItem('fit_user',JSON.stringify(me||{}));tab='home';render()}catch(e){alert('Ошибка сети')}}
 function showReg(){const c=document.querySelector('#app .card');if(!c)return;
+if(BRIDGE){c.innerHTML=`<div style="font-size:20px;font-weight:800;margin-bottom:4px">${esc(CFG.club_name)}</div>
+<div class="mut" style="text-align:left;margin-bottom:10px">Регистрация через MAX: телефон подтвердится автоматически</div>
+<div id="err" class="err"></div>
+<input id="bm_fn" placeholder="ФИО" value="${esc((BRIDGE.last_name+' '+BRIDGE.first_name).trim())}">
+<input id="bm_by" placeholder="Год рождения" inputmode="numeric">
+<input value="Телефон подтвердится в MAX" disabled style="opacity:.6">
+<input id="bm_pw" type="password" placeholder="Пароль (мин. 8 символов)">
+<input id="bm_pw2" type="password" placeholder="Повторите пароль">
+<button class="btn solid" onclick="regViaMax()">Подтвердить телефон и зарегистрироваться</button>
+<div class="mut" style="margin-top:10px;cursor:pointer" onclick="logout()">У меня есть аккаунт — войти</div>`;return;}
 c.innerHTML=`<div style="font-size:20px;font-weight:800;margin-bottom:4px">${esc(CFG.club_name)}</div>
 <div class="mut" style="text-align:left;margin-bottom:10px">Код подтверждения придёт в MAX (кнопка «Получить код»; в боте должны нажать «Старт» хотя бы раз)</div>
 <div id="err" class="err"></div>
