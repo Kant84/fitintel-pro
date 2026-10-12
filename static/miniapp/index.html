@@ -85,6 +85,7 @@ ${CFG.slogan?`<div style="color:var(--muted);font-size:13px;margin-bottom:12px">
 <input id="lg" placeholder="Логин" autocomplete="username">
 <input id="pw" type="password" placeholder="Пароль" autocomplete="current-password">
 <button class="btn solid" onclick="doLogin()">Войти</button>
+<button class="btn" style="margin-top:10px" onclick="showReg()">Зарегистрироваться</button>
 <div class="mut">Вход как в десктоп-приложении. Нет пароля — на ресепшене клуба.</div></div>`;
 document.getElementById('nav').innerHTML='';return}
 const V={home:vHome,shop:vShop,services:vServices,schedule:vSchedule,menu:vMenu,qr:vQr,trainings:()=>vList('ТРЕНИРОВКИ','/services/trainer-schedule','Нет записей'),visits:()=>vList('ПОСЕЩЕНИЯ','/visits','Посещений пока нет'),subs:()=>vList('ИСТОРИЯ ПОДПИСОК','/subscriptions/my','Нет подписок'),club:vClub,profile:vProfile,review:vReview,support:vSupport};
@@ -99,6 +100,30 @@ const j=await r.json();if(!r.ok||!j.access_token)throw new Error('Неверны
 token=j.access_token;localStorage.setItem('fit_token',token);
 try{me=await api('/auth/me')}catch(e){me={full_name:l}}
 localStorage.setItem('fit_user',JSON.stringify(me));tab='home';render()}catch(e){const er=document.getElementById('err');er.style.display='block';er.textContent=e.message}}
+function showReg(){const c=document.querySelector('#app .card');if(!c)return;
+c.innerHTML=`<div style="font-size:20px;font-weight:800;margin-bottom:4px">${esc(CFG.club_name)}</div>
+<div class="mut" style="text-align:left;margin-bottom:10px">Код подтверждения придёт в MAX (кнопка «Получить код»; в боте должны нажать «Старт» хотя бы раз)</div>
+<div id="err" class="err"></div>
+<input id="rg_fn" placeholder="ФИО">
+<input id="rg_by" placeholder="Год рождения" inputmode="numeric">
+<input id="rg_ph" placeholder="Телефон +7…" inputmode="tel">
+<input id="rg_em" placeholder="Email (необязательно)">
+<div style="display:flex;gap:8px"><input id="rg_cd" placeholder="Код из MAX" style="flex:1"><button class="btn" style="width:auto;padding:15px 12px" onclick="getCode()">Получить код</button></div>
+<input id="rg_pw" type="password" placeholder="Пароль (мин. 8 символов)">
+<input id="rg_pw2" type="password" placeholder="Повторите пароль">
+<button class="btn solid" onclick="doRegister()">Зарегистрироваться</button>
+<div class="mut" style="margin-top:10px;cursor:pointer" onclick="logout()">У меня есть аккаунт — войти</div>`}
+async function getCode(){const ph=document.getElementById('rg_ph').value.trim();if(!ph)return alert('Введите телефон');
+try{const r=await fetch(API+'/phone-verify/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:ph})});const j=await r.json().catch(()=>({}));
+if(!r.ok){alert(j.detail||'Не удалось отправить код');return}
+alert('Код отправлен в MAX'+(j.dev_code?(' (тест: '+j.dev_code+')'):''))}catch(e){alert('Ошибка сети')}}
+async function doRegister(){const g=id=>document.getElementById(id).value.trim();
+if(g('rg_pw')!==g('rg_pw2'))return alert('Пароли не совпадают');
+try{const r=await fetch(API+'/miniapp/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full_name:g('rg_fn'),birth_year:g('rg_by')?parseInt(g('rg_by')):null,phone:g('rg_ph'),email:g('rg_em')||null,code:g('rg_cd'),password:g('rg_pw')})});
+const j=await r.json().catch(()=>({}));if(!r.ok||!j.access_token){alert(j.detail||'Ошибка регистрации');return}
+token=j.access_token;localStorage.setItem('fit_token',token);
+try{me=await api('/auth/me')}catch(e){me={full_name:g('rg_fn')}}
+localStorage.setItem('fit_user',JSON.stringify(me));tab='home';render()}catch(e){alert('Ошибка сети')}}
 function vHome(){return `${CFG.logo_url?`<img src="${esc(CFG.logo_url)}" style="max-height:36px;max-width:160px;border-radius:8px;margin:2px 2px 8px">`:""}<div class="top">${esc(CFG.club_name).toUpperCase()}</div>
 <div class="grid2"><div class="tile" onclick="go('qr')">${svg('qr')}<div>QR-код</div></div>
 ${CFG.payments_enabled===false?`<div class="tile" onclick="go('services')">${svg('dumb')}<div>Услуги</div></div>`:`<div class="tile" onclick="go('shop')">${svg('store')}<div>Купить</div></div>`}</div>
