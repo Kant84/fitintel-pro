@@ -1,5 +1,5 @@
 ╤ЄЁєъЄєЁр яряюъ Єюьр Bot
-╤хЁшщэ√щ эюьхЁ Єюьр: 00000009 9873:EDD1
+╤хЁшщэ√щ эюьхЁ Єюьр: 0041005C 9873:EDD1
 E:\FITNEXUS AI\FITINTEL AI\APP
 ж   .gitignore
 ж   .license_key
@@ -39,6 +39,7 @@ E:\FITNEXUS AI\FITINTEL AI\APP
 ж   ж   ж   auth.py
 ж   ж   ж   auth_debug.py
 ж   ж   ж   auto.py
+ж   ж   ж   bank_online.py
 ж   ж   ж   booking_widget.py
 ж   ж   ж   branding.py
 ж   ж   ж   cash_desk.py
@@ -78,6 +79,7 @@ E:\FITNEXUS AI\FITINTEL AI\APP
 ж   ж   ж   max_bot.py
 ж   ж   ж   max_bot_fsm.py
 ж   ж   ж   messenger.py
+ж   ж   ж   miniapp_config.py
 ж   ж   ж   ml.py
 ж   ж   ж   niche.py
 ж   ж   ж   notifications.py
@@ -101,8 +103,10 @@ E:\FITNEXUS AI\FITINTEL AI\APP
 ж   ж   ж   seasonal.py
 ж   ж   ж   selfservice.py
 ж   ж   ж   self_learning.py
+ж   ж   ж   server_settings.py
 ж   ж   ж   services.py
 ж   ж   ж   setup.py
+ж   ж   ж   shop.py
 ж   ж   ж   skud_itconnect.py
 ж   ж   ж   sse.py
 ж   ж   ж   subscriptions.py
@@ -203,6 +207,7 @@ E:\FITNEXUS AI\FITINTEL AI\APP
 ж   ж           max_bot.cpython-311.pyc
 ж   ж           max_bot_fsm.cpython-311.pyc
 ж   ж           messenger.cpython-311.pyc
+ж   ж           miniapp_config.cpython-311.pyc
 ж   ж           ml.cpython-311.pyc
 ж   ж           music.cpython-311.pyc
 ж   ж           niche.cpython-311.pyc
@@ -633,6 +638,7 @@ E:\FITNEXUS AI\FITINTEL AI\APP
 ж   ж   audit_service.py
 ж   ж   auth_service.py
 ж   ж   booking_sweep.py
+ж   ж   bot_keyboards.py
 ж   ж   bot_scenarios.py
 ж   ж   cash_desk_service.py
 ж   ж   chat_service.py
@@ -669,6 +675,7 @@ E:\FITNEXUS AI\FITINTEL AI\APP
 ж   ж   sale_service.py
 ж   ж   sbp_service.py
 ж   ж   scheduler_service.py
+ж   ж   shop_service.py
 ж   ж   subscription_lifecycle_service.py
 ж   ж   subscription_service.py
 ж   ж   tariff_service.py
@@ -681,6 +688,7 @@ E:\FITNEXUS AI\FITINTEL AI\APP
 ж   ж   wallet_service.py
 ж   ж   yookassa_service.py
 ж   ж   __init__.py
+ж   ж   ╥хъёЄют√щ фюъєьхэЄ.txt
 ж   ж   
 ж   +---accounting
 ж   ж   ж   internal_accounting.py
@@ -727,6 +735,7 @@ E:\FITNEXUS AI\FITINTEL AI\APP
 ж           audit_service.cpython-311.pyc
 ж           auth_service.cpython-311.pyc
 ж           booking_sweep.cpython-311.pyc
+ж           bot_keyboards.cpython-311.pyc
 ж           bot_scenarios.cpython-311.pyc
 ж           cash_desk_service.cpython-311.pyc
 ж           chat_service.cpython-311.pyc
@@ -759,6 +768,7 @@ E:\FITNEXUS AI\FITINTEL AI\APP
 ж           role_service.cpython-311.pyc
 ж           sale_service.cpython-311.pyc
 ж           sbp_service.cpython-311.pyc
+ж           shop_service.cpython-311.pyc
 ж           subscription_lifecycle_service.cpython-311.pyc
 ж           subscription_service.cpython-311.pyc
 ж           tariff_service.cpython-311.pyc
@@ -868,11 +878,20 @@ E:\FITNEXUS AI\FITINTEL AI\APP
 ж           
 +---static
 ж   L---trainer-pwa
+ж           8522b339f4f97982a48626cf0e03ef43.jpg
+ж           female-gym-instructor-24614762.jpg
 ж           icon-192.png
 ж           icon-512.png
+ж           IMG_5415__.jpg
 ж           index.html
+ж           istockphoto-1040501222-612x612.jpg
+ж           istockphoto-1430630093-612x612.jpg
+ж           istockphoto-670044892-612x612.jpg
+ж           istockphoto-856797530-612x612.jpg
 ж           manifest.json
+ж           stock-photo-portrait-of-a-female-personal-trainer-holding-tablet-and-smiling-at-the-camera-in-a-gym-2249557387.jpg
 ж           sw.js
+ж           ёяюЁЄ√-°ъюы√-ърЁхЄ√-24614625.jpg
 ж           
 +---tasks
 ж   ж   access_control.py
