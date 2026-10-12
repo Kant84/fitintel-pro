@@ -128,7 +128,7 @@ def miniapp_register(body: RegisterIn, db: _S = _Dep(_gdb)):
                         "ORDER BY created_at DESC LIMIT 1"), {"p": norm}).first()
     if not row:
         raise _HE(400, "Сначала нажмите «Получить код»")
-    now = _dtn.now(_tzn)
+    now = _dtn.now(_tzn.utc)
     if row[3] and now > row[3]:
         raise _HE(400, "Код истёк — запросите новый")
     if (now - row[4]).total_seconds() > 600:
