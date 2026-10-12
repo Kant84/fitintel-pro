@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Терминал турникета (тест)</title>
+<style>
+:root{--mint:#00f0ff;--bg:#07070f;--panel:#0e0e1d;--row:#171732;--text:#e8e8ff;--muted:#9a9ac0;--line:#26264a;--mag:#ff2bd6;--ok:#00e676;--err:#ff3860}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:16px}
+h1{font-size:15px;letter-spacing:.12em;color:var(--mint);margin:8px 0 14px;font-weight:800}
+#cam{width:100%;max-width:420px;border-radius:16px;border:1px solid var(--line);background:#000;aspect-ratio:4/3;object-fit:cover}
+#status{margin-top:14px;width:100%;max-width:420px;padding:18px;border-radius:14px;text-align:center;font-size:17px;font-weight:700;background:var(--panel);border:1px solid var(--line)}
+#status.ok{background:#06281a;border-color:var(--ok);color:var(--ok)}
+#status.err{background:#2a0a14;border-color:var(--err);color:var(--err)}
+#status.wait{color:var(--mint)}
+.row{margin-top:12px;width:100%;max-width:420px;display:flex;gap:8px}
+input{flex:1;padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--text);font-size:15px}
+button{padding:13px 18px;border:0;border-radius:12px;background:var(--mint);color:#050510;font-weight:700;font-size:15px;cursor:pointer}
+.mut{color:var(--muted);font-size:13px;margin-top:10px;text-align:center}
+</style>
+</head>
+<body>
+<h1>ТЕРМИНАЛ ТУРНИКЕТА — ТЕСТ</h1>
+<video id="cam" autoplay playsinline muted></video>
+<div id="status" class="wait">Запуск камеры…</div>
+<div class="row"><input id="manual" placeholder="или вставьте QR-код вручную"><button onclick="handle(document.getElementById('manual').value)">Проверить</button></div>
+<div class="mut">Наведите камеру на QR-код из приложения клуба</div>
+<script>
+const API='/api/v1';
+const DEV='TEST-TERMINAL-1';
+let _busy=false,_last='';
+function setStatus(t,cls){const e=document.getElementById('status');e.textContent=t;e.className=cls||''}
+function beep(ok){try{const c=new (window.AudioContext||window.webkitAudioContext)();const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=ok?880:220;g.gain.value=0.15;o.start();setTimeout(()=>{o.stop();c.close()},180)}catch(e){}}
+async function handle(qr){qr=(qr||'').trim();if(!qr||_busy)return;_busy=true;setStatus('Проверка…','wait');
+try{const r=await fetch(API+'/dynamic-qr/turnstile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({qr_payload:qr,device_id:DEV,zone:'main'})});
+const j=await r.json().catch(()=>({}));
+if(r.ok&&j.access_granted){beep(true);setStatus('✅ ДОСТУП РАЗРЕШЁН'+(j.reason?' — '+j.reason:''),'ok')}
+else{beep(false);setStatus('⛔ ВХОД ЗАПРЕЩЁН: '+(j.detail||'отклонено'),'err')}}catch(e){setStatus('Ошибка сети: '+e.message,'err')}
+setTimeout(()=>{_busy=false;_last=''},2500)}
+async function startCamera(){try{const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});document.getElementById('cam').srcObject=st;scan()}catch(e){setStatus('Камера недоступна ('+e.message+') — ручной ввод','err')}}
+async function scan(){if(!('BarcodeDetector' in window)){setStatus('Браузер без BarcodeDetector — используйте Chrome/Edge, либо ручной ввод','err');return}
+const bd=new BarcodeDetector({formats:['qr_code']});
+const tick=async()=>{const v=document.getElementById('cam');if(v.readyState===4){try{const codes=await bd.detect(v);if(codes.length){const val=codes[0].rawValue;if(val&&val!==_last&&!_busy){_last=val;document.getElementById('manual').value=val;handle(val)}}}catch(e){}}
+requestAnimationFrame(tick)};tick()}
+startCamera();
+</script>
+</body>
+</html>
