@@ -134,6 +134,14 @@ ${CFG.payments_enabled===false?`<div class="tile" onclick="go('services')">${svg
 function vShop(){if(CFG.payments_enabled===false)return `<div class="top">МАГАЗИН</div><div class="mut">Покупки через приложение временно отключены клубом</div>`;return `<div class="top">МАГАЗИН</div><div id="goods"><span class="mut">Загрузка…</span></div>`}
 function vServices(){return `<div class="top">УСЛУГИ</div><div class="card" id="svclist"><span class="mut">Загрузка…</span></div>`}
 function vSchedule(){return `<div class="top">РАСПИСАНИЕ</div><div id="sched"><span class="mut">Загрузка…</span></div>`}
+async function changePwd(){const a=document.getElementById('pw0').value,b=document.getElementById('pw1').value,c=document.getElementById('pw2').value;
+if(!a||!b)return alert('Заполните поля');
+if(b.length<8)return alert('Новый пароль минимум 8 символов');
+if(b!==c)return alert('Новые пароли не совпадают');
+try{const r=await fetch(API+'/auth/change-password',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({current_password:a,new_password:b,old_password:a,password:b})});
+const j=await r.json().catch(()=>({}));
+if(!r.ok){alert(j.detail||('Ошибка '+r.status));return}
+alert('Пароль изменён. Войдите заново.');logout()}catch(e){alert('Ошибка сети')}}
 function vQr(){return `<span class="back" onclick="go('home')">‹ Назад</span><div class="top">QR ДЛЯ ВХОДА</div>
 <div class="card" style="text-align:center" id="qrbox"><span class="mut">Формирую код…</span></div>`}
 function vList(title,path,empty){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">${title}</div><div class="card" id="lst"><span class="mut">Загрузка…</span></div>
@@ -146,6 +154,11 @@ ${CFG.about?`<div class="svc"><div class="p" style="white-space:pre-wrap">${esc(
 function vProfile(){const L={full_name:'ФИО',name:'ФИО',fio:'ФИО',email:'Email',username:'Логин',login:'Логин',phone:'Телефон',is_active:'Активен',roles:'Роль',role:'Роль',permissions:'Права',balance:'Баланс, ₽',created_at:'Дата регистрации',birth_date:'Дата рождения',id:'ID'};
 const rows=me?Object.entries(me).filter(([k,v])=>L[k]&&String(v||'')!=='').map(([k,v])=>`<div class="svc"><div class="n" style="font-size:14px">${L[k]}</div><div class="p">${esc(String(v))}</div></div>`).join(''):'';
 return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">ПРОФИЛЬ</div><div class="card">${rows||'<div class="mut">Нет данных</div>'}</div>
+<div class="h2">БЕЗОПАСНОСТЬ</div><div class="card">
+<input id="pw0" type="password" placeholder="Текущий пароль">
+<input id="pw1" type="password" placeholder="Новый пароль (мин. 8 символов)">
+<input id="pw2" type="password" placeholder="Повторите новый пароль">
+<button class="btn solid" onclick="changePwd()">Сменить пароль</button></div>
 <button class="btn" onclick="logout()">Выйти</button>`}
 function vReview(){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">ОСТАВИТЬ ОТЗЫВ</div>
 <div class="card"><input id="rvt" placeholder="Тема"><textarea id="rvx" rows="4" placeholder="Текст отзыва"></textarea>
