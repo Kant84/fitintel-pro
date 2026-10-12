@@ -123,13 +123,20 @@ def miniapp_register(body: RegisterIn, db: _S = _Dep(_gdb)):
     norm = _re.sub(r"\D", "", body.phone or "")[-10:]
     if len(norm) < 10:
         raise _HE(422, "Невалидный номер телефона")
-    row = db.execute(_t("SELECT verified, created_at FROM phone_verifications "
-                        "WHERE right(regexp_replace(phone,'\\D','','g'),10)=:p "
+    row = db.execute(_t("SELECT id, code, verified, expires_at, created_at FROM phone_verifications "
+                        "WHERE right(regexp_replace(phone,'\D','','g'),10)=:p "
                         "ORDER BY created_at DESC LIMIT 1"), {"p": norm}).first()
-    if not row or not row[0]:
-        raise _HE(400, "Сначала получите код и введите его")
-    if row[1] and (_dtn.now(_tzn) - row[1]).total_seconds() > 600:
+    if not row:
+        raise _HE(400, "Сначала нажмите «Получить код»")
+    now = _dtn.now(_tzn)
+    if row[3] and now > row[3]:
+        raise _HE(400, "Код истёк — запросите новый")
+    if (now - row[4]).total_seconds() > 600:
         raise _HE(400, "Код устарел — запросите новый")
+    if not row[2]:
+        if (body.code or "") != (row[1] or ""):
+            raise _HE(400, "Неверный код")
+        db.execute(_t("UPDATE phone_verifications SET verified=true WHERE id=:i"), {"i": str(row[0])})
     with _e.begin() as c:
         c.execute(_t("ALTER TABLE clients ADD COLUMN IF NOT EXISTS user_id VARCHAR(64)"))
         c.execute(_t("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT FALSE"))
@@ -152,7 +159,7 @@ def miniapp_register(body: RegisterIn, db: _S = _Dep(_gdb)):
         if "id" in rcols:
             rd["id"] = str(_uuid.uuid4())
         db.execute(_t("INSERT INTO user_roles (" + ",".join(rd) + ") VALUES (" + ",".join(":" + k for k in rd) + ") ON CONFLICT DO NOTHING"), rd)
-    cli = db.execute(_t("SELECT id FROM clients WHERE right(regexp_replace(phone,'\\D','','g'),10)=:p LIMIT 1"), {"p": norm}).first()
+    cli = db.execute(_t("SELECT id FROM clients WHERE right(regexp_replace(phone,'\D','','g'),10)=:p LIMIT 1"), {"p": norm}).first()
     if cli:
         db.execute(_t("UPDATE clients SET user_id=:u WHERE id=:c"),
                    {"u": str(user.id), "c": str(cli[0])})
