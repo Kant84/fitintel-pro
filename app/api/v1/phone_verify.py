@@ -27,7 +27,7 @@ RESEND_INTERVAL_SECONDS = 60  # 1 минута
 MAX_ATTEMPTS = 5
 
 # Доступность провайдеров (эмуляция сбоев для E29.13/E29.14)
-_PROVIDERS = {"smsru": True, "twilio": True, "telegram": True, "whatsapp": True}
+_PROVIDERS = {"smsru": True, "twilio": True, "telegram": True, "whatsapp": True, "max": True, "email": True}
 PROVIDER_ORDER = ["smsru", "twilio", "whatsapp", "telegram"]
 
 
@@ -52,6 +52,16 @@ def _provider_available(db: Session, name: str, phone: str) -> bool:
         return False
     if name == "telegram":
         return _telegram_linked(db, phone)
+    if name == "max":
+        _norm = re.sub(r"\D", "", phone or "")[-10:]
+        if len(_norm) < 10:
+            return False
+        return db.execute(text(
+            "SELECT 1 FROM max_bot_bindings b JOIN clients c ON c.id=b.client_id "
+            "WHERE right(regexp_replace(c.phone,'\\D','','g'),10)=:p LIMIT 1"
+        ), {"p": _norm}).fetchone() is not None
+    if name == "email":
+        return True
     return True
 
 
@@ -103,6 +113,57 @@ class ProvidersRequest(BaseModel):
     whatsapp: Optional[bool] = None
 
 
+
+
+def _send_max_code(db: Session, phone: str, code: str):
+    """Реальная отправка кода в MAX по привязке клиента."""
+    import requests as _rq
+    _norm = re.sub(r"\D", "", phone or "")[-10:]
+    row = db.execute(text(
+        "SELECT b.max_user_id FROM max_bot_bindings b JOIN clients c ON c.id=b.client_id "
+        "WHERE right(regexp_replace(c.phone,'\\D','','g'),10)=:p LIMIT 1"
+    ), {"p": _norm}).first()
+    tok = db.execute(text("SELECT bot_token FROM max_bot_settings WHERE id=1")).first()
+    if not row or not tok or not tok[0]:
+        raise HTTPException(status_code=404, detail="Привязка MAX не найдена — сначала нажмите «Старт» в боте")
+    r = _rq.post("https://platform-api.max.ru/messages",
+                 headers={"Authorization": tok[0]},
+                 json={"recipient": {"user_id": int(row[0])},
+                       "body": {"text": "Код подтверждения FitIntel: " + code + " (действует 5 минут)"}},
+                 timeout=10)
+    if r.status_code not in (200, 201):
+        raise HTTPException(status_code=502, detail="Не удалось отправить код в MAX")
+
+
+def _send_email_code(db: Session, phone: str, code: str):
+    """Отправка кода на email клиента через SMTP клуба."""
+    import smtplib
+    from email.mime.text import MIMEText
+    _norm = re.sub(r"\D", "", phone or "")[-10:]
+    row = db.execute(text(
+        "SELECT email FROM clients WHERE right(regexp_replace(phone,'\\D','','g'),10)=:p "
+        "AND email IS NOT NULL AND email <> '' LIMIT 1"
+    ), {"p": _norm}).first()
+    st = db.execute(text(
+        "SELECT email_from, smtp_host, smtp_port, smtp_user, smtp_password FROM notification_settings WHERE id=1"
+    )).first()
+    if not row or not row[0]:
+        raise HTTPException(status_code=404, detail="Email клиента не найден")
+    if not st or not st[1]:
+        raise HTTPException(status_code=503, detail="SMTP клуба не настроен")
+    msg = MIMEText("Код подтверждения FitIntel: " + code + " (действует 5 минут)", "plain", "utf-8")
+    msg["Subject"] = "Код подтверждения"
+    msg["From"] = st[0] or st[3]
+    msg["To"] = row[0]
+    srv = smtplib.SMTP(st[1], int(st[2] or 465), timeout=10)
+    try:
+        if st[4]:
+            srv.starttls()
+            srv.login(st[3], st[4])
+        srv.send_message(msg)
+    finally:
+        srv.quit()
+
 @router.post("/send")
 def send_code(
     payload: SendRequest,
@@ -114,6 +175,10 @@ def send_code(
         raise HTTPException(status_code=422, detail="Невалидный номер телефона")
     chosen, fallback = _pick_provider(db, payload.phone, provider)
     code = _create_code(db, payload.phone, chosen)
+    if chosen == "max":
+        _send_max_code(db, payload.phone, code)
+    elif chosen == "email":
+        _send_email_code(db, payload.phone, code)
     return {
         "message": "Код отправлен",
         "phone": payload.phone,
