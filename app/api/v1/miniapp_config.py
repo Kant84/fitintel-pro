@@ -187,3 +187,129 @@ def miniapp_register(body: RegisterIn, db: _S = _Dep(_gdb)):
     except Exception:
         refresh = None
     return {"access_token": token, "refresh_token": refresh, "token_type": "bearer", "expires_in": 1800}
+
+
+# === W6: MAX Bridge — вход без пароля, регистрация без кода ===
+import hashlib as _hl
+import hmac as _hm
+import json as _js
+import re as _re2
+import time as _tm
+import urllib.parse as _up
+
+
+class BridgeAuthIn(_BM):
+    initData: str
+
+
+class BridgeRegIn(_BM):
+    initData: str
+    full_name: str = _FL(min_length=3, max_length=200)
+    birth_year: int | None = None
+    password: str = _FL(min_length=8, max_length=128)
+    phone: str | None = None
+    contact_hash: str | None = None
+    contact_auth_date: str | None = None
+
+
+def _max_token(db) -> str:
+    r = db.execute(_t("SELECT bot_token FROM max_bot_settings WHERE id=1")).first()
+    return (r[0] if r else "") or ""
+
+
+def _validate_init(init_data: str, bot_token: str):
+    try:
+        pairs = [x.split("=", 1) for x in str(init_data or "").split("&") if "=" in x]
+        if sum(1 for k, _ in pairs if k == "hash") != 1:
+            return None
+        d = {}
+        for k, v in pairs:
+            if k in d:
+                return None
+            d[k] = v
+        orig = d.pop("hash")
+        dec = {k: _up.unquote(v) for k, v in d.items()}
+        launch = "\n".join("%s=%s" % (k, dec[k]) for k in sorted(dec))
+        secret = _hm.new(b"WebAppData", bot_token.encode(), _hl.sha256).digest()
+        calc = _hm.new(secret, launch.encode(), _hl.sha256).hexdigest()
+        if not _hm.compare_digest(calc, orig):
+            return None
+        ad = int(dec.get("auth_date") or 0)
+        if not ad or abs(_tm.time() - ad) > 3600:
+            return None
+        return _js.loads(dec.get("user") or "{}")
+    except Exception:
+        return None
+
+
+def _issue_token(uid: str) -> dict:
+    from datetime import timedelta as _td
+    from app.core.security import create_access_token
+    tok = create_access_token(subject=uid, expires_delta=_td(minutes=60 * 24 * 7))
+    return {"access_token": tok, "token_type": "bearer", "expires_in": 60 * 24 * 7}
+
+
+@router.post("/max-bridge/auth")
+def max_bridge_auth(body: BridgeAuthIn, db: _S = _Dep(_gdb)):
+    tok = _max_token(db)
+    if not tok:
+        raise _HE(503, "Бот MAX не настроен")
+    mu = _validate_init(body.initData, tok)
+    if not mu:
+        raise _HE(401, "Подпись MAX не подтверждена")
+    muid = str(mu.get("id") or "")
+    row = db.execute(_t(
+        "SELECT c.user_id FROM max_bot_bindings b JOIN clients c "
+        "ON replace(b.client_id,'-','')=replace(cast(c.id as text),'-','') "
+        "WHERE b.max_user_id=:m LIMIT 1"), {"m": muid}).first()
+    if row and row[0]:
+        acc = db.execute(_t("SELECT 1 FROM users WHERE id=:i"), {"i": str(row[0])}).first()
+        if acc:
+            return _issue_token(str(row[0]))
+    return {"registered": False, "max_user_id": muid,
+            "first_name": mu.get("first_name") or "", "last_name": mu.get("last_name") or ""}
+
+
+@router.post("/max-bridge/register")
+def max_bridge_register(body: BridgeRegIn, db: _S = _Dep(_gdb)):
+    tok = _max_token(db)
+    mu = _validate_init(body.initData, tok) if tok else None
+    if not mu:
+        raise _HE(401, "Подпись MAX не подтверждена")
+    muid = str(mu.get("id") or "")
+    phone = None
+    if body.phone and body.contact_hash and body.contact_auth_date:
+        p = body.phone.lstrip("+")
+        s = "authDate=%s\nphone=%s\nuserId=%s" % (body.contact_auth_date, p, muid)
+        calc = _hm.new(tok.encode(), s.encode(), _hl.sha256).hexdigest()
+        if _hm.compare_digest(calc, body.contact_hash):
+            phone = body.phone
+    if not phone:
+        raise _HE(400, "Подтвердите номер телефона в MAX (кнопка в форме)")
+    norm = _re2.sub(r"\D", "", phone)[-10:]
+    canon = "+7" + norm
+    cli = db.execute(_t("SELECT id FROM clients WHERE right(regexp_replace(phone,'\\D','','g'),10)=:p LIMIT 1"), {"p": norm}).first()
+    if not cli:
+        raise _HE(404, "Клиент с таким телефоном не найден. Сначала зарегистрируйтесь на ресепшене клуба")
+    if db.execute(_t("SELECT 1 FROM users WHERE username=:u OR phone=:p LIMIT 1"), {"u": norm, "p": canon}).first():
+        raise _HE(409, "Аккаунт уже существует — войдите")
+    from app.services.auth_service import AuthService
+    svc = AuthService(db)
+    user = svc.create_user(norm, body.password, None)
+    db.execute(_t("UPDATE users SET phone=:p, full_name=:f, phone_verified=TRUE WHERE id=:i"),
+               {"p": canon, "f": body.full_name, "i": str(user.id)})
+    role = db.execute(_t("SELECT id FROM roles WHERE code='client' LIMIT 1")).first()
+    if role:
+        rneed = {r[0]: r[1] for r in db.execute(_t("SELECT column_name, data_type FROM information_schema.columns WHERE table_name='user_roles' AND is_nullable='NO' AND column_default IS NULL"))}
+        rd = {"user_id": str(user.id), "role_id": str(role[0])}
+        for _col, _dt in rneed.items():
+            if _col in rd:
+                continue
+            rd[_col] = str(_uuid.uuid4()) if _col == "id" else (_dtn.now(_tzn.utc) if (_dt.startswith("timestamp") or _col.endswith("_at")) else (False if _dt == "boolean" else (0 if (_dt.startswith("int") or _dt.startswith("numeric")) else "")))
+        db.execute(_t("INSERT INTO user_roles (" + ",".join(rd) + ") VALUES (" + ",".join(":" + k for k in rd) + ") ON CONFLICT DO NOTHING"), rd)
+    db.execute(_t("UPDATE clients SET user_id=:u WHERE id=:c"), {"u": str(user.id), "c": str(cli[0])})
+    db.execute(_t("INSERT INTO max_bot_bindings (max_user_id, client_id) VALUES (:m,:c) "
+                  "ON CONFLICT (max_user_id) DO UPDATE SET client_id=:c"),
+               {"m": int(muid), "c": str(cli[0]).replace("-", "")})
+    db.commit()
+    return _issue_token(str(user.id))
