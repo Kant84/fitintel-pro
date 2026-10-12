@@ -401,10 +401,10 @@ async def max_bot_webhook(request: Request,
             _name = str(_sender.get("name") or _sender.get("first_name") or "Клиент")[:120]
             _now = _dt.now(_tz.utc)
             if not db.execute(sql_text("SELECT chat_id FROM messenger_chats WHERE chat_id=:c"), {"c": _chat}).fetchone():
-                db.execute(sql_text("INSERT INTO messenger_chats(chat_id, client_name, source, last_message, updated_at) VALUES(:c,:n,'max',:l,:t)"),
+                db.execute(sql_text("INSERT INTO messenger_chats(chat_id, client_name, source, last_message, updated_at, unread) VALUES(:c,:n,'max',:l,:t,TRUE)"),
                            {"c": _chat, "n": _name, "l": str(text)[:500], "t": _now})
             else:
-                db.execute(sql_text("UPDATE messenger_chats SET last_message=:l, updated_at=:t WHERE chat_id=:c"),
+                db.execute(sql_text("UPDATE messenger_chats SET last_message=:l, updated_at=:t, unread=TRUE WHERE chat_id=:c"),
                            {"l": str(text)[:500], "t": _now, "c": _chat})
             db.execute(sql_text("INSERT INTO messenger_messages(id, chat_id, direction, body, created_at) VALUES(:i,:c,'in',:b,:t)"),
                        {"i": _uuid.uuid4().hex, "c": _chat, "b": str(text)[:2000], "t": _now})

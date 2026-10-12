@@ -168,10 +168,31 @@ def chats():
     _ensure()
     with engine.begin() as c:
         rows = c.execute(text(
-            "SELECT chat_id, client_name, source, last_message, updated_at "
-            "FROM messenger_chats ORDER BY updated_at DESC")).fetchall()
+            "SELECT chat_id, client_name, source, last_message, updated_at, "
+            "COALESCE(unread, FALSE) FROM messenger_chats ORDER BY updated_at DESC")).fetchall()
     return {"items": [{"chat_id": r[0], "client_name": r[1], "source": r[2],
-                       "last_message": r[3], "updated_at": r[4]} for r in rows]}
+                       "last_message": r[3], "updated_at": r[4], "unread": bool(r[5])} for r in rows]}
+
+
+# === W5: непрочитанные чаты ===
+def _ensure_unread():
+    try:
+        with engine.begin() as _c:
+            _c.execute(text("ALTER TABLE messenger_chats ADD COLUMN IF NOT EXISTS unread BOOLEAN DEFAULT FALSE"))
+    except Exception:
+        pass
+
+
+_ensure_unread()
+
+
+@router.post("/messenger/chats/{chat_id}/read")
+def chat_read(chat_id: str):
+    _ensure()
+    _ensure_unread()
+    with engine.begin() as _c:
+        _c.execute(text("UPDATE messenger_chats SET unread=FALSE WHERE chat_id=:c"), {"c": str(chat_id)})
+    return {"ok": True}
 
 
 @router.get("/messenger/chats/{chat_id}/messages")
