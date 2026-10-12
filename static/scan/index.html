@@ -56,8 +56,10 @@ const dev=DEV();if(!dev){setStatus('Сначала укажите device_id ко
 _busy=true;setStatus('Проверка…','wait');
 try{const r=await fetch(API+'/dynamic-qr/turnstile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({qr_payload:qr,device_id:dev,zone:ZONE()})});
 const j=await r.json().catch(()=>({}));
+dbg('HTTP '+r.status+(j.detail?(' — '+j.detail):''));
 if(r.ok&&j.access_granted){beep(true);setStatus('✅ ДОСТУП РАЗРЕШЁН'+(j.reason?' — '+j.reason:''),'ok')}
-else{beep(false);setStatus('⛔ ВХОД ЗАПРЕЩЁН: '+(j.detail||'отклонено'),'err')}}catch(e){setStatus('Ошибка сети: '+e.message,'err')}
+else if(r.status===410){beep(false);setStatus('⛔ Этот QR уже использован — в приложении зайдите в «QR для входа» заново (новый код каждые 30 сек)','err')}
+else{beep(false);setStatus('⛔ ВХОД ЗАПРЕЩЁН: '+(j.detail||('HTTP '+r.status)),'err')}}catch(e){setStatus('Ошибка сети: '+e.message,'err')}
 setTimeout(()=>{_busy=false},2500)}
 async function startCamera(){
 if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){setStatus('Браузер не умеет камеру — откройте в Chrome/Edge','err');dbg('нет getUserMedia');return}
