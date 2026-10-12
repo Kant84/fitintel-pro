@@ -307,14 +307,26 @@ async def turnstile_qr_scan(
             if "zone" in _cols:
                 _data["zone"] = zone or "main"
             if "status" in _cols:
-                _data["status"] = "COMPLETED"
+                _data["status"] = "ACTIVE"
             if "notes" in _cols:
                 _data["notes"] = "Служебный пропуск, user " + str(client_id)
             if "created_at" in _cols:
                 _data["created_at"] = _dt.now(_tz.utc)
             if "updated_at" in _cols:
                 _data["updated_at"] = _dt.now(_tz.utc)
-            if _data:
+            if str(zone or "entry").lower() == "exit":
+                _vr = db.execute(_t("SELECT id FROM visits WHERE client_id=:c AND status='ACTIVE' "
+                                    "ORDER BY entry_time DESC LIMIT 1"), {"c": _svc}).first()
+                if _vr:
+                    db.execute(_t("UPDATE visits SET exit_time=now(), "
+                                  "duration_minutes=GREATEST(0,(EXTRACT(EPOCH FROM (now()-entry_time))/60)::int), "
+                                  "status='COMPLETED', updated_at=now() WHERE id=:i"), {"i": _vr[0]})
+                    db.commit()
+            elif _data:
+                db.execute(_t("UPDATE visits SET status='COMPLETED', exit_time=COALESCE(exit_time, entry_time), "
+                              "duration_minutes=GREATEST(0,(EXTRACT(EPOCH FROM (COALESCE(exit_time, entry_time)-entry_time))/60)::int), "
+                              "notes=COALESCE(notes,'') || ' [закрыт автоматически: повторный вход]', "
+                              "updated_at=now() WHERE client_id=:c AND status='ACTIVE'"), {"c": _svc})
                 db.execute(_t("INSERT INTO visits (" + ", ".join(_data) + ") VALUES (" +
                                ", ".join(":" + k for k in _data) + ")"), _data)
                 db.commit()
