@@ -111,8 +111,11 @@ const t=Math.floor(Date.now()/30000);
 const data=encodeURIComponent('fitintel:profile:'+id+':'+t);
 return `<span class="back" onclick="go('home')">‹ Назад</span><div class="top">QR ПРОФИЛЯ</div>
 <div class="card" style="text-align:center"><img style="width:280px;height:280px;border-radius:12px" src="${API}/miniapp/qr?data=${data}">
-<div class="mut">Покажите на входе в клуб.<br>Код обновляется каждые 30 секунд.</div></div>
-<script>setTimeout(function(){if(tab==='qr')go('qr')},15000)<\/script>`}
+<div class="mut">Покажите на входе в клуб</div>
+<div id="qrcd" style="font-size:30px;font-weight:800;color:var(--mint);margin:12px 0 8px"></div>
+<div style="height:6px;background:var(--row);border-radius:3px;overflow:hidden"><div id="qrbar" style="height:100%;width:100%;background:var(--mag);transition:width 1s linear"></div></div>
+<div class="mut" style="margin-top:10px">QR обновляется каждые 30 секунд</div></div>
+<script>setInterval(function(){if(tab!=='qr')return;var r=30-Math.floor(Date.now()%30000/1000);if(r<=0){go('qr');return}var e=document.getElementById('qrcd'),b=document.getElementById('qrbar');if(e)e.textContent=r+' сек';if(b)b.style.width=(r/30*100)+'%'},1000)<\/script>`}
 function vList(title,path,empty){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">${title}</div><div class="card" id="lst"><span class="mut">Загрузка…</span></div>
 <script>loadList('${path}','${empty}')<\/script>`}
 function vClub(){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">О КЛУБЕ</div>
