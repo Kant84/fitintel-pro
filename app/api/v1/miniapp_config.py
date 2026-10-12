@@ -154,10 +154,21 @@ def miniapp_register(body: RegisterIn, db: _S = _Dep(_gdb)):
                {"p": body.phone, "f": body.full_name, "i": str(user.id)})
     role = db.execute(_t("SELECT id FROM roles WHERE code='client' LIMIT 1")).first()
     if role:
-        rcols = {r[0] for r in db.execute(_t("SELECT column_name FROM information_schema.columns WHERE table_name='user_roles'"))}
-        rd = {"user_id": str(user.id), "role_id": str(role[0]), "assigned_at": _dtn.now(_tzn.utc)}
-        if "id" in rcols:
-            rd["id"] = str(_uuid.uuid4())
+        rneed = {r[0]: r[1] for r in db.execute(_t("SELECT column_name, data_type FROM information_schema.columns WHERE table_name='user_roles' AND is_nullable='NO' AND column_default IS NULL"))}
+        rd = {"user_id": str(user.id), "role_id": str(role[0])}
+        for _col, _dt in rneed.items():
+            if _col in rd:
+                continue
+            if _col == "id":
+                rd[_col] = str(_uuid.uuid4())
+            elif _dt.startswith("timestamp") or _col.endswith("_at"):
+                rd[_col] = _dtn.now(_tzn.utc)
+            elif _dt == "boolean":
+                rd[_col] = False
+            elif _dt.startswith("int") or _dt.startswith("numeric"):
+                rd[_col] = 0
+            else:
+                rd[_col] = ""
         db.execute(_t("INSERT INTO user_roles (" + ",".join(rd) + ") VALUES (" + ",".join(":" + k for k in rd) + ") ON CONFLICT DO NOTHING"), rd)
     cli = db.execute(_t("SELECT id FROM clients WHERE right(regexp_replace(phone,'\D','','g'),10)=:p LIMIT 1"), {"p": norm}).first()
     if cli:
