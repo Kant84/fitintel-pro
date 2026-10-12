@@ -337,8 +337,6 @@ def _try_send_reply(db: Session, max_user_id: int, reply: dict):
     try:
         from app.services import bot_keyboards as _bk
         _kb = _bk.keyboard_for(text_body, _link)
-        if _link:
-            clean = "Приложение клуба (откройте ссылку):\n" + _link
     except Exception:
         _kb = None
     _body = {"text": clean[:4000]}
@@ -391,7 +389,11 @@ async def max_bot_webhook(request: Request,
         return {"ok": True}
 
     # W5: входящее от клиента -> таблицы чатов десктопа (двусторонность)
-    if str(text or "").strip():
+    _nt = str(text or "").strip().lower()
+    _stt = db.execute(sql_text("SELECT state FROM max_bot_fsm WHERE max_user_id=:u"),
+                      {"u": int(max_user_id)}).first()
+    _skip_chat = _nt in ("код", "код регистрации", "получить код") or (_stt and _stt[0] == "CODE_PHONE")
+    if str(text or "").strip() and not _skip_chat:
         try:
             import uuid as _uuid
             from datetime import datetime as _dt, timezone as _tz
