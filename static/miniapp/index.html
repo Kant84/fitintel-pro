@@ -89,7 +89,7 @@ ${CFG.slogan?`<div style="color:var(--muted);font-size:13px;margin-bottom:12px">
 document.getElementById('nav').innerHTML='';return}
 const V={home:vHome,shop:vShop,services:vServices,schedule:vSchedule,menu:vMenu,qr:vQr,trainings:()=>vList('ТРЕНИРОВКИ','/services/trainer-schedule','Нет записей'),visits:()=>vList('ПОСЕЩЕНИЯ','/visits','Посещений пока нет'),subs:()=>vList('ИСТОРИЯ ПОДПИСОК','/subscriptions/my','Нет подписок'),club:vClub,profile:vProfile,review:vReview,support:vSupport};
 a.innerHTML=(V[tab]||vHome)();
-if(['home','shop','services','schedule','trainings','visits','subs'].includes(tab))load(tab);
+if(['home','shop','services','schedule','trainings','visits','subs','qr'].includes(tab))load(tab);
 if(tab==='qr')startQrTimer();
 document.getElementById('nav').innerHTML=[['home','Главная','home'],['shop','Магазин','store'],['services','Услуги','dumb'],['schedule','Расписание','cal'],['menu','Меню','menu']]
 .map(([k,l,i])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')"><span class="bub">${svg(i)}</span>${l}</button>`).join('')}
@@ -109,15 +109,8 @@ ${CFG.payments_enabled===false?`<div class="tile" onclick="go('services')">${svg
 function vShop(){if(CFG.payments_enabled===false)return `<div class="top">МАГАЗИН</div><div class="mut">Покупки через приложение временно отключены клубом</div>`;return `<div class="top">МАГАЗИН</div><div id="goods"><span class="mut">Загрузка…</span></div>`}
 function vServices(){return `<div class="top">УСЛУГИ</div><div class="card" id="svclist"><span class="mut">Загрузка…</span></div>`}
 function vSchedule(){return `<div class="top">РАСПИСАНИЕ</div><div id="sched"><span class="mut">Загрузка…</span></div>`}
-function vQr(){const id=(me&&(me.id||me.user_id))||'guest';
-const t=Math.floor(Date.now()/30000);
-const data=encodeURIComponent('fitintel:profile:'+id+':'+t);
-return `<span class="back" onclick="go('home')">‹ Назад</span><div class="top">QR ПРОФИЛЯ</div>
-<div class="card" style="text-align:center"><img style="width:280px;height:280px;border-radius:12px" src="${API}/miniapp/qr?data=${data}">
-<div class="mut">Покажите на входе в клуб</div>
-<div id="qrcd" style="font-size:30px;font-weight:800;color:var(--mint);margin:12px 0 8px">${30-Math.floor(Date.now()%30000/1000)} сек</div>
-<div style="height:6px;background:var(--row);border-radius:3px;overflow:hidden"><div id="qrbar" style="height:100%;width:100%;background:var(--mag);transition:width 1s linear"></div></div>
-<div class="mut" style="margin-top:10px">QR обновляется каждые 30 секунд</div></div>`}
+function vQr(){return `<span class="back" onclick="go('home')">‹ Назад</span><div class="top">QR ДЛЯ ВХОДА</div>
+<div class="card" style="text-align:center" id="qrbox"><span class="mut">Формирую код…</span></div>`}
 function vList(title,path,empty){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">${title}</div><div class="card" id="lst"><span class="mut">Загрузка…</span></div>
 <script>loadList('${path}','${empty}')<\/script>`}
 function vClub(){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">О КЛУБЕ</div>
@@ -162,6 +155,17 @@ if(t==='shop'){try{const g=await api('/warehouse/products?club_id=1');const rows
 document.getElementById('goods').innerHTML=rows.length?rows.map(p=>`<div class="card"><div class="svc"><div class="n">${esc(p.name)}</div><div class="p">${esc(p.article||'')} · ${Number(p.sale_price||p.price||0)} ₽ · остаток: ${Number(p.quantity||0)}</div></div></div>`).join(''):'<div class="mut">Товары появятся скоро — уточните на ресепшене</div>'}catch(e){document.getElementById('goods').innerHTML='<div class="mut">Товары появятся скоро</div>'}}
 if(t==='services'){try{const s=await api('/services');const rows=s.items||s;
 document.getElementById('svclist').innerHTML=rows.map(x=>`<div class="svc"><div class="n">${esc(x.name)}</div><div class="p">${Number(x.price||0)} ₽</div></div>`).join('')||'—'}catch(e){document.getElementById('svclist').innerHTML='<span class="mut">Скоро</span>'}}
+if(t==='qr'){const box=document.getElementById('qrbox');try{
+const g=await api('/dynamic-qr/generate',{method:'POST',body:JSON.stringify({client_id:(me&&(me.id||me.user_id)),expires_in_minutes:2})});
+const data=encodeURIComponent(g.qr_payload||'');
+box.innerHTML=`<img style="width:280px;height:280px;border-radius:12px;background:#fff;padding:6px" src="${API}/miniapp/qr?data=${data}">
+<div id="qrcd" style="font-size:30px;font-weight:800;color:var(--mint);margin:12px 0 8px">${30-Math.floor(Date.now()%30000/1000)} сек</div>
+<div style="height:6px;background:var(--row);border-radius:3px;overflow:hidden"><div id="qrbar" style="height:100%;width:100%;background:var(--mag);transition:width 1s linear"></div></div>
+<div class="mut" style="margin-top:10px">Код обновляется каждые 30 секунд</div>`;
+}catch(e){const id=(me&&(me.id||me.user_id))||'guest';const data=encodeURIComponent('fitintel:profile:'+id);
+box.innerHTML=`<div class="err" style="display:block">Вход по QR недоступен: нет активного абонемента или оплаченного занятия</div>
+<img style="width:280px;height:280px;border-radius:12px" src="${API}/miniapp/qr?data=${data}">
+<div class="mut">QR профиля</div>`}}
 if(t==='schedule'){try{const s=await api('/services/trainer-schedule');const rows=s.items||s;
 const mine=(rows||[]);
 if(!mine.length){document.getElementById('sched').innerHTML='<div class="mut">Записей нет. Запишитесь на ресепшене.</div>';return}
