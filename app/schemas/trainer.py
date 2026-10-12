@@ -36,6 +36,7 @@ class TrainerProfileResponse(TrainerProfileBase):
     user_id: UUID
     created_at: datetime
     updated_at: datetime
+    full_name: Optional[str] = None
 
     class Config:
         from_attributes = True

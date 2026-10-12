@@ -46,7 +46,16 @@ async def list_trainers(
 ):
     """Список тренеров"""
     service = TrainerService(db)
-    return service.list_trainers(is_active)
+    rows = service.list_trainers(is_active)
+    # W5: ФИО тренера из таблицы users
+    try:
+        from sqlalchemy import text as _t
+        _names = {str(r[0]): (r[1] or r[2] or "") for r in db.execute(_t("SELECT id, full_name, username FROM users"))}
+        for _r in rows:
+            setattr(_r, "full_name", _names.get(str(_r.user_id)) or None)
+    except Exception:
+        pass
+    return rows
 
 
 @router.get("/profiles/me", response_model=TrainerProfileResponse)
