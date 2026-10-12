@@ -72,6 +72,7 @@ try{me=await api('/auth/me')}catch(e){if(e.message!=='auth')me=null}
 try{const _u=await api('/users');(Array.isArray(_u)?_u:(_u.items||[])).forEach(x=>{UMAP[String(x.id)]=x.full_name||x.username||''})}catch(e){}
 render()}catch(e){render()}}
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ST={BOOKED:'Записан',CONFIRMED:'Подтверждена',CANCELLED:'Отменена',COMPLETED:'Завершена',PENDING:'Ожидает',NO_SHOW:'Не пришёл'};
 const imgu=u=>{if(!u)return '';if(u.startsWith('http')&&!u.includes('fixintel.ru'))return API+'/miniapp/img?src='+encodeURIComponent(u);return u.startsWith('http')?u:'https://fixintel.ru'+u;};
 function go(t){tab=t;render()}
 function render(){const a=document.getElementById('app');
@@ -106,10 +107,12 @@ function vShop(){if(CFG.payments_enabled===false)return `<div class="top">МАГ
 function vServices(){return `<div class="top">УСЛУГИ</div><div class="card" id="svclist"><span class="mut">Загрузка…</span></div>`}
 function vSchedule(){return `<div class="top">РАСПИСАНИЕ</div><div id="sched"><span class="mut">Загрузка…</span></div>`}
 function vQr(){const id=(me&&(me.id||me.user_id))||'guest';
-const data=encodeURIComponent('fitintel:profile:'+id);
+const t=Math.floor(Date.now()/30000);
+const data=encodeURIComponent('fitintel:profile:'+id+':'+t);
 return `<span class="back" onclick="go('home')">‹ Назад</span><div class="top">QR ПРОФИЛЯ</div>
 <div class="card" style="text-align:center"><img style="width:280px;height:280px;border-radius:12px" src="${API}/miniapp/qr?data=${data}">
-<div class="mut">Покажите на входе в клуб</div></div>`}
+<div class="mut">Покажите на входе в клуб.<br>Код обновляется каждые 30 секунд.</div></div>
+<script>setTimeout(function(){if(tab==='qr')go('qr')},15000)<\/script>`}
 function vList(title,path,empty){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">${title}</div><div class="card" id="lst"><span class="mut">Загрузка…</span></div>
 <script>loadList('${path}','${empty}')<\/script>`}
 function vClub(){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">О КЛУБЕ</div>
@@ -117,8 +120,9 @@ function vClub(){return `<span class="back" onclick="go('menu')">‹ Назад<
 ${CFG.slogan?`<div class="mut" style="text-align:left">${esc(CFG.slogan)}</div>`:''}
 ${CFG.about?`<div class="svc"><div class="p" style="white-space:pre-wrap">${esc(CFG.about)}</div></div>`:''}
 <div class="svc"><div class="p">Часы работы: ${esc(CFG.hours)}</div></div></div>`}
-function vProfile(){const rows=me?Object.entries(me).map(([k,v])=>`<div class="svc"><div class="n" style="font-size:14px">${esc(k)}</div><div class="p">${esc(String(v))}</div></div>`).join(''):'—';
-return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">ПРОФИЛЬ</div><div class="card">${rows}</div>
+function vProfile(){const L={full_name:'ФИО',name:'ФИО',fio:'ФИО',email:'Email',username:'Логин',login:'Логин',phone:'Телефон',is_active:'Активен',roles:'Роль',role:'Роль',permissions:'Права',balance:'Баланс, ₽',created_at:'Дата регистрации',birth_date:'Дата рождения',id:'ID'};
+const rows=me?Object.entries(me).filter(([k,v])=>L[k]&&String(v||'')!=='').map(([k,v])=>`<div class="svc"><div class="n" style="font-size:14px">${L[k]}</div><div class="p">${esc(String(v))}</div></div>`).join(''):'';
+return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">ПРОФИЛЬ</div><div class="card">${rows||'<div class="mut">Нет данных</div>'}</div>
 <button class="btn" onclick="logout()">Выйти</button>`}
 function vReview(){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">ОСТАВИТЬ ОТЗЫВ</div>
 <div class="card"><input id="rvt" placeholder="Тема"><textarea id="rvx" rows="4" placeholder="Текст отзыва"></textarea>
@@ -148,7 +152,7 @@ return `<div class="top">МЕНЮ</div><div class="card" style="display:flex;gap
 async function load(t){
 if(t==='home'){try{const r=await api('/trainers/profiles');const rows=Array.isArray(r)?r:(r.items||r.profiles||r.trainers||r.data||[]);
 document.getElementById('trainers').innerHTML=(rows||[]).map(x=>{const ph=imgu(x.photo_url);
-return `<div class="trainer"><div class="ph" ${ph?`style="background-image:url('${ph}')"`:''}>${ph?'':'Фото'}</div><div class="nm">${esc(UMAP[String(x.user_id)]||x.specialization||'')}</div>${(UMAP[String(x.user_id)]&&(x.specialization||''))?`<div style="font-size:11px;color:var(--muted)">${esc(x.specialization||'')}</div>`:''}</div>`}).join('')||'<span class="mut">Скоро</span>'}catch(e){document.getElementById('trainers').innerHTML='<span class="mut">Скоро</span>'}}
+return `<div class="trainer"><div class="ph" ${ph?`style="background-image:url('${ph}')"`:''}>${ph?'':'Фото'}</div><div class="nm">${esc(UMAP[String(x.user_id)]||x.full_name||x.name||x.specialization||'')}</div>${((UMAP[String(x.user_id)]||x.full_name||x.name)&&(x.specialization||''))?`<div style="font-size:11px;color:var(--muted)">${esc(x.specialization||'')}</div>`:''}</div>`}).join('')||'<span class="mut">Скоро</span>'}catch(e){document.getElementById('trainers').innerHTML='<span class="mut">Скоро</span>'}}
 if(t==='shop'){try{const g=await api('/warehouse/products?club_id=1');const rows=g.items||g;
 document.getElementById('goods').innerHTML=rows.length?rows.map(p=>`<div class="card"><div class="svc"><div class="n">${esc(p.name)}</div><div class="p">${esc(p.article||'')} · ${Number(p.sale_price||p.price||0)} ₽ · остаток: ${Number(p.quantity||0)}</div></div></div>`).join(''):'<div class="mut">Товары появятся скоро — уточните на ресепшене</div>'}catch(e){document.getElementById('goods').innerHTML='<div class="mut">Товары появятся скоро</div>'}}
 if(t==='services'){try{const s=await api('/services');const rows=s.items||s;
@@ -157,7 +161,7 @@ if(t==='schedule'){try{const s=await api('/services/trainer-schedule');const row
 const mine=(rows||[]);
 if(!mine.length){document.getElementById('sched').innerHTML='<div class="mut">Записей нет. Запишитесь на ресепшене.</div>';return}
 const by={};mine.forEach(b=>{const d=(b.booking_date||'').slice(0,10);(by[d]=by[d]||[]).push(b)});
-document.getElementById('sched').innerHTML=Object.keys(by).sort().map(d=>`<div class="day">${d.split('-').reverse().join('.')}</div><div class="card">`+by[d].map(b=>`<div class="svc"><div class="n">${esc(b.service_name||'Занятие')}</div><div class="p">${(b.booking_date||'').slice(11,16)} · ${esc(b.trainer_name||'')} · ${esc(b.status||'')}</div></div>`).join('')+'</div>').join('')}catch(e){document.getElementById('sched').innerHTML='<div class="mut">Скоро</div>'}}
+document.getElementById('sched').innerHTML=Object.keys(by).sort().map(d=>`<div class="day">${d.split('-').reverse().join('.')}</div><div class="card">`+by[d].map(b=>`<div class="svc"><div class="n">${esc(b.service_name||'Занятие')}</div><div class="p">${(b.booking_date||'').slice(11,16)} · ${esc(b.trainer_name||'')} · ${esc(ST[b.status]||b.status||'')}</div></div>`).join('')+'</div>').join('')}catch(e){document.getElementById('sched').innerHTML='<div class="mut">Скоро</div>'}}
 if(['trainings','visits','subs'].includes(t)){const map={trainings:['/services/trainer-schedule','Нет записей'],visits:['/visits','Посещений пока нет'],subs:['/subscriptions/my','Нет подписок']};
 const[path,empty]=map[t];try{const r=await api(path);const rows=r.items||r;
 document.getElementById('lst').innerHTML=(rows&&rows.length)?rows.map(b=>`<div class="svc"><div class="n">${esc(b.service_name||b.entry_time||b.tariff_name||JSON.stringify(b).slice(0,60))}</div><div class="p">${esc(b.booking_date||b.entry_time||b.created_at||'')}</div></div>`).join(''):`<div class="mut">${empty}</div>`}catch(e){document.getElementById('lst').innerHTML=`<div class="mut">${empty}</div>`}}}
