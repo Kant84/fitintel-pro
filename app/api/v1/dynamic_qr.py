@@ -297,7 +297,7 @@ async def turnstile_qr_scan(
                               "VALUES (:i,:fn,:ln,:p,'unknown','standard','active',TRUE, now(), now()) ON CONFLICT DO NOTHING"),
                            {"i": _svc, "fn": _fn[:60], "ln": _ln[:60], "p": ("S:" + str(client_id))[:20]})
                 db.commit()
-            _data = {"client_id": _svc}
+            _data = {"client_id": _svc, "access_granted": True}
             if "id" in _cols:
                 _data["id"] = _visit_id = str(_uuid.uuid4())
             if "entry_time" in _cols:
