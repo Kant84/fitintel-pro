@@ -273,9 +273,38 @@ async def turnstile_qr_scan(
     from app.services.access_service import AccessService
     client = db.query(Client).filter(Client.id == client_id).first() if not str(client_id).startswith(("guest:", "group:")) else None
     if client is None and not str(client_id).startswith(("guest:", "group:")):
-        # W5: служебный пропуск сотрудника — доступ уже подтверждён политикой (тумблер + users)
+        # W5: служебный пропуск сотрудника — доступ подтверждён политикой; проход регистрируем
+        _visit_id = None
+        try:
+            import uuid as _uuid
+            from datetime import datetime as _dt, timezone as _tz
+            from sqlalchemy import text as _t
+            _cols = {r[0] for r in db.execute(_t(
+                "SELECT column_name FROM information_schema.columns WHERE table_name='visits'"))}
+            _data = {}
+            if "id" in _cols:
+                _data["id"] = _visit_id = str(_uuid.uuid4())
+            if "entry_time" in _cols:
+                _data["entry_time"] = _dt.now(_tz.utc)
+            if "access_method" in _cols:
+                _data["access_method"] = "QR_STAFF"
+            if "zone" in _cols:
+                _data["zone"] = zone or "main"
+            if "status" in _cols:
+                _data["status"] = "COMPLETED"
+            if "notes" in _cols:
+                _data["notes"] = "Служебный пропуск, user " + str(client_id)
+            if "created_at" in _cols:
+                _data["created_at"] = _dt.now(_tz.utc)
+            if _data:
+                db.execute(_t("INSERT INTO visits (" + ", ".join(_data) + ") VALUES (" +
+                               ", ".join(":" + k for k in _data) + ")"), _data)
+                db.commit()
+        except Exception as _e:
+            db.rollback()
+            print("W5 staff visit:", str(_e)[:120])
         return {"access_granted": True, "turnstile_open": True, "client_id": client_id,
-                "reason": "Служебный пропуск (сотрудник)", "visit_id": None, "device_id": device_id}
+                "reason": "Служебный пропуск (сотрудник)", "visit_id": _visit_id, "device_id": device_id}
     credential = (client.phone or client.email) if client else str(client_id)
     service = AccessService(db)
     result = service.grant_access(credential=credential, device_id=device_id, zone=zone)
