@@ -29,6 +29,18 @@ def _entry_gate(db: Session, client_id) -> list:
     return entry_reasons(db, str(client_id))
 
 
+def _staff_gate(db: Session, client_id) -> bool:
+    """Служебный пропуск: тумблер QR_STAFF_ENABLED в «Входы/Выходы» + id — сотрудник (users)."""
+    try:
+        from app.api.v1.club_params import get_param
+        if str(get_param("QR_STAFF_ENABLED", "0")).lower() not in ("1", "true", "yes", "да"):
+            return False
+        from sqlalchemy import text as _t
+        return bool(db.execute(_t("SELECT 1 FROM users WHERE id=:i AND is_fired IS NOT TRUE"), {"i": str(client_id)}).first())
+    except Exception:
+        return False
+
+
 def generate_qr_payload(client_id, expires, ttl, device_id=None):
     timestamp = int(time.time())
     client_id_str = str(client_id)
@@ -79,7 +91,7 @@ async def generate_qr(qr_data: DynamicQRCreate, db: Session = Depends(get_db), c
         raise HTTPException(status_code=404, detail="Клиент не найден")
     # Волна 5: основания входа (абонемент ИЛИ оплаченное занятие в окне)
     reasons = _entry_gate(db, qr_data.client_id)
-    if not reasons:
+    if not reasons and not _staff_gate(db, qr_data.client_id):
         raise HTTPException(status_code=402,
                             detail="Нет оснований для входа: нет активного абонемента или оплаченного занятия")
     expires = datetime.now(timezone.utc) + timedelta(minutes=qr_data.expires_in_minutes)
@@ -250,7 +262,7 @@ async def turnstile_qr_scan(
     # 2. Волна 5: основания входа (абонемент ИЛИ оплаченное занятие в окне ±N ч)
     if not str(client_id).startswith(("guest:", "group:")):
         reasons = _entry_gate(db, client_id)
-        if not reasons:
+        if not reasons and not _staff_gate(db, client_id):
             raise HTTPException(
                 status_code=403,
                 detail="Нет оснований для входа: нет активного абонемента или оплаченного занятия",
