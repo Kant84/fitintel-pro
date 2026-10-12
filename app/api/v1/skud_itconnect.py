@@ -165,6 +165,27 @@ def _check_locker_exit(db, client_id: str) -> tuple:
 
 @router.post("/checkaccess", response_model=CheckAccessResponse)
 def check_access(payload: CheckAccessRequest, db: Session = Depends(get_db), auth=Depends(verify_basic)):
+    # W5: вход по QR — подписанный payload из приложения (в поле client_card)
+    _raw = (payload.client_card or "").strip()
+    if _raw.startswith("eyJ") or _raw.startswith("{"):
+        from app.api.v1.dynamic_qr import validate_qr, _staff_gate
+        from app.services.entry_policy import entry_reasons
+        is_valid, qr_client_id, msg = validate_qr(_raw, db)
+        if not is_valid or not qr_client_id:
+            return CheckAccessResponse(text="QR недействителен", grant_access=0,
+                text_full="Доступ запрещен. " + str(msg), withoutface=False)
+        reasons = entry_reasons(db, str(qr_client_id))
+        if not reasons and not _staff_gate(db, qr_client_id):
+            return CheckAccessResponse(client_id=str(qr_client_id), text="Нет оснований для входа",
+                grant_access=0,
+                text_full="Доступ запрещен. Нет активного абонемента или оплаченного занятия.", withoutface=False)
+        client = db.query(Client).filter(Client.id == qr_client_id).first()
+        cname = ""
+        if client:
+            cname = ((getattr(client, "last_name", None) or "") + " "
+                     + (getattr(client, "first_name", None) or "")).strip()
+        return CheckAccessResponse(client_id=str(qr_client_id), text="Проходите", grant_access=1,
+            text_full="Доступ разрешен. " + (cname or "Сотрудник"), withoutface=False)
     credential = db.query(Credential).filter(
         Credential.credential_value == payload.client_card,
         Credential.credential_type == "RFID"
