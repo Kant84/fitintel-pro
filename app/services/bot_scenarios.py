@@ -94,6 +94,10 @@ def _bind(db: Session, uid: int, client_id):
 
 # ---------------- helpers ----------------
 
+_APP_INVITE = ("Добро пожаловать! Регистрация и вход — в приложении клуба по кнопке ниже: "
+               "телефон подтвердится автоматически. Карточку клиента заводит ресепшен.")
+
+
 def _menu() -> str:
     return get_label("TXT.MENU.MAIN", MENU_TEXT)
 
@@ -555,7 +559,7 @@ def handle(db: Session, max_user_id: int, text: str) -> str | None:
     if _t0 in ("0", "меню", "назад", "/start", "start", "старт", "привет"):
         _clear(db, max_user_id)
         if not _find_client_row(db, max_user_id):
-            return _start_registration(db, max_user_id)
+            return _APP_INVITE
         return _menu()
     """Возвращает ответ, если сценарий обработал сообщение, иначе None (команды)."""
     _ensure(db)
@@ -567,8 +571,6 @@ def handle(db: Session, max_user_id: int, text: str) -> str | None:
     if state:
         if state.startswith("REG_"):
             return _step_registration(db, max_user_id, text)
-        if state == "CODE_PHONE":
-            return _step_code(db, max_user_id, text)
         if not row:
             _clear(db, max_user_id)
             return "Нужна привязка карточки: сообщите номер телефона администратору или на ресепшене."
@@ -592,17 +594,10 @@ def handle(db: Session, max_user_id: int, text: str) -> str | None:
             return _my_confirm(db, max_user_id, text, row)
 
     # старт/регистрация; deep-link «/start reception|poster|card» — источник в карточку
-    m_start = re.match(r"^/start\s+(\S+)$", t)
-    if m_start and not row:
-        return _start_registration(db, max_user_id, source=m_start.group(1))
+    if not row:
+        return _APP_INVITE
     if t in ("/start", "start", "старт", "привет", "меню", "0"):
-        if not row:
-            return _start_registration(db, max_user_id)
         return _menu()
-    if t in ("регистрация", "зарегистрироваться"):
-        return _start_registration(db, max_user_id)
-    if t in ("код", "код регистрации", "получить код"):
-        return _start_code(db, max_user_id)
 
     if not row:
         return None   # пусть max_bot ответит про привязку
