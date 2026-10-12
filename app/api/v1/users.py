@@ -297,6 +297,13 @@ def update_user(
         is_active=payload.is_active,
     )
 
+    # W5: ФИО пишем прямым SQL (в ORM-модели колонки нет — она добавлена позже)
+    if payload.full_name is not None:
+        from sqlalchemy import text as _t
+        db.execute(_t("UPDATE users SET full_name=:v WHERE id=:i"),
+                   {"v": payload.full_name, "i": str(user.id)})
+        db.commit()
+
     # Перечитываем пользователя вместе с ролями и правами.
     updated_user = user_service.get_user_by_id(str(user.id))
 
