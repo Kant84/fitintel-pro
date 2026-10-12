@@ -155,7 +155,7 @@ def miniapp_register(body: RegisterIn, db: _S = _Dep(_gdb)):
     role = db.execute(_t("SELECT id FROM roles WHERE code='client' LIMIT 1")).first()
     if role:
         rcols = {r[0] for r in db.execute(_t("SELECT column_name FROM information_schema.columns WHERE table_name='user_roles'"))}
-        rd = {"user_id": str(user.id), "role_id": str(role[0])}
+        rd = {"user_id": str(user.id), "role_id": str(role[0]), "assigned_at": _dtn.now(_tzn.utc)}
         if "id" in rcols:
             rd["id"] = str(_uuid.uuid4())
         db.execute(_t("INSERT INTO user_roles (" + ",".join(rd) + ") VALUES (" + ",".join(":" + k for k in rd) + ") ON CONFLICT DO NOTHING"), rd)
