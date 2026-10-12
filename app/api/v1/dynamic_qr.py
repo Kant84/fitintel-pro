@@ -272,6 +272,10 @@ async def turnstile_qr_scan(
     # 3. Открываем турникет через AccessService
     from app.services.access_service import AccessService
     client = db.query(Client).filter(Client.id == client_id).first() if not str(client_id).startswith(("guest:", "group:")) else None
+    if client is None and not str(client_id).startswith(("guest:", "group:")):
+        # W5: служебный пропуск сотрудника — доступ уже подтверждён политикой (тумблер + users)
+        return {"access_granted": True, "turnstile_open": True, "client_id": client_id,
+                "reason": "Служебный пропуск (сотрудник)", "visit_id": None, "device_id": device_id}
     credential = (client.phone or client.email) if client else str(client_id)
     service = AccessService(db)
     result = service.grant_access(credential=credential, device_id=device_id, zone=zone)
