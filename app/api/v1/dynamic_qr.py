@@ -87,7 +87,8 @@ def validate_qr(qr_payload: str, db: Session):
 @router.post("/generate", response_model=DynamicQRResponse)
 async def generate_qr(qr_data: DynamicQRCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     client = db.query(Client).filter(Client.id == qr_data.client_id).first()
-    if not client and not _staff_gate(db, qr_data.client_id):
+    _is_staff = not client
+    if _is_staff and not _staff_gate(db, qr_data.client_id):
         raise HTTPException(status_code=404, detail="Клиент не найден")
     # Волна 5: основания входа (абонемент ИЛИ оплаченное занятие в окне)
     reasons = _entry_gate(db, qr_data.client_id)
@@ -96,7 +97,7 @@ async def generate_qr(qr_data: DynamicQRCreate, db: Session = Depends(get_db), c
                             detail="Нет оснований для входа: нет активного абонемента или оплаченного занятия")
     expires = datetime.now(timezone.utc) + timedelta(minutes=qr_data.expires_in_minutes)
     payload, signature, _ = generate_qr_payload(qr_data.client_id, expires, qr_data.expires_in_minutes * 60, getattr(qr_data, 'device_id', None))
-    db_qr = DynamicQRCode(client_id=qr_data.client_id, qr_payload=payload, signature=signature, expires_at=expires, is_used=False)
+    db_qr = DynamicQRCode(client_id=None if _is_staff else qr_data.client_id, qr_payload=payload, signature=signature, expires_at=expires, is_used=False)
     db.add(db_qr)
     db.commit()
     db.refresh(db_qr)
