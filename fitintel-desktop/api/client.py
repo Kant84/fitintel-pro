@@ -2,6 +2,20 @@
 import requests
 from typing import Optional, Dict, Any, List
 
+
+def _check(resp):
+    """HTTP-ошибка -> человеческий текст из detail сервера."""
+    if resp.status_code >= 400:
+        msg = "Ошибка сервера (код %s)" % resp.status_code
+        try:
+            d = resp.json()
+            det = d.get("detail") if isinstance(d, dict) else None
+            if det:
+                msg = str(det)
+        except Exception:
+            pass
+        raise RuntimeError(msg)
+
 class ApiClient:
     def __init__(self, base_url: str = "http://localhost:8001/api/v1"):
         self.base_url = base_url.rstrip("/")
@@ -52,7 +66,7 @@ class ApiClient:
     def login(self, username: str, password: str) -> Dict[str, Any]:
         payload = {"login": username, "password": password}
         resp = self.session.post(self._url("/auth/login"), json=payload)
-        resp.raise_for_status()
+        _check(resp)
         data = resp.json()
         # сохраняем refresh_token сразу (E70 будет обновлять сессию молча)
         rt = data.get("refresh_token")
@@ -63,64 +77,64 @@ class ApiClient:
 
     def me(self) -> Dict[str, Any]:
         resp = self.session.get(self._url("/auth/me"))
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     def health(self) -> Dict[str, Any]:
         resp = self.session.get(self._url("/health/"))
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     # --- Clients ---
     def get_clients(self) -> List[Dict[str, Any]]:
         resp = self.session.get(self._url("/clients/"))
-        resp.raise_for_status()
+        _check(resp)
         return self._as_list(resp.json())
 
     def create_client(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         resp = self.session.post(self._url("/clients/"), json=payload)
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     def update_client(self, client_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         resp = self.session.patch(self._url(f"/clients/{client_id}"), json=payload)
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     def delete_client(self, client_id: str):
         resp = self.session.delete(self._url(f"/clients/{client_id}"))
-        resp.raise_for_status()
+        _check(resp)
 
     # --- Subscriptions ---
     def get_subscriptions(self) -> List[Dict[str, Any]]:
         resp = self.session.get(self._url("/subscriptions/"))
-        resp.raise_for_status()
+        _check(resp)
         return self._as_list(resp.json())
 
     def create_subscription(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         resp = self.session.post(self._url("/subscriptions/"), json=payload)
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     def freeze_subscription(self, sub_id: str) -> Dict[str, Any]:
         resp = self.session.post(self._url(f"/subscriptions/{sub_id}/freeze"))
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     def unfreeze_subscription(self, sub_id: str) -> Dict[str, Any]:
         resp = self.session.post(self._url(f"/subscriptions/{sub_id}/unfreeze"))
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     # --- Visits ---
     def get_visits(self) -> List[Dict[str, Any]]:
         resp = self.session.get(self._url("/visits/"))
-        resp.raise_for_status()
+        _check(resp)
         return self._as_list(resp.json())
 
     def get_visit_stats(self) -> Dict[str, Any]:
         resp = self.session.get(self._url("/visits/stats"))
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     # --- Face ID ---
@@ -134,7 +148,7 @@ class ApiClient:
             "quality_score": quality_score
         }
         resp = self.session.post(self._url("/face-id/register"), json=payload)
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     def verify_face(self, face_encoding: List[float], terminal_id: str = "desktop-001",
@@ -145,96 +159,96 @@ class ApiClient:
             "terminal_location": location
         }
         resp = self.session.post(self._url("/face-id/verify"), json=payload)
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     def get_face_logs(self) -> List[Dict[str, Any]]:
         resp = self.session.get(self._url("/face-id/logs"))
-        resp.raise_for_status()
+        _check(resp)
         return self._as_list(resp.json())
 
     # --- License ---
     def verify_license(self, license_key: str, device_id: str) -> Dict[str, Any]:
         payload = {"license_key": license_key, "device_id": device_id}
         resp = self.session.post(self._url("/license/verify"), json=payload)
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     def get_license_limits(self, license_key: str) -> Dict[str, Any]:
         resp = self.session.get(self._url("/license/limits"), params={"license_key": license_key})
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     # --- Analytics ---
     def get_dashboard(self) -> Dict[str, Any]:
         resp = self.session.get(self._url("/analytics/dashboard"))
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     # --- Dashboard / AI Analytics ---
     def get_churn(self) -> Dict[str, Any]:
         resp = self.session.get(self._url("/analytics/ai/churn"))
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     def get_risk_segments(self) -> Dict[str, Any]:
         resp = self.session.get(self._url("/analytics/ai/risk-segments"))
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     # --- Users ---
     def get_users(self) -> List[Dict[str, Any]]:
         resp = self.session.get(self._url("/users/"))
-        resp.raise_for_status()
+        _check(resp)
         return self._as_list(resp.json())
 
     # --- Devices (DAL) ---
     def get_devices(self) -> List[Dict[str, Any]]:
         resp = self.session.get(self._url("/dal/devices"))
-        resp.raise_for_status()
+        _check(resp)
         return self._as_list(resp.json())
 
     def get_drivers(self) -> List[Dict[str, Any]]:
         resp = self.session.get(self._url("/dal/drivers"))
-        resp.raise_for_status()
+        _check(resp)
         return self._as_list(resp.json())
 
     # --- Payments / Accounting ---
     def get_accounting_entries(self) -> List[Dict[str, Any]]:
         resp = self.session.get(self._url("/accounting/entries"))
-        resp.raise_for_status()
+        _check(resp)
         return self._as_list(resp.json())
 
     def get_sales_report(self) -> Dict[str, Any]:
         resp = self.session.get(self._url("/sales/report"))
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     # --- UI-Config (E51) ---
     def get_ui_my(self) -> Dict[str, Any]:
         resp = self.session.get(self._url("/ui-config/my"))
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     def get_ui_screens(self) -> List[Dict[str, Any]]:
         resp = self.session.get(self._url("/ui-config/screens"))
-        resp.raise_for_status()
+        _check(resp)
         return resp.json().get("screens", [])
 
     def get_ui_roles(self) -> Dict[str, Any]:
         resp = self.session.get(self._url("/ui-config/roles"))
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     def set_ui_role_screens(self, role: str, screens: List[str]) -> Dict[str, Any]:
         resp = self.session.put(self._url(f"/ui-config/roles/{role}/screens"),
                                 json={"screens": screens})
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
     def reset_ui_role(self, role: str) -> Dict[str, Any]:
         resp = self.session.post(self._url(f"/ui-config/roles/{role}/reset"))
-        resp.raise_for_status()
+        _check(resp)
         return resp.json()
 
 # ============================ E55_EXT ============================

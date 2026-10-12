@@ -66,9 +66,9 @@ class UsersTab(QWidget):
         layout.addLayout(row)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(5)
+        self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels(
-            ["Логин", "Email", "Роли", "Прав", "Статус"])
+            ["ФИО", "Логин", "Email", "Роли", "Прав", "Статус"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
@@ -89,22 +89,24 @@ class UsersTab(QWidget):
                              and not u.get("is_active"))]
         self.table.setRowCount(len(users))
         for i, u in enumerate(users):
+            _fn = (u.get("full_name") or "").strip()
+            self.table.setItem(i, 0, QTableWidgetItem(_fn or "—"))
             item0 = QTableWidgetItem(str(u.get("username") or "—"))
             item0.setData(Qt.ItemDataRole.UserRole, str(u.get("id") or ""))
-            self.table.setItem(i, 0, item0)
-            self.table.setItem(i, 1, QTableWidgetItem(str(u.get("email") or "—")))
+            self.table.setItem(i, 1, item0)
+            self.table.setItem(i, 2, QTableWidgetItem(str(u.get("email") or "—")))
             roles = u.get("roles") or []
             if isinstance(roles, list):
                 rtxt = ", ".join(str(r.get("name", r)) if isinstance(r, dict) else str(r) for r in roles)
             else:
                 rtxt = str(roles)
-            self.table.setItem(i, 2, QTableWidgetItem(rtxt or "—"))
+            self.table.setItem(i, 3, QTableWidgetItem(rtxt or "—"))
             perms = u.get("permissions") or []
-            self.table.setItem(i, 3, QTableWidgetItem(str(len(perms)) if isinstance(perms, list) else "—"))
+            self.table.setItem(i, 4, QTableWidgetItem(str(len(perms)) if isinstance(perms, list) else "—"))
             active = u.get("is_active")
             item = QTableWidgetItem("Активен" if active else "Отключён")
             item.setForeground(QColor("#059669" if active else "#ef4444"))
-            self.table.setItem(i, 4, item)
+            self.table.setItem(i, 5, item)
 
     def _load_roles(self):
         """Роли из RBAC (без системных client/device и superadmin)."""
