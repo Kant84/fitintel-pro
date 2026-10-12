@@ -685,3 +685,19 @@ def mark_chat_read(self, chat_id):
     return _e55_post(self, "/messenger/chats/%s/read" % chat_id, {})
 
 setattr(ApiClient, "mark_chat_read", mark_chat_read)
+
+# ============================ E72_EXT ============================
+def set_club_param(self, key, value):
+    resp = self.session.put(self._url("/club-params/" + str(key)), json={"value": str(value)})
+    _check(resp)
+    return resp.json()
+
+def get_club_params(self):
+    resp = self.session.get(self._url("/club-params"))
+    _check(resp)
+    return resp.json()
+
+_g72 = globals()
+for _n in ["set_club_param", "get_club_params"]:
+    setattr(ApiClient, _n, _g72[_n])
+# ========================== E72_EXT END ==========================

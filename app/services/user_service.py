@@ -386,11 +386,22 @@ class UserService:
                     }
                 )
 
+        # W5: ФИО из users (колонка вне ORM-модели — читаем напрямую)
+        try:
+            from app.db.session import engine as _e
+            from sqlalchemy import text as _t
+            with _e.connect() as _c:
+                _row = _c.execute(_t("SELECT full_name FROM users WHERE id::text = :i"), {"i": str(user.id)}).first()
+            _full_name = _row[0] if _row else None
+        except Exception:
+            _full_name = None
+
         # возвращаем итоговый словарь
         return {
             "id": user.id,
             "email": getattr(user, "email", None),
             "username": getattr(user, "username", None),
+            "full_name": _full_name,
             "is_active": bool(getattr(user, "is_active", True)),
             "roles": roles,
             "permissions": permissions,

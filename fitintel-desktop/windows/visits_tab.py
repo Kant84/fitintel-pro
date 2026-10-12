@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit, QMessageBox
+    QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit, QMessageBox, QCheckBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor
@@ -139,7 +139,13 @@ class VisitsTab(QWidget):
         btn.setStyleSheet(self._btn_secondary())
         btn.clicked.connect(self.refresh)
         cards.addWidget(btn)
+
+        self.chk_staff_qr = QCheckBox(" QR для сотрудников (служебный пропуск)")
+        self.chk_staff_qr.setToolTip("Когда включено, сотрудники проходят по входному QR без абонемента")
+        self.chk_staff_qr.stateChanged.connect(self._toggle_staff_qr)
+        cards.addWidget(self.chk_staff_qr)
         layout.addLayout(cards)
+        self.load_staff_qr_toggle()
 
         self.table = QTableWidget()
         self.table.setColumnCount(6)
@@ -163,6 +169,31 @@ class VisitsTab(QWidget):
         return ("QPushButton { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; "
                 "border-radius: 6px; padding: 8px 16px; font-weight: 600; } "
                 "QPushButton:hover { background: #e2e8f0; }")
+
+    def _toggle_staff_qr(self, state):
+        val = "1" if state else "0"
+        try:
+            self.api.set_club_param("QR_STAFF_ENABLED", val)
+            QMessageBox.information(self, "QR для сотрудников",
+                                    "Служебный пропуск включён" if state else "Служебный пропуск выключен")
+        except Exception as e:
+            QMessageBox.warning(self, "QR для сотрудников", "Не сохранилось: %s" % _friendly_error(e))
+
+    def load_staff_qr_toggle(self):
+        try:
+            data = self.api.get_club_params()
+            params = {}
+            if isinstance(data, dict):
+                if isinstance(data.get("items"), list):
+                    params = {str(p.get("key")): str(p.get("value"))
+                              for p in data["items"] if isinstance(p, dict)}
+                else:
+                    params = {str(k): str(v) for k, v in data.items()
+                              if not isinstance(v, (list, dict))}
+            self.chk_staff_qr.setChecked(str(params.get("QR_STAFF_ENABLED", "0")).lower()
+                                         in ("1", "true", "yes", "да"))
+        except Exception:
+            pass
 
     def refresh(self):
         self.worker = LoadVisitsWorker(self.api)

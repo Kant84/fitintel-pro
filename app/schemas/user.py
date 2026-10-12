@@ -33,6 +33,7 @@ class UserPermissionSchema(BaseModel):
 
 # схема ответа по пользователю
 class UserResponse(BaseModel):
+    full_name: str | None = None
     # разрешаем строить схему из ORM-объектов
     model_config = ConfigDict(from_attributes=True)
 
