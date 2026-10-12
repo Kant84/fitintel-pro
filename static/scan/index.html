@@ -39,10 +39,11 @@ h1{font-size:15px;letter-spacing:.12em;color:var(--mint);margin:6px 0 10px;font-
 <div id="devname"></div>
 <div class="row2"><input id="manual" placeholder="ручной ввод QR"><button onclick="handle(document.getElementById('manual').value)">Проверить</button></div>
 <div class="mut">ID контроллера указывается один раз — он сохранится в этом браузере</div>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>
 const API='/api/v1';
 let _busy=false,_last='';
-function DEV(){return localStorage.getItem('term_dev')||''}
+function DEV(){return localStorage.getItem('term_dev')||'turnstile_main_entrance'}
 function ZONE(){return document.getElementById('zone').value}
 function setStatus(t,cls){const e=document.getElementById('status');e.textContent=t;e.className=cls||''}
 function dbg(t){const e=document.getElementById('dbg');if(e)e.textContent=t}
@@ -62,10 +63,20 @@ async function startCamera(){
 if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){setStatus('Браузер не умеет камеру — откройте в Chrome/Edge','err');dbg('нет getUserMedia');return}
 try{const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});document.getElementById('cam').srcObject=st;dbg('камера: поток получен, ищу QR…');scan()}
 catch(e){setStatus('Камера недоступна — разрешите доступ (иконка в адресной строке)','err');dbg('getUserMedia: '+e.name+' '+e.message)}}
-async function scan(){if(!('BarcodeDetector' in window)){setStatus('Нет BarcodeDetector — только Chrome/Edge (не Firefox/Safari)','err');dbg('BarcodeDetector отсутствует в этом браузере');return}
-const bd=new BarcodeDetector({formats:['qr_code']});
-const tick=async()=>{const v=document.getElementById('cam');if(v.readyState===4){try{const codes=await bd.detect(v);if(codes.length){const val=codes[0].rawValue;if(val&&val!==_last&&!_busy){_last=val;document.getElementById('manual').value=val;handle(val)}}}catch(e){}}
-requestAnimationFrame(tick)};tick()}
+async function scan(){
+const video=document.getElementById('cam');
+if('BarcodeDetector' in window){
+  const bd=new BarcodeDetector({formats:['qr_code']});
+  const tick=async()=>{if(video.readyState===4){try{const codes=await bd.detect(video);if(codes.length){const val=codes[0].rawValue;if(val&&val!==_last&&!_busy){_last=val;document.getElementById('manual').value=val;handle(val)}}}catch(e){}}
+  requestAnimationFrame(tick)};tick();return}
+if(typeof jsQR!=='undefined'){
+  dbg('детектор браузера нет — декодирую через jsQR');
+  const canvas=document.createElement('canvas');
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  const tick=()=>{if(video.readyState===4){try{canvas.width=video.videoWidth;canvas.height=video.videoHeight;ctx.drawImage(video,0,0);const d=ctx.getImageData(0,0,canvas.width,canvas.height);const code=jsQR(d.data,d.width,d.height,{inversionAttempts:'dontInvert'});if(code&&code.data&&code.data!==_last&&!_busy){_last=code.data;document.getElementById('manual').value=code.data;handle(code.data)}}catch(e){}}
+  setTimeout(()=>requestAnimationFrame(tick),250)};tick();return}
+setStatus('Нет детектора QR и не загрузилась библиотека (нужен интернет для CDN) — откройте в Chrome/Edge','err');
+dbg('BarcodeDetector отсутствует, jsQR не загружен — проверьте доступ к cdn.jsdelivr.net')}
 document.getElementById('dev').value=DEV();
 document.getElementById('zone').value=localStorage.getItem('term_zone')||'entry';
 document.getElementById('zone').onchange=e=>{localStorage.setItem('term_zone',e.target.value);saveSetup()};
