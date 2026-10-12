@@ -44,6 +44,7 @@ if engine is None or not _ping(engine):
         raise RuntimeError("club_params: DB engine not available")
 
 DEFAULT_PARAMS = {
+    "QR_STAFF_ENABLED": ("0", "QR для сотрудников (служебный пропуск): 1 — включён, 0 — выключен"),
     "SLOT_MINUTES": ("45", "Длительность слота тренера, минут"),
     "CONFIRM_DEADLINE_HOURS": ("6", "Дедлайн подтверждения брони до занятия, часов"),
     "REMIND_BEFORE_HOURS": ("24", "Напоминание + запрос подтверждения, часов до занятия"),
