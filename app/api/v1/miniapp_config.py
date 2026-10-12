@@ -147,11 +147,15 @@ def miniapp_register(body: RegisterIn, db: _S = _Dep(_gdb)):
         args["e"] = body.email
     if db.execute(_t(q + " LIMIT 1"), args).first():
         raise _HE(409, "Аккаунт с таким телефоном/email уже существует — войдите")
+    cli = db.execute(_t("SELECT id FROM clients WHERE right(regexp_replace(phone,'\\D','','g'),10)=:p LIMIT 1"), {"p": norm}).first()
+    if not cli:
+        raise _HE(404, "Клиент с таким телефоном не найден. Сначала зарегистрируйтесь на ресепшене клуба")
+    canon = "+7" + norm
     from app.services.auth_service import AuthService
     svc = AuthService(db)
     user = svc.create_user(norm, body.password, body.email)
     db.execute(_t("UPDATE users SET phone=:p, full_name=:f, phone_verified=TRUE WHERE id=:i"),
-               {"p": body.phone, "f": body.full_name, "i": str(user.id)})
+               {"p": canon, "f": body.full_name, "i": str(user.id)})
     role = db.execute(_t("SELECT id FROM roles WHERE code='client' LIMIT 1")).first()
     if role:
         rneed = {r[0]: r[1] for r in db.execute(_t("SELECT column_name, data_type FROM information_schema.columns WHERE table_name='user_roles' AND is_nullable='NO' AND column_default IS NULL"))}
@@ -170,23 +174,11 @@ def miniapp_register(body: RegisterIn, db: _S = _Dep(_gdb)):
             else:
                 rd[_col] = ""
         db.execute(_t("INSERT INTO user_roles (" + ",".join(rd) + ") VALUES (" + ",".join(":" + k for k in rd) + ") ON CONFLICT DO NOTHING"), rd)
-    cli = db.execute(_t("SELECT id FROM clients WHERE right(regexp_replace(phone,'\D','','g'),10)=:p LIMIT 1"), {"p": norm}).first()
-    if cli:
-        db.execute(_t("UPDATE clients SET user_id=:u WHERE id=:c"),
-                   {"u": str(user.id), "c": str(cli[0])})
-        if body.email:
-            db.execute(_t("UPDATE clients SET email=:e WHERE id=:c AND (email IS NULL OR email='')"),
-                       {"e": body.email, "c": str(cli[0])})
-    else:
-        parts = body.full_name.split(None, 1)
-        db.execute(_t("INSERT INTO clients (id, first_name, last_name, phone, email, gender, birth_date, "
-                      "client_category, status, is_active, user_id, created_at, updated_at) "
-                      "VALUES (:i,:fn,:ln,:p,:e,'НЕ_УКАЗАН',:bd,'ADULT','ACTIVE',TRUE,:u, now(), now())"),
-                   {"i": str(_uuid.uuid4()), "fn": parts[0][:60],
-                    "ln": (parts[1] if len(parts) > 1 else "")[:60],
-                    "p": body.phone, "e": body.email,
-                    "bd": (str(body.birth_year) + "-01-01") if body.birth_year else None,
-                    "u": str(user.id)})
+    db.execute(_t("UPDATE clients SET user_id=:u WHERE id=:c"),
+               {"u": str(user.id), "c": str(cli[0])})
+    if body.email:
+        db.execute(_t("UPDATE clients SET email=:e WHERE id=:c AND (email IS NULL OR email='')"),
+                   {"e": body.email, "c": str(cli[0])})
     db.commit()
     token = svc.create_user_access_token(user)
     try:

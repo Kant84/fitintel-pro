@@ -28,7 +28,7 @@ MAX_ATTEMPTS = 5
 
 # Доступность провайдеров (эмуляция сбоев для E29.13/E29.14)
 _PROVIDERS = {"smsru": True, "twilio": True, "telegram": True, "whatsapp": True, "max": True, "email": True}
-PROVIDER_ORDER = ["smsru", "twilio", "whatsapp", "telegram"]
+PROVIDER_ORDER = ["max", "email"]
 
 def _ensure_table():
     from app.db.session import engine as _e
@@ -199,7 +199,6 @@ def send_code(
         "provider": chosen,
         "provider_confirmed": True,
         "fallback": fallback,
-        "dev_code": code,  # только тестовый режим: в проде код не возвращается
     }
 
 
