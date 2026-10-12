@@ -58,7 +58,7 @@ try{const r=await fetch(API+'/dynamic-qr/turnstile',{method:'POST',headers:{'Con
 const j=await r.json().catch(()=>({}));
 if(r.ok&&j.access_granted){beep(true);setStatus('✅ ДОСТУП РАЗРЕШЁН'+(j.reason?' — '+j.reason:''),'ok')}
 else{beep(false);setStatus('⛔ ВХОД ЗАПРЕЩЁН: '+(j.detail||'отклонено'),'err')}}catch(e){setStatus('Ошибка сети: '+e.message,'err')}
-setTimeout(()=>{_busy=false;_last=''},2500)}
+setTimeout(()=>{_busy=false},2500)}
 async function startCamera(){
 if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){setStatus('Браузер не умеет камеру — откройте в Chrome/Edge','err');dbg('нет getUserMedia');return}
 try{const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});document.getElementById('cam').srcObject=st;dbg('камера: поток получен, ищу QR…');scan()}
