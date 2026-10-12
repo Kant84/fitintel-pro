@@ -313,3 +313,23 @@ def max_bridge_register(body: BridgeRegIn, db: _S = _Dep(_gdb)):
                {"m": int(muid), "c": str(cli[0]).replace("-", "")})
     db.commit()
     return _issue_token(str(user.id))
+
+
+# === W6: профиль для мини-приложения (учётка + карточка клиента) ===
+from app.api.dependencies import get_current_user as _gcu
+
+
+@router.get("/miniapp/me")
+def miniapp_me(current=Depends(_gcu), db: _S = _Dep(_gdb)):
+    uid = str(current.id)
+    u = db.execute(_t("SELECT username, email, phone, full_name FROM users WHERE id=:i"), {"i": uid}).first()
+    c = db.execute(_t("SELECT id, first_name, last_name, birth_date, phone, email FROM clients WHERE user_id=:u LIMIT 1"), {"u": uid}).first()
+    return {
+        "id": uid,
+        "username": u[0] if u else None,
+        "email": (u[1] if u else None) or (c[5] if c else None),
+        "phone": (u[2] if u else None) or (c[4] if c else None),
+        "full_name": (u[3] if u else None) or (((c[1] or "") + " " + (c[2] or "")).strip() if c else None),
+        "birth_date": str(c[3])[:10] if c and c[3] else None,
+        "client_id": str(c[0]) if c else None,
+    }
