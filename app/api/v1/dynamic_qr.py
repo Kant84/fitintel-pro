@@ -281,7 +281,23 @@ async def turnstile_qr_scan(
             from sqlalchemy import text as _t
             _cols = {r[0] for r in db.execute(_t(
                 "SELECT column_name FROM information_schema.columns WHERE table_name='visits'"))}
-            _data = {}
+            _un = db.execute(_t("SELECT full_name, username FROM users WHERE id::text=:i"),
+                             {"i": str(client_id)}).first()
+            _who = ((_un[0] or _un[1]) if _un else None) or str(client_id)
+            _row = db.execute(_t("SELECT id FROM clients WHERE phone=:p LIMIT 1"),
+                              {"p": "__staff__:" + str(client_id)}).first()
+            if _row:
+                _svc = str(_row[0])
+            else:
+                _svc = str(_uuid.uuid4())
+                _parts = str(_who).split(None, 1)
+                _fn = _parts[0] if _parts else str(_who)
+                _ln = _parts[1] if len(_parts) > 1 else "(sotrudnik)"
+                db.execute(_t("INSERT INTO clients (id, first_name, last_name, phone, created_at) "
+                              "VALUES (:i,:fn,:ln,:p, now()) ON CONFLICT DO NOTHING"),
+                           {"i": _svc, "fn": _fn[:60], "ln": _ln[:60], "p": "__staff__:" + str(client_id)})
+                db.commit()
+            _data = {"client_id": _svc}
             if "id" in _cols:
                 _data["id"] = _visit_id = str(_uuid.uuid4())
             if "entry_time" in _cols:
