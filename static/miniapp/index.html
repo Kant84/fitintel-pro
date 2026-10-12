@@ -75,6 +75,8 @@ const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"
 const ST={BOOKED:'Записан',CONFIRMED:'Подтверждена',CANCELLED:'Отменена',COMPLETED:'Завершена',PENDING:'Ожидает',NO_SHOW:'Не пришёл'};
 const imgu=u=>{if(!u)return '';if(u.startsWith('http')&&!u.includes('fixintel.ru'))return API+'/miniapp/img?src='+encodeURIComponent(u);return u.startsWith('http')?u:'https://fixintel.ru'+u;};
 function go(t){tab=t;render()}
+let _qrIv=null;
+function startQrTimer(){clearInterval(_qrIv);_qrIv=setInterval(function(){if(tab!=='qr'){clearInterval(_qrIv);return}var r=30-Math.floor(Date.now()%30000/1000);if(r<=0){go('qr');return}var e=document.getElementById('qrcd'),b=document.getElementById('qrbar');if(e)e.textContent=r+' сек';if(b)b.style.width=(r/30*100)+'%'},1000)}
 function render(){const a=document.getElementById('app');
 if(!token){a.innerHTML=`<div class="top">ВХОД</div><div class="card">
 ${CFG.logo_url?`<img src="${esc(CFG.logo_url)}" style="max-height:44px;max-width:180px;border-radius:8px;margin-bottom:8px">`:""}<div style="font-size:20px;font-weight:800;margin-bottom:4px">${esc(CFG.club_name)}</div>
@@ -88,6 +90,7 @@ document.getElementById('nav').innerHTML='';return}
 const V={home:vHome,shop:vShop,services:vServices,schedule:vSchedule,menu:vMenu,qr:vQr,trainings:()=>vList('ТРЕНИРОВКИ','/services/trainer-schedule','Нет записей'),visits:()=>vList('ПОСЕЩЕНИЯ','/visits','Посещений пока нет'),subs:()=>vList('ИСТОРИЯ ПОДПИСОК','/subscriptions/my','Нет подписок'),club:vClub,profile:vProfile,review:vReview,support:vSupport};
 a.innerHTML=(V[tab]||vHome)();
 if(['home','shop','services','schedule','trainings','visits','subs'].includes(tab))load(tab);
+if(tab==='qr')startQrTimer();
 document.getElementById('nav').innerHTML=[['home','Главная','home'],['shop','Магазин','store'],['services','Услуги','dumb'],['schedule','Расписание','cal'],['menu','Меню','menu']]
 .map(([k,l,i])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')"><span class="bub">${svg(i)}</span>${l}</button>`).join('')}
 async function doLogin(){const l=document.getElementById('lg').value.trim(),p=document.getElementById('pw').value;
@@ -112,10 +115,9 @@ const data=encodeURIComponent('fitintel:profile:'+id+':'+t);
 return `<span class="back" onclick="go('home')">‹ Назад</span><div class="top">QR ПРОФИЛЯ</div>
 <div class="card" style="text-align:center"><img style="width:280px;height:280px;border-radius:12px" src="${API}/miniapp/qr?data=${data}">
 <div class="mut">Покажите на входе в клуб</div>
-<div id="qrcd" style="font-size:30px;font-weight:800;color:var(--mint);margin:12px 0 8px"></div>
+<div id="qrcd" style="font-size:30px;font-weight:800;color:var(--mint);margin:12px 0 8px">${30-Math.floor(Date.now()%30000/1000)} сек</div>
 <div style="height:6px;background:var(--row);border-radius:3px;overflow:hidden"><div id="qrbar" style="height:100%;width:100%;background:var(--mag);transition:width 1s linear"></div></div>
-<div class="mut" style="margin-top:10px">QR обновляется каждые 30 секунд</div></div>
-<script>setInterval(function(){if(tab!=='qr')return;var r=30-Math.floor(Date.now()%30000/1000);if(r<=0){go('qr');return}var e=document.getElementById('qrcd'),b=document.getElementById('qrbar');if(e)e.textContent=r+' сек';if(b)b.style.width=(r/30*100)+'%'},1000)<\/script>`}
+<div class="mut" style="margin-top:10px">QR обновляется каждые 30 секунд</div></div>`}
 function vList(title,path,empty){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">${title}</div><div class="card" id="lst"><span class="mut">Загрузка…</span></div>
 <script>loadList('${path}','${empty}')<\/script>`}
 function vClub(){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">О КЛУБЕ</div>
