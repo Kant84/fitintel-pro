@@ -87,7 +87,7 @@ def validate_qr(qr_payload: str, db: Session):
 @router.post("/generate", response_model=DynamicQRResponse)
 async def generate_qr(qr_data: DynamicQRCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     client = db.query(Client).filter(Client.id == qr_data.client_id).first()
-    if not client:
+    if not client and not _staff_gate(db, qr_data.client_id):
         raise HTTPException(status_code=404, detail="Клиент не найден")
     # Волна 5: основания входа (абонемент ИЛИ оплаченное занятие в окне)
     reasons = _entry_gate(db, qr_data.client_id)
