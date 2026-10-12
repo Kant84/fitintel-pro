@@ -93,6 +93,9 @@ class UserUpdateRequest(BaseModel):
     # новый флаг активности
     is_active: bool | None = None
 
+    # ФИО (видят клиенты в приложении)
+    full_name: str | None = Field(default=None, max_length=200)
+
 
 # схема запроса на назначение роли
 class UserRoleAssignRequest(BaseModel):

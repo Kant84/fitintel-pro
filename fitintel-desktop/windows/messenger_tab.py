@@ -130,8 +130,10 @@ class MessengerTab(QWidget):
         rows = rows if isinstance(rows, list) else []
         self.chats.clear()
         for c in rows:
-            it = QListWidgetItem("%s\n%s" % (c.get("client_name") or c.get("chat_id"),
-                                             (c.get("last_message") or "")[:40]))
+            badge = "\n🔴 Новое!" if c.get("unread") else ""
+            it = QListWidgetItem("%s%s\n%s" % (c.get("client_name") or c.get("chat_id"),
+                                               badge,
+                                               (c.get("last_message") or "")[:40]))
             it.setData(Qt.ItemDataRole.UserRole, c.get("chat_id"))
             self.chats.addItem(it)
 
@@ -139,7 +141,14 @@ class MessengerTab(QWidget):
         if row < 0:
             return
         self._chat_id = self.chats.item(row).data(Qt.ItemDataRole.UserRole)
-        self._run(lambda: self.api.get_chat_messages(self._chat_id), self._fill_msgs)
+        def _done(res):
+            self._fill_msgs(res)
+            try:
+                self.api.mark_chat_read(self._chat_id)
+            except Exception:
+                pass
+            self.load_chats()
+        self._run(lambda: self.api.get_chat_messages(self._chat_id), _done)
 
     def _fill_msgs(self, rows):
         rows = rows if isinstance(rows, list) else []
