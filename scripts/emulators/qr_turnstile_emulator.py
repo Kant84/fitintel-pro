@@ -7,8 +7,9 @@
 """
 import argparse, base64, json, urllib.request, urllib.error
 
-SKUD_USER = "itc"
-SKUD_PASS = "itc_secret_2026"
+import os
+SKUD_USER = os.environ.get("ITC_BASIC_USER", "itc")
+SKUD_PASS = os.environ.get("ITC_BASIC_PASSWORD", "")
 
 
 def http(method, url, payload=None, basic=None, bearer=None):
@@ -38,6 +39,8 @@ def main():
     ap.add_argument("--login", required=True)
     ap.add_argument("--password", required=True)
     ap.add_argument("--device", default="turnstile_main_entrance")
+    ap.add_argument("--skud-user", default=None, help="ITC basic user (по умолчанию env ITC_BASIC_USER или itc)")
+    ap.add_argument("--skud-pass", default=None, help="ITC basic password (по умолчанию env ITC_BASIC_PASSWORD)")
     ap.add_argument("--qr", default=None, help="готовый qr_payload; если не задан — сгенерируем для клиента с абонементом")
     args = ap.parse_args()
     base = args.server.rstrip("/")
@@ -67,7 +70,7 @@ def main():
     st, resp = http("POST", base + "/skud/checkaccess",
                     {"device_id": args.device, "client_card": qr,
                      "request_id": "qr-demo-1", "direction": "entry"},
-                    basic="%s:%s" % (SKUD_USER, SKUD_PASS))
+                    basic="%s:%s" % (args.skud_user or SKUD_USER, args.skud_pass or SKUD_PASS))
     print("HTTP", st)
     grant = (resp or {}).get("grant_access")
     if grant == 1 or grant is True:
