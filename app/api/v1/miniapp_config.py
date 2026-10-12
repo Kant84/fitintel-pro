@@ -333,3 +333,33 @@ def miniapp_me(current=Depends(_gcu), db: _S = _Dep(_gdb)):
         "birth_date": str(c[3])[:10] if c and c[3] else None,
         "client_id": str(c[0]) if c else None,
     }
+
+
+# === W6: баланс и бонусы клиента ===
+@router.get("/miniapp/wallet")
+def miniapp_wallet(current=Depends(_gcu), db: _S = _Dep(_gdb)):
+    uid = str(current.id)
+    c = db.execute(_t("SELECT id FROM clients WHERE user_id=:u LIMIT 1"), {"u": uid}).first()
+    out = {"balance": None, "bonuses": None}
+    if not c:
+        return out
+    cid = str(c[0])
+    tabs = {r[0] for r in db.execute(_t("SELECT table_name FROM information_schema.tables WHERE table_name IN ('wallets','wallet')"))}
+    if tabs:
+        t = tabs.pop()
+        row = db.execute(_t(f"SELECT * FROM {t} WHERE client_id::text=:c LIMIT 1"), {"c": cid}).mappings().first()
+        if row:
+            d = dict(row)
+            for k, v in d.items():
+                kl = k.lower()
+                if out["balance"] is None and "balance" in kl and "bonus" not in kl:
+                    try:
+                        out["balance"] = float(v)
+                    except Exception:
+                        pass
+                if out["bonuses"] is None and "bonus" in kl:
+                    try:
+                        out["bonuses"] = float(v)
+                    except Exception:
+                        pass
+    return out
