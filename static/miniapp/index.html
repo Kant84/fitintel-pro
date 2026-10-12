@@ -69,7 +69,7 @@ function logout(){token='';me=null;localStorage.clear();tab='home';render()}
 async function boot(){try{CFG={...CFG,...(await (await fetch(API+'/miniapp/config')).json())};
 if(CFG.accent)document.documentElement.style.setProperty('--mint',CFG.accent);
 if(!token){if(await maxBoot()){render();return}render();return}
-try{me=await api('/auth/me')}catch(e){if(e.message!=='auth')me=null}
+try{me=await api('/miniapp/me')}catch(e){if(e.message!=='auth')me=null}
 try{const _u=await api('/users');(Array.isArray(_u)?_u:(_u.items||[])).forEach(x=>{UMAP[String(x.id)]=x.full_name||x.username||''})}catch(e){}
 render()}catch(e){render()}}
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -99,14 +99,14 @@ async function doLogin(){const l=document.getElementById('lg').value.trim(),p=do
 try{const r=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login:l,password:p})});
 const j=await r.json();if(!r.ok||!j.access_token)throw new Error('Неверный логин или пароль');
 token=j.access_token;localStorage.setItem('fit_token',token);
-try{me=await api('/auth/me')}catch(e){me={full_name:l}}
+try{me=await api('/miniapp/me')}catch(e){me={full_name:l}}
 localStorage.setItem('fit_user',JSON.stringify(me));tab='home';render()}catch(e){const er=document.getElementById('err');er.style.display='block';er.textContent=e.message}}
 let BRIDGE=null;
 async function maxBoot(){
 if(!window.WebApp||!WebApp.initData)return false;
 try{const r=await fetch(API+'/max-bridge/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:WebApp.initData})});
 const j=await r.json().catch(()=>({}));
-if(j&&j.access_token){token=j.access_token;localStorage.setItem('fit_token',token);try{me=await api('/auth/me')}catch(e){me=null}localStorage.setItem('fit_user',JSON.stringify(me||{}));return true}
+if(j&&j.access_token){token=j.access_token;localStorage.setItem('fit_token',token);try{me=await api('/miniapp/me')}catch(e){me=null}localStorage.setItem('fit_user',JSON.stringify(me||{}));return true}
 if(j&&j.registered===false){BRIDGE=j}}catch(e){}
 return false}
 async function regViaMax(){
@@ -116,7 +116,7 @@ let ct;try{ct=await WebApp.requestContact()}catch(e){return alert('Без под
 if(!ct||!ct.phone)return alert('Телефон не получен');
 try{const r=await fetch(API+'/max-bridge/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:WebApp.initData,full_name:g('bm_fn'),birth_year:g('bm_by')?parseInt(g('bm_by')):null,password:g('bm_pw'),phone:ct.phone,contact_hash:ct.hash,contact_auth_date:ct.authDate})});
 const j=await r.json().catch(()=>({}));if(!r.ok||!j.access_token){alert(j.detail||'Ошибка регистрации');return}
-token=j.access_token;localStorage.setItem('fit_token',token);try{me=await api('/auth/me')}catch(e){me={full_name:g('bm_fn')}}
+token=j.access_token;localStorage.setItem('fit_token',token);try{me=await api('/miniapp/me')}catch(e){me={full_name:g('bm_fn')}}
 localStorage.setItem('fit_user',JSON.stringify(me||{}));tab='home';render()}catch(e){alert('Ошибка сети')}}
 function showReg(){const c=document.querySelector('#app .card');if(!c)return;
 if(BRIDGE){c.innerHTML=`<div style="font-size:20px;font-weight:800;margin-bottom:4px">${esc(CFG.club_name)}</div>
@@ -150,7 +150,7 @@ if(g('rg_pw')!==g('rg_pw2'))return alert('Пароли не совпадают')
 try{const r=await fetch(API+'/miniapp/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full_name:g('rg_fn'),birth_year:g('rg_by')?parseInt(g('rg_by')):null,phone:g('rg_ph'),email:g('rg_em')||null,code:g('rg_cd'),password:g('rg_pw')})});
 const j=await r.json().catch(()=>({}));if(!r.ok||!j.access_token){alert(j.detail||'Ошибка регистрации');return}
 token=j.access_token;localStorage.setItem('fit_token',token);
-try{me=await api('/auth/me')}catch(e){me={full_name:g('rg_fn')}}
+try{me=await api('/miniapp/me')}catch(e){me={full_name:g('rg_fn')}}
 localStorage.setItem('fit_user',JSON.stringify(me));tab='home';render()}catch(e){alert('Ошибка сети')}}
 function vHome(){return `${CFG.logo_url?`<img src="${esc(CFG.logo_url)}" style="max-height:36px;max-width:160px;border-radius:8px;margin:2px 2px 8px">`:""}<div class="top">${esc(CFG.club_name).toUpperCase()}</div>
 <div class="grid2"><div class="tile" onclick="go('qr')">${svg('qr')}<div>QR-код</div></div>
