@@ -504,6 +504,49 @@ def _my_confirm(db: Session, uid: int, text: str, row) -> str:
     return get_label("TXT.CONFIRM.OK", "✅ Запись подтверждена. Ждём вас!") + "\n\n" + _menu()
 
 
+# ---------------- код регистрации в приложении (Этап 2) ----------------
+
+def _start_code(db: Session, uid: int) -> str:
+    _set_state(db, uid, "CODE_PHONE", {})
+    return ("Введите ваш номер телефона (например +79001234567). "
+            "Привяжу его к MAX и пришлю код для регистрации в приложении.")
+
+
+def _step_code(db: Session, uid: int, text: str) -> str:
+    import secrets as _sec
+    import uuid as _uuid
+    phone = (text or "").strip()
+    norm = re.sub(r"\D", "", phone)[-10:]
+    if len(norm) < 10:
+        return "Номер не распознан. Введите в формате +79001234567."
+    row = db.execute(sql_text(
+        "SELECT id, first_name, last_name FROM clients "
+        "WHERE right(regexp_replace(phone,'\\D','','g'),10)=:p LIMIT 1"), {"p": norm}).first()
+    if row:
+        client_id = str(row[0])
+        nm = ((row[1] or "") + " " + (row[2] or "")).strip()
+        found = "Найдена карточка: " + nm
+    else:
+        client_id = str(_uuid.uuid4())
+        db.execute(sql_text(
+            "INSERT INTO clients (id, first_name, last_name, phone, gender, client_category, status, is_active, created_at, updated_at) "
+            "VALUES (:i,'Клиент','(из MAX)',:p,'НЕ_УКАЗАН','ADULT','ACTIVE',TRUE, now(), now())"),
+            {"i": client_id, "p": phone})
+        db.commit()
+        found = "Создана новая карточка клиента"
+    _bind(db, uid, client_id)
+    code = "%04d" % _sec.randbelow(10000)
+    db.execute(sql_text(
+        "INSERT INTO phone_verifications (id, phone, code, provider, attempts, verified, expires_at, created_at, updated_at) "
+        "VALUES (:id,:p,:c,'max',0,FALSE, now() + interval '5 minutes', now(), now())"),
+        {"id": str(_uuid.uuid4()), "p": phone, "c": code})
+    db.commit()
+    _clear(db, uid)
+    return (found + "\nMAX привязан к номеру " + phone + ".\n\n"
+            "\u041aод для регистрации в приложении: " + code + "\n"
+            "Действует 5 минут. В приложении: «Зарегистрироваться» → этот телефон → «Получить код».")
+
+
 # ---------------- точка входа ----------------
 
 def handle(db: Session, max_user_id: int, text: str) -> str | None:
@@ -524,6 +567,8 @@ def handle(db: Session, max_user_id: int, text: str) -> str | None:
     if state:
         if state.startswith("REG_"):
             return _step_registration(db, max_user_id, text)
+        if state == "CODE_PHONE":
+            return _step_code(db, max_user_id, text)
         if not row:
             _clear(db, max_user_id)
             return "Нужна привязка карточки: сообщите номер телефона администратору или на ресепшене."
@@ -556,6 +601,8 @@ def handle(db: Session, max_user_id: int, text: str) -> str | None:
         return _menu()
     if t in ("регистрация", "зарегистрироваться"):
         return _start_registration(db, max_user_id)
+    if t in ("код", "код регистрации", "получить код"):
+        return _start_code(db, max_user_id)
 
     if not row:
         return None   # пусть max_bot ответит про привязку
