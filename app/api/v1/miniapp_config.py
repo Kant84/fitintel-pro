@@ -362,4 +362,7 @@ def miniapp_wallet(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
                         out["bonuses"] = float(v)
                     except Exception:
                         pass
+    if out["bonuses"] is None:
+        g = db.execute(_t("SELECT current_xp FROM gamification_levels WHERE client_id::text=:c LIMIT 1"), {"c": cid}).first()
+        out["bonuses"] = float(g[0]) if g and g[0] is not None else None
     return out
