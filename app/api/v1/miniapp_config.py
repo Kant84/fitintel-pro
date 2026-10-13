@@ -454,19 +454,8 @@ def _wallet_credit(db, client_id: str, amount: float, bonus_percent: float) -> d
     tcols = {r[0] for r in db.execute(_t("SELECT column_name FROM information_schema.columns WHERE table_name='wallet_transactions'"))}
     td = {k: v for k, v in td.items() if k in tcols}
     db.execute(_t("INSERT INTO wallet_transactions (" + ",".join(td) + ") VALUES (" + ",".join(":" + k for k in td) + ")"), td)
-    bonus = round(amount * bonus_percent / 100.0, 2)
-    g = db.execute(_t("SELECT id FROM gamification_levels WHERE client_id::text=:c"), {"c": client_id}).first()
-    if g:
-        db.execute(_t("UPDATE gamification_levels SET current_xp=current_xp+:b, updated_at=now() WHERE id=:i"), {"b": bonus, "i": str(g[0])})
-    else:
-        gcols = {r[0] for r in db.execute(_t("SELECT column_name FROM information_schema.columns WHERE table_name='gamification_levels'"))}
-        gd = {k: v for k, v in {"id": str(_uuid.uuid4()), "client_id": client_id, "current_xp": bonus, "level": 1,
-                                "xp_to_next": 100, "total_visits": 0, "total_workout_minutes": 0, "streak_days": 0,
-                                "max_streak_days": 0, "achievements_count": 0,
-                                "created_at": _dtn.now(_tzn.utc), "updated_at": _dtn.now(_tzn.utc)}.items() if k in gcols}
-        db.execute(_t("INSERT INTO gamification_levels (" + ",".join(gd) + ") VALUES (" + ",".join(":" + k for k in gd) + ")"), gd)
     db.commit()
-    return {"balance": round(bal, 2), "bonuses_added": bonus}
+    return {"balance": round(bal, 2)}
 
 
 @router.post("/miniapp/wallet/topup")
@@ -480,7 +469,11 @@ def wallet_topup(body: TopupIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
         raise _HE(404, "Карточка клиента не найдена")
     cid = str(c[0])
     if cfg["provider"] == "test":
-        return {"ok": True, "provider": "test", **_wallet_credit(db, cid, amount, cfg["bonus_percent"])}
+        r = _wallet_credit(db, cid, amount, cfg["bonus_percent"])
+        bonus = award_bonus(db, cid, "topup", amount)
+        if bonus <= 0:
+            bonus = _add_xp(db, cid, round(amount * cfg["bonus_percent"] / 100.0, 2))
+        return {"ok": True, "provider": "test", "balance": r["balance"], "bonuses_added": bonus}
     if cfg["provider"] == "yookassa":
         from app.services.yookassa_service import YooKassaService
         pay = YooKassaService(db).create_payment(
