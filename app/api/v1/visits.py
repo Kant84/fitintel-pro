@@ -111,6 +111,31 @@ def entry(
     except Exception as e:
         db.rollback()
         print(f"[WARN] EventLogger visit_entry failed (ignored): {e}")
+    # W6: бонусы за посещение (правила «Бонусы», защита от дублей)
+    try:
+        from sqlalchemy import text as _txt
+        from app.api.v1.miniapp_config import award_bonus
+        from app.api.v1.club_params import get_param
+        _cid = str(payload.client_id) if getattr(payload, "client_id", None) else None
+        if _cid:
+            _cd = float(get_param("BONUS_VISIT_COOLDOWN_HOURS", "12") or 12)
+            _et = getattr(visit, "entry_time", None)
+            if _et is not None:
+                _prev = db.execute(_txt("SELECT max(entry_time) FROM visits "
+                                        "WHERE client_id::text=:c AND entry_time < :t"),
+                                   {"c": _cid, "t": _et}).scalar()
+                _ok = _prev is None or (_et.replace(tzinfo=None) - _prev.replace(tzinfo=None)).total_seconds() >= _cd * 3600
+                if _ok:
+                    _bonus = award_bonus(db, _cid, "visit")
+                    if _bonus and _bonus > 0:
+                        _row = db.execute(_txt("SELECT phone FROM clients WHERE id::text=:c"), {"c": _cid}).first()
+                        if _row and _row[0]:
+                            from app.integrations.max import get_max_service
+                            get_max_service().send_message(phone_number=str(_row[0]),
+                                text=("🎁 +%d бонусов за посещение! Приходите чаще 💪" % int(_bonus)))
+    except Exception as _e:
+        db.rollback()
+        print(f"[WARN] bonus visit award failed (ignored): {_e}")
     return service._build_response(visit)
 
 
@@ -260,6 +285,31 @@ def manual_add_visit(
     except Exception as e:
         db.rollback()
         print(f"[WARN] EventLogger visit_entry failed (ignored): {e}")
+    # W6: бонусы за посещение (правила «Бонусы», защита от дублей)
+    try:
+        from sqlalchemy import text as _txt
+        from app.api.v1.miniapp_config import award_bonus
+        from app.api.v1.club_params import get_param
+        _cid = str(payload.client_id) if getattr(payload, "client_id", None) else None
+        if _cid:
+            _cd = float(get_param("BONUS_VISIT_COOLDOWN_HOURS", "12") or 12)
+            _et = getattr(visit, "entry_time", None)
+            if _et is not None:
+                _prev = db.execute(_txt("SELECT max(entry_time) FROM visits "
+                                        "WHERE client_id::text=:c AND entry_time < :t"),
+                                   {"c": _cid, "t": _et}).scalar()
+                _ok = _prev is None or (_et.replace(tzinfo=None) - _prev.replace(tzinfo=None)).total_seconds() >= _cd * 3600
+                if _ok:
+                    _bonus = award_bonus(db, _cid, "visit")
+                    if _bonus and _bonus > 0:
+                        _row = db.execute(_txt("SELECT phone FROM clients WHERE id::text=:c"), {"c": _cid}).first()
+                        if _row and _row[0]:
+                            from app.integrations.max import get_max_service
+                            get_max_service().send_message(phone_number=str(_row[0]),
+                                text=("🎁 +%d бонусов за посещение! Приходите чаще 💪" % int(_bonus)))
+    except Exception as _e:
+        db.rollback()
+        print(f"[WARN] bonus visit award failed (ignored): {_e}")
     return service._build_response(visit)
 
 
