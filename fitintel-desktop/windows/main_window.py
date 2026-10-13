@@ -345,7 +345,7 @@ class MainWindow(QMainWindow):
     def _check_health(self):
         try:
             self.api.health()
-            self.status.showMessage("Сервер подключён | FitIntel Pro v1.5.3")
+            self.status.showMessage("Сервер подключён | FitIntel Pro v1.6.1")
         except Exception:
             self.status.showMessage("Сервер недоступен — проверьте бэкенд localhost:8001")
 
