@@ -296,7 +296,7 @@ class BonusRulesWidget(QWidget):
                     it = QTableWidgetItem(str(val))
                     if j == 0:
                         it.setData(Qt.ItemDataRole.UserRole, str(r.get("id")))
-                    self.table.setItem(i, j, it))
+                    self.table.setItem(i, j, it)
         except Exception as e:
             QMessageBox.warning(self, "Бонусы", str(e)[:200])
 
