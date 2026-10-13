@@ -78,6 +78,17 @@ def main():
     )
 
     app = QApplication(sys.argv)
+    # ICONS-APPLY: window icon
+    try:
+        from PyQt6.QtGui import QIcon as _AppIcon
+        from pathlib import Path as _P
+        _ic = _P(__file__).parent / 'assets' / 'app_icon_512.png'
+        if _ic.exists():
+            app.setWindowIcon(_AppIcon(str(_ic)))
+    except Exception:
+        pass
+
+
 
     # Иконка приложения: заголовок окна, панель задач, Alt+Tab
     if ICON_PATH.exists():
