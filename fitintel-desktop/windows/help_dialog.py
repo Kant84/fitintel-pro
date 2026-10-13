@@ -821,9 +821,19 @@ def _active_subtab_title(mw) -> str:
     if cur is None:
         return ""
     from PyQt6.QtWidgets import QTabWidget
-    tw = cur.findChild(QTabWidget)
-    if tw is not None and tw.count():
-        return _clean_title(tw.tabText(tw.currentIndex()))
+    # в хабах QTabWidget несколько: внешний ряд вкладок и внутренние
+    # подвкладки. Инструкция нужна по активной ПОДвкладке — берём самую
+    # вложенную (максимальная глубина в дереве родителей).
+    best, best_depth = None, -1
+    for tw in cur.findChildren(QTabWidget):
+        d, pp = 0, tw.parentWidget()
+        while pp is not None:
+            d += 1
+            pp = pp.parentWidget()
+        if d > best_depth:
+            best, best_depth = tw, d
+    if best is not None and best.count():
+        return _clean_title(best.tabText(best.currentIndex()))
     return ""
 
 
