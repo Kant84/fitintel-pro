@@ -394,7 +394,7 @@ def _wallet_credit(db, client_id: str, amount: float, bonus_percent: float) -> d
         db.execute(_t("UPDATE wallets SET balance=balance+:a, updated_at=now() WHERE id=:i"), {"a": amount, "i": str(w[0])})
         bal = float(w[1] or 0) + amount
     else:
-        db.execute(_t("INSERT INTO wallets (id, client_id, balance, currency, created_at, updated_at) VALUES (:i,:c,:a,'RUB', now(), now())"),
+        db.execute(_t("INSERT INTO wallets (id, client_id, balance, frozen_balance, currency, created_at, updated_at) VALUES (:i,:c,:a,0,'RUB', now(), now())"),
                    {"i": str(_uuid.uuid4()), "c": client_id, "a": amount})
         bal = amount
     tcols = {r[0] for r in db.execute(_t("SELECT column_name FROM information_schema.columns WHERE table_name='wallet_transactions'"))}
