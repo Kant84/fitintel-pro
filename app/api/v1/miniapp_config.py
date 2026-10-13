@@ -482,3 +482,83 @@ def wallet_topup(body: TopupIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
         url = ((pay or {}).get("confirmation") or {}).get("confirmation_url") or (pay or {}).get("payment_url")
         return {"ok": True, "provider": "yookassa", "payment_url": url, "payment_id": (pay or {}).get("id")}
     raise _HE(503, "Провайдер '%s' пока не подключен" % cfg["provider"])
+
+
+def _ensure_bonus_rules(db):
+    db.execute(_t("CREATE TABLE IF NOT EXISTS bonus_rules ("
+                  "id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
+                  "category VARCHAR(20) NOT NULL DEFAULT 'ALL',"
+                  "event VARCHAR(30) NOT NULL,"
+                  "mode VARCHAR(10) NOT NULL DEFAULT 'fix',"
+                  "value NUMERIC(12,2) NOT NULL DEFAULT 0,"
+                  "active BOOLEAN DEFAULT TRUE,"
+                  "created_at TIMESTAMPTZ DEFAULT now())"))
+    db.commit()
+
+
+def _add_xp(db, client_id, xp):
+    if xp <= 0:
+        return 0.0
+    g = db.execute(_t("SELECT id FROM gamification_levels WHERE client_id::text=:c"), {"c": str(client_id)}).first()
+    if g:
+        db.execute(_t("UPDATE gamification_levels SET current_xp=current_xp+:b, updated_at=now() WHERE id=:i"), {"b": xp, "i": str(g[0])})
+    else:
+        gcols = {r[0] for r in db.execute(_t("SELECT column_name FROM information_schema.columns WHERE table_name='gamification_levels'"))}
+        gd = {k: v for k, v in {"id": str(_uuid.uuid4()), "client_id": client_id, "current_xp": xp, "level": 1,
+                                "xp_to_next": 100, "total_visits": 0, "total_workout_minutes": 0, "streak_days": 0,
+                                "max_streak_days": 0, "achievements_count": 0,
+                                "created_at": _dtn.now(_tzn.utc), "updated_at": _dtn.now(_tzn.utc)}.items() if k in gcols}
+        db.execute(_t("INSERT INTO gamification_levels (" + ",".join(gd) + ") VALUES (" + ",".join(":" + k for k in gd) + ")"), gd)
+    db.commit()
+    return xp
+
+
+def award_bonus(db, client_id, event, amount=0):
+    _ensure_bonus_rules(db)
+    c = db.execute(_t("SELECT client_category FROM clients WHERE id::text=:c"), {"c": str(client_id)}).first()
+    cat = ((c[0] if c else None) or "").upper()
+    rows = db.execute(_t(
+        "SELECT mode, value FROM bonus_rules WHERE event=:e AND active=TRUE "
+        "AND (category='ALL' OR category=:cat) "
+        "ORDER BY CASE WHEN category='ALL' THEN 1 ELSE 0 END"),
+        {"e": str(event).lower()[:30], "cat": cat}).fetchall()
+    total = 0.0
+    for mode, val in rows:
+        v = float(val or 0)
+        total += round(amount * v / 100.0, 2) if str(mode) == "percent" else v
+    if total <= 0:
+        return 0.0
+    return _add_xp(db, client_id, round(total, 2))
+
+
+class RuleIn(_BM):
+    category: str = "ALL"
+    event: str
+    mode: str = "fix"
+    value: float = 0
+
+
+@router.get("/bonus-rules")
+def bonus_rules_list(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
+    _ensure_bonus_rules(db)
+    rows = db.execute(_t("SELECT id, category, event, mode, value, active FROM bonus_rules ORDER BY created_at")).fetchall()
+    return {"items": [{"id": str(r[0]), "category": r[1], "event": r[2], "mode": r[3],
+                       "value": float(r[4]), "active": bool(r[5])} for r in rows]}
+
+
+@router.post("/bonus-rules")
+def bonus_rules_add(body: RuleIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
+    _ensure_bonus_rules(db)
+    rid = str(_uuid.uuid4())
+    db.execute(_t("INSERT INTO bonus_rules (id, category, event, mode, value, active) VALUES (:i,:c,:e,:m,:v,TRUE)"),
+               {"i": rid, "c": body.category.upper()[:20], "e": body.event.lower()[:30],
+                "m": body.mode.lower()[:10], "v": body.value})
+    db.commit()
+    return {"ok": True, "id": rid}
+
+
+@router.delete("/bonus-rules/{rid}")
+def bonus_rules_del(rid: str, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
+    db.execute(_t("DELETE FROM bonus_rules WHERE id::text=:r"), {"r": str(rid)})
+    db.commit()
+    return {"ok": True}
