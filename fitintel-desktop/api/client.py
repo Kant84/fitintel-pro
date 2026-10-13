@@ -701,3 +701,18 @@ _g72 = globals()
 for _n in ["set_club_param", "get_club_params"]:
     setattr(ApiClient, _n, _g72[_n])
 # ========================== E72_EXT END ==========================
+
+def get_bonus_rules(self):
+    return _e55_get(self, "/bonus-rules")
+
+def create_bonus_rule(self, body):
+    return _e55_post(self, "/bonus-rules", body)
+
+def delete_bonus_rule(self, rid):
+    resp = self.session.delete(self._url("/bonus-rules/" + str(rid)))
+    _check(resp)
+    return resp.json()
+
+setattr(ApiClient, "get_bonus_rules", get_bonus_rules)
+setattr(ApiClient, "create_bonus_rule", create_bonus_rule)
+setattr(ApiClient, "delete_bonus_rule", delete_bonus_rule)

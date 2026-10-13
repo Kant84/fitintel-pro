@@ -73,6 +73,7 @@ class ClubParamsTab(QWidget):
         self.tbl_labels.itemDoubleClicked.connect(self._edit_label)
         self.tabs.addTab(self.tbl_labels, " Лейблы бота")
         self.tabs.addTab(BotSettingsWidget(self.api), " Настройки приложения")
+        self.tabs.addTab(BonusRulesWidget(self.api), " Бонусы")
         layout.addWidget(self.tabs, 1)
 
         row = QHBoxLayout()
@@ -247,3 +248,87 @@ class BotSettingsWidget(QWidget):
                       "OK (…%s)" % r.get("bot_token_tail") if r.get("bot_token_set") else "не задан",
                       r.get("api_url") or "—",
                       "вкл" if r.get("payments_enabled", True) else "выкл")))
+
+# === W6: подвкладка «Бонусы» — правила начисления ===
+CATS = {"ALL": "Все", "ADULT": "Взрослый", "CHILD": "Ребёнок", "VIP": "VIP", "STAFF": "Персонал"}
+EVTS = {"topup": "Пополнение кошелька", "visit": "Посещение", "purchase": "Покупка",
+        "review": "Отзыв", "subscription": "Продление абонемента"}
+
+
+class BonusRulesWidget(QWidget):
+    def __init__(self, api):
+        super().__init__()
+        self.api = api
+        v = QVBoxLayout(self)
+        note = QLabel("Правила начисления бонусов: категория клиента × событие × фикс или % от суммы. "
+                      "События: topup (пополнение), visit (посещение), purchase (покупка), review (отзыв), "
+                      "subscription (продление). Категории: ALL, ADULT, CHILD, VIP, STAFF.")
+        note.setWordWrap(True)
+        v.addWidget(note)
+        bar = QHBoxLayout()
+        b1 = QPushButton(" Добавить"); b1.clicked.connect(self.add)
+        b2 = QPushButton(" Удалить"); b2.clicked.connect(self.delete)
+        b3 = QPushButton(" Обновить"); b3.clicked.connect(self.load)
+        bar.addWidget(b1); bar.addWidget(b2); bar.addWidget(b3); bar.addStretch(1)
+        v.addLayout(bar)
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(["Категория", "Событие", "Тип", "Значение", "Активно"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setAlternatingRowColors(True)
+        v.addWidget(self.table, 1)
+        self.load()
+
+    def load(self):
+        try:
+            data = self.api.get_bonus_rules()
+            rows = data.get("items", []) if isinstance(data, dict) else []
+            self.table.setRowCount(0)
+            for r in rows:
+                i = self.table.rowCount()
+                self.table.insertRow(i)
+                for j, val in enumerate([CATS.get(r.get("category"), r.get("category")),
+                                         EVTS.get(r.get("event"), r.get("event")),
+                                         "%" if r.get("mode") == "percent" else "фикс",
+                                         str(r.get("value")),
+                                         "да" if r.get("active") else "нет"]):
+                    it = QTableWidgetItem(str(val))
+                    if j == 0:
+                        it.setData(Qt.ItemDataRole.UserRole, str(r.get("id")))
+                    self.table.setItem(i, j, it))
+        except Exception as e:
+            QMessageBox.warning(self, "Бонусы", str(e)[:200])
+
+    def add(self):
+        dlg = FormDialog("Новое правило бонусов", [
+            ("category", "Категория (ALL/ADULT/CHILD/VIP/STAFF)"),
+            ("event", "Событие (topup/visit/purchase/review/subscription)"),
+            ("mode", "Тип (fix/percent)"),
+            ("value", "Значение (число, % или баллов)"),
+        ], self)
+        if dlg.exec() != FormDialog.DialogCode.Accepted:
+            return
+        v = {k: val for k, val in dlg.values().items() if str(val).strip()}
+        try:
+            v["value"] = float(str(v.get("value", "0")).replace(",", "."))
+        except ValueError:
+            QMessageBox.warning(self, "Бонусы", "Значение должно быть числом")
+            return
+        try:
+            self.api.create_bonus_rule(v)
+            self.load()
+        except Exception as e:
+            QMessageBox.warning(self, "Бонусы", str(e)[:200])
+
+    def delete(self):
+        row = self.table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "Бонусы", "Выберите правило в таблице")
+            return
+        rid = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        try:
+            self.api.delete_bonus_rule(rid)
+            self.load()
+        except Exception as e:
+            QMessageBox.warning(self, "Бонусы", str(e)[:200])
