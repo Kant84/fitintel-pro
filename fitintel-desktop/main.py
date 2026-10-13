@@ -1,3 +1,4 @@
+#fitintel-desktop\main.py"
 """FitIntel Pro Desktop — Entry Point
 
 Запуск:
