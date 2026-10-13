@@ -22,17 +22,19 @@ class MAXService:
         self.bot_token = bot_token or settings.MAX_BOT_TOKEN
 
     def _call(self, method: str, _query: dict | None = None, **params: Any) -> dict[str, Any]:
-        token = self.bot_token
+        # приоритет: токен из настроек клуба (max_bot_settings) —
+        # он же используется webhook'ом и Bridge; env — запасной вариант
+        token = None
+        try:
+            from sqlalchemy import text as _t
+            from app.db.session import engine as _eng
+            with _eng.connect() as _c:
+                _r = _c.execute(_t("SELECT bot_token FROM max_bot_settings WHERE id=1")).first()
+                token = _r[0] if _r else None
+        except Exception:
+            token = None
         if not token:
-            # fallback: токен бота из настроек клуба
-            try:
-                from sqlalchemy import text as _t
-                from app.db.session import engine as _eng
-                with _eng.connect() as _c:
-                    _r = _c.execute(_t("SELECT bot_token FROM max_bot_settings WHERE id=1")).first()
-                    token = _r[0] if _r else None
-            except Exception:
-                token = None
+            token = self.bot_token
         if not token:
             return {"ok": False, "error": "bot_token_not_configured"}
         import urllib.parse as _up
