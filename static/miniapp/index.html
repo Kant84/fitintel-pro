@@ -171,6 +171,7 @@ ${CFG.payments_enabled===false?`<div class="tile" onclick="go('services')">${svg
 <div class="card" style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
 <div><div style="font-size:16px;font-weight:700">Загруженность клуба</div><div style="font-size:26px;font-weight:800">0 чел.</div></div>
 <div style="width:64px;height:64px;border-radius:50%;background:var(--row);display:flex;align-items:center;justify-content:center;font-weight:700">0%</div></div>
+<div class="h2">НОВОСТИ КЛУБА</div><div class="card" id="newsbox"><span class="mut">Загрузка…</span></div>
 <div class="h2">НАШИ ТРЕНЕРЫ</div><div class="hscroll" id="trainers"><span class="mut">Загрузка…</span></div>`}
 function vShop(){if(CFG.payments_enabled===false)return `<div class="top">МАГАЗИН</div><div class="mut">Покупки через приложение временно отключены клубом</div>`;return `<div class="top">МАГАЗИН</div><div id="goods"><span class="mut">Загрузка…</span></div>`}
 function vServices(){return `<div class="top">УСЛУГИ</div><button class="btn solid" style="margin-bottom:12px" onclick="openBooking()">Записаться на занятие</button><div class="card" id="svclist"><span class="mut">Загрузка…</span></div>`}
@@ -249,6 +250,7 @@ async function load(t){
 if(t==='home'){try{const r=await api('/trainers/profiles');const rows=Array.isArray(r)?r:(r.items||r.profiles||r.trainers||r.data||[]);
 document.getElementById('trainers').innerHTML=(rows||[]).map(x=>{const ph=imgu(x.photo_url);
 return `<div class="trainer"><div class="ph" ${ph?`style="background-image:url('${ph}')"`:''}>${ph?'':'Фото'}</div><div class="nm">${esc(UMAP[String(x.user_id)]||x.full_name||x.name||x.specialization||'')}</div>${((UMAP[String(x.user_id)]||x.full_name||x.name)&&(x.specialization||''))?`<div style="font-size:11px;color:var(--muted)">${esc(x.specialization||'')}</div>`:''}</div>`}).join('')||'<span class="mut">Скоро</span>'}catch(e){document.getElementById('trainers').innerHTML='<span class="mut">Скоро</span>'}}
+if(t==='home'){try{const n=await api('/miniapp/news');const items=(n.items||[]).slice(0,3);document.getElementById('newsbox').innerHTML=items.length?items.map(x=>`<div class="svc"><div class="n">${esc(x.title)}</div><div class="p">${esc((x.body||'').slice(0,120))}</div></div>`).join(''):'<div class="mut">Новости скоро появятся</div>'}catch(e){const e2=document.getElementById('newsbox');if(e2)e2.innerHTML='<div class="mut">Новости скоро появятся</div>'}}
 if(t==='shop'){try{const g=await api('/warehouse/products?club_id=1');const rows=g.items||g;
 document.getElementById('goods').innerHTML=rows.length?rows.map(p=>`<div class="card"><div class="svc"><div class="n">${esc(p.name)}</div><div class="p">${esc(p.article||'')} · ${Number(p.sale_price||p.price||0)} ₽ · остаток: ${Number(p.quantity||0)}</div></div></div>`).join(''):'<div class="mut">Товары появятся скоро — уточните на ресепшене</div>'}catch(e){document.getElementById('goods').innerHTML='<div class="mut">Товары появятся скоро</div>'}}
 if(t==='services'){try{const s=await api('/services');const rows=s.items||s;
