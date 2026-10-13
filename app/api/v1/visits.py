@@ -130,7 +130,7 @@ def entry(
                     if _bonus and _bonus > 0:
                         _row = db.execute(_txt("SELECT phone FROM clients WHERE id::text=:c"), {"c": _cid}).first()
                         if _row and _row[0]:
-                            from app.integrations.max import get_max_service
+                            from app.integrations.max.service import get_max_service
                             get_max_service().send_message(phone_number=str(_row[0]),
                                 text=("🎁 +%d бонусов за посещение! Приходите чаще 💪" % int(_bonus)))
     except Exception as _e:
@@ -304,7 +304,7 @@ def manual_add_visit(
                     if _bonus and _bonus > 0:
                         _row = db.execute(_txt("SELECT phone FROM clients WHERE id::text=:c"), {"c": _cid}).first()
                         if _row and _row[0]:
-                            from app.integrations.max import get_max_service
+                            from app.integrations.max.service import get_max_service
                             get_max_service().send_message(phone_number=str(_row[0]),
                                 text=("🎁 +%d бонусов за посещение! Приходите чаще 💪" % int(_bonus)))
     except Exception as _e:
