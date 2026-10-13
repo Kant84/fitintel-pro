@@ -1,5 +1,5 @@
 ╤ЄЁєъЄєЁр яряюъ Єюьр Bot
-╤хЁшщэ√щ эюьхЁ Єюьр: 0041005C 9873:EDD1
+╤хЁшщэ√щ эюьхЁ Єюьр: 00000009 9873:EDD1
 E:\FITNEXUS AI\FITINTEL AI\APP
 ж   .gitignore
 ж   .license_key
