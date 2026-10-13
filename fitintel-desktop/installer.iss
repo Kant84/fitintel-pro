@@ -1,4 +1,4 @@
-﻿#define MyAppVersion "1.5.3"
+#define MyAppVersion "1.6.1"
 
 [Setup]
 AppName=FitIntel Pro Desktop
