@@ -303,21 +303,46 @@ class BonusRulesWidget(QWidget):
 
     def add(self):
         dlg = FormDialog("Новое правило бонусов", [
-            ("category", "Категория (ALL/ADULT/CHILD/VIP/STAFF)"),
-            ("event", "Событие (topup/visit/purchase/review/subscription)"),
-            ("mode", "Тип (fix/percent)"),
-            ("value", "Значение (число, % или баллов)"),
+            ("category", "Категория (Все, Взрослый, Ребёнок, VIP, Персонал)"),
+            ("event", "Событие (Пополнение, Посещение, Покупка, Отзыв, Продление)"),
+            ("mode", "Тип (фикс или %)"),
+            ("value", "Значение (число: баллы или %)"),
         ], self)
         if dlg.exec() != FormDialog.DialogCode.Accepted:
             return
-        v = {k: val for k, val in dlg.values().items() if str(val).strip()}
-        try:
-            v["value"] = float(str(v.get("value", "0")).replace(",", "."))
-        except ValueError:
-            QMessageBox.warning(self, "Бонусы", "Значение должно быть числом")
+        raw = {k: str(val).strip() for k, val in dlg.values().items() if str(val).strip()}
+        cats = {"все": "ALL", "взрослый": "ADULT", "ребёнок": "CHILD", "ребенок": "CHILD",
+                "vip": "VIP", "персонал": "STAFF",
+                "all": "ALL", "adult": "ADULT", "child": "CHILD", "staff": "STAFF"}
+        evts = {"пополнение": "topup", "пополнение кошелька": "topup", "посещение": "visit",
+                "покупка": "purchase", "отзыв": "review", "продление": "subscription",
+                "продление абонемента": "subscription",
+                "topup": "topup", "visit": "visit", "purchase": "purchase",
+                "review": "review", "subscription": "subscription"}
+        modes = {"фикс": "fix", "процент": "percent", "%": "percent",
+                 "fix": "fix", "percent": "percent"}
+        cat = cats.get(raw.get("category", "").lower())
+        if not cat:
+            QMessageBox.warning(self, "Бонусы",
+                "Категория: введите «Все», «Взрослый», «Ребёнок», «VIP» или «Персонал»")
+            return
+        evt = evts.get(raw.get("event", "").lower())
+        if not evt:
+            QMessageBox.warning(self, "Бонусы",
+                "Событие: введите «Пополнение», «Посещение», «Покупка», «Отзыв» или «Продление»")
+            return
+        mode = modes.get(raw.get("mode", "").lower())
+        if not mode:
+            QMessageBox.warning(self, "Бонусы",
+                "Тип: введите «фикс» (баллы) или «%» (процент от суммы)")
             return
         try:
-            self.api.create_bonus_rule(v)
+            value = float(raw.get("value", "").replace(",", "."))
+        except ValueError:
+            QMessageBox.warning(self, "Бонусы", "Значение должно быть числом (например: 7 или 50)")
+            return
+        try:
+            self.api.create_bonus_rule({"category": cat, "event": evt, "mode": mode, "value": value})
             self.load()
         except Exception as e:
             QMessageBox.warning(self, "Бонусы", str(e)[:200])
