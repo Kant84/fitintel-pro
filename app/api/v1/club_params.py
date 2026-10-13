@@ -44,6 +44,11 @@ if engine is None or not _ping(engine):
         raise RuntimeError("club_params: DB engine not available")
 
 DEFAULT_PARAMS = {
+    "WALLET_PAY_PROVIDER": ("test", "Провайдер пополнения: test/yookassa/sbp"),
+    "WALLET_TOPUP_MIN": ("100", "Мин. сумма пополнения, руб."),
+    "WALLET_BONUS_PERCENT": ("5", "Бонусы от пополнения, %"),
+    "YK_SHOP_ID": ("", "ЮKassa shopId"),
+    "YK_SECRET_KEY": ("", "ЮKassa секретный ключ"),
     "QR_STAFF_ENABLED": ("0", "QR для сотрудников (служебный пропуск): 1 — включён, 0 — выключен"),
     "SLOT_MINUTES": ("45", "Длительность слота тренера, минут"),
     "CONFIRM_DEADLINE_HOURS": ("6", "Дедлайн подтверждения брони до занятия, часов"),

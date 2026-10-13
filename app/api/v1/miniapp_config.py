@@ -366,3 +366,76 @@ def miniapp_wallet(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
         g = db.execute(_t("SELECT current_xp FROM gamification_levels WHERE client_id::text=:c LIMIT 1"), {"c": cid}).first()
         out["bonuses"] = float(g[0]) if g and g[0] is not None else None
     return out
+
+
+# === W6: пополнение кошелька ===
+class TopupIn(_BM):
+    amount: float
+
+
+def _wallet_cfg(db):
+    from app.api.v1.club_params import get_param
+    try:
+        return {"provider": get_param("WALLET_PAY_PROVIDER", "test") or "test",
+                "min": float(get_param("WALLET_TOPUP_MIN", "100") or 100),
+                "bonus_percent": float(get_param("WALLET_BONUS_PERCENT", "5") or 5)}
+    except Exception:
+        return {"provider": "test", "min": 100.0, "bonus_percent": 5.0}
+
+
+@router.get("/miniapp/wallet/config")
+def wallet_config(db: _S = _Dep(_gdb)):
+    return _wallet_cfg(db)
+
+
+def _wallet_credit(db, client_id: str, amount: float, bonus_percent: float) -> dict:
+    w = db.execute(_t("SELECT id, balance FROM wallets WHERE client_id::text=:c"), {"c": client_id}).first()
+    if w:
+        db.execute(_t("UPDATE wallets SET balance=balance+:a, updated_at=now() WHERE id=:i"), {"a": amount, "i": str(w[0])})
+        bal = float(w[1] or 0) + amount
+    else:
+        db.execute(_t("INSERT INTO wallets (id, client_id, balance, currency, created_at, updated_at) VALUES (:i,:c,:a,'RUB', now(), now())"),
+                   {"i": str(_uuid.uuid4()), "c": client_id, "a": amount})
+        bal = amount
+    tcols = {r[0] for r in db.execute(_t("SELECT column_name FROM information_schema.columns WHERE table_name='wallet_transactions'"))}
+    td = {k: v for k, v in {"id": str(_uuid.uuid4()), "client_id": client_id, "amount": amount,
+                            "type": "topup", "transaction_type": "topup",
+                            "description": "Пополнение через приложение",
+                            "created_at": _dtn.now(_tzn.utc), "updated_at": _dtn.now(_tzn.utc)}.items() if k in tcols}
+    if td:
+        db.execute(_t("INSERT INTO wallet_transactions (" + ",".join(td) + ") VALUES (" + ",".join(":" + k for k in td) + ")"), td)
+    bonus = round(amount * bonus_percent / 100.0, 2)
+    g = db.execute(_t("SELECT id FROM gamification_levels WHERE client_id::text=:c"), {"c": client_id}).first()
+    if g:
+        db.execute(_t("UPDATE gamification_levels SET current_xp=current_xp+:b, updated_at=now() WHERE id=:i"), {"b": bonus, "i": str(g[0])})
+    else:
+        gcols = {r[0] for r in db.execute(_t("SELECT column_name FROM information_schema.columns WHERE table_name='gamification_levels'"))}
+        gd = {k: v for k, v in {"id": str(_uuid.uuid4()), "client_id": client_id, "current_xp": bonus, "level": 1,
+                                "xp_to_next": 100, "total_visits": 0, "total_workout_minutes": 0, "streak_days": 0,
+                                "max_streak_days": 0, "achievements_count": 0,
+                                "created_at": _dtn.now(_tzn.utc), "updated_at": _dtn.now(_tzn.utc)}.items() if k in gcols}
+        db.execute(_t("INSERT INTO gamification_levels (" + ",".join(gd) + ") VALUES (" + ",".join(":" + k for k in gd) + ")"), gd)
+    db.commit()
+    return {"balance": round(bal, 2), "bonuses_added": bonus}
+
+
+@router.post("/miniapp/wallet/topup")
+def wallet_topup(body: TopupIn, current=Depends(_gcu), db: _S = _Dep(_gdb)):
+    cfg = _wallet_cfg(db)
+    amount = round(float(body.amount), 2)
+    if amount < cfg["min"]:
+        raise _HE(422, "Минимальная сумма пополнения: %s руб." % int(cfg["min"]))
+    c = db.execute(_t("SELECT id FROM clients WHERE user_id=:u LIMIT 1"), {"u": str(current.id)}).first()
+    if not c:
+        raise _HE(404, "Карточка клиента не найдена")
+    cid = str(c[0])
+    if cfg["provider"] == "test":
+        return {"ok": True, "provider": "test", **_wallet_credit(db, cid, amount, cfg["bonus_percent"])}
+    if cfg["provider"] == "yookassa":
+        from app.services.yookassa_service import YooKassaService
+        pay = YooKassaService(db).create_payment(
+            amount, "Пополнение кошелька", "https://fixintel.ru/static/miniapp/index.html",
+            metadata={"wallet_topup": "1", "client_id": cid, "bonus_percent": str(cfg["bonus_percent"])})
+        url = ((pay or {}).get("confirmation") or {}).get("confirmation_url") or (pay or {}).get("payment_url")
+        return {"ok": True, "provider": "yookassa", "payment_url": url, "payment_id": (pay or {}).get("id")}
+    raise _HE(503, "Провайдер '%s' пока не подключен" % cfg["provider"])
