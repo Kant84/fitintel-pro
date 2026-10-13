@@ -588,15 +588,28 @@ def _as_sched(x):
 
 @router.get("/miniapp/booking/catalog")
 def booking_catalog(db: _S = _Dep(_gdb)):
-    trainers = [{"id": str(r[0]), "name": (r[3] or r[4] or "Тренер"), "spec": r[2] or ""}
-                for r in db.execute(_t("SELECT tp.id, tp.user_id, tp.specialization, u.full_name, u.username "
-                                       "FROM trainer_profiles tp LEFT JOIN users u ON u.id::text=tp.user_id::text "
-                                       "WHERE tp.is_active=TRUE ORDER BY u.full_name")).fetchall()]
-    services = [{"id": str(r[0]), "trainer_id": str(r[1]) if r[1] else None, "name": r[2],
-                 "price": float(r[3] or 0), "duration": r[4], "schedule": _as_sched(r[5])}
-                for r in db.execute(_t("SELECT id, trainer_id, name, price, duration_minutes, schedule "
-                                       "FROM services WHERE is_active=TRUE ORDER BY name")).fetchall()]
-    return {"trainers": trainers, "services": services}
+    trainers = {}
+    for r in db.execute(_t("SELECT tp.id, tp.user_id, tp.specialization, u.full_name, u.username "
+                           "FROM trainer_profiles tp LEFT JOIN users u ON u.id::text=tp.user_id::text "
+                           "WHERE tp.is_active=TRUE")).fetchall():
+        tid = str(r[0])
+        trainers[tid] = {"id": tid, "name": (r[3] or r[4] or "Тренер"), "spec": r[2] or ""}
+        if r[1]:
+            trainers.setdefault("u:" + str(r[1]), trainers[tid])
+    services = []
+    for r in db.execute(_t("SELECT id, trainer_id, name, price, duration_minutes, schedule "
+                           "FROM services WHERE is_active=TRUE ORDER BY name")).fetchall():
+        raw = str(r[1]) if r[1] else None
+        t = trainers.get(raw) or (trainers.get("u:" + raw) if raw else None)
+        if t is None and raw:
+            u = db.execute(_t("SELECT full_name, username FROM users WHERE id::text=:x"), {"x": raw}).first()
+            nm = (u[0] or u[1] or "Тренер") if u else "Тренер"
+            t = {"id": "ext:" + raw, "name": nm, "spec": ""}
+            trainers[t["id"]] = t
+        services.append({"id": str(r[0]), "trainer_id": (t or {}).get("id"), "name": r[2],
+                         "price": float(r[3] or 0), "duration": r[4], "schedule": _as_sched(r[5])})
+    return {"trainers": [v for k, v in trainers.items() if not k.startswith("u:")],
+            "services": services}
 
 
 @router.get("/miniapp/booking/slots")
