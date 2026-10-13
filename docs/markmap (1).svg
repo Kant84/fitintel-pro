@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="markmap mm-cul4vy-8" style="width: 100%; height: 100%;"><style>.markmap{--markmap-max-width: 9999px;--markmap-a-color: #0097e6;--markmap-a-hover-color: #00a8ff;--markmap-code-bg: #f0f0f0;--markmap-code-color: #555;--markmap-highlight-bg: #ffeaa7;--markmap-table-border: 1px solid currentColor;--markmap-font: 300 16px/20px sans-serif;--markmap-circle-open-bg: #fff;--markmap-text-color: #333;--markmap-highlight-node-bg: #ff02;font:var(--markmap-font);color:var(--markmap-text-color)}.markmap-link{fill:none}.markmap-node&gt;circle{cursor:pointer}.markmap-foreign{display:inline-block}.markmap-foreign p{margin:0}.markmap-foreign a{color:var(--markmap-a-color)}.markmap-foreign a:hover{color:var(--markmap-a-hover-color)}.markmap-foreign code{padding:.25em;font-size:calc(1em - 2px);color:var(--markmap-code-color);background-color:var(--markmap-code-bg);border-radius:2px}.markmap-foreign pre{margin:0}.markmap-foreign pre&gt;code{display:block}.markmap-foreign del{text-decoration:line-through}.markmap-foreign em{font-style:italic}.markmap-foreign strong{font-weight:700}.markmap-foreign mark{background:var(--markmap-highlight-bg)}.markmap-foreign table,.markmap-foreign th,.markmap-foreign td{border-collapse:collapse;border:var(--markmap-table-border)}.markmap-foreign img{display:inline-block}.markmap-foreign svg{fill:currentColor}.markmap-foreign&gt;div{width:var(--markmap-max-width);text-align:left}.markmap-foreign&gt;div&gt;div{display:inline-block}.markmap-highlight rect{fill:var(--markmap-highlight-node-bg)}.markmap-dark .markmap{--markmap-code-bg: #1a1b26;--markmap-code-color: #ddd;--markmap-circle-open-bg: #444;--markmap-text-color: #eee}</style><g transform="translate(20.000000000000057,300) scale(0.7941483803552768)"><path class="markmap-link" data-depth="2" data-path="1.2" d="M391,11.25C431,11.25,431,21.875,471,21.875" stroke-width="1.75" stroke="rgb(255, 127, 14)"/><g class="markmap-highlight"/><g data-depth="2" data-path="1.2" class="markmap-node" transform="translate(471, -21)"><line stroke="#ff7f0e" stroke-width="1.75" x1="-1" x2="488" y1="42.875" y2="42.875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="470" height="42"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><table data-lines="162,165">
+<thead data-lines="162,163">
+<tr data-lines="162,163">
+<th>Провайдер</th>
+<th>Модель коробки</th>
+<th>API</th>
+<th>Адаптер</th>
+<th>dj_*</th>
+<th>Примечания</th>
+</tr>
+</thead>
+<tbody data-lines="164,165">
+<tr data-lines="164,165">
+<td>(пример)</td>
+<td>Trison Box X</td>
+<td>HTTP</td>
+<td>нет</td>
+<td>нет</td>
+<td>только фон → Б3</td>
+</tr>
+</tbody>
+</table></div></div></foreignObject></g><g data-depth="1" data-path="1" class="markmap-node" transform="translate(0, -10)"><line stroke="#1f77b4" stroke-width="2.5" x1="-1" x2="393" y1="21.25" y2="21.25"/><circle stroke-width="1.5" r="6" stroke="#1f77b4" fill="var(--markmap-circle-open-bg)" cx="391" cy="21.25"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="375" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">FitIntel Pro — Музыка/DJ: алгоритмы подключения</div></div></foreignObject></g></g></svg>
