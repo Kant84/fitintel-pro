@@ -79,6 +79,8 @@ class _ClientGenderMixin:
 
 # схема ответа по клиенту
 class ClientResponse(BaseModel):
+    wallet_balance: float | None = None
+    bonuses: float | None = None
     # разрешаем строить схему из ORM-объектов
     model_config = ConfigDict(from_attributes=True)
 
