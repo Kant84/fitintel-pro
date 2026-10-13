@@ -12,7 +12,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-API_BASE = "https://platform-api2.max.ru"
+API_BASE = "https://platform-api.max.ru"
 
 
 class MAXService:
@@ -104,7 +104,17 @@ class MAXService:
             "format": "markdown" if str(parse_mode).lower() == "markdown" else "html",
         }
         if reply_markup:
-            params["attachments"] = json.dumps(reply_markup)
+            # Telegram-стиль {"inline_keyboard": [[{"text","url"}...]...]}
+            # -> официальный формат attachments MAX
+            try:
+                _rows = (reply_markup or {}).get("inline_keyboard", [])
+                _buttons = [[{"type": "link", "text": b.get("text", ""),
+                              "url": b.get("url", "")} for b in _row] for _row in _rows]
+                if _buttons:
+                    params["attachments"] = [{"type": "inline_keyboard",
+                                              "payload": {"buttons": _buttons}}]
+            except Exception:
+                pass
         return self._call("messages", _query=query, **params)
 
     def send_push_by_phone(self, phone_number: str, title: str, body: str, action_url: str | None = None) -> dict[str, Any]:

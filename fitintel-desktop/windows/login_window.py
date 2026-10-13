@@ -47,7 +47,7 @@ class LoginWindow(QWidget):
         _cfg = _load_settings()
         self.api = ApiClient(base_url=_cfg.get("api_base", "http://localhost:8001/api/v1"))
         self.setWindowTitle("FitIntel Pro — Авторизация")
-        self.setFixedSize(480, 560)
+        self.setFixedSize(480, 690)
         self.setStyleSheet(self._stylesheet())
         self._build_ui()
         self._center()
@@ -125,10 +125,25 @@ class LoginWindow(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
+        # ICONS-APPLY: login logo
+        try:
+            from PyQt6.QtGui import QPixmap as _PM
+            from PyQt6.QtWidgets import QLabel as _Lbl
+            from pathlib import Path as _P2
+            _lg = _P2(__file__).resolve().parents[1] / 'assets' / 'logo_wave.png'
+            if _lg.exists():
+                _l = _Lbl()
+                _l.setPixmap(_PM(str(_lg)).scaledToWidth(180))
+                _l.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                layout.addWidget(_l)
+        except Exception:
+            pass
+
+
         layout.setContentsMargins(40, 40, 40, 40)
         layout.setSpacing(0)
 
-        self.title_lbl = QLabel("FitIntel Pro")
+        self.title_lbl = QLabel("")
         self.title_lbl.setObjectName("title")
         self.title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.title_lbl)
