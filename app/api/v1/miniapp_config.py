@@ -424,13 +424,36 @@ def _wallet_credit(db, client_id: str, amount: float, bonus_percent: float) -> d
         db.execute(_t("INSERT INTO wallets (id, client_id, balance, frozen_balance, currency, created_at, updated_at) VALUES (:i,:c,:a,0,'RUB', now(), now())"),
                    {"i": wid, "c": client_id, "a": amount})
         bal = amount
+    rneed = {r[0]: r[1] for r in db.execute(_t("SELECT column_name, data_type FROM information_schema.columns WHERE table_name='wallet_transactions' AND is_nullable='NO' AND column_default IS NULL"))}
+    td = {"id": str(_uuid.uuid4()), "wallet_id": wid, "client_id": client_id, "amount": amount,
+          "type": "topup", "transaction_type": "topup", "description": "Пополнение через приложение",
+          "balance_before": round(bal - amount, 2), "balance_after": round(bal, 2),
+          "created_at": _dtn.now(_tzn.utc), "updated_at": _dtn.now(_tzn.utc)}
+    for col, dt in rneed.items():
+        if col in td:
+            continue
+        if col == "id":
+            td[col] = str(_uuid.uuid4())
+        elif col == "wallet_id":
+            td[col] = wid
+        elif col == "client_id":
+            td[col] = client_id
+        elif col == "balance_before":
+            td[col] = round(bal - amount, 2)
+        elif col == "balance_after":
+            td[col] = round(bal, 2)
+        elif dt.startswith("timestamp") or col.endswith("_at"):
+            td[col] = _dtn.now(_tzn.utc)
+        elif dt == "boolean":
+            td[col] = False
+        elif dt.startswith(("int", "numeric", "float", "double")):
+            td[col] = 0
+        else:
+            td[col] = "topup"
+    td = {k: v for k, v in td.items() if k in rneed or k in ("type",)}
     tcols = {r[0] for r in db.execute(_t("SELECT column_name FROM information_schema.columns WHERE table_name='wallet_transactions'"))}
-    td = {k: v for k, v in {"id": str(_uuid.uuid4()), "wallet_id": wid, "client_id": client_id, "amount": amount,
-                            "type": "topup", "transaction_type": "topup",
-                            "description": "Пополнение через приложение",
-                            "created_at": _dtn.now(_tzn.utc), "updated_at": _dtn.now(_tzn.utc)}.items() if k in tcols}
-    if td:
-        db.execute(_t("INSERT INTO wallet_transactions (" + ",".join(td) + ") VALUES (" + ",".join(":" + k for k in td) + ")"), td)
+    td = {k: v for k, v in td.items() if k in tcols}
+    db.execute(_t("INSERT INTO wallet_transactions (" + ",".join(td) + ") VALUES (" + ",".join(":" + k for k in td) + ")"), td)
     bonus = round(amount * bonus_percent / 100.0, 2)
     g = db.execute(_t("SELECT id FROM gamification_levels WHERE client_id::text=:c"), {"c": client_id}).first()
     if g:
