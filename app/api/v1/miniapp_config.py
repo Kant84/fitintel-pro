@@ -665,3 +665,96 @@ def booking_my(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
                          "JOIN services s ON s.id::text=b.service_id::text "
                          "WHERE b.client_id::text=:c ORDER BY b.booking_date DESC LIMIT 50"), {"c": cid}).fetchall()
     return {"items": [{"id": str(r[0]), "when": str(r[1])[:16], "status": r[2], "service": r[3]} for r in rows]}
+
+
+# === W6: уведомления — напоминания о занятиях + новости/акции ===
+from datetime import timedelta as _tdl
+
+
+def _max_send(phone: str, text: str):
+    try:
+        from app.integrations.max import get_max_service
+        return get_max_service().send_message(phone_number=str(phone or ""), text=text)
+    except Exception as _e:
+        print("W6 send:", str(_e)[:100])
+        return {}
+
+
+def _booking_reminder_job():
+    try:
+        from app.db.session import SessionLocal
+        db = SessionLocal()
+        try:
+            with db.begin():
+                db.execute(_t(f"ALTER TABLE {_bk_tbl()} ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMPTZ"))
+            from app.api.v1.club_params import get_param
+            hours = float(get_param("BOOKING_REMIND_HOURS", "3") or 3)
+            now = _dtn.now(_tzn.utc)
+            a = (now + _tdl(hours=hours) - _tdl(minutes=20)).replace(tzinfo=None)
+            z = (now + _tdl(hours=hours)).replace(tzinfo=None)
+            rows = db.execute(_t(
+                f"SELECT b.id, b.booking_date, s.name, c.phone FROM {_bk_tbl()} b "
+                "JOIN services s ON s.id::text=b.service_id::text "
+                "JOIN clients c ON c.id::text=b.client_id::text "
+                "WHERE b.status IN ('BOOKED','CONFIRMED') AND b.booking_date BETWEEN :a AND :z "
+                "AND b.reminded_at IS NULL AND c.phone IS NOT NULL AND c.phone <> '' LIMIT 50"),
+                {"a": a, "z": z}).fetchall()
+            for rid, when, name, phone in rows:
+                try:
+                    dtxt = when.strftime("%d.%m") if when.date() != now.date() else "Сегодня"
+                    _max_send(phone, f"🔔 Напоминание: {dtxt} в {when.strftime('%H:%M')} — {name}. Ждём вас!")
+                    db.execute(_t(f"UPDATE {_bk_tbl()} SET reminded_at=now() WHERE id::text=:r"), {"r": str(rid)})
+                    db.commit()
+                except Exception:
+                    db.rollback()
+        finally:
+            db.close()
+    except Exception as _e:
+        print("W6 booking remind:", str(_e)[:120])
+
+
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler as _BS2
+    _rem_sched = _BS2()
+    _rem_sched.add_job(_booking_reminder_job, "interval", minutes=20, id="w6_booking_remind")
+    _rem_sched.start()
+    print("W6 booking reminders OK (every 20 min)")
+except Exception as _e:
+    print("W6 booking reminders FAIL:", str(_e)[:120])
+
+
+def _ensure_posts(db):
+    db.execute(_t("CREATE TABLE IF NOT EXISTS club_posts ("
+                  "id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
+                  "title VARCHAR(200) NOT NULL, body TEXT, created_at TIMESTAMPTZ DEFAULT now())"))
+    db.commit()
+
+
+class PostIn(_BM):
+    title: str = _FL(min_length=2, max_length=200)
+    body: str = ""
+
+
+@router.post("/miniapp/news")
+def news_publish(body: PostIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
+    _ensure_posts(db)
+    db.execute(_t("INSERT INTO club_posts (id, title, body, created_at) VALUES (:i,:t,:b, now())"),
+               {"i": str(_uuid.uuid4()), "t": body.title.strip()[:200], "b": (body.body or "")[:4000]})
+    db.commit()
+    rows = db.execute(_t(
+        "SELECT DISTINCT c.phone FROM max_bot_bindings mb JOIN clients c "
+        "ON replace(mb.client_id,'-','')=replace(c.id::text,'-','') "
+        "WHERE c.phone IS NOT NULL AND c.phone <> ''")).fetchall()
+    sent = 0
+    for (phone,) in rows:
+        _max_send(phone, f"📣 {body.title.strip()}\n\n{(body.body or '').strip()[:500]}")
+        sent += 1
+    return {"ok": True, "sent": sent}
+
+
+@router.get("/miniapp/news")
+def news_feed(db: _S = _Dep(_gdb)):
+    _ensure_posts(db)
+    rows = db.execute(_t("SELECT id, title, body, created_at FROM club_posts ORDER BY created_at DESC LIMIT 10")).fetchall()
+    return {"items": [{"id": str(r[0]), "title": r[1], "body": r[2],
+                       "created_at": str(r[3])[:16]} for r in rows]}
