@@ -1,3 +1,4 @@
+#fitintel-desktop\windows\__init__.py"
 from .login_window import LoginWindow
 from .main_window import MainWindow
 from .clients_tab import ClientsTab
