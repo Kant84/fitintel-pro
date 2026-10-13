@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 def max_send_verification_code(self, phone_number: str = "", code: str = "") -> dict[str, Any]:
     """Send phone verification code via MAX push notification."""
     try:
-        from app.integrations.max import get_max_service
+        from app.integrations.max.service import get_max_service
         svc = get_max_service()
         text = (
             f"<b>🔐 Код подтверждения</b>\n\n"
@@ -34,7 +34,7 @@ def max_send_verification_code(self, phone_number: str = "", code: str = "") -> 
 def max_send_push(self, phone_number: str = "", title: str = "", body: str = "") -> dict[str, Any]:
     """Send push notification via MAX."""
     try:
-        from app.integrations.max import get_max_service
+        from app.integrations.max.service import get_max_service
         svc = get_max_service()
         result = svc.send_push_by_phone(phone_number=phone_number, title=title, body=body)
         logger.info("MAX push to %s: %s", phone_number, result.get("ok"))
@@ -49,7 +49,7 @@ def max_send_workout_reminder(self, phone_number: str = "", client_name: str = "
                                trainer_name: str | None = None) -> dict[str, Any]:
     """Send workout reminder via MAX."""
     try:
-        from app.integrations.max import get_max_service
+        from app.integrations.max.service import get_max_service
         svc = get_max_service()
         result = svc.send_workout_reminder(
             phone_number=phone_number, client_name=client_name,
@@ -65,7 +65,7 @@ def max_send_payment_due(self, phone_number: str = "", client_name: str = "", am
                          due_date: str = "", description: str = "", payment_url: str | None = None) -> dict[str, Any]:
     """Send payment due reminder via MAX."""
     try:
-        from app.integrations.max import get_max_service
+        from app.integrations.max.service import get_max_service
         svc = get_max_service()
         result = svc.send_payment_due(
             phone_number=phone_number, client_name=client_name,
@@ -81,7 +81,7 @@ def max_send_payment_confirmation(self, phone_number: str = "", client_name: str
                                   amount: float = 0.0, description: str = "") -> dict[str, Any]:
     """Send payment confirmation via MAX."""
     try:
-        from app.integrations.max import get_max_service
+        from app.integrations.max.service import get_max_service
         svc = get_max_service()
         result = svc.send_payment_confirmation(
             phone_number=phone_number, client_name=client_name, amount=amount, description=description,
@@ -96,7 +96,7 @@ def max_send_subscription_expired(self, phone_number: str = "", client_name: str
                                   subscription_name: str = "", renewal_url: str | None = None) -> dict[str, Any]:
     """Send subscription expiry via MAX."""
     try:
-        from app.integrations.max import get_max_service
+        from app.integrations.max.service import get_max_service
         svc = get_max_service()
         result = svc.send_subscription_expired(
             phone_number=phone_number, client_name=client_name,
@@ -112,7 +112,7 @@ def max_send_birthday_greeting(self, phone_number: str = "", client_name: str = 
                                 club_name: str | None = None, gift_code: str | None = None) -> dict[str, Any]:
     """Send birthday greeting via MAX."""
     try:
-        from app.integrations.max import get_max_service
+        from app.integrations.max.service import get_max_service
         svc = get_max_service()
         result = svc.send_birthday_greeting(
             phone_number=phone_number, client_name=client_name, club_name=club_name, gift_code=gift_code,
@@ -128,7 +128,7 @@ def max_send_promotion(self, phone_number: str = "", title: str = "", descriptio
                        discount_percent: int | None = None) -> dict[str, Any]:
     """Send promotional offer via MAX."""
     try:
-        from app.integrations.max import get_max_service
+        from app.integrations.max.service import get_max_service
         svc = get_max_service()
         result = svc.send_promotion(
             phone_number=phone_number, title=title, description=description,
@@ -144,7 +144,7 @@ def max_send_staff_alert(self, phone_number: str = "", alert_type: str = "", mes
                          priority: str = "normal") -> dict[str, Any]:
     """Send staff alert via MAX."""
     try:
-        from app.integrations.max import get_max_service
+        from app.integrations.max.service import get_max_service
         svc = get_max_service()
         result = svc.send_staff_alert(
             phone_number=phone_number, alert_type=alert_type, message=message, priority=priority,
@@ -158,7 +158,7 @@ def max_send_staff_alert(self, phone_number: str = "", alert_type: str = "", mes
 def max_send_visit_entry(self, phone_number: str = "", client_name: str = "", entry_time: str = "") -> dict[str, Any]:
     """Send visit entry via MAX."""
     try:
-        from app.integrations.max import get_max_service
+        from app.integrations.max.service import get_max_service
         svc = get_max_service()
         result = svc.send_visit_entry(phone_number=phone_number, client_name=client_name, entry_time=entry_time)
         return result
@@ -171,7 +171,7 @@ def max_send_visit_exit(self, phone_number: str = "", client_name: str = "", exi
                         duration: str = "") -> dict[str, Any]:
     """Send visit exit via MAX."""
     try:
-        from app.integrations.max import get_max_service
+        from app.integrations.max.service import get_max_service
         svc = get_max_service()
         result = svc.send_visit_exit(phone_number=phone_number, client_name=client_name, exit_time=exit_time, duration=duration)
         return result
@@ -183,7 +183,7 @@ def max_send_visit_exit(self, phone_number: str = "", client_name: str = "", exi
 def max_broadcast_by_phone(self, phone_numbers: list[str] = None, title: str = "", body: str = "") -> list[dict[str, Any]]:
     """Broadcast push to multiple phone numbers via MAX."""
     try:
-        from app.integrations.max import get_max_service
+        from app.integrations.max.service import get_max_service
         svc = get_max_service()
         text = f"<b>{title}</b>\n\n{body}" if title else body
         results = svc.broadcast_by_phone(phone_numbers=phone_numbers or [], text=text)

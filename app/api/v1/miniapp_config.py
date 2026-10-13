@@ -686,7 +686,7 @@ from datetime import timedelta as _tdl
 
 def _max_send(phone: str, text: str):
     try:
-        from app.integrations.max import get_max_service
+        from app.integrations.max.service import get_max_service
         return get_max_service().send_message(phone_number=str(phone or ""), text=text)
     except Exception as _e:
         print("W6 send:", str(_e)[:100])
