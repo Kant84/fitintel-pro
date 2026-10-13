@@ -333,3 +333,8 @@ class BonusRulesWidget(QWidget):
             self.load()
         except Exception as e:
             QMessageBox.warning(self, "Бонусы", str(e)[:200])
+
+
+from PyQt6.QtCore import Qt  # W6-fix
+from PyQt6.QtWidgets import QMessageBox  # W6-fix
+from windows.form_dialog import FormDialog  # W6-fix

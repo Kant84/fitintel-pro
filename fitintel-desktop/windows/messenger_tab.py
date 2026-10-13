@@ -438,3 +438,6 @@ class MessengerTab(QWidget):
                 self.lbl_news.setText("Опубликовано. Разослано клиентам: %s" % r.get("sent"))
                 self.ed_nt.clear(); self.ed_nb.clear()
         self._run(lambda: self.api.publish_news({"title": t, "body": b}), _done)
+
+
+from PyQt6.QtWidgets import QPlainTextEdit, QMessageBox  # W6-fix
