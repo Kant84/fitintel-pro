@@ -1,3 +1,4 @@
+from windows.form_dialog import FormDialog
 """FitIntel Pro — вкладка «Параметры клуба» (W5): временные параметры + лейблы бота.
 
 Данные: GET/PUT /api/v1/club-params, GET/PUT /api/v1/bot-labels.
