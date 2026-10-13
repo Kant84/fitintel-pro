@@ -577,6 +577,15 @@ def _bk_tbl():
     return _SBk.__tablename__
 
 
+def _as_sched(x):
+    if isinstance(x, dict):
+        return x
+    try:
+        return _js.loads(x or "{}")
+    except Exception:
+        return {}
+
+
 @router.get("/miniapp/booking/catalog")
 def booking_catalog(db: _S = _Dep(_gdb)):
     trainers = [{"id": str(r[0]), "name": (r[3] or r[4] or "Тренер"), "spec": r[2] or ""}
@@ -584,7 +593,7 @@ def booking_catalog(db: _S = _Dep(_gdb)):
                                        "FROM trainer_profiles tp LEFT JOIN users u ON u.id::text=tp.user_id::text "
                                        "WHERE tp.is_active=TRUE ORDER BY u.full_name")).fetchall()]
     services = [{"id": str(r[0]), "trainer_id": str(r[1]) if r[1] else None, "name": r[2],
-                 "price": float(r[3] or 0), "duration": r[4], "schedule": _js.loads(r[5] or "{}")}
+                 "price": float(r[3] or 0), "duration": r[4], "schedule": _as_sched(r[5])}
                 for r in db.execute(_t("SELECT id, trainer_id, name, price, duration_minutes, schedule "
                                        "FROM services WHERE is_active=TRUE ORDER BY name")).fetchall()]
     return {"trainers": trainers, "services": services}
@@ -596,7 +605,7 @@ def booking_slots(service_id: str, day: str, db: _S = _Dep(_gdb)):
     if not svc:
         raise _HE(404, "Услуга не найдена")
     out = []
-    for sl in ((_js.loads(svc[0] or "{}").get("time_slots")) or []):
+    for sl in ((_as_sched(svc[0]).get("time_slots")) or []):
         t = sl.get("time", "")
         cap = int(sl.get("capacity", 1) or 1)
         try:
@@ -630,7 +639,7 @@ def booking_create(body: BookIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     except Exception:
         raise _HE(422, "Некорректные дата/время")
     cap = 1
-    for sl in ((_js.loads(svc[0] or "{}").get("time_slots")) or []):
+    for sl in ((_as_sched(svc[0]).get("time_slots")) or []):
         if sl.get("time") == body.time:
             cap = int(sl.get("capacity", 1) or 1)
     booked = db.execute(_t(f"SELECT count(*) FROM {_bk_tbl()} WHERE service_id::text=:s AND booking_date=:b "
