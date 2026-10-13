@@ -69,7 +69,6 @@ class MessengerTab(QWidget):
         self.load_bindings()
         self.load_journal()
         self.load_feedback()
-        self.load_news()
         self._run(self.api.get_clients, self._fill_clients)
 
     # ---------- infra ----------
