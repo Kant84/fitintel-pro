@@ -43,8 +43,14 @@ class MAXService:
         body = json.dumps(payload, ensure_ascii=False, default=str).encode()
         headers = {"Content-Type": "application/json", "Authorization": token}
         try:
+            import ssl as _ssl
+            try:
+                import certifi as _cf
+                _ctx = _ssl.create_default_context(cafile=_cf.where())
+            except Exception:
+                _ctx = _ssl.create_default_context()
             req = urllib.request.Request(url, data=body, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=30, context=_ctx) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except Exception as e:
             logger.error("MAX request failed: %s", e)
