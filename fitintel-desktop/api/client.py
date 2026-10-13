@@ -716,3 +716,8 @@ def delete_bonus_rule(self, rid):
 setattr(ApiClient, "get_bonus_rules", get_bonus_rules)
 setattr(ApiClient, "create_bonus_rule", create_bonus_rule)
 setattr(ApiClient, "delete_bonus_rule", delete_bonus_rule)
+
+def publish_news(self, body):
+    return _e55_post(self, "/miniapp/news", body)
+
+setattr(ApiClient, "publish_news", publish_news)

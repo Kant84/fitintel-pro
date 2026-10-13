@@ -64,10 +64,12 @@ class MessengerTab(QWidget):
         self._build_reminders()
         self._build_journal()
         self._build_feedback()
+        self._build_news()
         self.load_chats()
         self.load_bindings()
         self.load_journal()
         self.load_feedback()
+        self.load_news()
         self._run(self.api.get_clients, self._fill_clients)
 
     # ---------- infra ----------
@@ -404,3 +406,35 @@ class MessengerTab(QWidget):
             for j, val in enumerate([str(f.get("created_at") or "")[:19], f.get("client_id"),
                                      f.get("theme"), (f.get("body") or "")[:120]]):
                 self.tbl_fb.setItem(r, j, QTableWidgetItem(str(val or "")))
+
+    # ---------- 7. Новости/Акции ----------
+    def _build_news(self):
+        w = QWidget()
+        v = QVBoxLayout(w)
+        note = QLabel("Новость или акция: при публикации автоматически рассылается всем клиентам с привязкой MAX и появляется в приложении на Главной.")
+        note.setWordWrap(True)
+        v.addWidget(note)
+        self.ed_nt = QLineEdit(); self.ed_nt.setPlaceholderText("Заголовок")
+        self.ed_nb = QPlainTextEdit(); self.ed_nb.setMaximumHeight(90); self.ed_nb.setPlaceholderText("Текст новости/акции")
+        v.addWidget(self.ed_nt)
+        v.addWidget(self.ed_nb)
+        b = QPushButton(" Опубликовать и разослать")
+        b.clicked.connect(self.publish_news)
+        v.addWidget(b)
+        self.lbl_news = QLabel("")
+        self.lbl_news.setWordWrap(True)
+        v.addWidget(self.lbl_news)
+        v.addStretch(1)
+        self.sub.addTab(w, "Новости")
+
+    def publish_news(self):
+        t = self.ed_nt.text().strip()
+        b = self.ed_nb.toPlainText().strip()
+        if not t:
+            self._show("Введите заголовок.", ok=False)
+            return
+        def _done(r):
+            if isinstance(r, dict):
+                self.lbl_news.setText("Опубликовано. Разослано клиентам: %s" % r.get("sent"))
+                self.ed_nt.clear(); self.ed_nb.clear()
+        self._run(lambda: self.api.publish_news({"title": t, "body": b}), _done)
