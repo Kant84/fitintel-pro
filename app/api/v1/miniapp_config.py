@@ -562,3 +562,97 @@ def bonus_rules_del(rid: str, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     db.execute(_t("DELETE FROM bonus_rules WHERE id::text=:r"), {"r": str(rid)})
     db.commit()
     return {"ok": True}
+
+
+# === W6: запись клиента на занятия ===
+from app.models.service import Service as _Svc, ServiceBooking as _SBk
+
+
+def _client_id_of(db, uid):
+    c = db.execute(_t("SELECT id FROM clients WHERE user_id=:u LIMIT 1"), {"u": str(uid)}).first()
+    return str(c[0]) if c else None
+
+
+def _bk_tbl():
+    return _SBk.__tablename__
+
+
+@router.get("/miniapp/booking/catalog")
+def booking_catalog(db: _S = _Dep(_gdb)):
+    trainers = [{"id": str(r[0]), "name": (r[3] or r[4] or "Тренер"), "spec": r[2] or ""}
+                for r in db.execute(_t("SELECT tp.id, tp.user_id, tp.specialization, u.full_name, u.username "
+                                       "FROM trainer_profiles tp LEFT JOIN users u ON u.id::text=tp.user_id::text "
+                                       "WHERE tp.is_active=TRUE ORDER BY u.full_name")).fetchall()]
+    services = [{"id": str(r[0]), "trainer_id": str(r[1]) if r[1] else None, "name": r[2],
+                 "price": float(r[3] or 0), "duration": r[4], "schedule": _js.loads(r[5] or "{}")}
+                for r in db.execute(_t("SELECT id, trainer_id, name, price, duration_minutes, schedule "
+                                       "FROM services WHERE is_active=TRUE ORDER BY name")).fetchall()]
+    return {"trainers": trainers, "services": services}
+
+
+@router.get("/miniapp/booking/slots")
+def booking_slots(service_id: str, day: str, db: _S = _Dep(_gdb)):
+    svc = db.execute(_t("SELECT schedule FROM services WHERE id::text=:s"), {"s": service_id}).first()
+    if not svc:
+        raise _HE(404, "Услуга не найдена")
+    out = []
+    for sl in ((_js.loads(svc[0] or "{}").get("time_slots")) or []):
+        t = sl.get("time", "")
+        cap = int(sl.get("capacity", 1) or 1)
+        try:
+            when = _dtn.fromisoformat(str(day) + "T" + t).replace(tzinfo=None)
+        except Exception:
+            continue
+        booked = db.execute(_t(f"SELECT count(*) FROM {_bk_tbl()} WHERE service_id::text=:s AND booking_date=:b "
+                               "AND status IN ('BOOKED','CONFIRMED','PAID')"), {"s": service_id, "b": when}).scalar()
+        left = max(0, cap - int(booked or 0))
+        if left > 0:
+            out.append({"time": t, "left": left})
+    return {"items": out}
+
+
+class BookIn(_BM):
+    service_id: str
+    day: str
+    time: str
+
+
+@router.post("/miniapp/booking")
+def booking_create(body: BookIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
+    cid = _client_id_of(db, str(current.id))
+    if not cid:
+        raise _HE(404, "Карточка клиента не найдена")
+    svc = db.execute(_t("SELECT schedule, name FROM services WHERE id::text=:s"), {"s": body.service_id}).first()
+    if not svc:
+        raise _HE(404, "Услуга не найдена")
+    try:
+        when = _dtn.fromisoformat(str(body.day) + "T" + str(body.time)).replace(tzinfo=None)
+    except Exception:
+        raise _HE(422, "Некорректные дата/время")
+    cap = 1
+    for sl in ((_js.loads(svc[0] or "{}").get("time_slots")) or []):
+        if sl.get("time") == body.time:
+            cap = int(sl.get("capacity", 1) or 1)
+    booked = db.execute(_t(f"SELECT count(*) FROM {_bk_tbl()} WHERE service_id::text=:s AND booking_date=:b "
+                           "AND status IN ('BOOKED','CONFIRMED','PAID')"), {"s": body.service_id, "b": when}).scalar()
+    if int(booked or 0) >= cap:
+        raise _HE(409, "Мест нет — выберите другое время")
+    cols = {r[0] for r in db.execute(_t(f"SELECT column_name FROM information_schema.columns WHERE table_name='{_bk_tbl()}'"))}
+    data = {"id": str(_uuid.uuid4()), "service_id": body.service_id, "client_id": cid,
+            "booking_date": when, "status": "BOOKED",
+            "created_at": _dtn.now(_tzn.utc), "updated_at": _dtn.now(_tzn.utc)}
+    data = {k: v for k, v in data.items() if k in cols}
+    db.execute(_t(f"INSERT INTO {_bk_tbl()} (" + ",".join(data) + ") VALUES (" + ",".join(":" + k for k in data) + ")"), data)
+    db.commit()
+    return {"ok": True, "service": svc[1], "when": str(when)[:16]}
+
+
+@router.get("/miniapp/booking/my")
+def booking_my(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
+    cid = _client_id_of(db, str(current.id))
+    if not cid:
+        return {"items": []}
+    rows = db.execute(_t(f"SELECT b.id, b.booking_date, b.status, s.name FROM {_bk_tbl()} b "
+                         "JOIN services s ON s.id::text=b.service_id::text "
+                         "WHERE b.client_id::text=:c ORDER BY b.booking_date DESC LIMIT 50"), {"c": cid}).fetchall()
+    return {"items": [{"id": str(r[0]), "when": str(r[1])[:16], "status": r[2], "service": r[3]} for r in rows]}
