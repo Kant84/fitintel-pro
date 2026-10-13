@@ -423,7 +423,7 @@ def _wallet_credit(db, client_id: str, amount: float, bonus_percent: float) -> d
                    {"i": str(_uuid.uuid4()), "c": client_id, "a": amount})
         bal = amount
     tcols = {r[0] for r in db.execute(_t("SELECT column_name FROM information_schema.columns WHERE table_name='wallet_transactions'"))}
-    td = {k: v for k, v in {"id": str(_uuid.uuid4()), "client_id": client_id, "amount": amount,
+    td = {k: v for k, v in {"id": str(_uuid.uuid4()), "wallet_id": wid, "client_id": client_id, "amount": amount,
                             "type": "topup", "transaction_type": "topup",
                             "description": "Пополнение через приложение",
                             "created_at": _dtn.now(_tzn.utc), "updated_at": _dtn.now(_tzn.utc)}.items() if k in tcols}
