@@ -12,7 +12,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-API_BASE = "https://api.max.ru/bot{token}/{method}"
+API_BASE = "https://platform-api2.max.ru"
 
 
 class MAXService:
@@ -21,13 +21,27 @@ class MAXService:
     def __init__(self, bot_token: str | None = None):
         self.bot_token = bot_token or settings.MAX_BOT_TOKEN
 
-    def _call(self, method: str, **params: Any) -> dict[str, Any]:
-        if not self.bot_token:
+    def _call(self, method: str, _query: dict | None = None, **params: Any) -> dict[str, Any]:
+        token = self.bot_token
+        if not token:
+            # fallback: токен бота из настроек клуба
+            try:
+                from sqlalchemy import text as _t
+                from app.db.session import engine as _eng
+                with _eng.connect() as _c:
+                    _r = _c.execute(_t("SELECT bot_token FROM max_bot_settings WHERE id=1")).first()
+                    token = _r[0] if _r else None
+            except Exception:
+                token = None
+        if not token:
             return {"ok": False, "error": "bot_token_not_configured"}
-        url = API_BASE.format(token=self.bot_token, method=method)
+        import urllib.parse as _up
+        url = "%s/%s" % (API_BASE, method)
+        if _query:
+            url = url + "?" + _up.urlencode({k: str(v) for k, v in _query.items() if v is not None})
         payload = {k: v for k, v in params.items() if v is not None}
         body = json.dumps(payload, ensure_ascii=False, default=str).encode()
-        headers = {"Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json", "Authorization": token}
         try:
             req = urllib.request.Request(url, data=body, headers=headers, method="POST")
             with urllib.request.urlopen(req, timeout=30) as resp:
@@ -54,19 +68,38 @@ class MAXService:
         text: str = "",
         parse_mode: str = "HTML",
         reply_markup: dict | None = None,
+        db: Any = None,
     ) -> dict[str, Any]:
-        params: dict[str, Any] = {
-            "text": text, "parse_mode": parse_mode,
-        }
+        query: dict[str, Any] = {}
         if chat_id:
-            params["chat_id"] = chat_id
+            query["chat_id"] = chat_id
         elif phone_number:
-            params["phone_number"] = self._normalize_phone(phone_number)
+            user_id = None
+            if db is not None:
+                try:
+                    from sqlalchemy import text as _t
+                    _digits = self._normalize_phone(phone_number)
+                    _row = db.execute(_t(
+                        "SELECT mb.max_user_id FROM max_bot_bindings mb "
+                        "JOIN clients c ON replace(mb.client_id,'-','')=replace(c.id::text,'-','') "
+                        "WHERE right(regexp_replace(c.phone,'\\D','','g'),10)=:p LIMIT 1"),
+                        {"p": _digits[-10:]}).first()
+                    if _row:
+                        user_id = _row[0]
+                except Exception as _e:
+                    logger.error("MAX phone resolve failed: %s", _e)
+            if user_id is None:
+                return {"ok": False, "error": "phone_not_bound"}
+            query["user_id"] = user_id
         else:
             return {"ok": False, "error": "chat_id or phone_number required"}
+        params: dict[str, Any] = {
+            "text": text,
+            "format": "markdown" if str(parse_mode).lower() == "markdown" else "html",
+        }
         if reply_markup:
-            params["reply_markup"] = json.dumps(reply_markup)
-        return self._call("sendMessage", **params)
+            params["attachments"] = json.dumps(reply_markup)
+        return self._call("messages", _query=query, **params)
 
     def send_push_by_phone(self, phone_number: str, title: str, body: str, action_url: str | None = None) -> dict[str, Any]:
         text = f"<b>{title}</b>\n\n{body}"
