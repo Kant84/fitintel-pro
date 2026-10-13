@@ -43,10 +43,14 @@ input,textarea{width:100%;padding:15px;border:1px solid var(--line);border-radiu
 .mut{color:var(--muted);font-size:14px;text-align:center;margin:14px 0}
 .err{background:#2a0a14;color:var(--mag);border:1px solid var(--mag);border-radius:12px;padding:10px 14px;font-size:14px;margin-bottom:10px;display:none}
 .back{display:inline-block;color:var(--mint);font-size:14px;margin-bottom:12px;cursor:pointer}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:99}
+.modal.show{display:flex}
+.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;width:min(320px,92%)}
 </style>
 </head>
 <body>
 <div id="app"></div>
+<div class="modal" id="topupModal"><div class="box"><div style="font-size:16px;font-weight:700;margin-bottom:12px">Пополнение баланса</div><input id="tuAmount" type="number" min="1" placeholder="Сумма, ₽" inputmode="numeric"><div style="display:flex;gap:10px;margin-top:4px"><button class="btn solid" style="flex:1" onclick="doTopup()">Пополнить</button><button class="btn" style="flex:1" onclick="closeTopup()">Отмена</button></div><div id="tuHint" class="mut" style="margin-top:8px"></div></div></div>
 <nav id="nav"></nav>
 <script>
 const API=(new URLSearchParams(location.search).get('s')||'/api/v1');
@@ -152,9 +156,16 @@ const j=await r.json().catch(()=>({}));if(!r.ok||!j.access_token){alert(j.detail
 token=j.access_token;localStorage.setItem('fit_token',token);
 try{me=await api('/miniapp/me')}catch(e){me={full_name:g('rg_fn')}}
 localStorage.setItem('fit_user',JSON.stringify(me));tab='home';render()}catch(e){alert('Ошибка сети')}}
-async function topUp(){try{const cfg=await api('/miniapp/wallet/config');const a=prompt('\u0421\u0443\u043c\u043c\u0430 \u043f\u043e\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f (\u043c\u0438\u043d\u0438\u043c\u0443\u043c '+cfg.min+')');if(!a)return;const amt=parseFloat(a);if(isNaN(amt)||amt<cfg.min)return alert('\u041c\u0438\u043d\u0438\u043c\u0443\u043c '+cfg.min+' \u20bd');const r=await fetch(API+'/miniapp/wallet/topup',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({amount:amt})});const j=await r.json().catch(()=>({}));if(!r.ok){alert(j.detail||'\u041e\u0448\u0438\u0431\u043a\u0430');return}if(j.payment_url){location.href=j.payment_url;return}alert('\u0417\u0430\u0447\u0438\u0441\u043b\u0435\u043d\u043e: '+j.balance+' \u20bd (\u0431\u043e\u043d\u0443\u0441\u044b +'+j.bonuses_added+')');load('menu')}catch(e){alert('\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0442\u0438')}}
+let TUCFG={min:100,bonus_percent:5};
+async function topUp(){try{TUCFG=await api('/miniapp/wallet/config')}catch(e){}
+document.getElementById('tuHint').textContent='\u041c\u0438\u043d\u0438\u043c\u0443\u043c '+TUCFG.min+' \u20bd \u00b7 \u0431\u043e\u043d\u0443\u0441\u044b '+TUCFG.bonus_percent+'%';
+document.getElementById('tuAmount').value='';document.getElementById('topupModal').classList.add('show')}
+function closeTopup(){document.getElementById('topupModal').classList.remove('show')}
+async function doTopup(){const amt=parseFloat(document.getElementById('tuAmount').value);if(isNaN(amt)||amt<TUCFG.min){document.getElementById('tuHint').textContent='\u041c\u0438\u043d\u0438\u043c\u0443\u043c '+TUCFG.min+' \u20bd';return}
+try{const r=await fetch(API+'/miniapp/wallet/topup',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({amount:amt})});const j=await r.json().catch(()=>({}));if(!r.ok){document.getElementById('tuHint').textContent=j.detail||'\u041e\u0448\u0438\u0431\u043a\u0430';return}
+if(j.payment_url){location.href=j.payment_url;return}
+closeTopup();alert('\u0417\u0430\u0447\u0438\u0441\u043b\u0435\u043d\u043e: '+j.balance+' \u20bd (\u0431\u043e\u043d\u0443\u0441\u044b +'+j.bonuses_added+')');load('menu')}catch(e){document.getElementById('tuHint').textContent='\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0442\u0438'}}
 function vHome(){return `${CFG.logo_url?`<img src="${esc(CFG.logo_url)}" style="max-height:36px;max-width:160px;border-radius:8px;margin:2px 2px 8px">`:""}<div class="top">${esc(CFG.club_name).toUpperCase()}</div>
-<div class="card" id="walletbox" style="margin-top:12px"><div style="display:flex;justify-content:space-around;text-align:center"><div><div style="font-size:12px;color:var(--muted)">Баланс</div><div id="wbal" style="font-size:18px;font-weight:800">—</div></div><div><div style="font-size:12px;color:var(--muted)">Бонусы</div><div id="wbon" style="font-size:18px;font-weight:800;color:var(--mag)">—</div></div></div><button class="btn solid" style="margin-top:12px;padding:12px" onclick="topUp()">+ Пополнить баланс</button></div>
 <div class="grid2"><div class="tile" onclick="go('qr')">${svg('qr')}<div>QR-код</div></div>
 ${CFG.payments_enabled===false?`<div class="tile" onclick="go('services')">${svg('dumb')}<div>Услуги</div></div>`:`<div class="tile" onclick="go('shop')">${svg('store')}<div>Купить</div></div>`}</div>
 <div class="card" style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
