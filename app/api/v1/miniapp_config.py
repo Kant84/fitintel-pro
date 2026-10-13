@@ -420,7 +420,7 @@ def _wallet_credit(db, client_id: str, amount: float, bonus_percent: float) -> d
 
 
 @router.post("/miniapp/wallet/topup")
-def wallet_topup(body: TopupIn, current=Depends(_gcu), db: _S = _Dep(_gdb)):
+def wallet_topup(body: TopupIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     cfg = _wallet_cfg(db)
     amount = round(float(body.amount), 2)
     if amount < cfg["min"]:
