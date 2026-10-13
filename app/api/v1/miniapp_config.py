@@ -319,6 +319,31 @@ def max_bridge_register(body: BridgeRegIn, db: _S = _Dep(_gdb)):
 from app.api.dependencies import get_current_user as _gcu
 
 
+class MeUpdate(_BM):
+    full_name: str | None = None
+    birth_year: int | None = None
+    email: str | None = None
+
+
+@router.post("/miniapp/me")
+def miniapp_me_update(body: MeUpdate, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
+    uid = str(current.id)
+    if body.full_name:
+        db.execute(_t("UPDATE users SET full_name=:f WHERE id=:i"), {"f": body.full_name.strip()[:200], "i": uid})
+        parts = body.full_name.split(None, 1)
+        db.execute(_t("UPDATE clients SET first_name=:fn, last_name=:ln WHERE user_id=:u"),
+                   {"fn": parts[0][:60], "ln": (parts[1] if len(parts) > 1 else "")[:60], "u": uid})
+    if body.birth_year:
+        db.execute(_t("UPDATE clients SET birth_date=:b WHERE user_id=:u"),
+                   {"b": "%s-01-01" % int(body.birth_year), "u": uid})
+    if body.email is not None:
+        db.execute(_t("UPDATE clients SET email=:e WHERE user_id=:u"), {"e": body.email.strip() or None, "u": uid})
+        db.execute(_t("UPDATE users SET email=:e WHERE id=:i AND (email IS NULL OR email='')"),
+                   {"e": body.email.strip() or None, "i": uid})
+    db.commit()
+    return miniapp_me(current, db)
+
+
 @router.get("/miniapp/me")
 def miniapp_me(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     uid = str(current.id)

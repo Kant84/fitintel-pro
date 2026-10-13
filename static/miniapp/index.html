@@ -152,6 +152,7 @@ const j=await r.json().catch(()=>({}));if(!r.ok||!j.access_token){alert(j.detail
 token=j.access_token;localStorage.setItem('fit_token',token);
 try{me=await api('/miniapp/me')}catch(e){me={full_name:g('rg_fn')}}
 localStorage.setItem('fit_user',JSON.stringify(me));tab='home';render()}catch(e){alert('Ошибка сети')}}
+async function topUp(){try{const cfg=await api('/miniapp/wallet/config');const a=prompt('\u0421\u0443\u043c\u043c\u0430 \u043f\u043e\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f (\u043c\u0438\u043d\u0438\u043c\u0443\u043c '+cfg.min+')');if(!a)return;const amt=parseFloat(a);if(isNaN(amt)||amt<cfg.min)return alert('\u041c\u0438\u043d\u0438\u043c\u0443\u043c '+cfg.min+' \u20bd');const r=await fetch(API+'/miniapp/wallet/topup',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({amount:amt})});const j=await r.json().catch(()=>({}));if(!r.ok){alert(j.detail||'\u041e\u0448\u0438\u0431\u043a\u0430');return}if(j.payment_url){location.href=j.payment_url;return}alert('\u0417\u0430\u0447\u0438\u0441\u043b\u0435\u043d\u043e: '+j.balance+' \u20bd (\u0431\u043e\u043d\u0443\u0441\u044b +'+j.bonuses_added+')');load('menu')}catch(e){alert('\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0442\u0438')}}
 function vHome(){return `${CFG.logo_url?`<img src="${esc(CFG.logo_url)}" style="max-height:36px;max-width:160px;border-radius:8px;margin:2px 2px 8px">`:""}<div class="top">${esc(CFG.club_name).toUpperCase()}</div>
 <div class="card" id="walletbox" style="margin-top:12px"><div style="display:flex;justify-content:space-around;text-align:center"><div><div style="font-size:12px;color:var(--muted)">Баланс</div><div id="wbal" style="font-size:18px;font-weight:800">—</div></div><div><div style="font-size:12px;color:var(--muted)">Бонусы</div><div id="wbon" style="font-size:18px;font-weight:800;color:var(--mag)">—</div></div></div><button class="btn solid" style="margin-top:12px;padding:12px" onclick="topUp()">+ Пополнить баланс</button></div>
 <div class="grid2"><div class="tile" onclick="go('qr')">${svg('qr')}<div>QR-код</div></div>
@@ -171,6 +172,8 @@ try{const r=await fetch(API+'/auth/change-password',{method:'POST',headers:{'Con
 const j=await r.json().catch(()=>({}));
 if(!r.ok){alert(j.detail||('Ошибка '+r.status));return}
 alert('Пароль изменён. Войдите заново.');logout()}catch(e){alert('Ошибка сети')}}
+async function editProfile(){if(!me)return;const fn=prompt('ФИО',me.full_name||'');if(fn===null)return;const by=prompt('Год рождения',(me.birth_date||'').slice(0,4));if(by===null)return;const em=prompt('Email',me.email||'');if(em===null)return;
+try{const r=await fetch(API+'/miniapp/me',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({full_name:fn.trim(),birth_year:by.trim()?parseInt(by.trim()):null,email:em.trim()||null})});const j=await r.json().catch(()=>({}));if(!r.ok){alert(j.detail||'Ошибка');return}me=j;localStorage.setItem('fit_user',JSON.stringify(j));alert('Сохранено');render()}catch(e){alert('Ошибка сети')}}
 function vQr(){return `<span class="back" onclick="go('home')">‹ Назад</span><div class="top">QR ДЛЯ ВХОДА</div>
 <div class="card" style="text-align:center" id="qrbox"><span class="mut">Формирую код…</span></div>`}
 function vList(title,path,empty){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">${title}</div><div class="card" id="lst"><span class="mut">Загрузка…</span></div>
@@ -183,7 +186,8 @@ ${CFG.about?`<div class="svc"><div class="p" style="white-space:pre-wrap">${esc(
 function vProfile(){const L={full_name:'ФИО',name:'ФИО',fio:'ФИО',email:'Email',username:'Логин',login:'Логин',phone:'Телефон',is_active:'Активен',roles:'Роль',role:'Роль',permissions:'Права',balance:'Баланс, ₽',created_at:'Дата регистрации',birth_date:'Дата рождения',id:'ID'};
 const rows=me?Object.entries(me).filter(([k,v])=>L[k]&&String(v||'')!=='').map(([k,v])=>`<div class="svc"><div class="n" style="font-size:14px">${L[k]}</div><div class="p">${esc(String(v))}</div></div>`).join(''):'';
 return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">ПРОФИЛЬ</div><div class="card">${rows||'<div class="mut">Нет данных</div>'}</div>
-<div class="h2">БЕЗОПАСНОСТЬ</div><div class="card">
+<button class="btn" onclick="editProfile()">Изменить данные</button>
+<div class="h2" style="margin-top:14px">БЕЗОПАСНОСТЬ</div><div class="card">
 <input id="pw0" type="password" placeholder="Текущий пароль">
 <input id="pw1" type="password" placeholder="Новый пароль (мин. 8 символов)">
 <input id="pw2" type="password" placeholder="Повторите новый пароль">
@@ -235,7 +239,6 @@ box.innerHTML=`<div class="err" style="display:block">Вход по QR недо�
 <img style="width:280px;height:280px;border-radius:12px" src="${API}/miniapp/qr?data=${data}">
 <div class="mut">QR профиля</div>`}}
 if(t==='menu'){try{const w=await api('/miniapp/wallet');const b=document.getElementById('wbal'),o=document.getElementById('wbon');if(b)b.textContent=(w.balance!=null?(w.balance+' \u20bd'):'0 \u20bd');if(o)o.textContent=(w.bonuses!=null?String(w.bonuses):'0')}catch(e){}}
-async function topUp(){try{const cfg=await api('/miniapp/wallet/config');const a=prompt('\u0421\u0443\u043c\u043c\u0430 \u043f\u043e\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f (\u043c\u0438\u043d\u0438\u043c\u0443\u043c '+cfg.min+')');if(!a)return;const amt=parseFloat(a);if(isNaN(amt)||amt<cfg.min)return alert('\u041c\u0438\u043d\u0438\u043c\u0443\u043c '+cfg.min+' \u20bd');const r=await fetch(API+'/miniapp/wallet/topup',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({amount:amt})});const j=await r.json().catch(()=>({}));if(!r.ok){alert(j.detail||'\u041e\u0448\u0438\u0431\u043a\u0430');return}if(j.payment_url){location.href=j.payment_url;return}alert('\u0417\u0430\u0447\u0438\u0441\u043b\u0435\u043d\u043e: '+j.balance+' \u20bd (\u0431\u043e\u043d\u0443\u0441\u044b +'+j.bonuses_added+')');load('menu')}catch(e){alert('\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0442\u0438')}}
 if(t==='schedule'){try{const s=await api('/services/trainer-schedule');const rows=s.items||s;
 const mine=(rows||[]);
 if(!mine.length){document.getElementById('sched').innerHTML='<div class="mut">Записей нет. Запишитесь на ресепшене.</div>';return}
