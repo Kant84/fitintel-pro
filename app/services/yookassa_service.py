@@ -22,8 +22,15 @@ class YooKassaService:
 
     def __init__(self, db: Session):
         self.db = db
-        self.shop_id = os.getenv("YOOKASSA_SHOP_ID", "")
-        self.secret_key = os.getenv("YOOKASSA_SECRET_KEY", "")
+        shop_id, secret = "", ""
+        try:
+            from app.api.v1.club_params import get_param
+            shop_id = get_param("YK_SHOP_ID", "") or ""
+            secret = get_param("YK_SECRET_KEY", "") or ""
+        except Exception:
+            pass
+        self.shop_id = shop_id or os.getenv("YOOKASSA_SHOP_ID", "")
+        self.secret_key = secret or os.getenv("YOOKASSA_SECRET_KEY", "")
         self.enabled = bool(self.shop_id and self.secret_key)
 
     def _auth_header(self) -> str:
