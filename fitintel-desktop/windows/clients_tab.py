@@ -130,9 +130,9 @@ class ClientsTab(QWidget):
         layout.addLayout(row)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(6)
+        self.table.setColumnCount(8)
         self.table.setHorizontalHeaderLabels(
-            ["ФИО", "Телефон", "Email", "Категория", "Статус", "Создан"])
+            ["ФИО", "Телефон", "Email", "Категория", "Статус", "Создан", "Баланс", "Бонусы"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -169,6 +169,8 @@ class ClientsTab(QWidget):
             item.setForeground(QColor("#059669" if active else "#ef4444"))
             self.table.setItem(i, 4, item)
             self.table.setItem(i, 5, QTableWidgetItem(str(c.get("created_at") or "")[:10]))
+            self.table.setItem(i, 6, QTableWidgetItem(("%s ₽" % c["wallet_balance"]) if c.get("wallet_balance") is not None else "—"))
+            self.table.setItem(i, 7, QTableWidgetItem(str(c["bonuses"]) if c.get("bonuses") is not None else "—"))
 
     def _filter(self, text: str):
         if not text:
