@@ -740,3 +740,11 @@ def publish_news(self, body):
     return _e55_post(self, "/miniapp/news", body)
 
 setattr(ApiClient, "publish_news", publish_news)
+
+def delete_face_template(self, tid):
+    r = self.session.delete(self._url("/face-id/" + str(tid)), timeout=30)
+    _rs(r)
+    return {"ok": True}
+
+
+setattr(ApiClient, "delete_face_template", delete_face_template)
