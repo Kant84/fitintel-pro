@@ -1,0 +1,3 @@
+[33m49e33a7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m shop: ensure bar_sales table
+[33m5c32ac5[m fix WITHDRAWAL enum; shop hybrid bonus_percent
+[33m93431c9[m W6: shop pay by bonuses (caps, rate, min-cash) + purchase bonus
