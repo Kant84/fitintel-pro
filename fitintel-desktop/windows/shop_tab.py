@@ -391,9 +391,22 @@ class ShopTab(QWidget):
         f = QFormLayout(dlg)
         qty = QSpinBox(); qty.setRange(1, int(float(p.get("quantity") or 0)) or 1); qty.setValue(1)
         f.addRow("Количество:", qty)
-        from PyQt6.QtWidgets import QComboBox
+        from PyQt6.QtWidgets import QComboBox, QSlider, QLabel
+        from PyQt6.QtCore import Qt
         pay = QComboBox(); pay.addItem("Наличные", "cash"); pay.addItem("Карта", "card"); pay.addItem("СБП", "sbp")
         f.addRow("Оплата:", pay)
+        cli = QComboBox(); cli.addItem("— без клиента —", "")
+        try:
+            for _c in (self.api.get_clients() or []):
+                cli.addItem("%s %s (%s)" % (_c.get("last_name", ""), _c.get("first_name", ""), _c.get("phone", "")), str(_c.get("id")))
+        except Exception:
+            pass
+        f.addRow("Клиент (для бонусов):", cli)
+        bon = QSlider(Qt.Orientation.Horizontal); bon.setRange(0, 100); bon.setValue(0); bon.setEnabled(False)
+        bon_lbl = QLabel("Бонусами: 0%")
+        bon.valueChanged.connect(lambda v: bon_lbl.setText("Бонусами: %d%%" % v))
+        cli.currentIndexChanged.connect(lambda _i: bon.setEnabled(bool(cli.currentData())))
+        f.addRow(bon_lbl, bon)
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         bb.button(QDialogButtonBox.StandardButton.Ok).setText("Провести")
         bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
@@ -409,6 +422,15 @@ class ShopTab(QWidget):
                 d = r.json() if r.status_code == 201 else {}
                 if r.status_code == 201:
                     total = float(d.get("total", 0))
+                    if bon.value() > 0 and cli.currentData():
+                        try:
+                            rr = self.api.session.post(self.api._url("/miniapp/bonus-redeem"), json={
+                                "client_id": cli.currentData(), "amount": round(total * bon.value() / 100, 2)}, timeout=20)
+                            if rr.status_code == 200:
+                                total = round(total - float(rr.json().get("rub_covered", 0)), 2)
+                                QMessageBox.information(self, "Продажа", "Списано бонусами: %s \u20bd" % rr.json().get("rub_covered"))
+                        except Exception as _e:
+                            QMessageBox.warning(self, "Продажа", "Бонусы не списаны: %s" % str(_e)[:120])
                     self._create_payment(p, qty.value(), pay.currentData(), total)
                     self.refresh()
                 else:
