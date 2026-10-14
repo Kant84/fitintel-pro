@@ -140,3 +140,13 @@ def auth_headers(client, db_session):
         "login": "superadmin", "password": "testpass123"})
     assert resp.status_code == 200, resp.text
     return {"Authorization": "Bearer " + resp.json()["access_token"]}
+
+# W6-shim: Postgres-умолчания (gen_random_uuid) в CREATE TABLE для SQLite
+from sqlalchemy import event as _w6_event
+
+
+@_w6_event.listens_for(engine, "before_cursor_execute", retval=True)
+def _w6_pg_defaults_shim(conn, cursor, statement, parameters, context, executemany):
+    if "gen_random_uuid()" in statement:
+        statement = statement.replace(" DEFAULT gen_random_uuid()", "")
+    return statement, parameters
