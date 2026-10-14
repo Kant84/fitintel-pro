@@ -134,7 +134,7 @@ def get_payment(
         raise HTTPException(status_code=404, detail="Платёж не найден")
     fiscal = db.execute(text(
         "SELECT fiscal_document_number FROM payments WHERE id = :i"
-    ), {"i": str(row[0])}).scalar()
+    ), {"i": str(row[0]).replace("-","")}).scalar()
     return {
         "payment_id": str(row[0]),
         "yookassa_payment_id": row[4],
@@ -200,7 +200,7 @@ async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
         result["bonuses_added"] = bonus
         try:
             from app.integrations.max.service import get_max_service
-            ph = db.execute(text("SELECT phone FROM clients WHERE id::text=:c"),
+            ph = db.execute(text("SELECT phone FROM clients WHERE replace(cast(id as varchar),'-','')=:c"),
                             {"c": client_id}).first()
             if ph and ph[0]:
                 msg = "💳 Кошелёк пополнен: %s ₽" % amount
@@ -221,7 +221,7 @@ async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
         db.execute(text(
             "UPDATE payments SET status = 'succeeded', paid_at = :n, "
             "fiscal_document_number = :f WHERE id = :i"
-        ), {"n": now, "f": fiscal_doc, "i": str(row[0])})
+        ), {"n": now, "f": fiscal_doc, "i": str(row[0]).replace("-","")})
         # Пополнение кошелька клиента
         client_id = str(row[1])
         w = db.execute(text(
@@ -230,7 +230,7 @@ async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
         if w:
             db.execute(text(
                 "UPDATE wallets SET balance = balance + :a WHERE id = :i"
-            ), {"a": float(row[2]), "i": str(w[0])})
+            ), {"a": float(row[2]), "i": str(w[0]).replace("-","")})
         else:
             _insert(db, "wallets", {
                 "id": str(uuid.uuid4()), "client_id": client_id,
@@ -250,7 +250,7 @@ async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
     elif event == "payment.canceled" and row:
         db.execute(text(
             "UPDATE payments SET status = 'canceled' WHERE id = :i"
-        ), {"i": str(row[0])})
+        ), {"i": str(row[0]).replace("-","")})
         result["canceled"] = True
 
     _insert(db, "yookassa_webhook_events", {
@@ -275,7 +275,7 @@ def create_refund(
     total_refunded = db.execute(text(
         "SELECT COALESCE(SUM(amount), 0) FROM payment_refunds "
         "WHERE CAST(payment_id AS TEXT) = :p"
-    ), {"p": str(row[0])}).scalar()
+    ), {"p": str(row[0]).replace("-","")}).scalar()
     if float(total_refunded) + payload.amount > float(row[2]) + 0.001:
         raise HTTPException(status_code=400, detail="Сумма возврата превышает сумму платежа")
     rid = f"rf-{uuid.uuid4().hex[:12]}"
@@ -287,7 +287,7 @@ def create_refund(
         "created_at": now, "updated_at": now,
     })
     if float(total_refunded) + payload.amount >= float(row[2]) - 0.001:
-        db.execute(text("UPDATE payments SET status = 'refunded' WHERE id = :i"), {"i": str(row[0])})
+        db.execute(text("UPDATE payments SET status = 'refunded' WHERE id = :i"), {"i": str(row[0]).replace("-","")})
     db.commit()
     return {"refund_id": rid, "payment_id": str(row[0]), "amount": payload.amount, "status": "succeeded"}
 
@@ -354,7 +354,7 @@ def auto_charge(
         })
         db.execute(text(
             "UPDATE subscriptions SET status = 'active', end_date = :e WHERE id = :i"
-        ), {"e": now + timedelta(days=30), "i": str(sub_id)})
+        ), {"e": now + timedelta(days=30), "i": str(sub_id).replace("-","")})
         charged.append({"subscription_id": str(sub_id), "amount": float(price or 0),
                         "yookassa_payment_id": yk_id, "status": "succeeded"})
     db.commit()
