@@ -760,10 +760,13 @@ def booking_my(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
 from datetime import timedelta as _tdl
 
 
-def _max_send(phone: str, text: str):
+def _max_send(phone: str, text: str, db=None):
+    if db is None:
+        from app.db.session import SessionLocal as _SL
+        db = _SL()
     try:
         from app.integrations.max.service import get_max_service
-        return get_max_service().send_message(phone_number=str(phone or ""), text=text)
+        return get_max_service().send_message(phone_number=str(phone or ""), text=text, db=db)
     except Exception as _e:
         print("W6 send:", str(_e)[:100])
         return {}
