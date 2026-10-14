@@ -27,6 +27,8 @@ services:
 
   api:
     build: ..                      # <-- собираем из исходников, не из registry
+    volumes:
+      - ../app:/app
     env_file:
       - .env
     image: fitintel:test
