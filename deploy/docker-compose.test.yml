@@ -27,8 +27,6 @@ services:
 
   api:
     build: ..                      # <-- собираем из исходников, не из registry
-    volumes:
-      - ../app:/app
     env_file:
       - .env
     image: fitintel:test
@@ -57,6 +55,7 @@ services:
       - ./uploads_data/brand:/app/static/brand
       - ./uploads_data/products:/app/static/products
       - ./uploads_data/trainers:/app/static/trainers
+      - ../app:/app
     depends_on:
       db:
         condition: service_healthy
