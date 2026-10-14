@@ -148,6 +148,14 @@ def get_payment(
 async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
     """E26.3/E26.4/E26.5/E26.11/E26.14 — webhook от YooKassa"""
     body = await request.body()
+    db.execute(text("CREATE TABLE IF NOT EXISTS yookassa_webhook_events ("
+                    "id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
+                    "event_key VARCHAR(200), event_type VARCHAR(60),"
+                    "payment_id VARCHAR(100), order_id VARCHAR(100),"
+                    "user_id VARCHAR(100), status VARCHAR(30),"
+                    "payload TEXT, created_at TIMESTAMPTZ DEFAULT now(),"
+                    "updated_at TIMESTAMPTZ DEFAULT now())"))
+    db.commit()
     signature = request.headers.get("X-YooKassa-Signature", "")
     sig_key = os.getenv("YOOKASSA_SECRET_KEY", "")
     if not sig_key:
