@@ -81,16 +81,22 @@ def list_clients(
     # возвращаем готовый ответ
     resp = client_service.build_client_list_response(clients)
     from sqlalchemy import text as _txt
+    _r = lambda c: "replace(cast(%s as varchar),'-','')" % c
     can_w = db.execute(_txt(
-        "SELECT 1 FROM users u JOIN user_roles ur ON ur.user_id::text=u.id::text "
-        "JOIN role_permissions rp ON rp.role_id=ur.role_id "
-        "JOIN permissions p ON p.id=rp.permission_id "
-        "WHERE u.id::text=:uid AND p.code='wallet.read' LIMIT 1"), {"uid": str(current_user.id)}).first()
+        "SELECT 1 FROM users u JOIN user_roles ur ON %s=%s "
+        "JOIN role_permissions rp ON %s=%s "
+        "JOIN permissions p ON %s=%s "
+        "WHERE %s=replace(cast(:uid as varchar),'-','') AND p.code='wallet.read' LIMIT 1" % (
+            _r("ur.user_id"), _r("u.id"), _r("rp.role_id"), _r("ur.role_id"),
+            _r("p.id"), _r("rp.permission_id"), _r("u.id"))),
+        {"uid": str(current_user.id)}).first()
     if can_w:
-        wmap = {r[0]: float(r[1]) for r in db.execute(_txt("SELECT client_id::text, balance FROM wallets")).fetchall()}
-        gmap = {r[0]: float(r[1]) for r in db.execute(_txt("SELECT client_id::text, current_xp FROM gamification_levels")).fetchall()}
+        wmap = {r[0]: float(r[1]) for r in db.execute(_txt(
+            "SELECT replace(cast(client_id as varchar),'-',''), balance FROM wallets")).fetchall()}
+        gmap = {r[0]: float(r[1]) for r in db.execute(_txt(
+            "SELECT replace(cast(client_id as varchar),'-',''), current_xp FROM gamification_levels")).fetchall()}
         for c in resp.get("items", []):
-            cid = str(c.get("id"))
+            cid = str(c.get("id")).replace("-", "")
             c["wallet_balance"] = wmap.get(cid)
             c["bonuses"] = gmap.get(cid)
     return resp
