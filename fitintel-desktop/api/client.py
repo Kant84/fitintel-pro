@@ -3,6 +3,25 @@ import requests
 from typing import Optional, Dict, Any, List
 
 
+def _rs(resp):
+    """raise_for_status с человекочитаемым detail от сервера."""
+    try:
+        _rs(resp)
+    except Exception:
+        try:
+            d = resp.json().get("detail")
+            if d:
+                raise RuntimeError(str(d))
+        except RuntimeError:
+            raise
+        except Exception:
+            pass
+        raise
+
+
+
+
+
 def _check(resp):
     """HTTP-ошибка -> человеческий текст из detail сервера."""
     if resp.status_code >= 400:
@@ -267,7 +286,7 @@ def _e55_sess(self):
 
 def _e55_get(self, path, params=None):
     r = _e55_sess(self).get(_e55_url(self, path), params=params or {}, timeout=60)
-    r.raise_for_status()
+    _rs(r)
     try: return r.json()
     except Exception: return r.text
 
@@ -277,7 +296,7 @@ def _e55_post(self, path, payload=None, files=None, data=None):
         r = s.post(_e55_url(self, path), files=files, data=data or {}, timeout=180)
     else:
         r = s.post(_e55_url(self, path), json=payload or {}, timeout=180)
-    r.raise_for_status()
+    _rs(r)
     try: return r.json()
     except Exception: return r.text
 
@@ -333,7 +352,7 @@ def export_payments(self, date_from=None, date_to=None, client_id=None, fmt="csv
 def download_document(self, document_id, fmt=None):
     pr = {"format": fmt} if fmt else {}
     r = _e55_sess(self).get(_e55_url(self, "/documents/%s/download" % document_id), params=pr)
-    r.raise_for_status()
+    _rs(r)
     return r.content, r.headers.get("Content-Type", "")
 
 def issue_card(self, client_id, card_number, valid_until=None, notes=None):
@@ -380,7 +399,7 @@ for _n in ["_e55_get", "_e55_post", "_e55_url", "_e55_sess", "_e55_list"]:
 # ============================ E56_EXT ============================
 def _e56_put(self, path, payload=None):
     r = _e55_sess(self).put(_e55_url(self, path), json=payload or {})
-    r.raise_for_status()
+    _rs(r)
     try: return r.json()
     except Exception: return r.text
 
@@ -445,7 +464,7 @@ for _n in ["get_notif_settings", "save_notif_settings"]:
 # ============================ E59_EXT ============================
 def _e55_del(self, path):
     r = _e55_sess(self).delete(_e55_url(self, path))
-    r.raise_for_status()
+    _rs(r)
     try: return r.json()
     except Exception: return r.text
 
@@ -507,7 +526,7 @@ def _e55_patch(self, path, payload=None):
         r = self._session.patch(url, json=payload or {}, timeout=30)
     else:
         r = requests.patch(url, json=payload or {}, timeout=30)
-    r.raise_for_status()
+    _rs(r)
     try:
         return r.json()
     except Exception:
