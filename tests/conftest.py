@@ -150,3 +150,20 @@ def _w6_pg_defaults_shim(conn, cursor, statement, parameters, context, executema
     if "gen_random_uuid()" in statement:
         statement = statement.replace(" DEFAULT gen_random_uuid()", "")
     return statement, parameters
+
+# W6-shim: SQLite-функции для оставшегося Postgres-raw-SQL в DML
+from sqlalchemy import event as _w6_ev2
+
+
+@_w6_ev2.listens_for(engine, "connect")
+def _w6_sqlite_funcs(dbapi_conn, _record):
+    try:
+        import datetime as _dtm, re as _rem
+        dbapi_conn.create_function(
+            "now", 0,
+            lambda: _dtm.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+        dbapi_conn.create_function(
+            "regexp_replace", 4,
+            lambda v, pat, rep, flags: _rem.sub(pat, rep, v or ""))
+    except Exception:
+        pass

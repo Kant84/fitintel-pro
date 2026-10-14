@@ -69,7 +69,7 @@ def miniapp_qr(data: str = Query(default="fitintel", max_length=512)):
 def _ensure_feedback():
     try:
         with _e.begin() as c:
-            c.execute(_t("CREATE TABLE IF NOT EXISTS app_feedback (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), client_id TEXT, theme TEXT, body TEXT, created_at TIMESTAMP DEFAULT now())"))
+            c.execute(_t("CREATE TABLE IF NOT EXISTS app_feedback (id UUID PRIMARY KEY, client_id TEXT, theme TEXT, body TEXT, created_at TIMESTAMP)"))
     except Exception:
         pass
 
@@ -95,7 +95,7 @@ def miniapp_feedback_list(limit: int = Query(default=200, le=500)):
     _ensure_feedback()
     with _e.connect() as c:
         rows = c.execute(_t("SELECT id, client_id, theme, body, created_at FROM app_feedback ORDER BY created_at DESC LIMIT :l"), {"l": int(limit)}).fetchall()
-    return {"items": [{"id": str(r[0]), "client_id": r[1], "theme": r[2], "body": r[3], "created_at": str(r[4])} for r in rows]}
+    return {"items": [{"id": str(r[0]).replace("-",""), "client_id": r[1], "theme": r[2], "body": r[3], "created_at": str(r[4])} for r in rows]}
 
 
 # === W5: регистрация клиента в приложении (код из MAX/email) ===
@@ -136,7 +136,7 @@ def miniapp_register(body: RegisterIn, db: _S = _Dep(_gdb)):
     if not row[2]:
         if (body.code or "") != (row[1] or ""):
             raise _HE(400, "Неверный код")
-        db.execute(_t("UPDATE phone_verifications SET verified=true WHERE id=:i"), {"i": str(row[0])})
+        db.execute(_t("UPDATE phone_verifications SET verified=true WHERE id=:i"), {"i": str(row[0]).replace("-","")})
     with _e.begin() as c:
         c.execute(_t("ALTER TABLE clients ADD COLUMN IF NOT EXISTS user_id VARCHAR(64)"))
         c.execute(_t("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT FALSE"))
@@ -155,10 +155,10 @@ def miniapp_register(body: RegisterIn, db: _S = _Dep(_gdb)):
     svc = AuthService(db)
     user = svc.create_user(norm, body.password, body.email)
     db.execute(_t("UPDATE users SET phone=:p, full_name=:f, phone_verified=TRUE WHERE id=:i"),
-               {"p": canon, "f": body.full_name, "i": str(user.id)})
+               {"p": canon, "f": body.full_name, "i": str(user.id).replace("-","")})
     role = db.execute(_t("SELECT id FROM roles WHERE code='client' LIMIT 1")).first()
     if role:
-        rneed = {r[0]: r[1] for r in db.execute(_t("SELECT column_name, data_type FROM information_schema.columns WHERE table_name='user_roles' AND is_nullable='NO' AND column_default IS NULL"))}
+        rneed = _tbl_req(db, "wallet_transactions")
         rd = {"user_id": str(user.id), "role_id": str(role[0])}
         for _col, _dt in rneed.items():
             if _col in rd:
@@ -175,10 +175,10 @@ def miniapp_register(body: RegisterIn, db: _S = _Dep(_gdb)):
                 rd[_col] = ""
         db.execute(_t("INSERT INTO user_roles (" + ",".join(rd) + ") VALUES (" + ",".join(":" + k for k in rd) + ") ON CONFLICT DO NOTHING"), rd)
     db.execute(_t("UPDATE clients SET user_id=:u WHERE id=:c"),
-               {"u": str(user.id), "c": str(cli[0])})
+               {"u": str(user.id).replace("-",""), "c": str(cli[0]).replace("-","")})
     if body.email:
         db.execute(_t("UPDATE clients SET email=:e WHERE id=:c AND (email IS NULL OR email='')"),
-                   {"e": body.email, "c": str(cli[0])})
+                   {"e": body.email, "c": str(cli[0]).replace("-","")})
     db.commit()
     token = svc.create_user_access_token(user)
     try:
@@ -263,7 +263,7 @@ def max_bridge_auth(body: BridgeAuthIn, db: _S = _Dep(_gdb)):
         "ON replace(b.client_id,'-','')=replace(cast(c.id as text),'-','') "
         "WHERE b.max_user_id=:m LIMIT 1"), {"m": muid}).first()
     if row and row[0]:
-        acc = db.execute(_t("SELECT 1 FROM users WHERE id=:i"), {"i": str(row[0])}).first()
+        acc = db.execute(_t("SELECT 1 FROM users WHERE id=:i"), {"i": str(row[0]).replace("-","")}).first()
         if acc:
             return _issue_token(str(row[0]))
     return {"registered": False, "max_user_id": muid,
@@ -297,20 +297,20 @@ def max_bridge_register(body: BridgeRegIn, db: _S = _Dep(_gdb)):
     svc = AuthService(db)
     user = svc.create_user(norm, body.password, None)
     db.execute(_t("UPDATE users SET phone=:p, full_name=:f, phone_verified=TRUE WHERE id=:i"),
-               {"p": canon, "f": body.full_name, "i": str(user.id)})
+               {"p": canon, "f": body.full_name, "i": str(user.id).replace("-","")})
     role = db.execute(_t("SELECT id FROM roles WHERE code='client' LIMIT 1")).first()
     if role:
-        rneed = {r[0]: r[1] for r in db.execute(_t("SELECT column_name, data_type FROM information_schema.columns WHERE table_name='user_roles' AND is_nullable='NO' AND column_default IS NULL"))}
+        rneed = _tbl_req(db, "wallet_transactions")
         rd = {"user_id": str(user.id), "role_id": str(role[0])}
         for _col, _dt in rneed.items():
             if _col in rd:
                 continue
             rd[_col] = str(_uuid.uuid4()) if _col == "id" else (_dtn.now(_tzn.utc) if (_dt.startswith("timestamp") or _col.endswith("_at")) else (False if _dt == "boolean" else (0 if (_dt.startswith("int") or _dt.startswith("numeric")) else "")))
         db.execute(_t("INSERT INTO user_roles (" + ",".join(rd) + ") VALUES (" + ",".join(":" + k for k in rd) + ") ON CONFLICT DO NOTHING"), rd)
-    db.execute(_t("UPDATE clients SET user_id=:u WHERE id=:c"), {"u": str(user.id), "c": str(cli[0])})
+    db.execute(_t("UPDATE clients SET user_id=:u WHERE id=:c"), {"u": str(user.id).replace("-",""), "c": str(cli[0]).replace("-","")})
     db.execute(_t("INSERT INTO max_bot_bindings (max_user_id, client_id) VALUES (:m,:c) "
                   "ON CONFLICT (max_user_id) DO UPDATE SET client_id=:c"),
-               {"m": int(muid), "c": str(cli[0]).replace("-", "")})
+               {"m": int(muid), "c": str(cli[0]).replace("-","").replace("-", "")})
     db.commit()
     return _issue_token(str(user.id))
 
@@ -364,15 +364,18 @@ def miniapp_me(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
 @router.get("/miniapp/wallet")
 def miniapp_wallet(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     uid = str(current.id)
-    c = db.execute(_t("SELECT id FROM clients WHERE user_id=:u LIMIT 1"), {"u": uid}).first()
+    c = db.execute(_t("SELECT id FROM clients WHERE replace(cast(user_id as varchar),'-','')=replace(cast(:u as varchar),'-','') LIMIT 1"), {"u": uid}).first()
     out = {"balance": None, "bonuses": None}
     if not c:
         return out
     cid = str(c[0])
-    tabs = {r[0] for r in db.execute(_t("SELECT table_name FROM information_schema.tables WHERE table_name IN ('wallets','wallet')"))}
+    if db.bind.dialect.name == "sqlite":
+        tabs = {r[0] for r in db.execute(_t("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('wallets','wallet')"))}
+    else:
+        tabs = {r[0] for r in db.execute(_t("SELECT table_name FROM information_schema.tables WHERE table_name IN ('wallets','wallet')"))}
     if tabs:
         t = tabs.pop()
-        row = db.execute(_t(f"SELECT * FROM {t} WHERE client_id::text=:c LIMIT 1"), {"c": cid}).mappings().first()
+        row = db.execute(_t(f"SELECT * FROM {t} WHERE replace(cast(client_id as varchar),'-','')=replace(cast(:c as varchar),'-','') LIMIT 1"), {"c": cid}).mappings().first()
         if row:
             d = dict(row)
             for k, v in d.items():
@@ -388,7 +391,7 @@ def miniapp_wallet(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
                     except Exception:
                         pass
     if out["bonuses"] is None:
-        g = db.execute(_t("SELECT current_xp FROM gamification_levels WHERE client_id::text=:c LIMIT 1"), {"c": cid}).first()
+        g = db.execute(_t("SELECT current_xp FROM gamification_levels WHERE replace(cast(client_id as varchar),'-','')=replace(cast(:c as varchar),'-','') LIMIT 1"), {"c": cid}).first()
         out["bonuses"] = float(g[0]) if g and g[0] is not None else None
     return out
 
@@ -413,18 +416,32 @@ def wallet_config(db: _S = _Dep(_gdb)):
     return _wallet_cfg(db)
 
 
+
+def _tbl_cols(db, table: str) -> set:
+    if db.bind.dialect.name == "sqlite":
+        return {r[0] for r in db.execute(_t("SELECT name FROM pragma_table_info('" + table + "')"))}
+    return {r[0] for r in db.execute(_t("SELECT column_name FROM information_schema.columns WHERE table_name='" + table + "'"))}
+
+
+def _tbl_req(db, table: str) -> dict:
+    if db.bind.dialect.name == "sqlite":
+        return {r[0]: r[1] for r in db.execute(_t("SELECT name, type, [notnull], dflt_value FROM pragma_table_info('" + table + "')")).fetchall() if r[2] == 1 and r[3] is None}
+    return {r[0]: r[1] for r in db.execute(_t("SELECT column_name, data_type FROM information_schema.columns WHERE table_name='" + table + "' AND is_nullable='NO' AND column_default IS NULL"))}
+
+
 def _wallet_credit(db, client_id: str, amount: float, bonus_percent: float) -> dict:
-    w = db.execute(_t("SELECT id, balance FROM wallets WHERE client_id::text=:c"), {"c": client_id}).first()
+    client_id = str(client_id).replace("-", "")
+    w = db.execute(_t("SELECT id, balance FROM wallets WHERE replace(cast(client_id as varchar),'-','')=replace(cast(:c as varchar),'-','')"), {"c": client_id}).first()
     if w:
         wid = str(w[0])
-        db.execute(_t("UPDATE wallets SET balance=balance+:a, updated_at=now() WHERE id=:i"), {"a": amount, "i": wid})
+        db.execute(_t("UPDATE wallets SET balance=balance+:a, updated_at=now() WHERE replace(cast(id as varchar),'-','')=replace(cast(:i as varchar),'-','')"), {"a": amount, "i": wid})
         bal = float(w[1] or 0) + amount
     else:
         wid = str(_uuid.uuid4())
         db.execute(_t("INSERT INTO wallets (id, client_id, balance, frozen_balance, currency, created_at, updated_at) VALUES (:i,:c,:a,0,'RUB', now(), now())"),
                    {"i": wid, "c": client_id, "a": amount})
         bal = amount
-    rneed = {r[0]: r[1] for r in db.execute(_t("SELECT column_name, data_type FROM information_schema.columns WHERE table_name='wallet_transactions' AND is_nullable='NO' AND column_default IS NULL"))}
+    rneed = _tbl_req(db, "wallet_transactions")
     td = {"id": str(_uuid.uuid4()), "wallet_id": wid, "client_id": client_id, "amount": amount,
           "type": "topup", "transaction_type": "topup", "description": "Пополнение через приложение",
           "balance_before": round(bal - amount, 2), "balance_after": round(bal, 2),
@@ -451,7 +468,7 @@ def _wallet_credit(db, client_id: str, amount: float, bonus_percent: float) -> d
         else:
             td[col] = "topup"
     td = {k: v for k, v in td.items() if k in rneed or k in ("type",)}
-    tcols = {r[0] for r in db.execute(_t("SELECT column_name FROM information_schema.columns WHERE table_name='wallet_transactions'"))}
+    tcols = _tbl_cols(db, 'wallet_transactions')
     td = {k: v for k, v in td.items() if k in tcols}
     db.execute(_t("INSERT INTO wallet_transactions (" + ",".join(td) + ") VALUES (" + ",".join(":" + k for k in td) + ")"), td)
     db.commit()
@@ -464,7 +481,7 @@ def wallet_topup(body: TopupIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     amount = round(float(body.amount), 2)
     if amount < cfg["min"]:
         raise _HE(422, "Минимальная сумма пополнения: %s руб." % int(cfg["min"]))
-    c = db.execute(_t("SELECT id FROM clients WHERE user_id=:u LIMIT 1"), {"u": str(current.id)}).first()
+    c = db.execute(_t("SELECT id FROM clients WHERE replace(cast(user_id as varchar),'-','')=replace(cast(:u as varchar),'-','') LIMIT 1"), {"u": str(current.id).replace("-","")}).first()
     if not c:
         raise _HE(404, "Карточка клиента не найдена")
     cid = str(c[0])
@@ -486,24 +503,26 @@ def wallet_topup(body: TopupIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
 
 def _ensure_bonus_rules(db):
     db.execute(_t("CREATE TABLE IF NOT EXISTS bonus_rules ("
-                  "id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
+                  "id UUID PRIMARY KEY,"
                   "category VARCHAR(20) NOT NULL DEFAULT 'ALL',"
                   "event VARCHAR(30) NOT NULL,"
                   "mode VARCHAR(10) NOT NULL DEFAULT 'fix',"
                   "value NUMERIC(12,2) NOT NULL DEFAULT 0,"
                   "active BOOLEAN DEFAULT TRUE,"
-                  "created_at TIMESTAMPTZ DEFAULT now())"))
+                  "created_at TIMESTAMPTZ)"))
     db.commit()
 
 
 def _add_xp(db, client_id, xp):
     if xp <= 0:
         return 0.0
-    g = db.execute(_t("SELECT id FROM gamification_levels WHERE client_id::text=:c"), {"c": str(client_id)}).first()
+    g = db.execute(_t("SELECT id FROM gamification_levels WHERE replace(cast(client_id as varchar),'-','')=replace(cast(:c as varchar),'-','')"), {"c": str(client_id).replace("-","")}).first()
     if g:
-        db.execute(_t("UPDATE gamification_levels SET current_xp=current_xp+:b, updated_at=now() WHERE id=:i"), {"b": xp, "i": str(g[0])})
+        db.execute(_t("UPDATE gamification_levels SET current_xp=current_xp+:b, updated_at=now() "
+                      "WHERE replace(cast(id as varchar),'-','')=replace(cast(:i as varchar),'-','')"),
+                   {"b": xp, "i": str(g[0]).replace("-","")})
     else:
-        gcols = {r[0] for r in db.execute(_t("SELECT column_name FROM information_schema.columns WHERE table_name='gamification_levels'"))}
+        gcols = _tbl_cols(db, 'gamification_levels')
         gd = {k: v for k, v in {"id": str(_uuid.uuid4()), "client_id": client_id, "current_xp": xp, "level": 1,
                                 "xp_to_next": 100, "total_visits": 0, "total_workout_minutes": 0, "streak_days": 0,
                                 "max_streak_days": 0, "achievements_count": 0,
@@ -515,13 +534,13 @@ def _add_xp(db, client_id, xp):
 
 def award_bonus(db, client_id, event, amount=0):
     _ensure_bonus_rules(db)
-    c = db.execute(_t("SELECT client_category FROM clients WHERE id::text=:c"), {"c": str(client_id)}).first()
+    c = db.execute(_t("SELECT client_category FROM clients WHERE replace(cast(id as varchar),'-','')=replace(cast(:c as varchar),'-','')"), {"c": str(client_id).replace("-","")}).first()
     cat = ((c[0] if c else None) or "").upper()
     rows = db.execute(_t(
         "SELECT mode, value FROM bonus_rules WHERE event=:e AND active=TRUE "
         "AND (category='ALL' OR category=:cat) "
         "ORDER BY CASE WHEN category='ALL' THEN 1 ELSE 0 END"),
-        {"e": str(event).lower()[:30], "cat": cat}).fetchall()
+        {"e": str(event).replace("-","").lower()[:30], "cat": cat}).fetchall()
     total = 0.0
     for mode, val in rows:
         v = float(val or 0)
@@ -542,7 +561,7 @@ class RuleIn(_BM):
 def bonus_rules_list(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     _ensure_bonus_rules(db)
     rows = db.execute(_t("SELECT id, category, event, mode, value, active FROM bonus_rules ORDER BY created_at")).fetchall()
-    return {"items": [{"id": str(r[0]), "category": r[1], "event": r[2], "mode": r[3],
+    return {"items": [{"id": str(r[0]).replace("-",""), "category": r[1], "event": r[2], "mode": r[3],
                        "value": float(r[4]), "active": bool(r[5])} for r in rows]}
 
 
@@ -559,7 +578,7 @@ def bonus_rules_add(body: RuleIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
 
 @router.delete("/bonus-rules/{rid}")
 def bonus_rules_del(rid: str, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
-    db.execute(_t("DELETE FROM bonus_rules WHERE id::text=:r"), {"r": str(rid)})
+    db.execute(_t("DELETE FROM bonus_rules WHERE replace(cast(id as varchar),'-','')=replace(cast(:r as varchar),'-','')"), {"r": str(rid).replace("-","")})
     db.commit()
     return {"ok": True}
 
@@ -569,8 +588,8 @@ from app.models.service import Service as _Svc, ServiceBooking as _SBk
 
 
 def _client_id_of(db, uid):
-    c = db.execute(_t("SELECT id FROM clients WHERE user_id=:u LIMIT 1"), {"u": str(uid)}).first()
-    return str(c[0]) if c else None
+    c = db.execute(_t("SELECT id FROM clients WHERE replace(cast(user_id as varchar),'-','')=replace(cast(:u as varchar),'-','') LIMIT 1"), {"u": str(uid).replace("-","")}).first()
+    return str(c[0]).replace("-", "") if c else None
 
 
 def _bk_tbl():
@@ -590,7 +609,7 @@ def _as_sched(x):
 def booking_catalog(db: _S = _Dep(_gdb)):
     trainers = {}
     for r in db.execute(_t("SELECT tp.id, tp.user_id, tp.specialization, u.full_name, u.username "
-                           "FROM trainer_profiles tp LEFT JOIN users u ON u.id::text=tp.user_id::text "
+                           "FROM trainer_profiles tp LEFT JOIN users u ON replace(cast(u.id as varchar),'-','')=replace(cast(tp.user_id as varchar),'-','') "
                            "WHERE tp.is_active=TRUE")).fetchall():
         tid = str(r[0])
         trainers[tid] = {"id": tid, "name": (r[3] or r[4] or "Тренер"), "spec": r[2] or ""}
@@ -602,11 +621,11 @@ def booking_catalog(db: _S = _Dep(_gdb)):
         raw = str(r[1]) if r[1] else None
         t = trainers.get(raw) or (trainers.get("u:" + raw) if raw else None)
         if t is None and raw:
-            u = db.execute(_t("SELECT full_name, username FROM users WHERE id::text=:x"), {"x": raw}).first()
+            u = db.execute(_t("SELECT full_name, username FROM users WHERE replace(cast(id as varchar),'-','')=replace(cast(:x as varchar),'-','')"), {"x": raw}).first()
             nm = (u[0] or u[1] or "Тренер") if u else "Тренер"
             t = {"id": "ext:" + raw, "name": nm, "spec": ""}
             trainers[t["id"]] = t
-        services.append({"id": str(r[0]), "trainer_id": (t or {}).get("id"), "name": r[2],
+        services.append({"id": str(r[0]).replace("-",""), "trainer_id": (t or {}).get("id"), "name": r[2],
                          "price": float(r[3] or 0), "duration": r[4], "schedule": _as_sched(r[5])})
     return {"trainers": [v for k, v in trainers.items() if not k.startswith("u:")],
             "services": services}
@@ -614,7 +633,7 @@ def booking_catalog(db: _S = _Dep(_gdb)):
 
 @router.get("/miniapp/booking/slots")
 def booking_slots(service_id: str, day: str, db: _S = _Dep(_gdb)):
-    svc = db.execute(_t("SELECT schedule FROM services WHERE id::text=:s"), {"s": service_id}).first()
+    svc = db.execute(_t("SELECT schedule FROM services WHERE replace(cast(id as varchar),'-','')=replace(cast(:s as varchar),'-','')"), {"s": service_id}).first()
     if not svc:
         raise _HE(404, "Услуга не найдена")
     out = []
@@ -625,7 +644,7 @@ def booking_slots(service_id: str, day: str, db: _S = _Dep(_gdb)):
             when = _dtn.fromisoformat(str(day) + "T" + t).replace(tzinfo=None)
         except Exception:
             continue
-        booked = db.execute(_t(f"SELECT count(*) FROM {_bk_tbl()} WHERE service_id::text=:s AND booking_date=:b "
+        booked = db.execute(_t(f"SELECT count(*) FROM {_bk_tbl()} WHERE replace(cast(service_id as varchar),'-','')=replace(cast(:s as varchar),'-','') AND booking_date=:b "
                                "AND status IN ('BOOKED','CONFIRMED','PAID')"), {"s": service_id, "b": when}).scalar()
         left = max(0, cap - int(booked or 0))
         if left > 0:
@@ -644,7 +663,7 @@ def booking_create(body: BookIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     cid = _client_id_of(db, str(current.id))
     if not cid:
         raise _HE(404, "Карточка клиента не найдена")
-    svc = db.execute(_t("SELECT schedule, name FROM services WHERE id::text=:s"), {"s": body.service_id}).first()
+    svc = db.execute(_t("SELECT schedule, name FROM services WHERE replace(cast(id as varchar),'-','')=replace(cast(:s as varchar),'-','')"), {"s": body.service_id}).first()
     if not svc:
         raise _HE(404, "Услуга не найдена")
     try:
@@ -655,18 +674,18 @@ def booking_create(body: BookIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     for sl in ((_as_sched(svc[0]).get("time_slots")) or []):
         if sl.get("time") == body.time:
             cap = int(sl.get("capacity", 1) or 1)
-    booked = db.execute(_t(f"SELECT count(*) FROM {_bk_tbl()} WHERE service_id::text=:s AND booking_date=:b "
+    booked = db.execute(_t(f"SELECT count(*) FROM {_bk_tbl()} WHERE replace(cast(service_id as varchar),'-','')=replace(cast(:s as varchar),'-','') AND booking_date=:b "
                            "AND status IN ('BOOKED','CONFIRMED','PAID')"), {"s": body.service_id, "b": when}).scalar()
     if int(booked or 0) >= cap:
         raise _HE(409, "Мест нет — выберите другое время")
-    cols = {r[0] for r in db.execute(_t(f"SELECT column_name FROM information_schema.columns WHERE table_name='{_bk_tbl()}'"))}
+    cols = _tbl_cols(db, _bk_tbl())
     data = {"id": str(_uuid.uuid4()), "service_id": body.service_id, "client_id": cid,
-            "booking_date": when, "status": "BOOKED",
+            "booking_date": when, "status": "BOOKED", "source": "miniapp",
             "created_at": _dtn.now(_tzn.utc), "updated_at": _dtn.now(_tzn.utc)}
     data = {k: v for k, v in data.items() if k in cols}
     db.execute(_t(f"INSERT INTO {_bk_tbl()} (" + ",".join(data) + ") VALUES (" + ",".join(":" + k for k in data) + ")"), data)
     db.commit()
-    return {"ok": True, "service": svc[1], "when": str(when)[:16]}
+    return {"ok": True, "service": svc[1], "when": str(when).replace("-","")[:16]}
 
 
 @router.delete("/miniapp/booking/{bid}")
@@ -674,8 +693,8 @@ def booking_cancel(bid: str, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     cid = _client_id_of(db, str(current.id))
     if not cid:
         raise _HE(404, "Карточка клиента не найдена")
-    row = db.execute(_t(f"SELECT b.client_id::text, b.booking_date, b.status FROM {_bk_tbl()} b "
-                        "WHERE b.id::text=:i"), {"i": str(bid)}).first()
+    row = db.execute(_t(f"SELECT replace(cast(b.client_id as varchar),'-',''), b.booking_date, b.status FROM {_bk_tbl()} b "
+                        "WHERE replace(cast(b.id as varchar),'-','')=replace(cast(:i as varchar),'-','')"), {"i": str(bid).replace("-","")}).first()
     if not row or str(row[0]) != cid:
         raise _HE(404, "Запись не найдена")
     if str(row[2]) not in ("BOOKED", "CONFIRMED"):
@@ -683,13 +702,18 @@ def booking_cancel(bid: str, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     from app.api.v1.club_params import get_param
     hours = float(get_param("CANCEL_WINDOW_HOURS", "2") or 2)
     when = row[1]
+    if isinstance(when, str):
+        try:
+            when = _dtn.fromisoformat(when)
+        except Exception:
+            when = None
     now = _dtn.now(_tzn.utc)
-    if when is not None and when.tzinfo is None:
+    if when is not None and getattr(when, "tzinfo", None) is None:
         when = when.replace(tzinfo=_tzn.utc)
     if when is not None and (when - now).total_seconds() < hours * 3600:
         raise _HE(422, "До занятия меньше %d часов — отмена недоступна" % int(hours))
-    db.execute(_t(f"UPDATE {_bk_tbl()} SET status='CANCELLED', updated_at=now() WHERE id::text=:i"),
-               {"i": str(bid)})
+    db.execute(_t(f"UPDATE {_bk_tbl()} SET status='CANCELLED', updated_at=now() WHERE replace(cast(id as varchar),'-','')=replace(cast(:i as varchar),'-','')"),
+               {"i": str(bid).replace("-","")})
     db.commit()
     return {"ok": True, "status": "CANCELLED"}
 
@@ -700,9 +724,9 @@ def booking_my(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     if not cid:
         return {"items": []}
     rows = db.execute(_t(f"SELECT b.id, b.booking_date, b.status, s.name FROM {_bk_tbl()} b "
-                         "JOIN services s ON s.id::text=b.service_id::text "
-                         "WHERE b.client_id::text=:c ORDER BY b.booking_date DESC LIMIT 50"), {"c": cid}).fetchall()
-    return {"items": [{"id": str(r[0]), "when": str(r[1])[:16], "status": r[2], "service": r[3]} for r in rows]}
+                         "JOIN services s ON replace(cast(s.id as varchar),'-','')=replace(cast(b.service_id as varchar),'-','') "
+                         "WHERE replace(cast(b.client_id as varchar),'-','')=replace(cast(:c as varchar),'-','') ORDER BY b.booking_date DESC LIMIT 50"), {"c": cid}).fetchall()
+    return {"items": [{"id": str(r[0]).replace("-",""), "when": str(r[1]).replace("-","")[:16], "status": r[2], "service": r[3]} for r in rows]}
 
 
 # === W6: уведомления — напоминания о занятиях + новости/акции ===
@@ -732,8 +756,8 @@ def _booking_reminder_job():
             z = (now + _tdl(hours=hours)).replace(tzinfo=None)
             rows = db.execute(_t(
                 f"SELECT b.id, b.booking_date, s.name, c.phone FROM {_bk_tbl()} b "
-                "JOIN services s ON s.id::text=b.service_id::text "
-                "JOIN clients c ON c.id::text=b.client_id::text "
+                "JOIN services s ON replace(cast(s.id as varchar),'-','')=replace(cast(b.service_id as varchar),'-','') "
+                "JOIN clients c ON replace(cast(c.id as varchar),'-','')=replace(cast(b.client_id as varchar),'-','') "
                 "WHERE b.status IN ('BOOKED','CONFIRMED') AND b.booking_date BETWEEN :a AND :z "
                 "AND b.reminded_at IS NULL AND c.phone IS NOT NULL AND c.phone <> '' LIMIT 50"),
                 {"a": a, "z": z}).fetchall()
@@ -741,7 +765,7 @@ def _booking_reminder_job():
                 try:
                     dtxt = when.strftime("%d.%m") if when.date() != now.date() else "Сегодня"
                     _max_send(phone, f"🔔 Напоминание: {dtxt} в {when.strftime('%H:%M')} — {name}. Ждём вас!")
-                    db.execute(_t(f"UPDATE {_bk_tbl()} SET reminded_at=now() WHERE id::text=:r"), {"r": str(rid)})
+                    db.execute(_t(f"UPDATE {_bk_tbl()} SET reminded_at=now() WHERE replace(cast(id as varchar),'-','')=replace(cast(:r as varchar),'-','')"), {"r": str(rid).replace("-","")})
                     db.commit()
                 except Exception:
                     db.rollback()
@@ -763,8 +787,8 @@ except Exception as _e:
 
 def _ensure_posts(db):
     db.execute(_t("CREATE TABLE IF NOT EXISTS club_posts ("
-                  "id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
-                  "title VARCHAR(200) NOT NULL, body TEXT, created_at TIMESTAMPTZ DEFAULT now())"))
+                  "id UUID PRIMARY KEY,"
+                  "title VARCHAR(200) NOT NULL, body TEXT, created_at TIMESTAMPTZ)"))
     db.commit()
 
 
@@ -781,7 +805,7 @@ def news_publish(body: PostIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     db.commit()
     rows = db.execute(_t(
         "SELECT DISTINCT c.phone FROM max_bot_bindings mb JOIN clients c "
-        "ON replace(mb.client_id,'-','')=replace(c.id::text,'-','') "
+        "ON replace(mb.client_id,'-','')=replace(replace(cast(c.id as varchar),'-',''),'-','') "
         "WHERE c.phone IS NOT NULL AND c.phone <> ''")).fetchall()
     sent = 0
     for (phone,) in rows:
@@ -798,8 +822,8 @@ def miniapp_subscriptions(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     rows = db.execute(_t(
         "SELECT s.id, s.status, s.start_date, s.end_date, s.visit_limit, s.visits_used, "
         "s.is_unlimited, s.frozen_until, t.name AS tariff_name "
-        "FROM subscriptions s LEFT JOIN tariffs t ON t.id::text=s.tariff_id::text "
-        "WHERE s.client_id::text=:c ORDER BY s.created_at DESC LIMIT 20"), {"c": cid}).mappings().fetchall()
+        "FROM subscriptions s LEFT JOIN tariffs t ON replace(cast(t.id as varchar),'-','')=replace(cast(s.tariff_id as varchar),'-','') "
+        "WHERE replace(cast(s.client_id as varchar),'-','')=replace(cast(:c as varchar),'-','') ORDER BY s.created_at DESC LIMIT 20"), {"c": cid}).mappings().fetchall()
     st_map = {"ACTIVE": "действует", "FROZEN": "заморожен",
               "EXPIRED": "истёк", "CANCELLED": "отменён"}
     items = []
@@ -831,7 +855,7 @@ def miniapp_visits_list(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
         return {"items": []}
     rows = db.execute(_t(
         "SELECT entry_time, exit_time, status, access_method FROM visits "
-        "WHERE client_id::text=:c ORDER BY entry_time DESC LIMIT 30"), {"c": cid}).fetchall()
+        "WHERE replace(cast(client_id as varchar),'-','')=replace(cast(:c as varchar),'-','') ORDER BY entry_time DESC LIMIT 30"), {"c": cid}).fetchall()
     methods = {"RFID": "карта/браслет", "QR": "QR",
                "QR_STAFF": "служебный пропуск",
                "FACE_ID": "Face ID", "MANUAL": "вручную"}
@@ -861,5 +885,5 @@ def miniapp_visits_list(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
 def news_feed(db: _S = _Dep(_gdb)):
     _ensure_posts(db)
     rows = db.execute(_t("SELECT id, title, body, created_at FROM club_posts ORDER BY created_at DESC LIMIT 10")).fetchall()
-    return {"items": [{"id": str(r[0]), "title": r[1], "body": r[2],
+    return {"items": [{"id": str(r[0]).replace("-",""), "title": r[1], "body": r[2],
                        "created_at": str(r[3])[:16]} for r in rows]}
