@@ -669,6 +669,31 @@ def booking_create(body: BookIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     return {"ok": True, "service": svc[1], "when": str(when)[:16]}
 
 
+@router.delete("/miniapp/booking/{bid}")
+def booking_cancel(bid: str, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
+    cid = _client_id_of(db, str(current.id))
+    if not cid:
+        raise _HE(404, "Карточка клиента не найдена")
+    row = db.execute(_t(f"SELECT b.client_id::text, b.booking_date, b.status FROM {_bk_tbl()} b "
+                        "WHERE b.id::text=:i"), {"i": str(bid)}).first()
+    if not row or str(row[0]) != cid:
+        raise _HE(404, "Запись не найдена")
+    if str(row[2]) not in ("BOOKED", "CONFIRMED"):
+        raise _HE(422, "Запись уже не активна")
+    from app.api.v1.club_params import get_param
+    hours = float(get_param("CANCEL_WINDOW_HOURS", "2") or 2)
+    when = row[1]
+    now = _dtn.now(_tzn.utc)
+    if when is not None and when.tzinfo is None:
+        when = when.replace(tzinfo=_tzn.utc)
+    if when is not None and (when - now).total_seconds() < hours * 3600:
+        raise _HE(422, "До занятия меньше %d часов — отмена недоступна" % int(hours))
+    db.execute(_t(f"UPDATE {_bk_tbl()} SET status='CANCELLED', updated_at=now() WHERE id::text=:i"),
+               {"i": str(bid)})
+    db.commit()
+    return {"ok": True, "status": "CANCELLED"}
+
+
 @router.get("/miniapp/booking/my")
 def booking_my(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     cid = _client_id_of(db, str(current.id))
