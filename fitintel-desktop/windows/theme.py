@@ -76,7 +76,7 @@ QPushButton {{ background: {panel}; color: {hdr_c}; border: 1px solid {hdr_c}; b
 QPushButton:hover {{ background: {hdr_c}; color: {sel_txt}; }}
 QPushButton:pressed {{ background: {accent}; color: {sel_txt}; }}
 QLineEdit, QComboBox, QSpinBox, QDateEdit, QPlainTextEdit, QTextEdit {{
-    background: {panel}; color: {text}; border: 1px solid {accent}; border-radius: 4px; padding: 5px;
+    background: {panel}; color: {text}; border: 1px solid {accent}; border-radius: 4px; padding: 3px 8px; min-height: 28px;
     selection-background-color: {accent}; selection-color: {sel_txt};
 }}
 QComboBox QAbstractItemView {{ background: {panel}; color: {text}; selection-background-color: {accent}; selection-color: {sel_txt}; }}
