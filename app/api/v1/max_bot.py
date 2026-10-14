@@ -390,7 +390,7 @@ async def max_bot_webhook(request: Request,
 
     # W5: входящее от клиента -> таблицы чатов десктопа (двусторонность)
     _nt = str(text or "").strip().lower()
-    db.execute(sql_text('CREATE TABLE IF NOT EXISTS max_bot_fsm ( max_user_id BIGINT PRIMARY KEY, state TEXT, data TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)))'))
+    db.execute(sql_text("CREATE TABLE IF NOT EXISTS max_bot_fsm (max_user_id BIGINT PRIMARY KEY, state TEXT, data TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"))
     db.commit()
     _stt = db.execute(sql_text("SELECT state FROM max_bot_fsm WHERE max_user_id=:u"),
                       {"u": int(max_user_id)}).first()
