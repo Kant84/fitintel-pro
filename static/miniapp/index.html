@@ -289,9 +289,7 @@ document.getElementById('sched').innerHTML=Object.keys(by).sort().map(d=>`<div c
 if(['trainings'].includes(t)){const map={trainings:['/services/trainer-schedule','Нет записей'],visits:['/visits','Посещений пока нет'],subs:['/subscriptions/my','Нет подписок']};
 const[path,empty]=map[t];try{const r=await api(path);const rows=r.items||r;
 document.getElementById('lst').innerHTML=(rows&&rows.length)?rows.map(b=>`<div class="svc"><div class="n">${esc(b.service_name||b.entry_time||b.tariff_name||JSON.stringify(b).slice(0,60))}</div><div class="p">${esc(b.booking_date||b.entry_time||b.created_at||'')}</div></div>`).join(''):`<div class="mut">${empty}</div>`}catch(e){document.getElementById('lst').innerHTML=`<div class="mut">${empty}</div>`}}}
-window.addEventListener('error',e=>{let d=document.getElementById('app');if(d)d.innerHTML='<div style="padding:30px;color:#f66;font-size:13px">Ошибка: '+(e.message||'unknown')+' @ '+(e.filename||'')+':'+(e.lineno||'')+'</div>'});
-window.addEventListener('unhandledrejection',e=>{let d=document.getElementById('app');if(d)d.innerHTML='<div style="padding:30px;color:#f66;font-size:13px">Ошибка async: '+(e.reason&&e.reason.message||e.reason)+'</div>'});
-boot();//w6err
+boot();
 </script>
 </body>
 </html>
