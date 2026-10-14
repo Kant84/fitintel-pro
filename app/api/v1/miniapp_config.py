@@ -70,11 +70,11 @@ def _ensure_feedback():
     try:
         with _e.begin() as c:
             c.execute(_t("CREATE TABLE IF NOT EXISTS app_feedback (id UUID PRIMARY KEY, client_id TEXT, theme TEXT, body TEXT, created_at TIMESTAMP)"))
-    except Exception as _e:
+    except Exception as _w6e:
         import traceback; traceback.print_exc()
 
 
-_ensure_feedback()
+# _ensure_feedback() — lazy: таблица создаётся при вызове эндпоинта
 
 
 @router.post("/miniapp/feedback")
@@ -110,9 +110,9 @@ def miniapp_feedback(body: dict):
                 if bonus and bonus > 0 and row[1]:
                     try:
                         _max_send(str(row[1]), "\U0001f381 +%d \u0431\u043e\u043d\u0443\u0441\u043e\u0432 \u0437\u0430 \u043e\u0442\u0437\u044b\u0432! \u0421\u043f\u0430\u0441\u0438\u0431\u043e, \u0447\u0442\u043e \u0434\u0435\u043b\u0438\u0442\u0435\u0441\u044c \u043c\u043d\u0435\u043d\u0438\u0435\u043c" % int(bonus))
-                    except Exception as _e:
+                    except Exception as _w6e:
                         import traceback; traceback.print_exc()
-    except Exception as _e:
+    except Exception as _w6e:
         import traceback; traceback.print_exc()
     return {"ok": True}
 
@@ -151,7 +151,7 @@ def miniapp_register(body: RegisterIn, db: _S = _Dep(_gdb)):
     if len(norm) < 10:
         raise _HE(422, "Невалидный номер телефона")
     row = db.execute(_t("SELECT id, code, verified, expires_at, created_at FROM phone_verifications "
-                        "WHERE right(regexp_replace(phone,'\D','','g'),10)=:p "
+                        "WHERE right(regexp_replace(phone,'\\D','','g'),10)=:p "
                         "ORDER BY created_at DESC LIMIT 1"), {"p": norm}).first()
     if not row:
         raise _HE(400, "Сначала нажмите «Получить код»")
@@ -410,12 +410,12 @@ def miniapp_wallet(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
                 if out["balance"] is None and "balance" in kl and "bonus" not in kl:
                     try:
                         out["balance"] = float(v)
-                    except Exception as _e:
+                    except Exception as _w6e:
                         import traceback; traceback.print_exc()
                 if out["bonuses"] is None and "bonus" in kl:
                     try:
                         out["bonuses"] = float(v)
-                    except Exception as _e:
+                    except Exception as _w6e:
                         import traceback; traceback.print_exc()
     if out["bonuses"] is None:
         g = db.execute(_t("SELECT current_xp FROM gamification_levels WHERE replace(cast(client_id as varchar),'-','')=replace(cast(:c as varchar),'-','') LIMIT 1"), {"c": cid}).first()
@@ -767,8 +767,8 @@ def _max_send(phone: str, text: str, db=None):
     try:
         from app.integrations.max.service import get_max_service
         return get_max_service().send_message(phone_number=str(phone or ""), text=text, db=db)
-    except Exception as _e:
-        print("W6 send:", str(_e)[:100])
+    except Exception as _w6e:
+        print("W6 send:", str(_w6e)[:100])
         return {}
 
 
@@ -801,7 +801,7 @@ def _booking_reminder_job():
                     db.rollback()
         finally:
             db.close()
-    except Exception as _e:
+    except Exception as _w6e:
         print("W6 booking remind:", str(_e)[:120])
 
 
@@ -811,7 +811,7 @@ try:
     _rem_sched.add_job(_booking_reminder_job, "interval", minutes=20, id="w6_booking_remind")
     _rem_sched.start()
     print("W6 booking reminders OK (every 20 min)")
-except Exception as _e:
+except Exception as _w6e:
     print("W6 booking reminders FAIL:", str(_e)[:120])
 
 
