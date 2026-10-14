@@ -67,7 +67,7 @@ def _ensure_shop_schema(db: Session) -> None:
         db.rollback()
 
 
-def buy_with_balance(db: Session, client_id, product_id, quantity: int = 1, method: str = "balance") -> dict:
+def buy_with_balance(db: Session, client_id, product_id, quantity: int = 1, method: str = "balance", bonus_percent: float = 0) -> dict:
     """Купить товар со списанием с баланса кошелька. HTTPException с понятным текстом."""
     if quantity < 1:
         raise HTTPException(400, "Количество должно быть ≥ 1")
@@ -88,19 +88,22 @@ def buy_with_balance(db: Session, client_id, product_id, quantity: int = 1, meth
     cash_part = total
     pay_method = "BALANCE"
     bonus_left = None
-    if str(method).lower() == "bonuses":
-        from app.api.v1.club_params import get_param
-        pct = Decimal(str(float(get_param("BONUS_PAY_MAX_PERCENT", "30") or 30)))
-        rate = Decimal(str(float(get_param("BONUS_TO_RUB_RATE", "1") or 1)))
-        min_cash = Decimal(str(float(get_param("BONUS_MIN_CASH", "1") or 1)))
-        if rate <= 0:
-            rate = Decimal("1")
+    from app.api.v1.club_params import get_param
+    pct_cap = Decimal(str(float(get_param("BONUS_PAY_MAX_PERCENT", "30") or 30)))
+    rate = Decimal(str(float(get_param("BONUS_TO_RUB_RATE", "1") or 1)))
+    min_cash = Decimal(str(float(get_param("BONUS_MIN_CASH", "1") or 1)))
+    if rate <= 0:
+        rate = Decimal("1")
+    bp = Decimal(str(bonus_percent or 0))
+    if str(method).lower() == "bonuses" and bp <= 0:
+        bp = pct_cap
+    if bp > 0:
+        bp = min(bp, pct_cap)
         g = db.execute(_t("SELECT current_xp FROM gamification_levels "
                           "WHERE replace(cast(client_id as varchar),'-','')=replace(cast(:c as varchar),'-','') LIMIT 1"),
                        {"c": str(client_id)}).first()
         avail = Decimal(str(g[0] if g and g[0] is not None else 0))
-        cap = total * pct / 100
-        bonus_rub = min(cap, avail * rate)
+        bonus_rub = min(total * bp / 100, avail * rate)
         if total - bonus_rub < min_cash:
             bonus_rub = total - min_cash
         if bonus_rub < 0:
