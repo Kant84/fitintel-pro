@@ -14,10 +14,11 @@ class BuyIn(BaseModel):
     client_id: str
     product_id: str
     quantity: int = 1
+    method: str = "balance"  # balance | bonuses
 
 
 @router.post("/buy-balance")
 def buy(body: BuyIn, db: Session = Depends(get_db),
         current_user=Depends(get_current_user)):
     """Оплата товара с баланса ЛК. Десктоп: продажа клиенту со списанием баланса."""
-    return buy_with_balance(db, body.client_id, body.product_id, body.quantity)
+    return buy_with_balance(db, body.client_id, body.product_id, body.quantity, body.method)
