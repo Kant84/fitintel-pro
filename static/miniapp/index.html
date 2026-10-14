@@ -270,6 +270,7 @@ document.getElementById('goods').innerHTML=rows.length?rows.map(p=>{const pr=Num
 if(t==='services'){try{const s=await api('/services');const rows=s.items||s;
 document.getElementById('svclist').innerHTML=rows.map(x=>`<div class="svc"><div class="n">${esc(x.name)}</div><div class="p">${Number(x.price||0)} ₽</div></div>`).join('')||'—'}catch(e){document.getElementById('svclist').innerHTML='<span class="mut">Скоро</span>'}}
 if(t==='qr'){const box=document.getElementById('qrbox');try{
+try{const _m=await api('/miniapp/me');me=_m;localStorage.setItem('fit_user',JSON.stringify(_m))}catch(_e){}
 const g=await api('/dynamic-qr/generate',{method:'POST',body:JSON.stringify({client_id:((me&&me.client_id)||(me&&me.id)||me&&me.user_id),expires_in_minutes:2})});
 const data=encodeURIComponent(g.qr_payload||'');
 box.innerHTML=`<img style="width:280px;height:280px;border-radius:12px;background:#fff;padding:6px" src="${API}/miniapp/qr?data=${data}">
