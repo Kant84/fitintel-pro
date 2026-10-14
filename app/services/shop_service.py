@@ -67,7 +67,7 @@ def _ensure_shop_schema(db: Session) -> None:
         db.rollback()
 
 
-def buy_with_balance(db: Session, client_id, product_id, quantity: int = 1) -> dict:
+def buy_with_balance(db: Session, client_id, product_id, quantity: int = 1, method: str = "balance") -> dict:
     """Купить товар со списанием с баланса кошелька. HTTPException с понятным текстом."""
     if quantity < 1:
         raise HTTPException(400, "Количество должно быть ≥ 1")
@@ -84,25 +84,89 @@ def buy_with_balance(db: Session, client_id, product_id, quantity: int = 1) -> d
 
     total = Decimal(str(p.sale_price or 0)) * qty
 
-    ws = WalletService(db)
-    try:
-        wallet, tx = ws.withdraw(
-            str(client_id), total,
-            description=f"Магазин: {p.name} ×{quantity}",
-            reference_type="shop_product", reference_id=str(p.id))
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(400, f"Оплата с баланса не прошла: {str(e)[:120]}")
+    bonuses_used = Decimal("0")
+    cash_part = total
+    pay_method = "BALANCE"
+    bonus_left = None
+    if str(method).lower() == "bonuses":
+        from app.api.v1.club_params import get_param
+        pct = Decimal(str(float(get_param("BONUS_PAY_MAX_PERCENT", "30") or 30)))
+        rate = Decimal(str(float(get_param("BONUS_TO_RUB_RATE", "1") or 1)))
+        min_cash = Decimal(str(float(get_param("BONUS_MIN_CASH", "1") or 1)))
+        if rate <= 0:
+            rate = Decimal("1")
+        g = db.execute(_t("SELECT current_xp FROM gamification_levels "
+                          "WHERE replace(cast(client_id as varchar),'-','')=replace(cast(:c as varchar),'-','') LIMIT 1"),
+                       {"c": str(client_id)}).first()
+        avail = Decimal(str(g[0] if g and g[0] is not None else 0))
+        cap = total * pct / 100
+        bonus_rub = min(cap, avail * rate)
+        if total - bonus_rub < min_cash:
+            bonus_rub = total - min_cash
+        if bonus_rub < 0:
+            bonus_rub = Decimal("0")
+        bonus_rub = bonus_rub.quantize(Decimal("0.01"))
+        deduct = (bonus_rub / rate).quantize(Decimal("0.01"))
+        if deduct > 0:
+            if avail < deduct:
+                raise HTTPException(400, "Недостаточно бонусов: на счету %s" % avail)
+            db.execute(_t("UPDATE gamification_levels SET current_xp=current_xp-:d, updated_at=now() "
+                          "WHERE replace(cast(client_id as varchar),'-','')=replace(cast(:c as varchar),'-','')"),
+                       {"d": deduct, "c": str(client_id)})
+            db.commit()
+        bonuses_used = deduct
+        cash_part = total - bonus_rub
+        pay_method = "BONUSES" if cash_part <= 0 else "MIXED"
+        gl = db.execute(_t("SELECT current_xp FROM gamification_levels "
+                           "WHERE replace(cast(client_id as varchar),'-','')=replace(cast(:c as varchar),'-','') LIMIT 1"),
+                        {"c": str(client_id)}).scalar()
+        bonus_left = float(gl or 0)
+
+    wallet = None
+    if cash_part > 0:
+        ws = WalletService(db)
+        try:
+            wallet, tx = ws.withdraw(
+                str(client_id), cash_part,
+                description=f"Магазин: {p.name} ×{quantity}",
+                reference_type="shop_product", reference_id=str(p.id))
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(400, f"Оплата с баланса не прошла: {str(e)[:120]}")
 
     p.quantity = (p.quantity or 0) - qty
     db.add(BarSale(club_id=p.club_id, client_id=str(client_id), item_type="product",
                    product_id=p.id, item_name=p.name, quantity=qty,
                    unit_price=p.sale_price, total_price=total,
-                   payment_method="BALANCE"))
+                   payment_method=pay_method))
     db.commit()
-    return {"ok": True, "product": p.name, "quantity": quantity,
-            "total": float(total), "balance": float(wallet.balance)}
+    # W6: бонусы за покупку (на денежную часть) + пуш
+    bonus_awarded = 0.0
+    try:
+        if cash_part > 0:
+            from app.api.v1.miniapp_config import award_bonus, _max_send
+            bonus_awarded = float(award_bonus(db, str(client_id), "purchase", float(cash_part)) or 0)
+        ph = db.execute(_t("SELECT phone FROM clients "
+                           "WHERE replace(cast(id as varchar),'-','')=replace(cast(:c as varchar),'-','') LIMIT 1"),
+                        {"c": str(client_id)}).first()
+        if ph and ph[0]:
+            msg = "\U0001f6cd \u041a\u0443\u043f\u043b\u0435\u043d\u043e: %s \u00d7%d \u2014 " % (p.name, quantity)
+            if bonuses_used > 0 and cash_part > 0:
+                msg += "\u0431\u043e\u043d\u0443\u0441\u044b %s + %s \u20bd \u0441 \u0431\u0430\u043b\u0430\u043d\u0441\u0430" % (bonuses_used, cash_part)
+            elif bonuses_used > 0:
+                msg += "\u043e\u043f\u043b\u0430\u0447\u0435\u043d\u043e \u0431\u043e\u043d\u0443\u0441\u0430\u043c\u0438: %s" % bonuses_used
+            else:
+                msg += "%s \u20bd \u0441 \u0431\u0430\u043b\u0430\u043d\u0441\u0430" % total
+            if bonus_awarded > 0:
+                msg += " | \U0001f381 +%d \u0431\u043e\u043d\u0443\u0441\u043e\u0432 \u0441 \u043f\u043e\u043a\u0443\u043f\u043a\u0438" % int(bonus_awarded)
+            _max_send(str(ph[0]), msg)
+    except Exception as _w6e:
+        import traceback; traceback.print_exc()
+    bal = float(wallet.balance) if wallet is not None else None
+    return {"ok": True, "product": p.name, "quantity": quantity, "method": str(method).lower(),
+            "total": float(total), "bonuses_used": float(bonuses_used), "cash_paid": float(cash_part),
+            "bonuses_left": bonus_left, "balance": bal}
 
 
 def create_balance_topup(db: Session, client_id, amount: float, description: str = "Пополнение баланса ЛК") -> dict:

@@ -44,6 +44,9 @@ if engine is None or not _ping(engine):
         raise RuntimeError("club_params: DB engine not available")
 
 DEFAULT_PARAMS = {
+    "BONUS_PAY_MAX_PERCENT": ("30", "Макс. % чека, оплачиваемый бонусами"),
+    "BONUS_TO_RUB_RATE": ("1", "Курс: рублей за 1 бонус"),
+    "BONUS_MIN_CASH": ("1", "Мин. денежная часть чека при оплате бонусами, руб."),
     "WALLET_PAY_PROVIDER": ("test", "Провайдер пополнения: test/yookassa/sbp"),
     "WALLET_TOPUP_MIN": ("100", "Мин. сумма пополнения, руб."),
     "WALLET_BONUS_PERCENT": ("5", "Бонусы от пополнения, %"),
