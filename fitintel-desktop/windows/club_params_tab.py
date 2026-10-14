@@ -8,7 +8,8 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QMessageBox, QInputDialog,
     QTableWidget, QTableWidgetItem, QHeaderView, QTabWidget, QLabel,
     QLineEdit, QPlainTextEdit, QCheckBox, QFormLayout
-)
+
+    QComboBox,)
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from api import ApiClient
@@ -183,6 +184,12 @@ class BotSettingsWidget(QWidget):
         self.ed_info = QLineEdit()
         self.ed_femail = QLineEdit()
         self.chk_pay = QCheckBox("Оплата услуг и товаров через приложение (баланс)")
+        self.cmb_wprov = QComboBox(); self.cmb_wprov.addItems(["test", "yookassa", "sbp"])
+        self.ed_wmin = QLineEdit(); self.ed_wmin.setPlaceholderText("100")
+        self.ed_wbonus = QLineEdit(); self.ed_wbonus.setPlaceholderText("5")
+        self.ed_ykshop = QLineEdit(); self.ed_ykshop.setPlaceholderText("shopId ЮKassa")
+        self.ed_ykkey = QLineEdit(); self.ed_ykkey.setEchoMode(QLineEdit.EchoMode.Password)
+        self.ed_ykkey.setPlaceholderText("секретный ключ ЮKassa")
         f.addRow("Токен бота MAX:", self.ed_token)
         f.addRow("Адрес сервера:", self.ed_url)
         f.addRow("О клубе:", self.ed_about)
@@ -192,6 +199,11 @@ class BotSettingsWidget(QWidget):
         f.addRow("Email info:", self.ed_info)
         f.addRow("Email для отзывов:", self.ed_femail)
         f.addRow(self.chk_pay)
+        f.addRow("Провайдер пополнения кошелька:", self.cmb_wprov)
+        f.addRow("Мин. сумма пополнения, ₽:", self.ed_wmin)
+        f.addRow("Бонусы от пополнения, %:", self.ed_wbonus)
+        f.addRow("ЮKassa shopId:", self.ed_ykshop)
+        f.addRow("ЮKassa секретный ключ:", self.ed_ykkey)
         v.addLayout(f)
         bar = QHBoxLayout()
         b1 = QPushButton(" Сохранить"); b1.clicked.connect(self.save)
@@ -225,6 +237,24 @@ class BotSettingsWidget(QWidget):
         self.ed_info.setText(r.get("info_email") or "")
         self.ed_femail.setText(r.get("feedback_email") or "")
         self.chk_pay.setChecked(bool(r.get("payments_enabled", True)))
+        try:
+            _r = self.api.session.get(self.api._url("/club-params"))
+            _cp = _r.json()
+            _items = _cp.get("items") if isinstance(_cp, dict) else _cp
+            _pm = {}
+            for _x in (_items or []):
+                if isinstance(_x, dict):
+                    _k = _x.get("key") or _x.get("param_key") or _x.get("name")
+                    if _k:
+                        _pm[str(_k)] = str(_x.get("value", ""))
+            _i = self.cmb_wprov.findText(_pm.get("WALLET_PAY_PROVIDER", "test"))
+            self.cmb_wprov.setCurrentIndex(max(0, _i))
+            self.ed_wmin.setText(_pm.get("WALLET_TOPUP_MIN", ""))
+            self.ed_wbonus.setText(_pm.get("WALLET_BONUS_PERCENT", ""))
+            self.ed_ykshop.setText(_pm.get("YK_SHOP_ID", ""))
+            self.ed_ykkey.setText(_pm.get("YK_SECRET_KEY", ""))
+        except Exception:
+            pass
         self.lbl.setText("Токен: " + ("установлен (…%s)" % r.get("bot_token_tail") if r.get("bot_token_set") else "не задан"))
 
     def save(self):
@@ -241,6 +271,20 @@ class BotSettingsWidget(QWidget):
             self.ed_token.clear()
             self.lbl.setText("Сохранено. Подписка webhook обновлена автоматически.")
             self.load()
+
+        try:
+            _kv = {
+                "WALLET_PAY_PROVIDER": self.cmb_wprov.currentText(),
+                "WALLET_TOPUP_MIN": self.ed_wmin.text().strip(),
+                "WALLET_BONUS_PERCENT": self.ed_wbonus.text().strip(),
+                "YK_SHOP_ID": self.ed_ykshop.text().strip(),
+                "YK_SECRET_KEY": self.ed_ykkey.text().strip(),
+            }
+            for _k, _v in _kv.items():
+                if _v:
+                    self.api.session.put(self.api._url("/club-params/" + _k), json={"value": _v})
+        except Exception as _e:
+            print("Кошелёк: не сохранено:", str(_e)[:150])
         self._run(lambda: self.api.save_bot_config(body), _done)
 
     def check(self):
