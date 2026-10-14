@@ -5,18 +5,35 @@ from windows.form_dialog import FormDialog
 Клуб правит здесь длительность слота, окна входа, дедлайны, тексты кнопок бота.
 """
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QMessageBox, QInputDialog,
-    QTableWidget, QTableWidgetItem, QHeaderView, QTabWidget, QLabel,
-    QLineEdit, QPlainTextEdit, QCheckBox, QFormLayout
-
-    QComboBox,)
-from PyQt6.QtCore import QThread, pyqtSignal
-
-from api import ApiClient
-from windows import theme
-
-
-class ParamsWorker(QThread):
+    ApiClient,
+    ParamsWorker,
+    PyQt6,
+    QCheckBox,
+    QComboBox,
+    QFormLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QThread,
+    QVBoxLayout,
+    QWidget,
+    QtCore,
+    api,
+    class,
+    from,
+    import,
+    pyqtSignal,
+    theme,
+    windows,
+):
     finished = pyqtSignal(list)
     labels = pyqtSignal(dict)
     error = pyqtSignal(str)
