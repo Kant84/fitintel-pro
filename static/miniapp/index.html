@@ -93,7 +93,7 @@ ${CFG.slogan?`<div style="color:var(--muted);font-size:13px;margin-bottom:12px">
 <button class="btn" style="margin-top:10px" onclick="showReg()">Зарегистрироваться</button>
 <div class="mut">Вход как в десктоп-приложении. Нет пароля — на ресепшене клуба.</div></div>`;
 document.getElementById('nav').innerHTML='';return}
-const V={home:vHome,shop:vShop,services:vServices,schedule:vSchedule,menu:vMenu,qr:vQr,trainings:()=>vList('ТРЕНИРОВКИ','/services/trainer-schedule','Нет записей'),visits:()=>vList('ПОСЕЩЕНИЯ','/visits','Посещений пока нет'),subs:()=>vList('ИСТОРИЯ ПОДПИСОК','/subscriptions/my','Нет подписок'),club:vClub,profile:vProfile,review:vReview,support:vSupport};
+const V={home:vHome,shop:vShop,services:vServices,schedule:vSchedule,menu:vMenu,qr:vQr,trainings:()=>vList('ТРЕНИРОВКИ','/services/trainer-schedule','Нет записей'),visits:vVisits,subs:vSubs,club:vClub,profile:vProfile,review:vReview,support:vSupport};
 a.innerHTML=(V[tab]||vHome)();
 if(['home','shop','services','schedule','trainings','visits','subs','menu'].includes(tab))load(tab);
 if(tab==='qr')startQrTimer();
@@ -209,6 +209,10 @@ function vQr(){return `<span class="back" onclick="go('home')">‹ Назад</s
 <div class="card" style="text-align:center" id="qrbox"><span class="mut">Формирую код…</span></div>`}
 function vList(title,path,empty){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">${title}</div><div class="card" id="lst"><span class="mut">Загрузка…</span></div>
 <script>loadList('${path}','${empty}')<\/script>`}
+function vVisits(){setTimeout(loadVisits,0);return `<span class="back" onclick="go('menu')">&#8249; Назад</span><div class="top">ПОСЕЩЕНИЯ</div><div class="card" id="visitsbox"><span class="mut">Загрузка…</span></div>`}
+function vSubs(){setTimeout(loadSubs,0);return `<span class="back" onclick="go('menu')">&#8249; Назад</span><div class="top">ИСТОРИЯ ПОДПИСОК</div><div class="card" id="subsbox"><span class="mut">Загрузка…</span></div>`}
+async function loadVisits(){try{const r=await api('/miniapp/visits');const items=r.items||[];const e=document.getElementById('visitsbox');if(!e)return;e.innerHTML=items.length?items.map(x=>`<div class="svc"><div class="n">${esc(x.title)}</div><div class="p">${esc(x.sub||'')}</div></div>`).join(''):'<div class="mut">Посещений пока нет</div>'}catch(_e){const e=document.getElementById('visitsbox');if(e)e.innerHTML='<div class="mut">Посещений пока нет</div>'}}
+async function loadSubs(){try{const r=await api('/miniapp/subscriptions');const items=r.items||[];const e=document.getElementById('subsbox');if(!e)return;e.innerHTML=items.length?items.map(x=>`<div class="svc"><div class="n">${esc(x.title)}</div><div class="p">${esc(x.sub||'')}</div></div>`).join(''):'<div class="mut">Нет подписок</div>'}catch(_e){const e=document.getElementById('subsbox');if(e)e.innerHTML='<div class="mut">Нет подписок</div>'}}
 function vClub(){return `<span class="back" onclick="go('menu')">‹ Назад</span><div class="top">О КЛУБЕ</div>
 <div class="card"><div style="font-size:20px;font-weight:800">${esc(CFG.club_name)}</div>
 ${CFG.slogan?`<div class="mut" style="text-align:left">${esc(CFG.slogan)}</div>`:''}
@@ -276,7 +280,7 @@ const mine=(rows||[]);
 if(!mine.length){document.getElementById('sched').innerHTML='<div class="mut">Записей нет. Запишитесь на ресепшене.</div>';return}
 const by={};mine.forEach(b=>{const d=(b.booking_date||'').slice(0,10);(by[d]=by[d]||[]).push(b)});
 document.getElementById('sched').innerHTML=Object.keys(by).sort().map(d=>`<div class="day">${d.split('-').reverse().join('.')}</div><div class="card">`+by[d].map(b=>`<div class="svc"><div class="n">${esc(b.service_name||'Занятие')}</div><div class="p">${(b.booking_date||'').slice(11,16)} · ${esc(b.trainer_name||'')} · ${esc(ST[b.status]||b.status||'')}</div></div>`).join('')+'</div>').join('')}catch(e){document.getElementById('sched').innerHTML='<div class="mut">Скоро</div>'}}
-if(['trainings','visits','subs'].includes(t)){const map={trainings:['/services/trainer-schedule','Нет записей'],visits:['/visits','Посещений пока нет'],subs:['/subscriptions/my','Нет подписок']};
+if(['trainings'].includes(t)){const map={trainings:['/services/trainer-schedule','Нет записей'],visits:['/visits','Посещений пока нет'],subs:['/subscriptions/my','Нет подписок']};
 const[path,empty]=map[t];try{const r=await api(path);const rows=r.items||r;
 document.getElementById('lst').innerHTML=(rows&&rows.length)?rows.map(b=>`<div class="svc"><div class="n">${esc(b.service_name||b.entry_time||b.tariff_name||JSON.stringify(b).slice(0,60))}</div><div class="p">${esc(b.booking_date||b.entry_time||b.created_at||'')}</div></div>`).join(''):`<div class="mut">${empty}</div>`}catch(e){document.getElementById('lst').innerHTML=`<div class="mut">${empty}</div>`}}}
 boot();
