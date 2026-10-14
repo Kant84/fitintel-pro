@@ -87,6 +87,33 @@ def miniapp_feedback(body: dict):
     with _e.begin() as c:
         c.execute(_t("INSERT INTO app_feedback (id, client_id, theme, body, created_at) VALUES (:i,:c,:t,:b,:n)"),
                   {"i": str(_uuid.uuid4()), "c": str(body.get("client_id") or ""), "t": theme, "b": body_, "n": _dt.now(_tz.utc)})
+    # W6: бонусы за отзыв (не чаще раза в сутки на клиента)
+    uid = str(body.get("client_id") or "").replace("-", "")
+    try:
+        with _e.connect() as c:
+            row = c.execute(_t("SELECT id, phone FROM clients "
+                               "WHERE replace(cast(user_id as varchar),'-','')=replace(cast(:u as varchar),'-','') LIMIT 1"),
+                            {"u": uid}).first()
+        if row:
+            cid = str(row[0]).replace("-", "")
+            day_ago = _dt.utcnow() - _tdl(hours=24)
+            with _e.connect() as c:
+                n = c.execute(_t("SELECT count(*) FROM app_feedback WHERE client_id=:c AND created_at > :d"),
+                              {"c": str(body.get("client_id") or ""), "d": day_ago}).scalar()
+            if int(n or 0) <= 1:
+                from app.db.session import SessionLocal as _SL
+                db = _SL()
+                try:
+                    bonus = award_bonus(db, cid, "review")
+                finally:
+                    db.close()
+                if bonus and bonus > 0 and row[1]:
+                    try:
+                        _max_send(str(row[1]), "\U0001f381 +%d \u0431\u043e\u043d\u0443\u0441\u043e\u0432 \u0437\u0430 \u043e\u0442\u0437\u044b\u0432! \u0421\u043f\u0430\u0441\u0438\u0431\u043e, \u0447\u0442\u043e \u0434\u0435\u043b\u0438\u0442\u0435\u0441\u044c \u043c\u043d\u0435\u043d\u0438\u0435\u043c" % int(bonus))
+                    except Exception:
+                        pass
+    except Exception:
+        pass
     return {"ok": True}
 
 
