@@ -790,6 +790,73 @@ def news_publish(body: PostIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     return {"ok": True, "sent": sent}
 
 
+@router.get("/miniapp/subscriptions")
+def miniapp_subscriptions(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
+    cid = _client_id_of(db, str(current.id))
+    if not cid:
+        return {"items": []}
+    rows = db.execute(_t(
+        "SELECT s.id, s.status, s.start_date, s.end_date, s.visit_limit, s.visits_used, "
+        "s.is_unlimited, s.frozen_until, t.name AS tariff_name "
+        "FROM subscriptions s LEFT JOIN tariffs t ON t.id::text=s.tariff_id::text "
+        "WHERE s.client_id::text=:c ORDER BY s.created_at DESC LIMIT 20"), {"c": cid}).mappings().fetchall()
+    st_map = {"ACTIVE": "действует", "FROZEN": "заморожен",
+              "EXPIRED": "истёк", "CANCELLED": "отменён"}
+    items = []
+    for r in rows:
+        name = (str(r.get("tariff_name") or "").strip()) or "Абонемент"
+        sd, ed = str(r.get("start_date") or "")[:10], str(r.get("end_date") or "")[:10]
+        period = ""
+        if sd and ed:
+            period = "с %s.%s по %s.%s" % (sd[8:10], sd[5:7], ed[8:10], ed[5:7])
+        if r.get("is_unlimited"):
+            left = "безлимит"
+        elif r.get("visit_limit") is not None:
+            used = int(r.get("visits_used") or 0)
+            left = "осталось %d из %d" % (max(0, int(r["visit_limit"]) - used), int(r["visit_limit"]))
+        else:
+            left = ""
+        status = st_map.get(str(r.get("status")), str(r.get("status")))
+        if r.get("frozen_until"):
+            status += " (до %s)" % str(r["frozen_until"])[:10]
+        items.append({"id": str(r.get("id")), "title": name,
+                      "sub": " · ".join(x for x in (period, left, status) if x)})
+    return {"items": items}
+
+
+@router.get("/miniapp/visits")
+def miniapp_visits_list(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
+    cid = _client_id_of(db, str(current.id))
+    if not cid:
+        return {"items": []}
+    rows = db.execute(_t(
+        "SELECT entry_time, exit_time, status, access_method FROM visits "
+        "WHERE client_id::text=:c ORDER BY entry_time DESC LIMIT 30"), {"c": cid}).fetchall()
+    methods = {"RFID": "карта/браслет", "QR": "QR",
+               "QR_STAFF": "служебный пропуск",
+               "FACE_ID": "Face ID", "MANUAL": "вручную"}
+    items = []
+    for et, xt, st, am in rows:
+        if et is None:
+            continue
+        loc = et if et.tzinfo is not None else et.replace(tzinfo=_tzn.utc)
+        loc = loc + _tdl(hours=3)  # Europe/Moscow
+        if str(st) == "ACTIVE":
+            items.append({"title": "В клубе с %s" % loc.strftime("%d.%m %H:%M"),
+                          "sub": "сейчас внутри"})
+            continue
+        dur = ""
+        if xt:
+            try:
+                mins = int((xt - et).total_seconds() // 60)
+                dur = ("%d ч %02d мин" % (mins // 60, mins % 60)) if mins >= 60 else ("%d мин" % mins)
+            except Exception:
+                dur = ""
+        sub = " · ".join(x for x in (dur, methods.get(str(am), str(am) or "")) if x)
+        items.append({"title": loc.strftime("%d.%m.%Y %H:%M"), "sub": sub})
+    return {"items": items}
+
+
 @router.get("/miniapp/news")
 def news_feed(db: _S = _Dep(_gdb)):
     _ensure_posts(db)
