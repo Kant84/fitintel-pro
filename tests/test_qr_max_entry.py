@@ -75,7 +75,7 @@ def _turnstile(client, payload, device="turnstile-qr-1"):
 class TestMaxQrEntry:
     def test_qr_requires_binding(self, client, auth_headers, qr_env):
         reply = _bot_qr(client, "777000111")
-        assert "привяз" in reply.lower()
+        assert 'приложен' in reply.lower()
 
     def test_qr_requires_active_subscription(self, client, auth_headers, qr_env):
         cid = _mk_client(client, auth_headers)
