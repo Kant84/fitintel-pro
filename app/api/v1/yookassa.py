@@ -149,7 +149,14 @@ async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
     """E26.3/E26.4/E26.5/E26.11/E26.14 — webhook от YooKassa"""
     body = await request.body()
     signature = request.headers.get("X-YooKassa-Signature", "")
-    expected = hmac.new(WEBHOOK_SECRET.encode(), body, hashlib.sha256).hexdigest()
+    sig_key = os.getenv("YOOKASSA_SECRET_KEY", "")
+    if not sig_key:
+        try:
+            from app.api.v1.club_params import get_param
+            sig_key = get_param("YK_SECRET_KEY", "") or ""
+        except Exception:
+            sig_key = ""
+    expected = hmac.new((sig_key or WEBHOOK_SECRET).encode(), body, hashlib.sha256).hexdigest()
     if not signature or not hmac.compare_digest(signature, expected):
         raise HTTPException(status_code=403, detail="Невалидная подпись webhook")
 
@@ -168,6 +175,38 @@ async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
     result = {"status": "ok", "event": event}
     row = _find_payment(db, yk_id)
     now = datetime.now(timezone.utc)
+
+    # W6: пополнение кошелька из мини-приложения (metadata.wallet_topup)
+    md = obj.get("metadata") or {}
+    if event == "payment.succeeded" and str(md.get("wallet_topup")) == "1" and not row:
+        from app.api.v1.miniapp_config import _wallet_credit, award_bonus, _add_xp
+        client_id = str(md.get("client_id") or "")
+        amount = float((obj.get("amount") or {}).get("value") or 0)
+        bonus_pct = float(md.get("bonus_percent") or 0)
+        r = _wallet_credit(db, client_id, amount, 0)
+        bonus = award_bonus(db, client_id, "topup", amount)
+        if bonus <= 0 and bonus_pct > 0:
+            bonus = _add_xp(db, client_id, round(amount * bonus_pct / 100.0, 2))
+        result["wallet_credited"] = amount
+        result["balance"] = r.get("balance")
+        result["bonuses_added"] = bonus
+        try:
+            from app.integrations.max.service import get_max_service
+            ph = db.execute(text("SELECT phone FROM clients WHERE id::text=:c"),
+                            {"c": client_id}).first()
+            if ph and ph[0]:
+                msg = "💳 Кошелёк пополнен: %s ₽" % amount
+                if bonus > 0:
+                    msg += " (бонусы +%d)" % int(bonus)
+                get_max_service().send_message(phone_number=str(ph[0]), text=msg, db=db)
+        except Exception:
+            pass
+        _insert(db, "yookassa_webhook_events", {
+            "id": str(uuid.uuid4()), "event_key": event_key, "event_type": event,
+            "payload": body.decode(errors="replace"), "created_at": now, "updated_at": now,
+        })
+        db.commit()
+        return result
 
     if event == "payment.succeeded" and row:
         fiscal_doc = f"FD-{uuid.uuid4().hex[:10].upper()}"
