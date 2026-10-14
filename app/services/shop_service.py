@@ -53,6 +53,15 @@ def _apply_schema(exe) -> None:
            "payment_method VARCHAR(20), status VARCHAR(20) DEFAULT 'completed',"
            "created_by UUID, created_at TIMESTAMP DEFAULT now())"))
 
+    # движения склада (модель StockMovement)
+    exe(_t("CREATE TABLE IF NOT EXISTS stock_movements ("
+           "id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
+           "club_id INTEGER NOT NULL, product_id UUID NOT NULL,"
+           "type VARCHAR(20), quantity NUMERIC(10,3) NOT NULL,"
+           "unit_cost NUMERIC(10,2), total_cost NUMERIC(10,2),"
+           "reason VARCHAR(200), document_ref VARCHAR(100),"
+           "created_by UUID, created_at TIMESTAMP DEFAULT now())"))
+
 
 def _ensure_shop_schema_startup() -> None:
     from app.db.session import engine as _e
