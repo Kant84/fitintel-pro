@@ -55,7 +55,7 @@ services:
       - ./uploads_data/brand:/app/static/brand
       - ./uploads_data/products:/app/static/products
       - ./uploads_data/trainers:/app/static/trainers
-      - ../app:/app
+      - ..:/app
     depends_on:
       db:
         condition: service_healthy
@@ -78,6 +78,8 @@ services:
 
   celery-worker:
     image: fitintel:test
+    volumes:
+      - ..:/app
     environment:
       APP_ENV: prod
       POSTGRES_HOST: db
