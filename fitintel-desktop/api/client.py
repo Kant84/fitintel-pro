@@ -3,7 +3,7 @@ import requests
 from typing import Optional, Dict, Any, List
 
 
-def resp.raise_for_status():
+def _rs(resp):
     """raise_for_status с человекочитаемым detail от сервера."""
     try:
         resp.raise_for_status()
