@@ -189,6 +189,8 @@ class BotSettingsWidget(QWidget):
         self.ed_ykshop = QLineEdit(); self.ed_ykshop.setPlaceholderText("shopId ЮKassa")
         self.ed_ykkey = QLineEdit(); self.ed_ykkey.setEchoMode(QLineEdit.EchoMode.Password)
         self.ed_ykkey.setPlaceholderText("секретный ключ ЮKassa")
+        for _w in self.findChildren((QLineEdit, QComboBox)):
+            _w.setMinimumHeight(30)
         f.addRow("Токен бота MAX:", self.ed_token)
         f.addRow("Адрес сервера:", self.ed_url)
         f.addRow("О клубе:", self.ed_about)
