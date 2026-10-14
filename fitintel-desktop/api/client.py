@@ -3,10 +3,10 @@ import requests
 from typing import Optional, Dict, Any, List
 
 
-def _rs(resp):
+def resp.raise_for_status():
     """raise_for_status с человекочитаемым detail от сервера."""
     try:
-        _rs(resp)
+        resp.raise_for_status()
     except Exception:
         try:
             d = resp.json().get("detail")
