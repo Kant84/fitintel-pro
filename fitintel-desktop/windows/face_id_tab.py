@@ -205,6 +205,9 @@ class FaceIdTab(QWidget):
         b_ref = QPushButton("Обновить список")
         b_ref.clicked.connect(self.load_templates)
         bar.addWidget(b_ref)
+        b_del = QPushButton(" Удалить шаблон")
+        b_del.clicked.connect(self.delete_template)
+        bar.addWidget(b_del)
         b_set = QPushButton("Настройки движка…")
         b_set.clicked.connect(self.engine_settings)
         bar.addWidget(b_set)
@@ -399,6 +402,18 @@ class FaceIdTab(QWidget):
                        + json.dumps(r.json(), ensure_ascii=False))
         except Exception as e:
             QMessageBox.warning(self, "Настройки", str(e)[:150])
+    def delete_template(self):
+        row = self.tbl.currentRow()
+        if row < 0:
+            self._show("Сначала выберите шаблон в таблице", ok=False)
+            return
+        tid = self.tbl.item(row, 0).text()
+        def _done(_r):
+            self._show("Шаблон удалён")
+            self.load_templates()
+        self._run(lambda: self.api.delete_face_template(tid), _done)
+
+
 
     def sim_verify(self):
         self._run(lambda: self.api.verify_face(TEST_PHOTO), self._on_verify)
