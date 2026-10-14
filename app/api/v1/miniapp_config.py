@@ -911,6 +911,38 @@ def miniapp_visits_list(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     return {"items": items}
 
 
+
+
+class RedeemIn(_BM):
+    client_id: str
+    amount: float  # рубли, которые покрываем бонусами
+
+
+@router.post("/miniapp/bonus-redeem")
+def bonus_redeem(body: RedeemIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
+    from app.api.v1.club_params import get_param
+    if str(get_param("BONUS_PAY_ENABLED", "1") or "1").lower() not in ("1", "true", "yes", "on"):
+        raise _HE(403, "Оплата бонусами отключена клубом")
+    rate = float(get_param("BONUS_TO_RUB_RATE", "1") or 1)
+    if rate <= 0:
+        rate = 1.0
+    cid = str(body.client_id).replace("-", "")
+    rub = round(float(body.amount), 2)
+    if rub <= 0:
+        return {"bonuses_used": 0.0, "rub_covered": 0.0}
+    deduct = round(rub / rate, 2)
+    g = db.execute(_t("SELECT current_xp FROM gamification_levels WHERE "
+                      "replace(cast(client_id as varchar),'-','')=replace(cast(:c as varchar),'-','') LIMIT 1"),
+                   {"c": cid}).first()
+    avail = float(g[0]) if g and g[0] is not None else 0.0
+    if avail < deduct:
+        raise _HE(400, "Недостаточно бонусов: на счету %s" % avail)
+    db.execute(_t("UPDATE gamification_levels SET current_xp=current_xp-:d, updated_at=now() WHERE "
+                  "replace(cast(client_id as varchar),'-','')=replace(cast(:c as varchar),'-','')"),
+               {"d": deduct, "c": cid})
+    db.commit()
+    return {"ok": True, "bonuses_used": deduct, "rub_covered": round(deduct * rate, 2)}
+
 @router.get("/miniapp/news")
 def news_feed(db: _S = _Dep(_gdb)):
     _ensure_posts(db)
