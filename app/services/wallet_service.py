@@ -192,7 +192,7 @@ class WalletService:
         for t in transactions:
             if t.transaction_type == TransactionType.DEPOSIT.value:
                 total_deposited += t.amount
-            elif t.transaction_type == TransactionType.WITHDRAW.value:
+            elif t.transaction_type == TransactionType.WITHDRAWAL.value:
                 total_withdrawn += t.amount
         
         return WalletTransactionListResponse(
@@ -350,7 +350,7 @@ class WalletService:
         wallet, transaction = self._update_balance(
             wallet=wallet,
             new_balance=new_balance,
-            transaction_type=TransactionType.WITHDRAW.value,
+            transaction_type=TransactionType.WITHDRAWAL.value,
             amount=amount,
             description=description,
             reference_type=reference_type,

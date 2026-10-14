@@ -14,6 +14,7 @@ class BuyIn(BaseModel):
     client_id: str
     product_id: str
     quantity: int = 1
+    bonus_percent: float = 0     # 0 = только баланс; иначе % чека бонусами
     method: str = "balance"  # balance | bonuses
 
 
@@ -21,4 +22,4 @@ class BuyIn(BaseModel):
 def buy(body: BuyIn, db: Session = Depends(get_db),
         current_user=Depends(get_current_user)):
     """Оплата товара с баланса ЛК. Десктоп: продажа клиенту со списанием баланса."""
-    return buy_with_balance(db, body.client_id, body.product_id, body.quantity, body.method)
+    return buy_with_balance(db, body.client_id, body.product_id, body.quantity, body.method, body.bonus_percent)
