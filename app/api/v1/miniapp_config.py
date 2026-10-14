@@ -70,8 +70,8 @@ def _ensure_feedback():
     try:
         with _e.begin() as c:
             c.execute(_t("CREATE TABLE IF NOT EXISTS app_feedback (id UUID PRIMARY KEY, client_id TEXT, theme TEXT, body TEXT, created_at TIMESTAMP)"))
-    except Exception:
-        pass
+    except Exception as _e:
+        import traceback; traceback.print_exc()
 
 
 _ensure_feedback()
@@ -110,10 +110,10 @@ def miniapp_feedback(body: dict):
                 if bonus and bonus > 0 and row[1]:
                     try:
                         _max_send(str(row[1]), "\U0001f381 +%d \u0431\u043e\u043d\u0443\u0441\u043e\u0432 \u0437\u0430 \u043e\u0442\u0437\u044b\u0432! \u0421\u043f\u0430\u0441\u0438\u0431\u043e, \u0447\u0442\u043e \u0434\u0435\u043b\u0438\u0442\u0435\u0441\u044c \u043c\u043d\u0435\u043d\u0438\u0435\u043c" % int(bonus))
-                    except Exception:
-                        pass
-    except Exception:
-        pass
+                    except Exception as _e:
+                        import traceback; traceback.print_exc()
+    except Exception as _e:
+        import traceback; traceback.print_exc()
     return {"ok": True}
 
 
@@ -410,13 +410,13 @@ def miniapp_wallet(current=_Dep(_gcu), db: _S = _Dep(_gdb)):
                 if out["balance"] is None and "balance" in kl and "bonus" not in kl:
                     try:
                         out["balance"] = float(v)
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        import traceback; traceback.print_exc()
                 if out["bonuses"] is None and "bonus" in kl:
                     try:
                         out["bonuses"] = float(v)
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        import traceback; traceback.print_exc()
     if out["bonuses"] is None:
         g = db.execute(_t("SELECT current_xp FROM gamification_levels WHERE replace(cast(client_id as varchar),'-','')=replace(cast(:c as varchar),'-','') LIMIT 1"), {"c": cid}).first()
         out["bonuses"] = float(g[0]) if g and g[0] is not None else None
