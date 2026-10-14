@@ -43,6 +43,16 @@ def _apply_schema(exe) -> None:
     if "article" not in cols:
         exe(_t("ALTER TABLE warehouse_products ADD COLUMN article VARCHAR(50)"))
 
+    # фиксация продаж магазина (модель BarSale)
+    exe(_t("CREATE TABLE IF NOT EXISTS bar_sales ("
+           "id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
+           "club_id INTEGER NOT NULL, client_id UUID, item_type VARCHAR(20),"
+           "product_id UUID, recipe_id UUID, item_name VARCHAR(200),"
+           "quantity NUMERIC(10,3) NOT NULL DEFAULT 1,"
+           "unit_price NUMERIC(10,2) NOT NULL, total_price NUMERIC(10,2) NOT NULL,"
+           "payment_method VARCHAR(20), status VARCHAR(20) DEFAULT 'completed',"
+           "created_by UUID, created_at TIMESTAMP DEFAULT now())"))
+
 
 def _ensure_shop_schema_startup() -> None:
     from app.db.session import engine as _e
