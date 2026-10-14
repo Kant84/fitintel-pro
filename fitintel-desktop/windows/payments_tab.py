@@ -420,7 +420,9 @@ class PaymentsTab(QWidget):
             ("method", "Способ оплаты", "combo", list(RU_M.values())),
             ("direction", "Направление", "combo", ["Приход", "Расход"]),
             ("category", "Категория", "combo", [""] + list(RU_C.values())),
-            ("notes", "Комментарий", "text", None)], self)
+            ("notes", "Комментарий", "text", None),
+            ("balmode", "Списание с баланса", "combo", ["Отключено", "С баланса", "Баланс + бонусы"]),
+            ("bonpct", "Бонусы, % (для Баланс + бонусы)", "text", None)], self)
         if not dlg.exec():
             return
         v = dlg.values()
@@ -434,11 +436,36 @@ class PaymentsTab(QWidget):
         method = _ru_back(RU_M, v.get("method") or RU_M["CASH"])
         direction = _ru_back(RU_D, v.get("direction")) or None
         category = _ru_back(RU_C, v.get("category")) or None
-        self._run(lambda: self.api.create_payment(
-            amount, method, client_id=cid,
-            notes=v.get("notes") or None,
-            direction=direction, category=category),
-            lambda _r: (self._show("Платёж проведён."), self.load_payments()))
+        balmode = str(v.get("balmode") or "Отключено")
+        bonpct = 0.0
+        if balmode.startswith("Баланс +"):
+            try:
+                bonpct = float(str(v.get("bonpct", "")).replace(",", "."))
+            except ValueError:
+                bonpct = -1
+            if bonpct < 0 or bonpct > 100:
+                self._show("Процент бонусов: число 0\u2013100.", ok=False)
+                return
+        def _job():
+            note = v.get("notes") or None
+            total = amount
+            if balmode.startswith("Баланс +") and bonpct > 0:
+                rr = self.api.session.post(self.api._url("/miniapp/bonus-redeem"),
+                    json={"client_id": cid, "amount": round(total * bonpct / 100, 2)}, timeout=20)
+                if rr.status_code != 200:
+                    raise RuntimeError("Бонусы не списаны: " + rr.text[:140])
+                total = round(total - float(rr.json().get("rub_covered", 0)), 2)
+                note = ((note or "") + " [бонусы %d%%]" % int(bonpct))[:200]
+            if balmode == "С баланса":
+                return self.api.create_payment(
+                    amount, "BALANCE", client_id=cid, notes=note,
+                    direction=direction, category=category)
+            if total <= 0:
+                return {"ok": True, "covered_by": "bonuses"}
+            return self.api.create_payment(
+                total, method, client_id=cid, notes=note,
+                direction=direction, category=category)
+        self._run(_job, lambda _r: (self._show("Платёж проведён."), self.load_payments()))
 
     def complete_payment(self):
         pid = self._selected_pid()
