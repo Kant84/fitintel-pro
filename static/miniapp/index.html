@@ -97,7 +97,7 @@ ${CFG.slogan?`<div style="color:var(--muted);font-size:13px;margin-bottom:12px">
 document.getElementById('nav').innerHTML='';return}
 const V={home:vHome,shop:vShop,services:vServices,schedule:vSchedule,menu:vMenu,qr:vQr,trainings:()=>vList('ТРЕНИРОВКИ','/services/trainer-schedule','Нет записей'),visits:vVisits,subs:vSubs,club:vClub,profile:vProfile,review:vReview,support:vSupport};
 a.innerHTML=(V[tab]||vHome)();
-if(['home','shop','services','schedule','trainings','visits','subs','menu'].includes(tab))load(tab);
+if(['home','shop','services','schedule','trainings','visits','subs','menu','qr'].includes(tab))load(tab);
 if(tab==='qr')startQrTimer();
 document.getElementById('nav').innerHTML=[['home','Главная','home'],['shop','Магазин','store'],['services','Услуги','dumb'],['schedule','Расписание','cal'],['menu','Меню','menu']]
 .map(([k,l,i])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')"><span class="bub">${svg(i)}</span>${l}</button>`).join('')}
