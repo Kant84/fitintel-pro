@@ -395,9 +395,14 @@ class MusicTab(QWidget):
     def create_zone_here(self):
         tok = self._agent_token()
         if tok:
-            for z in self._zones:
+            try:
+                zs = self.api.session.get(self._url("/zones"), timeout=10).json()
+            except Exception:
+                zs = self._zones
+            for z in (zs if isinstance(zs, list) else []):
                 if z.get("agent_token") == tok:
-                    self._show("Зона плеера уже есть: %s. Создание не требуется." % z["name"])
+                    self._show("Зона плеера уже есть: %s · %s. Создание не требуется."
+                               % (z["name"], str(z["id"])[:8]))
                     return
         import socket as _sock
         name = "Зал %s" % _sock.gethostname()
