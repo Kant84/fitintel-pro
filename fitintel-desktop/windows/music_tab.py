@@ -9,7 +9,7 @@ from pathlib import Path
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QTimer
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QComboBox, QSlider, QSpinBox, QGridLayout, QMessageBox,
-    QGroupBox, QTabWidget, QFileDialog)
+    QGroupBox, QGroupBox, QTabWidget, QFileDialog, QScrollArea)
 from . import theme
 from .form_dialog import FormDialog
 
@@ -87,7 +87,8 @@ class MusicTab(QWidget):
         self._btn_mute = None
         self._agent_proc = None
         self.setStyleSheet(_t("widget_style"))
-        v = QVBoxLayout(self)
+        outer = QWidget()
+        v = QVBoxLayout(outer)          # всё содержимое — во внутренний виджет
 
         self.banner = QLabel("")
         self.banner.setWordWrap(True)
@@ -255,6 +256,13 @@ class MusicTab(QWidget):
             if b is self._btn_mute:
                 continue
             b.setStyleSheet(BTN_STYLE)
+        # прокрутка: при маленьком окне всё содержимое доступно через скролл
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(outer)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(scroll)   
 
     # ---------- локальный плеер (DJ Agent) ----------
     def _settings_rw(self, mutate=None):
