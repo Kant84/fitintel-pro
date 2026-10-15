@@ -38,6 +38,10 @@ class Agent:
         else:
             base = "/tmp/fitintel_%s_" % suf
             ia, ib, ip = base + "deck_a.sock", base + "deck_b.sock", base + "pad.sock"
+        self.decks = {"A": Deck("A", ia, args.lib, args.dry_run),
+                      "B": Deck("B", ib, args.lib, args.dry_run),
+                      "PAD": Deck("PAD", ip, args.lib, args.dry_run)}
+        self.pads = Pads(args.server, args.token, args.lib,
                          self.decks["PAD"], dry=args.dry_run)
         self.active = "A"
         self.master = 70
