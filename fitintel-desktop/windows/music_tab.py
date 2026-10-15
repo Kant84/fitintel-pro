@@ -12,7 +12,8 @@ from pathlib import Path
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QTimer
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QComboBox, QSlider, QSpinBox, QGridLayout, QMessageBox,
-    QGroupBox, QTabWidget, QFileDialog, QScrollArea)
+    QGroupBox, QTabWidget, QFileDialog, QScrollArea,
+    QListWidget, QListWidgetItem)
 from . import theme
 from .form_dialog import FormDialog
 
@@ -162,7 +163,10 @@ class MusicTab(QWidget):
         self.lbl_status = QLabel("—")
         v.addWidget(self.lbl_status)
 
-        # ---- DJ-пульт ----
+        # ---- DJ-пульт + плейлисты (горизонтально) ----
+        dj_row = QHBoxLayout()
+
+        # левая часть: деки
         dj_box = QGroupBox("DJ-пульт (Deck A / Deck B)")
         g = QGridLayout(dj_box)
         self.lbl_deck_a = QLabel("Deck A: пусто")
@@ -221,7 +225,52 @@ class MusicTab(QWidget):
         b_mute.clicked.connect(self.mute_all)
         g.addWidget(b_mute, 5, 0, 1, 5)
         self.sld_master.valueChanged.connect(lambda v: self.lbl_master.setText(str(v)))
-        v.addWidget(dj_box)
+        dj_row.addWidget(dj_box, 3)
+
+        # правая часть: плейлисты + треки
+        pl_box = QGroupBox("Плейлисты")
+        pv = QVBoxLayout(pl_box)
+
+        plh = QHBoxLayout()
+        plh.addWidget(QLabel("Плейлист:"))
+        self.cmb_pl_dj = QComboBox()
+        self.cmb_pl_dj.setMinimumWidth(180)
+        self.cmb_pl_dj.currentIndexChanged.connect(self._fill_dj_tracks)
+        plh.addWidget(self.cmb_pl_dj, 1)
+        b_rf_pl = QPushButton("⟳")
+        b_rf_pl.setToolTip("Обновить список плейлистов")
+        b_rf_pl.setFixedWidth(32)
+        b_rf_pl.clicked.connect(self.reload_all)
+        plh.addWidget(b_rf_pl)
+        pv.addLayout(plh)
+
+        self.list_dj_tracks = QListWidget()
+        self.list_dj_tracks.setMinimumHeight(120)
+        self.list_dj_tracks.itemDoubleClicked.connect(self._dj_double_click)
+        pv.addWidget(self.list_dj_tracks, 1)
+
+        bph = QHBoxLayout()
+        b_to_a = QPushButton("→ A")
+        b_to_a.setToolTip("Загрузить трек на дек A (без эфира)")
+        b_to_a.clicked.connect(lambda: self._dj_to_deck("A", air=False))
+        b_to_b = QPushButton("→ B")
+        b_to_b.setToolTip("Загрузить трек на дек B (без эфира)")
+        b_to_b.clicked.connect(lambda: self._dj_to_deck("B", air=False))
+        b_play_a = QPushButton("▶ A")
+        b_play_a.setToolTip("Загрузить на A и сразу в эфир")
+        b_play_a.clicked.connect(lambda: self._dj_to_deck("A", air=True))
+        b_play_b = QPushButton("▶ B")
+        b_play_b.setToolTip("Загрузить на B и сразу в эфир")
+        b_play_b.clicked.connect(lambda: self._dj_to_deck("B", air=True))
+        bph.addWidget(b_to_a)
+        bph.addWidget(b_to_b)
+        bph.addStretch(1)
+        bph.addWidget(b_play_a)
+        bph.addWidget(b_play_b)
+        pv.addLayout(bph)
+
+        dj_row.addWidget(pl_box, 2)
+        v.addLayout(dj_row)
 
         # ---- эквалайзер ----
         eq_box = QGroupBox("Эквалайзер (дБ, −12…+12)")
@@ -397,7 +446,7 @@ class MusicTab(QWidget):
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
         args = [str(py), "-u", str(script),
                 "--server", server,
-                "--lib", lib,
+                "--interval", "0.5",
                 "--debug"]
         token = self._agent_token()
         if token:
@@ -617,7 +666,63 @@ class MusicTab(QWidget):
 
     def _fill_playlists(self, data):
         self._playlists = data if isinstance(data, list) else []
+        # синхронизируем комбо в блоке плейлистов DJ
+        self.cmb_pl_dj.blockSignals(True)
+        cur = self.cmb_pl_dj.currentText()
+        self.cmb_pl_dj.clear()
+        self.cmb_pl_dj.addItem("— выбери плейлист —", "")
+        for p in self._playlists:
+            self.cmb_pl_dj.addItem(p.get("name") or p.get("id"), p["id"])
+        if cur:
+            i = self.cmb_pl_dj.findText(cur)
+            if i >= 0:
+                self.cmb_pl_dj.setCurrentIndex(i)
+        self.cmb_pl_dj.blockSignals(False)
+        self._fill_dj_tracks()
+    
+    def _fill_dj_tracks(self):
+        """Заполняет список треков выбранного плейлиста."""
+        self.list_dj_tracks.clear()
+        pid = self.cmb_pl_dj.currentData()
+        if not pid:
+            return
+        pl = next((p for p in self._playlists if p["id"] == pid), None)
+        if not pl:
+            return
+        tracks = pl.get("tracks") or []
+        for i, t in enumerate(tracks, start=1):
+            title = t.get("title") or t.get("path") or "?"
+            path = t.get("path") or ""
+            it = QListWidgetItem("%2d. %s" % (i, title))
+            it.setData(Qt.ItemDataRole.UserRole, {"title": title, "path": path})
+            it.setToolTip(path)
+            self.list_dj_tracks.addItem(it)
 
+    def _dj_selected_track(self):
+        it = self.list_dj_tracks.currentItem()
+        if not it:
+            self._show("Выбери трек в списке.", ok=False)
+            return None
+        return it.data(Qt.ItemDataRole.UserRole)
+
+    def _dj_to_deck(self, deck, air=False):
+        tr = self._dj_selected_track()
+        if not tr:
+            return
+        self._set_deck(deck, tr)
+        if air:
+            # ставим этот дек в эфир
+            self.apply_dj(active=deck)
+
+    def _dj_double_click(self, item):
+        """Двойной клик по треку — на активный дек и в эфир."""
+        tr = item.data(Qt.ItemDataRole.UserRole)
+        if not tr:
+            return
+        deck = self._current_active()
+        self._set_deck(deck, tr)
+        self.apply_dj(active=deck)
+    
     def load_sfx(self):
         self._run(lambda: self.api.session.get(self._url("/sfx"), timeout=15).json(),
                   self._fill_sfx)
