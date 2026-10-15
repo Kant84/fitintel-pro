@@ -210,6 +210,8 @@ class BotSettingsWidget(QWidget):
         f.addRow(self.chk_wallet)
         f.addRow(self.chk_bonus)
         f.setVerticalSpacing(10)
+        for _c in (self.chk_pay, self.chk_wallet, self.chk_bonus):
+            _c.setMinimumHeight(26)
         v.addLayout(f)
         bar = QHBoxLayout()
         b1 = QPushButton(" Сохранить"); b1.clicked.connect(self.save)
