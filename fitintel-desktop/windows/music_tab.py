@@ -335,7 +335,7 @@ class MusicTab(QWidget):
             os.makedirs(r"E:\music\logs", exist_ok=True)
             logf = open(r"E:\music\logs\agent_gui.log", "ab")
             self._agent_proc = subprocess.Popen(
-                [str(py), str(script), "--server", server,
+                [str(py), "-u", str(script), "--server", server,
                  "--token", token, "--lib", lib],
                 cwd=str(root / "scripts" / "music"), creationflags=flags,
                 stdout=logf, stderr=logf)
