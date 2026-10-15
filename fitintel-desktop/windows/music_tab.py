@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Музыка/DJ-пульт (экран 29): зоны, деки A/B, файлы/папки с диска, кроссфейд,
-мастер, эквалайзер, пады 1-8, энерджи-режим, лицензия фоновой музыки."""
+"""Музыка/DJ-пульт (экран 29): зоны, ПЛЕЕР НА ЭТОМ ПК (вкл/выкл агента из окна),
+деки A/B, файлы/папки с диска, кроссфейд, мастер, эквалайзер, пады 1-8,
+энерджи-режим, лицензия фоновой музыки."""
 import json
 import os
-from PyQt6.QtCore import QThread, pyqtSignal, Qt
+import subprocess
+from pathlib import Path
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QTimer
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QComboBox, QSlider, QSpinBox, QGridLayout, QMessageBox,
     QGroupBox, QTabWidget, QFileDialog)
@@ -26,13 +29,19 @@ MUTE_STYLE = (
     "QPushButton:pressed { background: #991b1b; }"
 )
 
+AGENT_ON_STYLE = (
+    "QPushButton { background: #15803d; color: white; font-weight: bold;"
+    " border: 1px solid #22c55e; border-radius: 6px; padding: 6px 10px; }"
+    "QPushButton:hover { background: #16a34a; }"
+)
+
 AUDIO_FILTER = "Аудио (*.mp3 *.flac *.ogg *.wav *.m4a);;Все файлы (*)"
 
 def _t(name, *args):
     f = getattr(theme, name, None)
     if not callable(f):
         return ""
-    for a in (args, ())):
+    for a in (args, ()):
         try:
             return f(*a)
         except TypeError:
@@ -76,6 +85,7 @@ class MusicTab(QWidget):
         self._deck_a = None   # {"title","path"}
         self._deck_b = None
         self._btn_mute = None
+        self._agent_proc = None
         self.setStyleSheet(_t("widget_style"))
         v = QVBoxLayout(self)
 
@@ -84,11 +94,27 @@ class MusicTab(QWidget):
         self.banner.hide()
         v.addWidget(self.banner)
 
+        # ---- плеер на этом ПК: вкл/выкл + создание зоны ----
+        pl_box = QGroupBox("Плеер на этом ПК (DJ Agent)")
+        plh = QHBoxLayout(pl_box)
+        self.lbl_agent = QLabel("—")
+        self.btn_agent = QPushButton("⏵ Плеер: ВКЛ")
+        self.btn_agent.setToolTip("Запустить/остановить плеер на этом компьютере")
+        self.btn_agent.clicked.connect(self.toggle_agent)
+        b_new_zone = QPushButton("＋ Зона на этом ПК")
+        b_new_zone.setToolTip("Создать зону local_agent и сохранить токен плеера в настройках")
+        b_new_zone.clicked.connect(self.create_zone_here)
+        plh.addWidget(self.lbl_agent, 1)
+        plh.addWidget(self.btn_agent)
+        plh.addWidget(b_new_zone)
+        v.addWidget(pl_box)
+
         # ---- верх: зона + фоновый режим ----
         bar = QHBoxLayout()
         bar.addWidget(QLabel("Зона:"))
         self.cmb_zone = QComboBox()
         self.cmb_zone.setMinimumWidth(280)
+        self.cmb_zone.setToolTip("local_agent = плеер на ПК; external = коробка провайдера")
         bar.addWidget(self.cmb_zone, 1)
         for text, slot in [("Обновить", self.reload_all),
                            (" Фон (плейлист)", self.bg_play),
@@ -210,10 +236,112 @@ class MusicTab(QWidget):
 
         self.cmb_zone.currentIndexChanged.connect(lambda _i: self.refresh_status())
         self.reload_all()
+        self._upd_agent_btn()
+        self._tmr = QTimer(self)
+        self._tmr.timeout.connect(self._upd_agent_btn)
+        self._tmr.start(2000)
         for b in self.findChildren(QPushButton):
             if b is self._btn_mute:
                 continue
             b.setStyleSheet(BTN_STYLE)
+
+    # ---------- локальный плеер (DJ Agent) ----------
+    def _settings_rw(self, mutate=None):
+        try:
+            from paths import SETTINGS as _p
+            cfg = json.loads(_p.read_text(encoding="utf-8")) if _p.exists() else {}
+        except Exception:
+            cfg = {}
+        if mutate:
+            cfg = mutate(cfg)
+            try:
+                from paths import SETTINGS as _p
+                _p.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+            except Exception:
+                pass
+        return cfg
+
+    def _agent_token(self):
+        return (self._settings_rw().get("dj_agent") or {}).get("token")
+
+    def _agent_running(self):
+        p = getattr(self, "_agent_proc", None)
+        if p is not None and p.poll() is not None:
+            self._agent_proc = None
+            return False
+        return p is not None
+
+    def _upd_agent_btn(self):
+        running = self._agent_running()
+        has_token = bool(self._agent_token())
+        self.btn_agent.setText("⏹ Плеер: ВЫКЛ" if running else "⏵ Плеер: ВКЛ")
+        self.btn_agent.setStyleSheet(AGENT_ON_STYLE if running else BTN_STYLE)
+        if running:
+            self.lbl_agent.setText("Плеер на этом ПК: РАБОТАЕТ (звук в колонках)")
+            self.lbl_agent.setStyleSheet("color: #22c55e; font-weight: 600;")
+        elif has_token:
+            self.lbl_agent.setText("Плеер на этом ПК: остановлен. Нажмите «Плеер: ВКЛ».")
+            self.lbl_agent.setStyleSheet("color: #d97706;")
+        else:
+            self.lbl_agent.setText("Зона-плеер ещё не создан — нажмите «＋ Зона на этом ПК».")
+            self.lbl_agent.setStyleSheet("color: #94a3b8;")
+
+    def toggle_agent(self):
+        if self._agent_running():
+            try:
+                self._agent_proc.terminate()
+            except Exception:
+                pass
+            self._agent_proc = None
+            self._show("Плеер на этом ПК остановлен.")
+            self._upd_agent_btn()
+            return
+        token = self._agent_token()
+        if not token:
+            self._show("Сначала создайте зону: кнопка «＋ Зона на этом ПК».", ok=False)
+            return
+        root = Path(__file__).resolve().parents[2]          # корень репозитория
+        py = root / ".venv" / "Scripts" / "python.exe"
+        script = root / "scripts" / "music" / "fitintel_player_agent.py"
+        lib = (self._settings_rw().get("dj_agent") or {}).get("lib") or r"E:\music\club"
+        server = (getattr(self.api, "base_url", "") or "").rstrip("/")
+        if not server:
+            self._show("Не задан адрес сервера (api_base).", ok=False)
+            return
+        if not py.exists() or not script.exists():
+            self._show("Не найдены python.exe или агент в репозитории:\n%s" % root, ok=False)
+            return
+        flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        try:
+            self._agent_proc = subprocess.Popen(
+                [str(py), str(script), "--server", server,
+                 "--token", token, "--lib", lib],
+                cwd=str(root / "scripts" / "music"), creationflags=flags)
+        except Exception as e:
+            self._show("Не удалось запустить плеер: %s" % e, ok=False)
+            return
+        self._show("Плеер запущен. Управляйте деками ниже.")
+        self._upd_agent_btn()
+
+    def create_zone_here(self):
+        import socket as _sock
+        name = "Зал %s" % _sock.gethostname()
+        body = {"name": name, "provider_type": "local_agent"}
+        def _do():
+            r = self.api.session.post(self._url("/zones"), json=body, timeout=15)
+            r.raise_for_status()
+            return r.json()
+        def _done(z):
+            def _mut(cfg):
+                dj = cfg.get("dj_agent") or {}
+                dj["token"] = z.get("agent_token")
+                dj.setdefault("lib", r"E:\music\club")
+                cfg["dj_agent"] = dj
+                return cfg
+            self._settings_rw(mutate=_mut)
+            self._show("Зона «%s» создана, токен плеера сохранён." % name)
+            self.reload_all()
+        self._run(_do, _done)
 
     # ---------- infra ----------
     def _url(self, path):
@@ -403,7 +531,6 @@ class MusicTab(QWidget):
         self._set_deck(deck, tr)
 
     def load_file(self, deck):
-        """Один аудиофайл с диска/флешки (абсолютный путь)."""
         path, _f = QFileDialog.getOpenFileName(
             self, "Трек на дек %s" % deck, "", AUDIO_FILTER)
         if not path:
@@ -412,7 +539,6 @@ class MusicTab(QWidget):
                               "path": path})
 
     def load_folder(self, deck):
-        """Вся папка с диска/флешки: агент играет файлы по очереди."""
         d = QFileDialog.getExistingDirectory(
             self, "Папка на дек %s — все треки по очереди" % deck)
         if not d:
