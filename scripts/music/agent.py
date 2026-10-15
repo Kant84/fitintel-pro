@@ -1,3 +1,4 @@
+#scripts\music\agent.py
 # -*- coding: utf-8 -*-
 """FitIntel DJ Agent v4.3: деки A/B (mpv IPC, скрытые), кроссфейд, авто-микс
 (папка по кругу / плейлист), мастер, EQ, сэмплер, дакинг. Уникальные IPC-каналы
@@ -137,17 +138,26 @@ class Agent:
                   % (want_active, self.master, cf))
 
         act = self.decks[self.active]
-        rem = act.remaining()
         idle_name = "B" if self.active == "A" else "A"
         idle = self.decks[idle_name]
+
+        # ФИКС: пересобрать очередь, если активный дек — папка, а очередь пуста
+        if act.track and not act.folder_queue:
+            q = act.folder_files(act.resolve(act.track))
+            if q:
+                act.folder_queue = q
+                print("DJ | очередь пересобрана для деку %s: %d файлов"
+                      % (self.active, len(q)))
+
+        rem = act.remaining()
         can_mix = bool(idle.track or idle.folder_queue or act.folder_queue)
-        if not self.mixing and can_mix and ((rem is not None and rem <= cf + 1.0)
-                                            or act.eof()):
+        need_mix = ((rem is not None and rem <= cf + 1.0) or act.eof())
+        if not self.mixing and can_mix and need_mix:
             self.auto_mix(idle_name, cf)
-        elif act.eof() and not self.mixing:
-            print("DJ | трек завершён, некуда сводить — повтор")
+        elif act.eof() and not self.mixing and not can_mix:
+            print("DJ | трек завершён, сводить некуда — повтор")
             try:
-                act.cmd("seek", 0, "absolute")   # перезапуск с начала, а не "снять паузу с EOF"
+                act.cmd("seek", 0, "absolute")
                 act.play(self.master)
             except Exception as e:
                 print("DJ | repeat ERR:", e)
@@ -168,6 +178,9 @@ class Agent:
             print("DJ | эфир: дек %s | %s" % (name, (idle.track or {}).get("title")))
             return
         self.mixing = True
+        # ФИКС: активный переключаем сразу, чтобы DBG rem считался по новому деку
+        self.active = name
+        print("DJ | эфир: дек %s | %s" % (name, (idle.track or {}).get("title")))
 
         def _fade():
             try:
@@ -176,8 +189,6 @@ class Agent:
                 old.fade_to(0, cf)
                 time.sleep(cf + 0.3)
                 old.pause()
-                self.active = name
-                print("DJ | эфир: дек %s | %s" % (name, (idle.track or {}).get("title")))
             except Exception as e:
                 print("DJ | FADE ERR:", e)
             finally:
@@ -188,14 +199,15 @@ class Agent:
     def auto_mix(self, idle_name, cf):
         idle = self.decks[idle_name]
         act = self.decks[self.active]
-        q = getattr(act, "folder_queue", None)
+        q = act.folder_queue
         if q:
-            act.folder_index = (getattr(act, "folder_index", 0) + 1) % len(q)
+            # ФИКС: берём следующий по индексу активного деку
+            act.folder_index = (act.folder_index + 1) % len(q)
             f = q[act.folder_index]
             nxt_title = os.path.basename(f)
             print("DJ | AUTO-MIX (папка): дек %s -> %s | след.: %s | фейд %.1fs"
                   % (self.active, idle_name, nxt_title, cf))
-            idle.track = {"title": nxt_title, "path": (act.track or {}).get("path")}
+            idle.track = {"title": nxt_title, "path": f}
             idle.folder_queue = q
             idle.folder_index = act.folder_index
             idle._loaded_at = time.time()
@@ -208,7 +220,7 @@ class Agent:
         print("DJ | AUTO-MIX: дек %s -> %s | след.: %s | фейд %.1fs"
               % (self.active, idle_name, (nxt or {}).get("title"), cf))
         self.switch_to(idle_name, cf, immediate=False)
-
+        
     def next_track(self, current):
         try:
             st = self.fetch("/music/agent/state")
