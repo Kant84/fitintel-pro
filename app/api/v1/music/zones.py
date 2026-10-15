@@ -59,6 +59,23 @@ def zone_delete(zid: str, db=Depends(get_db)):
     db.commit()
     return None
 
+class ZoneUpdateIn(BaseModel):
+    name: str | None = None
+    provider_config: dict | None = None
+
+
+@router.patch("/zones/{zid}")
+def zone_update(zid: str, body: ZoneUpdateIn, db=Depends(get_db)):
+    """Обновление зоны (имя, provider_config) — настройка провайдера из desktop."""
+    deps.get_zone(db, zid)
+    if body.name:
+        db.execute(text("UPDATE music_zones SET name=:n, updated_at=now() WHERE id=:z"),
+                   {"n": body.name, "z": zid})
+    if body.provider_config is not None:
+        db.execute(text("UPDATE music_zones SET provider_config=:c, updated_at=now() WHERE id=:z"),
+                   {"c": json.dumps(body.provider_config), "z": zid})
+    db.commit()
+    return {"ok": True, "zone": zid}
 
 @router.post("/zones/{zid}/play")
 def zone_play(zid: str, body: PlayIn, db=Depends(get_db)):

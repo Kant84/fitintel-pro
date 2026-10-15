@@ -51,12 +51,16 @@ def license_status(db):
 
 
 def enforce(db):
-    """Блокировка истёкшей лицензии для фонового воспроизведения."""
+    """Блокировка фонового воспроизведения: только при статусе ok.
+    warning (не указана) и expired (истекла) -> 402."""
     st, d = license_status(db)
     if st == "expired":
         raise HTTPException(402, "Лицензия на фоновую музыку истекла (%s). "
-                                 "Обновите договор: ⚙ Музыка/DJ → лицензия." % d.get("valid_until"))
-
+                                 "Обновите договор: ⚙ Музыка/DJ → Лицензия." % d.get("valid_until"))
+    if st == "warning":
+        raise HTTPException(402, "Лицензия на фоновую музыку не указана — фоновое "
+                                 "воспроизведение недоступно. Внесите договор "
+                                 "(РАО/ВОИС или провайдер): ⚙ Музыка/DJ → Лицензия.")
 
 class LicenseIn(BaseModel):
     license_type: str = "none"          # none | provider | rao_vois
