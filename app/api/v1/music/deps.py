@@ -1,3 +1,4 @@
+#app\api\v1\music\deps.py
 # -*- coding: utf-8 -*-
 """Общие зависимости музыкального модуля: DDL, хелперы, push на бокс провайдера."""
 import datetime

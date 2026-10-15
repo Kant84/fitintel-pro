@@ -1,3 +1,4 @@
+#app\api\v1\music\schedule.py
 # -*- coding: utf-8 -*-
 """Расписание автоматического воспроизведения по зонам."""
 import uuid

@@ -1,9 +1,17 @@
 #scripts\music\agent.py
 # -*- coding: utf-8 -*-
-"""FitIntel DJ Agent v4.3: деки A/B (mpv IPC, скрытые), кроссфейд, авто-микс
+"""FitIntel DJ Agent v4.4: деки A/B (mpv IPC, скрытые), кроссфейд, авто-микс
 (папка по кругу / плейлист), мастер, EQ, сэмплер, дакинг. Уникальные IPC-каналы
-на запуск, при выходе mpv завершаются. Лог UTF-8."""
+на запуск, при выходе mpv завершаются. Лог UTF-8.
+
+v4.4:
+- уважает state='stopped' — паузит оба деки;
+- не перезапускает трек при смене мастера/кроссфейда (сравнение по норм.пути);
+- switch_to при active==name не трогает играющий дек;
+- switch_to при кроссфейде old — строго противоположный дек.
+"""
 import argparse
+import atexit
 import json
 import os
 import sys
@@ -42,15 +50,38 @@ class Agent:
         self.ducker = None
         self.ducked = False
         self.poll = args.interval
+        # страховка: при выходе агента (в т.ч. по terminate) прибить mpv
+        atexit.register(self._kill_all)
 
+    # ---------- сеть ----------
     def fetch(self, path):
         url = self.a.server.rstrip("/") + path
         url += ("&" if "?" in url else "?") + "token=" + self.a.token
         with urllib.request.urlopen(url, timeout=10) as r:
             return json.load(r)
 
+    # ---------- служебное ----------
+    def _kill_all(self):
+        for d in self.decks.values():
+            try:
+                d.stop_proc()
+            except Exception:
+                pass
+
+    def _track_key(self, t):
+        """Нормализованный ключ трека для сравнения (норм.путь + normcase)."""
+        if not t:
+            return None
+        p = t.get("path") or ""
+        if not p:
+            return None
+        if self.a.lib and not os.path.isabs(p):
+            p = os.path.join(self.a.lib, p)
+        return os.path.normcase(os.path.normpath(p))
+
+    # ---------- цикл ----------
     def run(self):
-        print("FitIntel DJ Agent v4.3 | dry-run=%s | mic=%s | poll %.1fs | lib=%s"
+        print("FitIntel DJ Agent v4.4 | dry-run=%s | mic=%s | poll %.1fs | lib=%s"
               % (self.a.dry_run, self.a.mic, self.poll, self.a.lib or "—"))
         if not self.a.dry_run:
             for d in self.decks.values():
@@ -84,32 +115,56 @@ class Agent:
                 self.ducker.stop()
             except Exception:
                 pass
-        for d in self.decks.values():
-            try:
-                d.stop_proc()
-            except Exception:
-                pass
+        self._kill_all()
 
+    # ---------- простой режим (плейлист без DJ) ----------
     def handle_simple(self, st):
+        # ФИКС: если зона остановлена — паузим ОБА деку и сбрасываем кэш
+        if st.get("state") != "playing":
+            for d in self.decks.values():
+                if d.track:
+                    try:
+                        d.pause()
+                    except Exception:
+                        pass
+            self.base_key = None
+            self.applied_sig = None
+            self._last_dj = None
+            return
+
         pl = st.get("playlist")
         key = (st["state"], (pl or {}).get("id"), st["volume"])
         if key == self.base_key:
             return
         self.base_key = key
         main = self.decks[self.active]
-        if st["state"] == "playing" and pl and pl.get("tracks"):
+        if pl and pl.get("tracks"):
             t = pl["tracks"][0]
-            print("PLAY | зона %s | %s | %s | vol %s" % (st["name"], pl["name"],
-                                                         t.get("title"), st["volume"]))
+            print("PLAY | зона %s | %s | %s | vol %s"
+                  % (st["name"], pl["name"], t.get("title"), st["volume"]))
             main.load_paused(t)
             main.play(st["volume"])
         else:
             print("PAUSE | зона %s" % st["name"])
             main.pause()
 
+    # ---------- DJ-режим ----------
     def handle_dj(self, st, dj):
         if self.mixing:
             return
+
+        # ФИКС: state='stopped' — паузим всё, сбрасываем кэш, выходим
+        if st.get("state") != "playing":
+            for d in self.decks.values():
+                if d.track:
+                    try:
+                        d.pause()
+                    except Exception:
+                        pass
+            self.applied_sig = None
+            self._last_dj = None
+            return
+
         cf = float(dj.get("crossfade_seconds") or 8.0)
         want_active = dj.get("active_deck", "A")
         self.master = int(dj.get("master_volume") or 70)
@@ -117,23 +172,39 @@ class Agent:
         sig = json.dumps(dj, sort_keys=True, ensure_ascii=False)
         if sig != self.applied_sig:
             prev = self._last_dj or {}
-            decks_same = (prev.get("deck_a") == dj.get("deck_a")
-                          and prev.get("deck_b") == dj.get("deck_b"))
+            active_same = prev.get("active_deck") == dj.get("active_deck")
             self.applied_sig = sig
             self._last_dj = dj
-            self.mixing = False
+
             da = dj.get("deck_a")
             db = dj.get("deck_b")
-            if da and (self.decks["A"].track or {}).get("path") != da.get("path"):
+
+            # ФИКС: сравнение по нормализованному пути — не перезагружаем трек
+            # при простой смене мастера/кроссфейда
+            if da and self._track_key(self.decks["A"].track) != self._track_key(da):
                 self.decks["A"].load_paused(da)
-            if db and (self.decks["B"].track or {}).get("path") != db.get("path"):
+            if db and self._track_key(self.decks["B"].track) != self._track_key(db):
                 self.decks["B"].load_paused(db)
+
+            # EQ применяем всегда — дешево и безопасно
             eq = dj.get("eq") or {}
-            for name in ("A", "B"):
-                e = eq.get(name) or {}
-                self.decks[name].set_eq(e.get("bass", 0), e.get("mid", 0), e.get("treble", 0))
-            if want_active in ("A", "B"):
-                self.switch_to(want_active, cf, immediate=not decks_same)
+            for nm in ("A", "B"):
+                e = eq.get(nm) or {}
+                self.decks[nm].set_eq(e.get("bass", 0), e.get("mid", 0),
+                                      e.get("treble", 0))
+
+            # ФИКС: switch_to вызываем только если активный дек реально сменился
+            if want_active in ("A", "B") and not active_same:
+                self.switch_to(want_active, cf, immediate=True)
+
+            # ФИКС: при смене мастера — плавно применить новую громкость
+            if active_same and want_active == self.active:
+                try:
+                    self.decks[self.active].cmd("set_property", "volume",
+                                                self.master)
+                except Exception:
+                    pass
+
             print("DJ | применено: активный дек %s | мастер %s | кроссфейд %.1fs"
                   % (want_active, self.master, cf))
 
@@ -141,11 +212,12 @@ class Agent:
         idle_name = "B" if self.active == "A" else "A"
         idle = self.decks[idle_name]
 
-        # ФИКС: пересобрать очередь, если активный дек — папка, а очередь пуста
+        # Пересобрать очередь, если активный дек — папка, а очередь пуста
         if act.track and not act.folder_queue:
             q = act.folder_files(act.resolve(act.track))
             if q:
                 act.folder_queue = q
+                act.folder_index = 0
                 print("DJ | очередь пересобрана для деку %s: %d файлов"
                       % (self.active, len(q)))
 
@@ -162,25 +234,45 @@ class Agent:
             except Exception as e:
                 print("DJ | repeat ERR:", e)
 
+    # ---------- переключение деков ----------
     def switch_to(self, name, cf, immediate=False):
+        if name not in ("A", "B"):
+            return
+
+        # ФИКС: если уже эфирит этот дек — не трогаем вообще
+        if self.active == name:
+            if immediate:
+                self.mixing = False
+            return
+
+        # old — строго противоположный дек
+        other = "B" if name == "A" else "A"
         idle = self.decks[name]
-        old = self.decks[self.active]
+        old = self.decks[other]
+
         if immediate:
+            # Просто переключаем: старый на паузу, новый играть с текущей позиции
             try:
                 old.pause()
             except Exception as e:
                 print("DJ | pause old ERR:", e)
+            self.active = name
             try:
                 idle.play(self.master)
             except Exception as e:
                 print("DJ | play idle ERR:", e)
-            self.active = name
-            print("DJ | эфир: дек %s | %s" % (name, (idle.track or {}).get("title")))
+            print("DJ | эфир: дек %s | %s"
+                  % (name, (idle.track or {}).get("title")))
+            self.mixing = False
+            return
+
+        # Кроссфейд
+        if self.mixing:
             return
         self.mixing = True
-        # ФИКС: активный переключаем сразу, чтобы DBG rem считался по новому деку
         self.active = name
-        print("DJ | эфир: дек %s | %s" % (name, (idle.track or {}).get("title")))
+        print("DJ | эфир (кроссфейд): дек %s | %s"
+              % (name, (idle.track or {}).get("title")))
 
         def _fade():
             try:
@@ -196,12 +288,14 @@ class Agent:
 
         threading.Thread(target=_fade, daemon=True).start()
 
+    # ---------- авто-микс ----------
     def auto_mix(self, idle_name, cf):
+        if self.mixing:
+            return
         idle = self.decks[idle_name]
         act = self.decks[self.active]
         q = act.folder_queue
         if q:
-            # ФИКС: берём следующий по индексу активного деку
             act.folder_index = (act.folder_index + 1) % len(q)
             f = q[act.folder_index]
             nxt_title = os.path.basename(f)
@@ -215,12 +309,12 @@ class Agent:
             self.switch_to(idle_name, cf, immediate=False)
             return
         nxt = self.next_track(idle.track)
-        if nxt and nxt.get("path") != (idle.track or {}).get("path"):
+        if nxt and self._track_key(nxt) != self._track_key(idle.track):
             idle.load_paused(nxt)
         print("DJ | AUTO-MIX: дек %s -> %s | след.: %s | фейд %.1fs"
               % (self.active, idle_name, (nxt or {}).get("title"), cf))
         self.switch_to(idle_name, cf, immediate=False)
-        
+
     def next_track(self, current):
         try:
             st = self.fetch("/music/agent/state")
@@ -228,14 +322,16 @@ class Agent:
             if pl and pl.get("tracks"):
                 tracks = pl["tracks"]
                 if current:
+                    cur_key = self._track_key(current)
                     for i, t in enumerate(tracks):
-                        if t.get("path") == current.get("path"):
+                        if self._track_key(t) == cur_key:
                             return tracks[(i + 1) % len(tracks)]
                 return tracks[0]
         except Exception:
             pass
         return current
 
+    # ---------- дакинг ----------
     def _duck_on(self):
         if self.ducked:
             return
@@ -259,7 +355,7 @@ class Agent:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="FitIntel DJ Agent v4.3")
+    ap = argparse.ArgumentParser(description="FitIntel DJ Agent v4.4")
     ap.add_argument("--server", required=True, help="http://192.168.101.182/api/v1")
     ap.add_argument("--token", required=True)
     ap.add_argument("--dry-run", action="store_true")

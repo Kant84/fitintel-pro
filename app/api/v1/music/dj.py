@@ -1,3 +1,4 @@
+#app\api\v1\music\dj.py
 # -*- coding: utf-8 -*-
 """DJ-пульт: состояние деков A/B, кроссфейд, мастер-громкость, эквалайзер.
 local_agent — применяет DJ-агент; external — пуш на бокс провайдера."""
@@ -45,16 +46,23 @@ def dj_set(zid: str, body: DjStateIn, db=Depends(get_db)):
          "crossfade_seconds": body.crossfade_seconds,
          "master_volume": body.master_volume,
          "eq": body.eq or {}}
-    db.execute(text("UPDATE music_zones SET dj_state=:d, updated_at=now() WHERE id=:z"),
-               {"d": json.dumps(d, ensure_ascii=False), "z": zid})
+
+    # ФИКС: есть трек на деке -> пользователь хочет играть -> playing.
+    # Оба дека пусты -> это «Стоп» -> stopped.
+    has_track = bool(d["deck_a"] or d["deck_b"])
+    new_state = "playing" if has_track else "stopped"
+
+    db.execute(text(
+        "UPDATE music_zones SET dj_state=:d, desired_state=:s,"
+        " updated_at=now() WHERE id=:z"),
+        {"d": json.dumps(d, ensure_ascii=False), "s": new_state, "z": zid})
     db.commit()
+
     if zone["provider_type"] == "external":
-        # Контракт для бокса провайдера: dj_load / dj_crossfade / dj_master / dj_eq.
-        # Реальный формат команд подгоним под конкретную коробку (provider_config).
         deps.push_external(zone, "dj_load", {"deck": "A", "track": d["deck_a"]})
         deps.push_external(zone, "dj_load", {"deck": "B", "track": d["deck_b"]})
         deps.push_external(zone, "dj_crossfade", {"active": d["active_deck"],
                                                   "seconds": d["crossfade_seconds"]})
         deps.push_external(zone, "dj_master", {"level": d["master_volume"]})
         deps.push_external(zone, "dj_eq", {"eq": d["eq"]})
-    return {"ok": True, "zone": zid, **d}
+    return {"ok": True, "zone": zid, "state": new_state, **d}

@@ -1,3 +1,4 @@
+#app\api\v1\music\playlists.py
 # -*- coding: utf-8 -*-
 """Плейлисты: CRUD."""
 import json

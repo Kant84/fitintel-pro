@@ -1,3 +1,4 @@
+#app\api\v1\music\zones.py
 # -*- coding: utf-8 -*-
 """Зоны: CRUD, play/pause/volume/energize/status."""
 import uuid
