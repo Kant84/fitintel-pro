@@ -9,7 +9,7 @@ from pathlib import Path
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QTimer
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QComboBox, QSlider, QSpinBox, QGridLayout, QMessageBox,
-    QGroupBox, QGroupBox, QTabWidget, QFileDialog, QScrollArea)
+    QGroupBox, QTabWidget, QFileDialog, QScrollArea)
 from . import theme
 from .form_dialog import FormDialog
 
