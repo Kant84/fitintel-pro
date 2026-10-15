@@ -46,6 +46,9 @@ DDL = [
     )
     """,
     "ALTER TABLE music_zones ADD COLUMN IF NOT EXISTS dj_state JSON",
+    # --- авто-регистрация агентов ---
+    "ALTER TABLE music_zones ADD COLUMN IF NOT EXISTS machine_id VARCHAR(64)",
+    "CREATE INDEX IF NOT EXISTS idx_music_zones_machine ON music_zones(machine_id)",
     """
     CREATE TABLE IF NOT EXISTS music_sfx (
         id VARCHAR(36) PRIMARY KEY,

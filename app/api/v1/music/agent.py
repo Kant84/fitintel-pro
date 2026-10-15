@@ -1,8 +1,10 @@
 #app\api\v1\music\agent.py
 # -*- coding: utf-8 -*-
-"""Endpoint'ы DJ-агента: состояние зоны, очередь падов, подтверждения."""
+"""Endpoint'ы DJ-агента: состояние зоны, очередь падов, подтверждения,
+авто-регистрация плеера по machine_id."""
 import datetime
 import json
+import uuid as _uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -16,6 +18,46 @@ router = APIRouter()
 
 class PadsAckIn(BaseModel):
     event_ids: list
+
+
+class RegisterIn(BaseModel):
+    machine_id: str
+    name: str = ""
+    lib: str = ""
+
+
+@router.post("/agent/register")
+def agent_register(body: RegisterIn, db=Depends(get_db)):
+    """Авто-регистрация плеера на ПК.
+
+    Если зона с таким machine_id уже есть (и это local_agent) — возвращаем
+    её agent_token (идемпотентно, чтобы перезапуск агента не плодил дубли).
+    Иначе создаём новую зону local_agent и возвращаем свежий токен.
+    """
+    deps.ensure(db)
+    mid = (body.machine_id or "").strip()
+    if not mid:
+        raise HTTPException(400, "machine_id обязателен")
+
+    r = db.execute(text(
+        "SELECT id, name, agent_token FROM music_zones"
+        " WHERE machine_id=:m AND provider_type='local_agent'"),
+        {"m": mid}).first()
+    if r:
+        zone = deps.row(r)
+        return {"zone_id": zone["id"], "agent_token": zone["agent_token"],
+                "name": zone["name"], "registered": False}
+
+    zid = str(_uuid.uuid4())
+    token = _uuid.uuid4().hex
+    name = (body.name or "").strip() or ("Зал " + mid[:20])
+    db.execute(text(
+        "INSERT INTO music_zones (id, name, provider_type, agent_token, machine_id)"
+        " VALUES (:i, :n, 'local_agent', :t, :m)"),
+        {"i": zid, "n": name, "t": token, "m": mid})
+    db.commit()
+    return {"zone_id": zid, "agent_token": token,
+            "name": name, "registered": True}
 
 
 @router.get("/agent/state")
@@ -42,7 +84,7 @@ def agent_state(token: str = Query(...), db=Depends(get_db)):
                 tracks = json.loads(tracks)
             playlist = {"id": p["id"], "name": p["name"], "tracks": tracks}
 
-    # ФИКС: если зона остановлена — не отдаём dj, чтобы агент паузил деки
+    # если зона остановлена — не отдаём dj, чтобы агент паузил деки
     dj = deps.dj_state(zone) if state == "playing" else {}
 
     return {"zone_id": zone["id"], "name": zone["name"],

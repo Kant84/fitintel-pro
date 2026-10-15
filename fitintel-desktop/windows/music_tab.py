@@ -3,7 +3,8 @@
 """Музыка/DJ-пульт (экран 29): зоны, ПЛЕЕР НА ЭТОМ ПК (вкл/выкл, микрофон вкл/выкл),
 настройка провайдера и лицензии из окна, деки A/B, файлы/папки с диска,
 кроссфейд, мастер, эквалайзер, пады 1-8, энерджи-режим, лицензия фоновой музыки.
-Сервер может быть удалённым — плеер на этом ПК общается с ним по HTTP."""
+Сервер может быть удалённым — плеер на этом ПК общается с ним по HTTP.
+v4.5: агент сам регистрируется по machine_id, ручной токен не требуется."""
 import json
 import os
 import subprocess
@@ -90,7 +91,7 @@ class MusicTab(QWidget):
         self._zones = []
         self._playlists = []
         self._sfx = []
-        self._deck_a = None   # {"title","path"}
+        self._deck_a = None
         self._deck_b = None
         self._btn_mute = None
         self._agent_proc = None
@@ -268,9 +269,6 @@ class MusicTab(QWidget):
 
         self.cmb_zone.currentIndexChanged.connect(lambda _i: self.refresh_status())
         self.reload_all()
-        if not self._agent_token():
-            self._show("Зона плеера ещё не создана. Нажмите «＋ Новая зона…» "
-                       "и выберите «local_agent — на этом ПК».", ok=False)
         self._upd_agent_btn()
         self._tmr = QTimer(self)
         self._tmr.timeout.connect(self._upd_agent_btn)
@@ -339,7 +337,8 @@ class MusicTab(QWidget):
             self.lbl_agent.setText("Плеер на этом ПК: остановлен. Нажмите «Плеер: ВКЛ».")
             self.lbl_agent.setStyleSheet("color: #d97706;")
         else:
-            self.lbl_agent.setText("Зона-плеер ещё не создана — нажмите «＋ Новая зона…».")
+            self.lbl_agent.setText("Зона-плеер будет создана автоматически "
+                                   "при запуске плеера.")
             self.lbl_agent.setStyleSheet("color: #94a3b8;")
 
     def toggle_mic(self):
@@ -361,8 +360,6 @@ class MusicTab(QWidget):
                        % ("включён" if new_val else "выключен"))
 
     def _stop_agent(self):
-        """ФИКС: на Windows убиваем всё дерево процессов (python + mpv).
-        terminate() оставляет mpv жить → музыка продолжает играть."""
         p = getattr(self, "_agent_proc", None)
         if not p:
             return
@@ -375,7 +372,6 @@ class MusicTab(QWidget):
                 p.terminate()
         except Exception as e:
             print("stop_agent ERR:", e)
-        # страховка: добить осиротевшие mpv
         try:
             if os.name == "nt":
                 subprocess.run(["taskkill", "/F", "/IM", "mpv.exe"],
@@ -385,10 +381,6 @@ class MusicTab(QWidget):
         self._agent_proc = None
 
     def _start_agent(self):
-        token = self._agent_token()
-        if not token:
-            self._show("Сначала создайте зону: кнопка «＋ Новая зона…».", ok=False)
-            return False
         root = Path(__file__).resolve().parents[2]
         py = root / ".venv" / "Scripts" / "python.exe"
         script = root / "scripts" / "music" / "fitintel_player_agent.py"
@@ -405,9 +397,12 @@ class MusicTab(QWidget):
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
         args = [str(py), "-u", str(script),
                 "--server", server,
-                "--token", token,
                 "--lib", lib,
                 "--debug"]
+        token = self._agent_token()
+        if token:
+            args += ["--token", token]
+        # иначе агент сам зарегистрируется и запишет токен в client_settings.json
         if self._mic_on():
             args.append("--mic")
         try:
@@ -434,12 +429,11 @@ class MusicTab(QWidget):
 
     # ---------- диалоги ----------
     def create_zone(self):
-        """Один диалог: тип провайдера + параметры."""
         import socket as _sock
         default_name = "Зал %s" % _sock.gethostname()
         dlg = FormDialog("Новая зона", [
             ("ptype", "Плеер", "combo",
-             ["local_agent — плеер на этом ПК",
+             ["local_agent — плеер на этом ПК (агент сам зарегистрируется)",
               "external — коробка провайдера"]),
             ("name", "Имя зоны", "text", default_name),
             ("lib", "Папка музыки для local_agent (флешка/диск)", "text",
@@ -453,9 +447,11 @@ class MusicTab(QWidget):
         ptype_label = v.get("ptype") or ""
         ptype = "local_agent" if ptype_label.startswith("local_agent") else "external"
         name = (v.get("name") or default_name).strip()
-        body = {"name": name, "provider_type": ptype}
         lib = (v.get("lib") or "").strip()
+
         if ptype == "local_agent":
+            # Сохраняем lib, но зону НЕ создаём через API — агент сам зарегистрируется
+            # по machine_id при первом запуске «Плеер: ВКЛ».
             if lib:
                 lib = os.path.normpath(lib)
             def _mut(cfg):
@@ -464,11 +460,15 @@ class MusicTab(QWidget):
                 cfg["dj_agent"] = dj
                 return cfg
             self._settings_rw(mutate=_mut)
-        else:
-            body["provider_config"] = {
-                "base_url": (v.get("base_url") or "").strip(),
-                "cmd_path": (v.get("cmd_path") or "/cmd").strip(),
-            }
+            self._show("Папка музыки сохранена: %s. Запустите «Плеер: ВКЛ» — "
+                       "агент сам зарегистрирует зону." % (lib or r"E:\music\club"))
+            return
+
+        # external — как раньше, через API
+        body = {"name": name, "provider_type": "external",
+                "provider_config": {
+                    "base_url": (v.get("base_url") or "").strip(),
+                    "cmd_path": (v.get("cmd_path") or "/cmd").strip()}}
 
         def _do():
             r = self.api.session.post(self._url("/zones"), json=body, timeout=15)
@@ -476,17 +476,8 @@ class MusicTab(QWidget):
             return r.json()
 
         def _done(z):
-            if ptype == "local_agent":
-                def _mut(cfg):
-                    dj = cfg.get("dj_agent") or {}
-                    dj["token"] = z.get("agent_token")
-                    cfg["dj_agent"] = dj
-                    return cfg
-                self._settings_rw(mutate=_mut)
-                self._show("Зона «%s» создана (плеер на этом ПК). Токен сохранён." % name)
-            else:
-                self._show("Зона «%s» создана (провайдер: %s)."
-                           % (name, body["provider_config"].get("base_url")))
+            self._show("Зона «%s» создана (провайдер: %s)."
+                       % (name, body["provider_config"].get("base_url")))
             self.reload_all()
         self._run(_do, _done)
 
@@ -736,8 +727,6 @@ class MusicTab(QWidget):
                         self.refresh_status()))
 
     def bg_pause(self):
-        """ФИКС: «Стоп» должен и зону остановить, и очистить dj_state,
-        чтобы агент перестал крутить деки."""
         zid = self._zid()
         if not zid:
             self._show("Не выбрана зона.", ok=False)
@@ -748,10 +737,7 @@ class MusicTab(QWidget):
                 "eq": {"A": {"bass": 0, "mid": 0, "treble": 0},
                        "B": {"bass": 0, "mid": 0, "treble": 0}}}
         def _do():
-            # 1) зона в stopped
-            self.api.session.post(self._url("/zones/%s/pause" % zid),
-                                  timeout=15)
-            # 2) пустой dj_state — агент остановит оба деку
+            self.api.session.post(self._url("/zones/%s/pause" % zid), timeout=15)
             self.api.session.post(self._url("/zones/%s/dj" % zid),
                                   json=body, timeout=15)
             return True
@@ -761,6 +747,7 @@ class MusicTab(QWidget):
             self._show("Стоп: зона остановлена, деки очищены.")
             self.refresh_status()
         self._run(_do, _done)
+
     def energize(self):
         zid = self._zid()
         self._run(lambda: self.api.session.post(
@@ -810,7 +797,6 @@ class MusicTab(QWidget):
         if not d:
             return
         d = os.path.normpath(d)
-        # ФИКС: запрет корня диска — иначе os.walk обойдёт всю флешку
         if os.path.dirname(d) == d:
             self._show("Выбран корень диска %s. Выберите папку с музыкой "
                        "(например, G:\\music)." % d, ok=False)
