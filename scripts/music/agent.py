@@ -1,9 +1,10 @@
+#scripts\music\agent.py"
 # -*- coding: utf-8 -*-
 """
-FitIntel DJ Agent v4.2 — пакетная версия.
-  Деки A/B (mpv IPC), кроссфейд, авто-микс (плейлист ИЛИ очередь папки),
+FitIntel DJ Agent v4.3 — пакетная версия.
+  Деки A/B (mpv IPC), кроссфейд, авто-микс (плейлист ИЛИ очередь папки по кругу),
   мастер-громкость, EQ, сэмплер (PAD one-shot), дакинг микрофона.
-  Без dj-блока — простой плеер (playlist play/stop).
+  При выходе все mpv завершаются (не остаются сиротами). Лог — UTF-8.
 
   --dry-run   только лог, без mpv/звука
   --debug     подробный лог каждого опроса
@@ -59,7 +60,7 @@ class Agent:
 
     # --- основной цикл ---
     def run(self):
-        print("FitIntel DJ Agent v4.2 | dry-run=%s | mic=%s | poll %.1fs | lib=%s"
+        print("FitIntel DJ Agent v4.3 | dry-run=%s | mic=%s | poll %.1fs | lib=%s"
               % (self.a.dry_run, self.a.mic, self.poll, self.a.lib or "—"))
         if not self.a.dry_run:
             for d in self.decks.values():
@@ -86,6 +87,19 @@ class Agent:
             except Exception as e:
                 print("ERR:", e)
             time.sleep(self.poll)
+
+    def stop(self):
+        """Корректное завершение: mpv не остаются сиротами."""
+        if self.ducker:
+            try:
+                self.ducker.stop()
+            except Exception:
+                pass
+        for d in self.decks.values():
+            try:
+                d.stop_proc()
+            except Exception:
+                pass
 
     # --- режим 1: простой плеер ---
     def handle_simple(self, st):
@@ -144,7 +158,8 @@ class Agent:
         idle_name = "B" if self.active == "A" else "A"
         idle = self.decks[idle_name]
         if (not self.mixing and rem is not None
-                and rem <= cf + 1.0 and (idle.track or idle.folder_queue)):
+                and rem <= cf + 1.0 and (idle.track or idle.folder_queue
+                                         or act.folder_queue)):
             self.auto_mix(idle_name, cf)
 
     def switch_to(self, name, cf, immediate=False):
@@ -173,10 +188,10 @@ class Agent:
     def auto_mix(self, idle_name, cf):
         idle = self.decks[idle_name]
         act = self.decks[self.active]
-        # 1) приоритет: очередь папки активного дека
+        # 1) приоритет: очередь папки активного дека — ПО КРУГУ, бесконечно
         q = getattr(act, "folder_queue", None)
-        if q and getattr(act, "folder_index", 0) + 1 < len(q):
-            act.folder_index += 1
+        if q:
+            act.folder_index = (getattr(act, "folder_index", 0) + 1) % len(q)
             f = q[act.folder_index]
             nxt_title = os.path.basename(f)
             print("DJ | AUTO-MIX (папка): дек %s -> %s | след.: %s | фейд %.1fs"
@@ -235,7 +250,7 @@ class Agent:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="FitIntel DJ Agent v4.2")
+    ap = argparse.ArgumentParser(description="FitIntel DJ Agent v4.3")
     ap.add_argument("--server", required=True, help="http://192.168.101.182/api/v1")
     ap.add_argument("--token", required=True)
     ap.add_argument("--dry-run", action="store_true")
@@ -250,9 +265,19 @@ def main():
                     help="сек тишины до возврата громкости")
     args = ap.parse_args()
     try:
-        Agent(args).run()
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    agent = None
+    try:
+        agent = Agent(args)
+        agent.run()
     except KeyboardInterrupt:
         print("остановлено")
+    finally:
+        if agent is not None:
+            agent.stop()
 
 
 if __name__ == "__main__":
