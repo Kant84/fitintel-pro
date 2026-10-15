@@ -1,16 +1,18 @@
+#scripts\music\deck.py
 # -*- coding: utf-8 -*-
-"""Один дек = один процесс mpv со своим IPC-сокетом (unix-socket / named pipe).
-Поддержка «папка на дек»: path может указывать на каталог — треки играются
-по очереди (folder_queue). EQ: bass/mid/treble через lavfi equalizer."""
+"""Один дек = один процесс mpv (скрытый, --no-video) со своим IPC-сокетом.
+Папка на деке: path → каталог = очередь треков (folder_queue). EQ lavfi."""
 import json
 import os
+import shutil
 import socket
 import subprocess
 import threading
 import time
-import shutil
 
 AUDIO_EXTS = (".mp3", ".flac", ".ogg", ".wav", ".m4a")
+
+
 def _mpv_path():
     """Путь к mpv: PATH → стандартные места установки."""
     p = shutil.which("mpv")
@@ -22,6 +24,7 @@ def _mpv_path():
             return cand
     return "mpv"
 
+
 class Deck:
     def __init__(self, name, ipc, lib, dry_run=False):
         self.name = name
@@ -32,10 +35,9 @@ class Deck:
         self.track = None
         self.req = 0
         self.eq = (0, 0, 0)
-        self.folder_queue = None      # список файлов, если track.path — папка
+        self.folder_queue = None
         self.folder_index = 0
 
-    # --- процесс ---
     def start(self):
         if self.dry or self.proc:
             return
@@ -62,7 +64,6 @@ class Deck:
                 pass
             self.proc = None
 
-    # --- IPC ---
     def _conn(self):
         if self.ipc.startswith("\\\\.\\pipe\\"):
             return open(self.ipc, "r+b", buffering=0)
@@ -105,7 +106,6 @@ class Deck:
         except Exception:
             return default
 
-    # --- пути и папки ---
     def resolve(self, track):
         p = track.get("path", "")
         if self.lib and not os.path.isabs(p):
@@ -113,20 +113,22 @@ class Deck:
         return p
 
     def folder_files(self, path):
-        """Если path — каталог: отсортированный список аудиофайлов внутри."""
+        """Каталог → отсортированный список аудиофайлов рекурсивно."""
         try:
-            if os.path.isdir(path):
-                files = [f for f in sorted(os.listdir(path))
-                         if f.lower().endswith(AUDIO_EXTS)]
-                if files:
-                    return [os.path.join(path, f) for f in files]
+            if not os.path.isdir(path):
+                return None
+            found = []
+            for root, _dirs, files in os.walk(path):
+                for f in sorted(files):
+                    if f.lower().endswith(AUDIO_EXTS):
+                        found.append(os.path.join(root, f))
+            if found:
+                return sorted(found)
         except Exception:
             pass
         return None
 
-    # --- музыкальные операции ---
     def load_paused(self, track):
-        """Загрузить трек (или папку) на дек и поставить на паузу с нулевой громкостью."""
         self.track = track
         self._loaded_at = time.time()
         target = self.resolve(track)
@@ -146,9 +148,8 @@ class Deck:
         self.cmd("set_property", "volume", 0)
 
     def load_file_paused(self, path):
-        """Загрузить конкретный файл (следующий из очереди папки)."""
         if self.dry:
-            print("DECK %s | загружен файл (пауза, vol 0): %s" % (self.name, os.path.basename(path)))
+            print("DECK %s | файл (пауза, vol 0): %s" % (self.name, os.path.basename(path)))
             return
         self.cmd("loadfile", path, "replace")
         time.sleep(0.2)
@@ -174,7 +175,9 @@ class Deck:
         if self.dry:
             print("DECK %s | FADE -> %s за %.1fs" % (self.name, target, seconds))
             return
-        cur = self.prop("volume", target) or target
+        cur = self.prop("volume", target)
+        if cur is None:
+            cur = target
         steps = max(1, int(seconds / 0.25))
         delta = (target - cur) / steps
 
@@ -213,7 +216,6 @@ class Deck:
 
     def remaining(self):
         if self.dry:
-            # dry-run: трек «длится» 45 секунд с момента play() — для проверки AUTO-MIX
             if not self.track:
                 return None
             start = getattr(self, "_loaded_at", None) or time.time()
@@ -228,7 +230,6 @@ class Deck:
         return bool(self.prop("eof-reached", False))
 
     def play_oneshot(self, path, volume):
-        """Сэмплер: проиграть файл один раз, не трогая эфирные деки."""
         if self.dry:
             print("PAD | ONE-SHOT vol=%s: %s" % (volume, path))
             return

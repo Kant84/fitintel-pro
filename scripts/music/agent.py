@@ -1,4 +1,4 @@
-#scripts\music\agent.py"
+#scripts\music\agent.py
 # -*- coding: utf-8 -*-
 """
 FitIntel DJ Agent v4.3 — пакетная версия.
@@ -166,25 +166,34 @@ class Agent:
         idle = self.decks[name]
         old = self.decks[self.active]
         if immediate:
-            old.pause()
-            idle.play(self.master)
+            try:
+                old.pause()
+            except Exception as e:
+                print("DJ | pause old ERR:", e)
+            try:
+                idle.play(self.master)
+            except Exception as e:
+                print("DJ | play idle ERR:", e)
             self.active = name
             print("DJ | эфир: дек %s | %s" % (name, (idle.track or {}).get("title")))
             return
         self.mixing = True
 
         def _fade():
-            idle.play(0)
-            idle.fade_to(self.master, cf)
-            old.fade_to(0, cf)
-            time.sleep(cf + 0.3)
-            old.pause()
-            self.active = name
-            self.mixing = False
-            print("DJ | эфир: дек %s | %s" % (name, (idle.track or {}).get("title")))
+            try:
+                idle.play(0)
+                idle.fade_to(self.master, cf)
+                old.fade_to(0, cf)
+                time.sleep(cf + 0.3)
+                old.pause()
+                self.active = name
+                print("DJ | эфир: дек %s | %s" % (name, (idle.track or {}).get("title")))
+            except Exception as e:
+                print("DJ | FADE ERR:", e)
+            finally:
+                self.mixing = False   # флаг сбрасывается ВСЕГДА, даже при ошибке
 
         threading.Thread(target=_fade, daemon=True).start()
-
     def auto_mix(self, idle_name, cf):
         idle = self.decks[idle_name]
         act = self.decks[self.active]
