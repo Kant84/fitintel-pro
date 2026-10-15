@@ -67,7 +67,24 @@ def sell_subscription(
 ):
     """Продажа абонемента"""
     service = SaleService(db)
-    return service.sell_subscription(payload, actor_user_id=str(current_user.id))
+    result = service.sell_subscription(payload, actor_user_id=str(current_user.id))
+    # W6: бонусы за продление
+    try:
+        from sqlalchemy import text as _t
+        from app.api.v1.miniapp_config import award_bonus, _max_send
+        cid = str(getattr(payload, "client_id", "") or "").replace("-", "")
+        amount = float(getattr(payload, "price", 0) or getattr(payload, "amount", 0) or 0)
+        if cid and amount > 0:
+            bonus = award_bonus(db, cid, "subscription", amount)
+            if bonus and bonus > 0:
+                ph = db.execute(_t("SELECT phone FROM clients WHERE "
+                                   "replace(cast(id as varchar),'-','')=replace(cast(:c as varchar),'-','') LIMIT 1"),
+                                {"c": cid}).first()
+                if ph and ph[0]:
+                    _max_send(str(ph[0]), "\U0001f501 +%d \u0431\u043e\u043d\u0443\u0441\u043e\u0432 \u0437\u0430 \u043f\u0440\u043e\u0434\u043b\u0435\u043d\u0438\u0435 \u0430\u0431\u043e\u043d\u0435\u043c\u0435\u043d\u0442\u0430!" % int(bonus))
+    except Exception:
+        import traceback; traceback.print_exc()
+    return result
 
 
 @router.post("/service", response_model=SaleServiceResponse)
