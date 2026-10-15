@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Музыка/DJ-пульт (экран 29): зоны, ПЛЕЕР НА ЭТОМ ПК (вкл/выкл агента из окна),
-деки A/B, файлы/папки с диска, кроссфейд, мастер, эквалайзер, пады 1-8,
-энерджи-режим, лицензия фоновой музыки."""
+настройка провайдера и лицензии из окна, деки A/B, файлы/папки с диска,
+кроссфейд, мастер, эквалайзер, пады 1-8, энерджи-режим, лицензия фоновой музыки."""
 import json
 import os
 import subprocess
@@ -94,7 +94,7 @@ class MusicTab(QWidget):
         self.banner.hide()
         v.addWidget(self.banner)
 
-        # ---- плеер на этом ПК: вкл/выкл + создание зоны ----
+        # ---- плеер на этом ПК: вкл/выкл + создание зоны + провайдер + лицензия ----
         pl_box = QGroupBox("Плеер на этом ПК (DJ Agent)")
         plh = QHBoxLayout(pl_box)
         self.lbl_agent = QLabel("—")
@@ -104,9 +104,17 @@ class MusicTab(QWidget):
         b_new_zone = QPushButton("＋ Зона на этом ПК")
         b_new_zone.setToolTip("Создать зону local_agent и сохранить токен плеера в настройках")
         b_new_zone.clicked.connect(self.create_zone_here)
+        b_prov = QPushButton("⚙ Провайдер…")
+        b_prov.setToolTip("Настройка зоны external — «коробки» провайдера")
+        b_prov.clicked.connect(self.provider_settings)
+        b_lic = QPushButton("⚙ Лицензия…")
+        b_lic.setToolTip("Договор на коммерческий фон (РАО/ВОИС или провайдер)")
+        b_lic.clicked.connect(self.license_settings)
         plh.addWidget(self.lbl_agent, 1)
         plh.addWidget(self.btn_agent)
         plh.addWidget(b_new_zone)
+        plh.addWidget(b_prov)
+        plh.addWidget(b_lic)
         v.addWidget(pl_box)
 
         # ---- верх: зона + фоновый режим ----
@@ -236,6 +244,9 @@ class MusicTab(QWidget):
 
         self.cmb_zone.currentIndexChanged.connect(lambda _i: self.refresh_status())
         self.reload_all()
+        # авто-создание зоны-плеера при первом открытии вкладки
+        if not self._agent_token():
+            self.create_zone_here()
         self._upd_agent_btn()
         self._tmr = QTimer(self)
         self._tmr.timeout.connect(self._upd_agent_btn)
@@ -343,6 +354,61 @@ class MusicTab(QWidget):
             self.reload_all()
         self._run(_do, _done)
 
+    def provider_settings(self):
+        """Создание/правка external-зоны: адрес коробки, путь команд."""
+        zid = self._zid()
+        cur = next((z for z in self._zones if z["id"] == zid), None)
+        is_ext = bool(cur and cur.get("provider_type") == "external")
+        cfg = (cur or {}).get("provider_config") or {}
+        dlg = FormDialog("Провайдер (external-зона)", [
+            ("name", "Имя зоны", "text", (cur or {}).get("name") or "Кардио-зона (провайдер)"),
+            ("base_url", "Адрес коробки http://IP:порт", "text", cfg.get("base_url") or ""),
+            ("cmd_path", "Путь команд (обычно /cmd)", "text", cfg.get("cmd_path") or "/cmd"),
+        ], self)
+        if not dlg.exec():
+            return
+        v = dlg.values()
+        body = {"name": v.get("name"),
+                "provider_config": {"base_url": (v.get("base_url") or "").strip(),
+                                    "cmd_path": (v.get("cmd_path") or "/cmd").strip()}}
+        if is_ext:
+            def _do():
+                r = self.api.session.patch(self._url("/zones/%s" % zid), json=body, timeout=15)
+                r.raise_for_status()
+                return r.json()
+            self._run(_do, lambda _r: (self._show("Настройки провайдера сохранены."),
+                                       self.reload_all()))
+        else:
+            body["provider_type"] = "external"
+            def _do2():
+                r = self.api.session.post(self._url("/zones"), json=body, timeout=15)
+                r.raise_for_status()
+                return r.json()
+            self._run(_do2, lambda _r: (self._show("Зона провайдера создана."),
+                                        self.reload_all()))
+
+    def license_settings(self):
+        """Ввод договора на коммерческий фон. Без ok-статуса фон заблокирован."""
+        dlg = FormDialog("Лицензия фоновой музыки", [
+            ("ltype", "Тип договора", "combo", ["provider", "rao_vois"]),
+            ("provider", "Провайдер (название)", "text", ""),
+            ("contract", "Номер договора", "text", ""),
+            ("valid", "Действует до (ГГГГ-ММ-ДД)", "text", "2027-12-31"),
+        ], self)
+        if not dlg.exec():
+            return
+        v = dlg.values()
+        body = {"license_type": v.get("ltype") or "provider",
+                "provider_name": (v.get("provider") or "").strip(),
+                "contract_number": (v.get("contract") or "").strip(),
+                "valid_until": (v.get("valid") or "").strip() or None}
+        def _do():
+            r = self.api.session.post(self._url("/license"), json=body, timeout=15)
+            r.raise_for_status()
+            return r.json()
+        self._run(_do, lambda r: (self._show("Лицензия сохранена: %s" % r.get("status")),
+                                  self.load_license()))
+
     # ---------- infra ----------
     def _url(self, path):
         base = (getattr(self.api, "base_url", "") or "").rstrip("/")
@@ -425,7 +491,7 @@ class MusicTab(QWidget):
         text = {
             "ok": " %s, действует до %s (договор %s)" % (
                 d.get("license_type"), d.get("valid_until"), d.get("contract_number") or "—"),
-            "warning": " Лицензия не указана — для коммерческого зала нужна (РАО/ВОИС или провайдер)",
+            "warning": " Лицензия не указана — фон заблокирован (⚙ Лицензия…)",
             "expired": " Лицензия ИСТЕКЛА %s — фоновое воспроизведение заблокировано" % d.get("valid_until"),
         }.get(st, "—")
         color = {"ok": "#16a34a", "warning": "#d97706", "expired": "#dc2626"}.get(st, "#888")
