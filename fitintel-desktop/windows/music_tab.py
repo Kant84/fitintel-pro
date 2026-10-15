@@ -1,5 +1,6 @@
+#fitintel-desktop\windows\music_tab.py
 # -*- coding: utf-8 -*-
-"""Музыка/DJ-пульт (экран 29): зоны, ПЛЕЕР НА ЭТОМ ПК (вкл/выкл агента из окна),
+"""Музыка/DJ-пульт (экран 29): зоны, ПЛЕЕР НА ЭТОМ ПК (вкл/выкл, микрофон вкл/выкл),
 настройка провайдера и лицензии из окна, деки A/B, файлы/папки с диска,
 кроссфейд, мастер, эквалайзер, пады 1-8, энерджи-режим, лицензия фоновой музыки."""
 import json
@@ -33,6 +34,12 @@ AGENT_ON_STYLE = (
     "QPushButton { background: #15803d; color: white; font-weight: bold;"
     " border: 1px solid #22c55e; border-radius: 6px; padding: 6px 10px; }"
     "QPushButton:hover { background: #16a34a; }"
+)
+
+MIC_ON_STYLE = (
+    "QPushButton { background: #7c3aed; color: white; font-weight: bold;"
+    " border: 1px solid #a78bfa; border-radius: 6px; padding: 6px 10px; }"
+    "QPushButton:hover { background: #8b5cf6; }"
 )
 
 AUDIO_FILTER = "Аудио (*.mp3 *.flac *.ogg *.wav *.m4a);;Все файлы (*)"
@@ -88,20 +95,24 @@ class MusicTab(QWidget):
         self._agent_proc = None
         self.setStyleSheet(_t("widget_style"))
         outer = QWidget()
-        v = QVBoxLayout(outer)          # всё содержимое — во внутренний виджет
+        v = QVBoxLayout(outer)
 
         self.banner = QLabel("")
         self.banner.setWordWrap(True)
         self.banner.hide()
         v.addWidget(self.banner)
 
-        # ---- плеер на этом ПК: вкл/выкл + создание зоны + провайдер + лицензия ----
+        # ---- плеер на этом ПК ----
         pl_box = QGroupBox("Плеер на этом ПК (DJ Agent)")
         plh = QHBoxLayout(pl_box)
         self.lbl_agent = QLabel("—")
         self.btn_agent = QPushButton("⏵ Плеер: ВКЛ")
         self.btn_agent.setToolTip("Запустить/остановить плеер на этом компьютере")
         self.btn_agent.clicked.connect(self.toggle_agent)
+        self.btn_mic = QPushButton("")
+        self.btn_mic.setToolTip("Микрофон: авто-дакинг музыки во время речи.\n"
+                                "Если плеер работает — перезапустит его с новой настройкой.")
+        self.btn_mic.clicked.connect(self.toggle_mic)
         b_new_zone = QPushButton("＋ Зона на этом ПК")
         b_new_zone.setToolTip("Создать зону local_agent и сохранить токен плеера в настройках")
         b_new_zone.clicked.connect(self.create_zone_here)
@@ -113,6 +124,7 @@ class MusicTab(QWidget):
         b_lic.clicked.connect(self.license_settings)
         plh.addWidget(self.lbl_agent, 1)
         plh.addWidget(self.btn_agent)
+        plh.addWidget(self.btn_mic)
         plh.addWidget(b_new_zone)
         plh.addWidget(b_prov)
         plh.addWidget(b_lic)
@@ -155,10 +167,10 @@ class MusicTab(QWidget):
         b_file_b.setToolTip("Любой аудиофайл с диска/флешки — без плейлиста")
         b_file_b.clicked.connect(lambda: self.load_file("B"))
         b_fold_a = QPushButton("Папка на A…")
-        b_fold_a.setToolTip("Вся папка с диска/флешки — треки по очереди")
+        b_fold_a.setToolTip("Вся папка с диска/флешки — треки по очереди, по кругу")
         b_fold_a.clicked.connect(lambda: self.load_folder("A"))
         b_fold_b = QPushButton("Папка на B…")
-        b_fold_b.setToolTip("Вся папка с диска/флешки — треки по очереди")
+        b_fold_b.setToolTip("Вся папка с диска/флешки — треки по очереди, по кругу")
         b_fold_b.clicked.connect(lambda: self.load_folder("B"))
         b_air_a = QPushButton("Эфир A")
         b_air_a.clicked.connect(lambda: self.set_active("A"))
@@ -175,7 +187,6 @@ class MusicTab(QWidget):
         g.addWidget(b_fold_b, 1, 3)
         g.addWidget(b_air_b, 1, 4)
         g.addWidget(self.lbl_onair, 2, 0, 1, 5)
-        # мастер + кроссфейд + mute
         g.addWidget(QLabel("Мастер-громкость:"), 3, 0)
         self.sld_master = QSlider(Qt.Orientation.Horizontal)
         self.sld_master.setRange(0, 100)
@@ -245,7 +256,6 @@ class MusicTab(QWidget):
 
         self.cmb_zone.currentIndexChanged.connect(lambda _i: self.refresh_status())
         self.reload_all()
-        # авто-создание зоны-плеера при первом открытии вкладки
         if not self._agent_token():
             self.create_zone_here()
         self._upd_agent_btn()
@@ -256,13 +266,12 @@ class MusicTab(QWidget):
             if b is self._btn_mute:
                 continue
             b.setStyleSheet(BTN_STYLE)
-        # прокрутка: при маленьком окне всё содержимое доступно через скролл
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
         scroll.setWidget(outer)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(scroll)   
+        lay.addWidget(scroll)
 
     # ---------- локальный плеер (DJ Agent) ----------
     def _settings_rw(self, mutate=None):
@@ -280,8 +289,14 @@ class MusicTab(QWidget):
                 pass
         return cfg
 
+    def _agent_cfg(self):
+        return self._settings_rw().get("dj_agent") or {}
+
     def _agent_token(self):
-        return (self._settings_rw().get("dj_agent") or {}).get("token")
+        return self._agent_cfg().get("token")
+
+    def _mic_on(self):
+        return bool(self._agent_cfg().get("mic"))
 
     def _agent_running(self):
         p = getattr(self, "_agent_proc", None)
@@ -293,8 +308,11 @@ class MusicTab(QWidget):
     def _upd_agent_btn(self):
         running = self._agent_running()
         has_token = bool(self._agent_token())
+        mic = self._mic_on()
         self.btn_agent.setText("⏹ Плеер: ВЫКЛ" if running else "⏵ Плеер: ВКЛ")
         self.btn_agent.setStyleSheet(AGENT_ON_STYLE if running else BTN_STYLE)
+        self.btn_mic.setText("🎤 Микрофон: ВКЛ" if mic else "🎤 Микрофон: ВЫКЛ")
+        self.btn_mic.setStyleSheet(MIC_ON_STYLE if mic else BTN_STYLE)
         if running:
             self.lbl_agent.setText("Плеер на этом ПК: РАБОТАЕТ (звук в колонках)")
             self.lbl_agent.setStyleSheet("color: #22c55e; font-weight: 600;")
@@ -305,44 +323,72 @@ class MusicTab(QWidget):
             self.lbl_agent.setText("Зона-плеер ещё не создан — нажмите «＋ Зона на этом ПК».")
             self.lbl_agent.setStyleSheet("color: #94a3b8;")
 
-    def toggle_agent(self):
+    def toggle_mic(self):
+        """Вкл/выкл дакинга. Сохраняет настройку; если плеер работает — перезапускает его."""
+        new_val = not self._mic_on()
+        def _mut(cfg):
+            dj = cfg.get("dj_agent") or {}
+            dj["mic"] = new_val
+            cfg["dj_agent"] = dj
+            return cfg
+        self._settings_rw(mutate=_mut)
+        self._upd_agent_btn()
         if self._agent_running():
-            try:
+            self._stop_agent()
+            self._start_agent()
+            self._show("Микрофон %s — плеер перезапущен." % ("включён" if new_val else "выключен"))
+        else:
+            self._show("Микрофон %s. Включится при запуске плеера." % ("включён" if new_val else "выключен"))
+
+    def _stop_agent(self):
+        try:
+            if self._agent_proc:
                 self._agent_proc.terminate()
-            except Exception:
-                pass
-            self._agent_proc = None
-            self._show("Плеер на этом ПК остановлен.")
-            self._upd_agent_btn()
-            return
+        except Exception:
+            pass
+        self._agent_proc = None
+
+    def _start_agent(self):
         token = self._agent_token()
         if not token:
             self._show("Сначала создайте зону: кнопка «＋ Зона на этом ПК».", ok=False)
-            return
-        root = Path(__file__).resolve().parents[2]          # корень репозитория
+            return False
+        root = Path(__file__).resolve().parents[2]
         py = root / ".venv" / "Scripts" / "python.exe"
         script = root / "scripts" / "music" / "fitintel_player_agent.py"
-        lib = (self._settings_rw().get("dj_agent") or {}).get("lib") or r"E:\music\club"
+        cfg = self._agent_cfg()
+        lib = cfg.get("lib") or r"E:\music\club"
         server = (getattr(self.api, "base_url", "") or "").rstrip("/")
         if not server:
             self._show("Не задан адрес сервера (api_base).", ok=False)
-            return
+            return False
         if not py.exists() or not script.exists():
             self._show("Не найдены python.exe или агент в репозитории:\n%s" % root, ok=False)
-            return
+            return False
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        args = [str(py), "-u", str(script), "--server", server,
+                "--token", token, "--lib", lib]
+        if self._mic_on():
+            args.append("--mic")
         try:
             os.makedirs(r"E:\music\logs", exist_ok=True)
-            logf = open(r"E:\music\logs\agent_gui.log", "ab")
+            logf = open(r"E:\music\logs\agent_gui.log", "a", encoding="utf-8", buffering=1)
             self._agent_proc = subprocess.Popen(
-                [str(py), "-u", str(script), "--server", server,
-                 "--token", token, "--lib", lib],
-                cwd=str(root / "scripts" / "music"), creationflags=flags,
+                args, cwd=str(root / "scripts" / "music"), creationflags=flags,
                 stdout=logf, stderr=logf)
         except Exception as e:
             self._show("Не удалось запустить плеер: %s" % e, ok=False)
+            return False
+        return True
+
+    def toggle_agent(self):
+        if self._agent_running():
+            self._stop_agent()
+            self._show("Плеер на этом ПК остановлен (и mpv закрыты).")
+            self._upd_agent_btn()
             return
-        self._show("Плеер запущен. Управляйте деками ниже.")
+        if self._start_agent():
+            self._show("Плеер запущен. Управляйте деками ниже.")
         self._upd_agent_btn()
 
     def create_zone_here(self):
@@ -366,7 +412,6 @@ class MusicTab(QWidget):
         self._run(_do, _done)
 
     def provider_settings(self):
-        """Создание/правка external-зоны: адрес коробки, путь команд."""
         zid = self._zid()
         cur = next((z for z in self._zones if z["id"] == zid), None)
         is_ext = bool(cur and cur.get("provider_type") == "external")
@@ -399,7 +444,6 @@ class MusicTab(QWidget):
                                         self.reload_all()))
 
     def license_settings(self):
-        """Ввод договора на коммерческий фон. Без ok-статуса фон заблокирован."""
         dlg = FormDialog("Лицензия фоновой музыки", [
             ("ltype", "Тип договора", "combo", ["provider", "rao_vois"]),
             ("provider", "Провайдер (название)", "text", ""),
@@ -620,7 +664,7 @@ class MusicTab(QWidget):
             self, "Папка на дек %s — все треки по очереди" % deck)
         if not d:
             return
-        self._set_deck(deck, {"title": "📁 " + os.path.basename(d), "path": d})
+        self._set_deck(deck, {"title": "[папка] " + os.path.basename(d), "path": d})
 
     def _set_deck(self, deck, track):
         if deck == "A":
