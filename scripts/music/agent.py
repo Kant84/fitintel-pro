@@ -1,18 +1,7 @@
-#scripts\music\agent.py
 # -*- coding: utf-8 -*-
-"""
-FitIntel DJ Agent v4.3 — пакетная версия.
-  Деки A/B (mpv IPC), кроссфейд, авто-микс (плейлист ИЛИ очередь папки по кругу),
-  мастер-громкость, EQ, сэмплер (PAD one-shot), дакинг микрофона.
-  При выходе все mpv завершаются (не остаются сиротами). Лог — UTF-8.
-
-  --dry-run   только лог, без mpv/звука
-  --debug     подробный лог каждого опроса
-  --lib DIR   папка с музыкой (пути резолвятся от неё; абсолютные — как есть)
-  --mic       авто-дакинг (pip install sounddevice)
-
-mpv: https://mpv.io | консольная сборка обязательна (IPC)
-"""
+"""FitIntel DJ Agent v4.3: деки A/B (mpv IPC, скрытые), кроссфейд, авто-микс
+(папка по кругу / плейлист), мастер, EQ, сэмплер, дакинг. Уникальные IPC-каналы
+на запуск, при выходе mpv завершаются. Лог UTF-8."""
 import argparse
 import json
 import os
@@ -31,7 +20,7 @@ class Agent:
         self.a = args
         is_win = sys.platform.startswith("win")
         import uuid as _uuid
-        suf = _uuid.uuid4().hex[:8]          # уникальные каналы у каждого запуска
+        suf = _uuid.uuid4().hex[:8]
         if is_win:
             base = r"\\.\pipe\fitintel_%s_" % suf
             ia, ib, ip = base + "deck_a", base + "deck_b", base + "pad"
@@ -53,14 +42,12 @@ class Agent:
         self.ducked = False
         self.poll = args.interval
 
-    # --- сеть ---
     def fetch(self, path):
         url = self.a.server.rstrip("/") + path
         url += ("&" if "?" in url else "?") + "token=" + self.a.token
         with urllib.request.urlopen(url, timeout=10) as r:
             return json.load(r)
 
-    # --- основной цикл ---
     def run(self):
         print("FitIntel DJ Agent v4.3 | dry-run=%s | mic=%s | poll %.1fs | lib=%s"
               % (self.a.dry_run, self.a.mic, self.poll, self.a.lib or "—"))
@@ -91,7 +78,6 @@ class Agent:
             time.sleep(self.poll)
 
     def stop(self):
-        """Корректное завершение: mpv не остаются сиротами."""
         if self.ducker:
             try:
                 self.ducker.stop()
@@ -103,7 +89,6 @@ class Agent:
             except Exception:
                 pass
 
-    # --- режим 1: простой плеер ---
     def handle_simple(self, st):
         pl = st.get("playlist")
         key = (st["state"], (pl or {}).get("id"), st["volume"])
@@ -121,7 +106,6 @@ class Agent:
             print("PAUSE | зона %s" % st["name"])
             main.pause()
 
-    # --- режим 2: DJ-пульт ---
     def handle_dj(self, st, dj):
         if self.mixing:
             return
@@ -163,7 +147,7 @@ class Agent:
         elif act.eof() and not self.mixing:
             print("DJ | трек завершён, некуда сводить — повтор")
             try:
-                act.play(self.master)      # одиночный файл без плейлиста: по кругу
+                act.play(self.master)
             except Exception as e:
                 print("DJ | repeat ERR:", e)
 
@@ -196,13 +180,13 @@ class Agent:
             except Exception as e:
                 print("DJ | FADE ERR:", e)
             finally:
-                self.mixing = False   # флаг сбрасывается ВСЕГДА, даже при ошибке
+                self.mixing = False
 
         threading.Thread(target=_fade, daemon=True).start()
+
     def auto_mix(self, idle_name, cf):
         idle = self.decks[idle_name]
         act = self.decks[self.active]
-        # 1) приоритет: очередь папки активного дека — ПО КРУГУ, бесконечно
         q = getattr(act, "folder_queue", None)
         if q:
             act.folder_index = (getattr(act, "folder_index", 0) + 1) % len(q)
@@ -217,7 +201,6 @@ class Agent:
             idle.load_file_paused(f)
             self.switch_to(idle_name, cf, immediate=False)
             return
-        # 2) fallback: следующий трек из плейлиста зоны
         nxt = self.next_track(idle.track)
         if nxt and nxt.get("path") != (idle.track or {}).get("path"):
             idle.load_paused(nxt)
@@ -240,7 +223,6 @@ class Agent:
             pass
         return current
 
-    # --- дакинг ---
     def _duck_on(self):
         if self.ducked:
             return
@@ -268,15 +250,13 @@ def main():
     ap.add_argument("--server", required=True, help="http://192.168.101.182/api/v1")
     ap.add_argument("--token", required=True)
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--debug", action="store_true", help="подробный лог каждого опроса")
-    ap.add_argument("--lib", default=None, help="папка с MP3/FLAC/OGG")
+    ap.add_argument("--debug", action="store_true")
+    ap.add_argument("--lib", default=None)
     ap.add_argument("--interval", type=float, default=3.0)
-    ap.add_argument("--mic", action="store_true", help="включить авто-дакинг микрофона")
-    ap.add_argument("--duck-threshold", type=float, default=0.08, help="RMS-порог голоса")
-    ap.add_argument("--duck-factor", type=float, default=0.2,
-                    help="громкость музыки во время речи (0-1)")
-    ap.add_argument("--duck-hold", type=float, default=2.0,
-                    help="сек тишины до возврата громкости")
+    ap.add_argument("--mic", action="store_true")
+    ap.add_argument("--duck-threshold", type=float, default=0.08)
+    ap.add_argument("--duck-factor", type=float, default=0.2)
+    ap.add_argument("--duck-hold", type=float, default=2.0)
     args = ap.parse_args()
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")

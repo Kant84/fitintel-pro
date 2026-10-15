@@ -1,7 +1,6 @@
-#scripts\music\deck.py
 # -*- coding: utf-8 -*-
-"""Один дек = один процесс mpv (скрытый, --no-video) со своим IPC-сокетом.
-Папка на деке: path → каталог = очередь треков (folder_queue). EQ lavfi."""
+"""Один дек = один процесс mpv (скрытый, --no-video) со своим IPC-каналом.
+Папка на деке: path -> каталог = очередь треков (folder_queue). EQ lavfi."""
 import json
 import os
 import shutil
@@ -14,7 +13,6 @@ AUDIO_EXTS = (".mp3", ".flac", ".ogg", ".wav", ".m4a")
 
 
 def _mpv_path():
-    """Путь к mpv: PATH → стандартные места установки."""
     p = shutil.which("mpv")
     if p:
         return p
@@ -113,7 +111,6 @@ class Deck:
         return p
 
     def folder_files(self, path):
-        """Каталог → отсортированный список аудиофайлов рекурсивно."""
         try:
             if not os.path.isdir(path):
                 return None
