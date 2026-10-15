@@ -151,16 +151,19 @@ class Agent:
                   % (want_active, self.master, cf))
 
         act = self.decks[self.active]
-        if act.eof() and not self.mixing:
-            print("DJ | трек на деке %s завершён, тишина (ждём команду пульта)" % self.active)
-
         rem = act.remaining()
         idle_name = "B" if self.active == "A" else "A"
         idle = self.decks[idle_name]
-        if (not self.mixing and rem is not None
-                and rem <= cf + 1.0 and (idle.track or idle.folder_queue
-                                         or act.folder_queue)):
+        can_mix = bool(idle.track or idle.folder_queue or act.folder_queue)
+        if not self.mixing and can_mix and ((rem is not None and rem <= cf + 1.0)
+                                            or act.eof()):
             self.auto_mix(idle_name, cf)
+        elif act.eof() and not self.mixing:
+            print("DJ | трек завершён, некуда сводить — повтор")
+            try:
+                act.play(self.master)      # одиночный файл без плейлиста: по кругу
+            except Exception as e:
+                print("DJ | repeat ERR:", e)
 
     def switch_to(self, name, cf, immediate=False):
         idle = self.decks[name]
