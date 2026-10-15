@@ -282,7 +282,7 @@ box.innerHTML=`<img style="width:280px;height:280px;border-radius:12px;backgroun
 box.innerHTML=`<div class="err" style="display:block">QR debug: ${esc(String((e&&e.message)||e))} | client_id=${esc(String((me&&me.client_id)||"?"))}</div>
 <img style="width:280px;height:280px;border-radius:12px" src="${API}/miniapp/qr?data=${data}">
 <div class="mut">QR профиля</div>`}}
-if(t==='menu'){try{const w=await api('/miniapp/wallet');const b=document.getElementById('wbal'),o=document.getElementById('wbon');if(b)b.textContent=(w.balance!=null?(w.balance+' \u20bd'):'0 \u20bd');if(o)o.textContent=(w.bonuses!=null?String(w.bonuses):'0');if(w.wallet_enabled===false){const _tb=document.querySelector('#walletbox .btn');if(_tb)_tb.style.display='none';if(b)b.textContent='\u2014'}if(w.bonus_enabled===false&&o)o.textContent='\u2014'}catch(e){}}
+if(t==='menu'){try{const w=await api('/miniapp/wallet');try{const _c=await api('/miniapp/wallet/config');w.wallet_enabled=_c.wallet_enabled;w.bonus_enabled=_c.bonus_enabled}catch(_e){}const b=document.getElementById('wbal'),o=document.getElementById('wbon');if(b)b.textContent=(w.balance!=null?(w.balance+' \u20bd'):'0 \u20bd');if(o)o.textContent=(w.bonuses!=null?String(w.bonuses):'0');if(w.wallet_enabled===false){const _tb=document.querySelector('#walletbox .btn');if(_tb)_tb.style.display='none';if(b)b.textContent='\u2014'}if(w.bonus_enabled===false&&o)o.textContent='\u2014'}catch(e){}}
 if(t==='schedule'){try{const s=await api('/services/trainer-schedule');const rows=s.items||s;
 const mine=(rows||[]);
 if(!mine.length){document.getElementById('sched').innerHTML='<div class="mut">Записей нет. Запишитесь на ресепшене.</div>';return}
