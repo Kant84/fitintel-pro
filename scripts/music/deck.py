@@ -8,9 +8,19 @@ import socket
 import subprocess
 import threading
 import time
+import shutil
 
 AUDIO_EXTS = (".mp3", ".flac", ".ogg", ".wav", ".m4a")
-
+def _mpv_path():
+    """Путь к mpv: PATH → стандартные места установки."""
+    p = shutil.which("mpv")
+    if p:
+        return p
+    for cand in (r"C:\mpv\mpv.exe", r"C:\Program Files\MPV Player\mpv.exe",
+                 r"C:\Program Files\mpv\mpv.exe"):
+        if os.path.exists(cand):
+            return cand
+    return "mpv"
 
 class Deck:
     def __init__(self, name, ipc, lib, dry_run=False):
@@ -30,7 +40,7 @@ class Deck:
         if self.dry or self.proc:
             return
         self.proc = subprocess.Popen(
-            ["mpv", "--no-video", "--idle=yes", "--really-quiet",
+            [_mpv_path(), "--no-video", "--idle=yes", "--really-quiet",
              "--volume=0", "--input-ipc-server=%s" % self.ipc])
         self._wait_ipc(10)
 
