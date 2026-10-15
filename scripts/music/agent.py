@@ -1,12 +1,14 @@
 #scripts\music\agent.py
 # -*- coding: utf-8 -*-
-"""FitIntel DJ Agent v4.4: деки A/B (mpv IPC, скрытые), кроссфейд, авто-микс
-(папка по кругу / плейлист), мастер, EQ, сэмплер, дакинг. Уникальные IPC-каналы
-на запуск, при выходе mpv завершаются. Лог UTF-8.
+"""FitIntel DJ Agent v4.5: деки A/B (mpv IPC, скрытые), кроссфейд, авто-микс
+(папка по кругу / плейлист), мастер, EQ, сэмплер, дакинг, авто-регистрация зоны.
 
-v4.4:
+v4.5:
+- при 403 или отсутствии токена — POST /music/agent/register (machine_id),
+  выданный токен сохраняется в client_settings.json (dj_agent.token);
+- машина определяется по hostname + MAC, machine_id стабилен при переустановке;
 - уважает state='stopped' — паузит оба деки;
-- не перезапускает трек при смене мастера/кроссфейда (сравнение по норм.пути);
+- не перезапускает трек при смене мастера/кроссфейда;
 - switch_to при active==name не трогает играющий дек;
 - switch_to при кроссфейде old — строго противоположный дек.
 """
@@ -14,21 +16,91 @@ import argparse
 import atexit
 import json
 import os
+import socket
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
+import uuid as _uuid
 
 from deck import Deck
 from duck import VoiceDucker
 from pads import Pads
 
 
+# ---------------------------------------------------------------- helpers
+def _machine_id():
+    """Стабильный ID машины: hostname-MAC основного интерфейса."""
+    try:
+        host = socket.gethostname()
+    except Exception:
+        host = "unknown"
+    mac = ""
+    try:
+        mac = "%012x" % _uuid.getnode()
+    except Exception:
+        pass
+    return ("%s-%s" % (host, mac))[:64]
+
+
+def _settings_path():
+    """Путь к client_settings.json — там же, где GUI (paths.SETTINGS).
+    Если запущено из репо, ищем рядом с fitintel-desktop."""
+    p = os.environ.get("FITINTEL_SETTINGS")
+    if p and os.path.isfile(p):
+        return p
+    here = os.path.dirname(os.path.abspath(__file__))          # scripts/music
+    root = os.path.abspath(os.path.join(here, "..", ".."))     # корень репо
+    cand = os.path.join(root, "fitintel-desktop", "client_settings.json")
+    if os.path.isfile(cand):
+        return cand
+    if getattr(sys, "frozen", False):
+        cand = os.path.join(os.path.dirname(sys.executable), "client_settings.json")
+        if os.path.isfile(cand):
+            return cand
+    return None
+
+
+def _save_agent_token(token):
+    """Сохраняет dj_agent.token в client_settings.json (атомарно)."""
+    p = _settings_path()
+    if not p:
+        print("AGENT | не найден client_settings.json — токен не сохранён")
+        return False
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except Exception as e:
+        print("AGENT | чтение настроек: %s" % e)
+        return False
+    dj = cfg.get("dj_agent") or {}
+    if dj.get("token") == token:
+        return True
+    dj["token"] = token
+    cfg["dj_agent"] = dj
+    tmp = p + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, p)
+        print("AGENT | сохранён новый токен в %s" % p)
+        return True
+    except Exception as e:
+        print("AGENT | запись настроек: %s" % e)
+        try:
+            os.remove(tmp)
+        except Exception:
+            pass
+        return False
+
+
+# ---------------------------------------------------------------- agent
 class Agent:
     def __init__(self, args):
         self.a = args
+        self.machine_id = _machine_id()
         is_win = sys.platform.startswith("win")
-        import uuid as _uuid
         suf = _uuid.uuid4().hex[:8]
         if is_win:
             base = r"\\.\pipe\fitintel_%s_" % suf
@@ -39,7 +111,9 @@ class Agent:
         self.decks = {"A": Deck("A", ia, args.lib, args.dry_run),
                       "B": Deck("B", ib, args.lib, args.dry_run),
                       "PAD": Deck("PAD", ip, args.lib, args.dry_run)}
-        self.pads = Pads(args.server, args.token, args.lib,
+        # реальный токен, который может обновиться при авто-регистрации
+        self.token = (args.token or "").strip()
+        self.pads = Pads(args.server, self.token, args.lib,
                          self.decks["PAD"], dry=args.dry_run)
         self.active = "A"
         self.master = 70
@@ -50,15 +124,49 @@ class Agent:
         self.ducker = None
         self.ducked = False
         self.poll = args.interval
-        # страховка: при выходе агента (в т.ч. по terminate) прибить mpv
         atexit.register(self._kill_all)
 
     # ---------- сеть ----------
-    def fetch(self, path):
+    def _url(self, path):
         url = self.a.server.rstrip("/") + path
-        url += ("&" if "?" in url else "?") + "token=" + self.a.token
-        with urllib.request.urlopen(url, timeout=10) as r:
+        return url + ("&" if "?" in url else "?") + "token=" + self.token
+
+    def _try_fetch(self, path):
+        with urllib.request.urlopen(self._url(path), timeout=10) as r:
             return json.load(r)
+
+    def _register(self):
+        """Регистрирует ПК на сервере, сохраняет токен в client_settings.json."""
+        body = {"machine_id": self.machine_id,
+                "name": "Зал " + socket.gethostname(),
+                "lib": self.a.lib or ""}
+        url = self.a.server.rstrip("/") + "/music/agent/register"
+        req = urllib.request.Request(
+            url, data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            d = json.load(r)
+        new_token = d.get("agent_token")
+        if not new_token:
+            raise RuntimeError("register: сервер не вернул agent_token")
+        self.token = new_token
+        self.pads.token = new_token
+        _save_agent_token(new_token)
+        print("AGENT | зарегистрирован: zone=%s name=%s new=%s"
+              % (str(d.get("zone_id"))[:8], d.get("name"), d.get("registered")))
+        return d
+
+    def fetch(self, path):
+        """GET с авто-регистрацией при 403."""
+        try:
+            return self._try_fetch(path)
+        except urllib.error.HTTPError as e:
+            if e.code != 403:
+                raise
+            print("AGENT | 403 Forbidden — регистрируюсь заново (machine_id=%s)"
+                  % self.machine_id)
+            self._register()
+            return self._try_fetch(path)
 
     # ---------- служебное ----------
     def _kill_all(self):
@@ -81,8 +189,9 @@ class Agent:
 
     # ---------- цикл ----------
     def run(self):
-        print("FitIntel DJ Agent v4.4 | dry-run=%s | mic=%s | poll %.1fs | lib=%s"
+        print("FitIntel DJ Agent v4.5 | dry-run=%s | mic=%s | poll %.1fs | lib=%s"
               % (self.a.dry_run, self.a.mic, self.poll, self.a.lib or "—"))
+        print("AGENT | machine_id=%s" % self.machine_id)
         if not self.a.dry_run:
             for d in self.decks.values():
                 d.start()
@@ -119,7 +228,6 @@ class Agent:
 
     # ---------- простой режим (плейлист без DJ) ----------
     def handle_simple(self, st):
-        # ФИКС: если зона остановлена — паузим ОБА деку и сбрасываем кэш
         if st.get("state") != "playing":
             for d in self.decks.values():
                 if d.track:
@@ -153,7 +261,6 @@ class Agent:
         if self.mixing:
             return
 
-        # ФИКС: state='stopped' — паузим всё, сбрасываем кэш, выходим
         if st.get("state") != "playing":
             for d in self.decks.values():
                 if d.track:
@@ -178,26 +285,20 @@ class Agent:
 
             da = dj.get("deck_a")
             db = dj.get("deck_b")
-
-            # ФИКС: сравнение по нормализованному пути — не перезагружаем трек
-            # при простой смене мастера/кроссфейда
             if da and self._track_key(self.decks["A"].track) != self._track_key(da):
                 self.decks["A"].load_paused(da)
             if db and self._track_key(self.decks["B"].track) != self._track_key(db):
                 self.decks["B"].load_paused(db)
 
-            # EQ применяем всегда — дешево и безопасно
             eq = dj.get("eq") or {}
             for nm in ("A", "B"):
                 e = eq.get(nm) or {}
                 self.decks[nm].set_eq(e.get("bass", 0), e.get("mid", 0),
                                       e.get("treble", 0))
 
-            # ФИКС: switch_to вызываем только если активный дек реально сменился
             if want_active in ("A", "B") and not active_same:
                 self.switch_to(want_active, cf, immediate=True)
 
-            # ФИКС: при смене мастера — плавно применить новую громкость
             if active_same and want_active == self.active:
                 try:
                     self.decks[self.active].cmd("set_property", "volume",
@@ -212,7 +313,6 @@ class Agent:
         idle_name = "B" if self.active == "A" else "A"
         idle = self.decks[idle_name]
 
-        # Пересобрать очередь, если активный дек — папка, а очередь пуста
         if act.track and not act.folder_queue:
             q = act.folder_files(act.resolve(act.track))
             if q:
@@ -223,7 +323,8 @@ class Agent:
 
         rem = act.remaining()
         can_mix = bool(idle.track or idle.folder_queue or act.folder_queue)
-        need_mix = ((rem is not None and rem <= cf + 1.0) or act.eof())
+        need_mix = ((rem is not None and rem <= cf + self.poll + 1.5)
+                    or act.eof())
         if not self.mixing and can_mix and need_mix:
             self.auto_mix(idle_name, cf)
         elif act.eof() and not self.mixing and not can_mix:
@@ -238,20 +339,15 @@ class Agent:
     def switch_to(self, name, cf, immediate=False):
         if name not in ("A", "B"):
             return
-
-        # ФИКС: если уже эфирит этот дек — не трогаем вообще
         if self.active == name:
             if immediate:
                 self.mixing = False
             return
-
-        # old — строго противоположный дек
         other = "B" if name == "A" else "A"
         idle = self.decks[name]
         old = self.decks[other]
 
         if immediate:
-            # Просто переключаем: старый на паузу, новый играть с текущей позиции
             try:
                 old.pause()
             except Exception as e:
@@ -266,7 +362,6 @@ class Agent:
             self.mixing = False
             return
 
-        # Кроссфейд
         if self.mixing:
             return
         self.mixing = True
@@ -337,7 +432,8 @@ class Agent:
             return
         self.ducked = True
         target = int(self.master * self.a.duck_factor)
-        print("DUCK | ГОЛОС -> музыка на %s (фактор %s)" % (target, self.a.duck_factor))
+        print("DUCK | ГОЛОС -> музыка на %s (фактор %s)"
+              % (target, self.a.duck_factor))
         for name in ("A", "B"):
             d = self.decks[name]
             if d.track:
@@ -354,10 +450,38 @@ class Agent:
                 d.fade_to(self.master, 1.0)
 
 
+# ---------------------------------------------------------------- main
+def _bootstrap_token(args):
+    """Если токен не задан — регистрируемся до создания Agent.
+    Возвращает (token, machine_id)."""
+    mid = _machine_id()
+    body = {"machine_id": mid,
+            "name": "Зал " + socket.gethostname(),
+            "lib": args.lib or ""}
+    url = args.server.rstrip("/") + "/music/agent/register"
+    req = urllib.request.Request(
+        url, data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            d = json.load(r)
+    except Exception as e:
+        print("AGENT | регистрация не удалась: %s" % e)
+        return "", mid
+    token = d.get("agent_token") or ""
+    if token:
+        _save_agent_token(token)
+        print("AGENT | bootstrap: zone=%s new=%s"
+              % (str(d.get("zone_id"))[:8], d.get("registered")))
+    return token, mid
+
+
 def main():
-    ap = argparse.ArgumentParser(description="FitIntel DJ Agent v4.4")
-    ap.add_argument("--server", required=True, help="http://192.168.101.182/api/v1")
-    ap.add_argument("--token", required=True)
+    ap = argparse.ArgumentParser(description="FitIntel DJ Agent v4.5")
+    ap.add_argument("--server", required=True,
+                    help="http://192.168.101.182/api/v1")
+    ap.add_argument("--token", default="",
+                    help="agent_token (пусто = авто-регистрация)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--debug", action="store_true")
     ap.add_argument("--lib", default=None)
@@ -372,6 +496,13 @@ def main():
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
+
+    # если токена нет — сразу регистрируемся
+    if not (args.token or "").strip():
+        print("AGENT | токен не задан — регистрируюсь")
+        token, _mid = _bootstrap_token(args)
+        args.token = token
+
     agent = None
     try:
         agent = Agent(args)
