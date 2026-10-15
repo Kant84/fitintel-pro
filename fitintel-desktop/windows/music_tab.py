@@ -398,7 +398,8 @@ class MusicTab(QWidget):
             for z in self._zones:
                 if z.get("agent_token") == tok:
                     self._show("Зона плеера уже есть: %s. Создание не требуется." % z["name"])
-                    return        import socket as _sock
+                    return
+        import socket as _sock
         name = "Зал %s" % _sock.gethostname()
         body = {"name": name, "provider_type": "local_agent"}
         def _do():
