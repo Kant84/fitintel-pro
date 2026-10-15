@@ -7,7 +7,8 @@ from windows.form_dialog import FormDialog
 from PyQt6.QtWidgets import (QComboBox, 
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QMessageBox, QInputDialog,
     QTableWidget, QTableWidgetItem, QHeaderView, QTabWidget, QLabel,
-    QLineEdit, QPlainTextEdit, QCheckBox, QFormLayout
+    QLineEdit, QPlainTextEdit, QCheckBox, QFormLayout,
+    QScrollArea,
 )
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -73,7 +74,10 @@ class ClubParamsTab(QWidget):
         self.tbl_labels.setStyleSheet(theme.table_style())
         self.tbl_labels.itemDoubleClicked.connect(self._edit_label)
         self.tabs.addTab(self.tbl_labels, " Лейблы бота")
-        self.tabs.addTab(BotSettingsWidget(self.api), " Настройки приложения")
+        _sa = QScrollArea(); _sa.setWidgetResizable(True)
+        _bw = BotSettingsWidget(self.api)
+        _sa.setWidget(_bw)
+        self.tabs.addTab(_sa, " Настройки приложения")
         self.tabs.addTab(BonusRulesWidget(self.api), " Бонусы")
         layout.addWidget(self.tabs, 1)
 
@@ -209,10 +213,9 @@ class BotSettingsWidget(QWidget):
         f.addRow("ЮKassa секретный ключ:", self.ed_ykkey)
         f.addRow(self.chk_wallet)
         f.addRow(self.chk_bonus)
-        f.setVerticalSpacing(14)
+        f.setVerticalSpacing(10)
         for _c in (self.chk_pay, self.chk_wallet, self.chk_bonus):
-            _c.setMinimumHeight(34)
-            _c.setContentsMargins(0, 3, 0, 3)
+            _c.setMinimumHeight(28)
         v.addLayout(f)
         bar = QHBoxLayout()
         b1 = QPushButton(" Сохранить"); b1.clicked.connect(self.save)
