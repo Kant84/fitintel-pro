@@ -189,6 +189,8 @@ class BotSettingsWidget(QWidget):
         self.ed_ykshop = QLineEdit(); self.ed_ykshop.setPlaceholderText("shopId ЮKassa")
         self.ed_ykkey = QLineEdit(); self.ed_ykkey.setEchoMode(QLineEdit.EchoMode.Password)
         self.ed_ykkey.setPlaceholderText("секретный ключ ЮKassa")
+        self.chk_wallet = QCheckBox("Кошелёк: пополнение и оплата с баланса")
+        self.chk_bonus = QCheckBox("Бонусы: начисление и оплата бонусами")
         for _w in self.findChildren((QLineEdit, QComboBox)):
             _w.setMinimumHeight(30)
         f.addRow("Токен бота MAX:", self.ed_token)
@@ -205,6 +207,8 @@ class BotSettingsWidget(QWidget):
         f.addRow("Бонусы от пополнения, %:", self.ed_wbonus)
         f.addRow("ЮKassa shopId:", self.ed_ykshop)
         f.addRow("ЮKassa секретный ключ:", self.ed_ykkey)
+        f.addRow(self.chk_wallet)
+        f.addRow(self.chk_bonus)
         v.addLayout(f)
         bar = QHBoxLayout()
         b1 = QPushButton(" Сохранить"); b1.clicked.connect(self.save)
@@ -254,6 +258,8 @@ class BotSettingsWidget(QWidget):
             self.ed_wbonus.setText(_pm.get("WALLET_BONUS_PERCENT", ""))
             self.ed_ykshop.setText(_pm.get("YK_SHOP_ID", ""))
             self.ed_ykkey.setText(_pm.get("YK_SECRET_KEY", ""))
+            self.chk_wallet.setChecked(_pm.get("WALLET_ENABLED", "1") != "0")
+            self.chk_bonus.setChecked(_pm.get("BONUS_ENABLED", "1") != "0")
         except Exception:
             pass
         self.lbl.setText("Токен: " + ("установлен (…%s)" % r.get("bot_token_tail") if r.get("bot_token_set") else "не задан"))
@@ -280,6 +286,8 @@ class BotSettingsWidget(QWidget):
                 "WALLET_BONUS_PERCENT": self.ed_wbonus.text().strip(),
                 "YK_SHOP_ID": self.ed_ykshop.text().strip(),
                 "YK_SECRET_KEY": self.ed_ykkey.text().strip(),
+                "WALLET_ENABLED": "1" if self.chk_wallet.isChecked() else "0",
+                "BONUS_ENABLED": "1" if self.chk_bonus.isChecked() else "0",
             }
             for _k, _v in _kv.items():
                 if _v:

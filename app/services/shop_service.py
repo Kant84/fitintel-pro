@@ -144,6 +144,10 @@ def buy_with_balance(db: Session, client_id, product_id, quantity: int = 1, meth
                         {"c": str(client_id)}).scalar()
         bonus_left = float(gl or 0)
 
+    if cash_part > 0:
+        from app.api.v1.club_params import get_param as _gp2
+        if str(_gp2("WALLET_ENABLED", "1") or "1").lower() not in ("1", "true", "yes", "on"):
+            raise HTTPException(400, "Кошелёк временно отключён клубом — оплатите наличными/картой")
     wallet = None
     if cash_part > 0:
         ws = WalletService(db)

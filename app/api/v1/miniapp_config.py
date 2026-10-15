@@ -440,7 +440,11 @@ def _wallet_cfg(db):
 
 @router.get("/miniapp/wallet/config")
 def wallet_config(db: _S = _Dep(_gdb)):
-    return _wallet_cfg(db)
+    from app.api.v1.club_params import get_param
+    d = _wallet_cfg(db)
+    d["wallet_enabled"] = str(get_param("WALLET_ENABLED", "1") or "1").lower() in ("1", "true", "yes", "on")
+    d["bonus_enabled"] = str(get_param("BONUS_ENABLED", "1") or "1").lower() in ("1", "true", "yes", "on")
+    return d
 
 
 
@@ -505,6 +509,9 @@ def _wallet_credit(db, client_id: str, amount: float, bonus_percent: float) -> d
 @router.post("/miniapp/wallet/topup")
 def wallet_topup(body: TopupIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     cfg = _wallet_cfg(db)
+    from app.api.v1.club_params import get_param
+    if str(get_param("WALLET_ENABLED", "1") or "1").lower() not in ("1", "true", "yes", "on"):
+        raise _HE(403, "Кошелёк временно отключён клубом")
     amount = round(float(body.amount), 2)
     if amount < cfg["min"]:
         raise _HE(422, "Минимальная сумма пополнения: %s руб." % int(cfg["min"]))
@@ -560,6 +567,9 @@ def _add_xp(db, client_id, xp):
 
 
 def award_bonus(db, client_id, event, amount=0):
+    from app.api.v1.club_params import get_param as _gp
+    if str(_gp("BONUS_ENABLED", "1") or "1").lower() not in ("1", "true", "yes", "on"):
+        return 0.0
     _ensure_bonus_rules(db)
     c = db.execute(_t("SELECT client_category FROM clients WHERE replace(cast(id as varchar),'-','')=replace(cast(:c as varchar),'-','')"), {"c": str(client_id).replace("-","")}).first()
     cat = ((c[0] if c else None) or "").upper()
@@ -923,6 +933,8 @@ def bonus_redeem(body: RedeemIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     from app.api.v1.club_params import get_param
     if str(get_param("BONUS_PAY_ENABLED", "1") or "1").lower() not in ("1", "true", "yes", "on"):
         raise _HE(403, "Оплата бонусами отключена клубом")
+    if str(get_param("BONUS_ENABLED", "1") or "1").lower() not in ("1", "true", "yes", "on"):
+        raise _HE(403, "Бонусы временно отключены клубом")
     rate = float(get_param("BONUS_TO_RUB_RATE", "1") or 1)
     if rate <= 0:
         rate = 1.0
