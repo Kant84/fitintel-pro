@@ -147,6 +147,7 @@ class Agent:
         elif act.eof() and not self.mixing:
             print("DJ | трек завершён, некуда сводить — повтор")
             try:
+                act.cmd("seek", 0, "absolute")   # перезапуск с начала, а не "снять паузу с EOF"
                 act.play(self.master)
             except Exception as e:
                 print("DJ | repeat ERR:", e)
