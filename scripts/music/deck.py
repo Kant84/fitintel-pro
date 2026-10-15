@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 """Один дек = один процесс mpv со своим IPC-сокетом (unix-socket / named pipe).
-EQ: бас/середина/верха через lavfi equalizer, пересчёт на лету без перерыва."""
+Поддержка «папка на дек»: path может указывать на каталог — треки играются
+по очереди (folder_queue). EQ: bass/mid/treble через lavfi equalizer."""
 import json
 import os
 import socket
 import subprocess
 import threading
 import time
+
+AUDIO_EXTS = (".mp3", ".flac", ".ogg", ".wav", ".m4a")
 
 
 class Deck:
@@ -18,8 +21,11 @@ class Deck:
         self.proc = None
         self.track = None
         self.req = 0
-        self.eq = (0, 0, 0)         # (bass, mid, treble) в дБ
+        self.eq = (0, 0, 0)
+        self.folder_queue = None      # список файлов, если track.path — папка
+        self.folder_index = 0
 
+    # --- процесс ---
     def start(self):
         if self.dry or self.proc:
             return
@@ -46,6 +52,7 @@ class Deck:
                 pass
             self.proc = None
 
+    # --- IPC ---
     def _conn(self):
         if self.ipc.startswith("\\\\.\\pipe\\"):
             return open(self.ipc, "r+b", buffering=0)
@@ -88,25 +95,58 @@ class Deck:
         except Exception:
             return default
 
+    # --- пути и папки ---
     def resolve(self, track):
         p = track.get("path", "")
         if self.lib and not os.path.isabs(p):
             p = os.path.join(self.lib, p)
         return p
 
+    def folder_files(self, path):
+        """Если path — каталог: отсортированный список аудиофайлов внутри."""
+        try:
+            if os.path.isdir(path):
+                files = [f for f in sorted(os.listdir(path))
+                         if f.lower().endswith(AUDIO_EXTS)]
+                if files:
+                    return [os.path.join(path, f) for f in files]
+        except Exception:
+            pass
+        return None
+
+    # --- музыкальные операции ---
     def load_paused(self, track):
+        """Загрузить трек (или папку) на дек и поставить на паузу с нулевой громкостью."""
         self.track = track
-        self._loaded_at = time.time()      # dry-run: имитация длительности трека
+        self._loaded_at = time.time()
+        target = self.resolve(track)
+        q = self.folder_files(target)
+        self.folder_queue = q
+        self.folder_index = 0
+        if q:
+            target = q[0]
         if self.dry:
-            print("DECK %s | загружен (пауза, vol 0): %s" % (self.name, track.get("title")))
+            extra = " (папка: %d файлов)" % len(q) if q else ""
+            print("DECK %s | загружен (пауза, vol 0): %s%s" % (self.name,
+                                                               track.get("title"), extra))
             return
-        self.cmd("loadfile", self.resolve(track), "replace")
+        self.cmd("loadfile", target, "replace")
+        time.sleep(0.2)
+        self.cmd("set_property", "pause", True)
+        self.cmd("set_property", "volume", 0)
+
+    def load_file_paused(self, path):
+        """Загрузить конкретный файл (следующий из очереди папки)."""
+        if self.dry:
+            print("DECK %s | загружен файл (пауза, vol 0): %s" % (self.name, os.path.basename(path)))
+            return
+        self.cmd("loadfile", path, "replace")
         time.sleep(0.2)
         self.cmd("set_property", "pause", True)
         self.cmd("set_property", "volume", 0)
 
     def play(self, volume):
-        self._loaded_at = time.time()      # отсчёт «длительности трека» с момента выхода в эфир
+        self._loaded_at = time.time()
         if self.dry:
             print("DECK %s | PLAY vol=%s: %s" % (self.name, volume,
                                                  (self.track or {}).get("title")))
@@ -145,7 +185,6 @@ class Deck:
         threading.Thread(target=_ramp, daemon=True).start()
 
     def set_eq(self, bass=0, mid=0, treble=0):
-        """Эквалайзер дека: bass/mid/treble в дБ (-12..+12), lavfi equalizer."""
         bass, mid, treble = int(bass), int(mid), int(treble)
         self.eq = (bass, mid, treble)
         if self.dry:
