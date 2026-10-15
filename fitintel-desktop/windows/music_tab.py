@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Музыка/DJ-пульт (экран 29): зоны, деки A/B, кроссфейд, мастер, эквалайзер,
-пады 1-8, энерджи-режим, статус лицензии на фоновую музыку."""
+"""Музыка/DJ-пульт (экран 29): зоны, деки A/B, файлы/папки с диска, кроссфейд,
+мастер, эквалайзер, пады 1-8, энерджи-режим, лицензия фоновой музыки."""
 import json
+import os
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QComboBox, QSlider, QSpinBox, QGridLayout, QMessageBox,
-    QGroupBox, QTabWidget)
+    QGroupBox, QTabWidget, QFileDialog)
 from . import theme
 from .form_dialog import FormDialog
 
@@ -25,11 +26,13 @@ MUTE_STYLE = (
     "QPushButton:pressed { background: #991b1b; }"
 )
 
+AUDIO_FILTER = "Аудио (*.mp3 *.flac *.ogg *.wav *.m4a);;Все файлы (*)"
+
 def _t(name, *args):
     f = getattr(theme, name, None)
     if not callable(f):
         return ""
-    for a in (args, ()):
+    for a in (args, ())):
         try:
             return f(*a)
         except TypeError:
@@ -107,32 +110,44 @@ class MusicTab(QWidget):
         self.lbl_onair = QLabel("ЭФИР: —")
         self.lbl_onair.setStyleSheet("font-weight: bold; color: #06b6d4;")
         b_ld_a = QPushButton("Трек на A")
-        b_ld_a.setMinimumWidth(110)
         b_ld_a.clicked.connect(lambda: self.load_track("A"))
         b_ld_b = QPushButton("Трек на B")
-        b_ld_b.setMinimumWidth(110)
         b_ld_b.clicked.connect(lambda: self.load_track("B"))
+        b_file_a = QPushButton("Файл на A…")
+        b_file_a.setToolTip("Любой аудиофайл с диска/флешки — без плейлиста")
+        b_file_a.clicked.connect(lambda: self.load_file("A"))
+        b_file_b = QPushButton("Файл на B…")
+        b_file_b.setToolTip("Любой аудиофайл с диска/флешки — без плейлиста")
+        b_file_b.clicked.connect(lambda: self.load_file("B"))
+        b_fold_a = QPushButton("Папка на A…")
+        b_fold_a.setToolTip("Вся папка с диска/флешки — треки по очереди")
+        b_fold_a.clicked.connect(lambda: self.load_folder("A"))
+        b_fold_b = QPushButton("Папка на B…")
+        b_fold_b.setToolTip("Вся папка с диска/флешки — треки по очереди")
+        b_fold_b.clicked.connect(lambda: self.load_folder("B"))
         b_air_a = QPushButton("Эфир A")
-        b_air_a.setMinimumWidth(100)
         b_air_a.clicked.connect(lambda: self.set_active("A"))
         b_air_b = QPushButton("Эфир B")
-        b_air_b.setMinimumWidth(100)
         b_air_b.clicked.connect(lambda: self.set_active("B"))
         g.addWidget(self.lbl_deck_a, 0, 0)
         g.addWidget(b_ld_a, 0, 1)
-        g.addWidget(b_air_a, 0, 2)
+        g.addWidget(b_file_a, 0, 2)
+        g.addWidget(b_fold_a, 0, 3)
+        g.addWidget(b_air_a, 0, 4)
         g.addWidget(self.lbl_deck_b, 1, 0)
         g.addWidget(b_ld_b, 1, 1)
-        g.addWidget(b_air_b, 1, 2)
-        g.addWidget(self.lbl_onair, 2, 0, 1, 3)
+        g.addWidget(b_file_b, 1, 2)
+        g.addWidget(b_fold_b, 1, 3)
+        g.addWidget(b_air_b, 1, 4)
+        g.addWidget(self.lbl_onair, 2, 0, 1, 5)
         # мастер + кроссфейд + mute
         g.addWidget(QLabel("Мастер-громкость:"), 3, 0)
         self.sld_master = QSlider(Qt.Orientation.Horizontal)
         self.sld_master.setRange(0, 100)
         self.sld_master.setValue(70)
-        g.addWidget(self.sld_master, 3, 1)
+        g.addWidget(self.sld_master, 3, 1, 1, 3)
         self.lbl_master = QLabel("70")
-        g.addWidget(self.lbl_master, 3, 2)
+        g.addWidget(self.lbl_master, 3, 4)
         g.addWidget(QLabel("Кроссфейд, сек:"), 4, 0)
         self.spin_cf = QSpinBox()
         self.spin_cf.setRange(0, 30)
@@ -140,12 +155,12 @@ class MusicTab(QWidget):
         g.addWidget(self.spin_cf, 4, 1)
         b_apply = QPushButton("Применить пульт")
         b_apply.clicked.connect(self.apply_dj)
-        g.addWidget(b_apply, 4, 2)
+        g.addWidget(b_apply, 4, 2, 1, 3)
         b_mute = QPushButton(" MUTE ALL")
         b_mute.setStyleSheet(MUTE_STYLE)
         self._btn_mute = b_mute
         b_mute.clicked.connect(self.mute_all)
-        g.addWidget(b_mute, 5, 0, 1, 3)
+        g.addWidget(b_mute, 5, 0, 1, 5)
         self.sld_master.valueChanged.connect(lambda v: self.lbl_master.setText(str(v)))
         v.addWidget(dj_box)
 
@@ -195,8 +210,6 @@ class MusicTab(QWidget):
 
         self.cmb_zone.currentIndexChanged.connect(lambda _i: self.refresh_status())
         self.reload_all()
-        # единый стиль кнопок вкладки (тёмная тема рендерила текст невидимым);
-        # MUTE пропускаем — у неё собственный красный стиль
         for b in self.findChildren(QPushButton):
             if b is self._btn_mute:
                 continue
@@ -268,7 +281,6 @@ class MusicTab(QWidget):
                 b.setMinimumHeight(48)
                 b.setEnabled(False)
             self.grid_pads.addWidget(b, r, c)
-        # стиль для пересозданных падов
         if self._btn_mute is not None:
             for b in self.grid_pads.parentWidget().findChildren(QPushButton):
                 if b is not self._btn_mute:
@@ -319,7 +331,6 @@ class MusicTab(QWidget):
             self.sld_master.setValue(int(dj["master_volume"]))
         if dj.get("crossfade_seconds") is not None:
             self.spin_cf.setValue(int(dj["crossfade_seconds"]))
-        # эквалайзер: подтягиваем положения ползунков с сервера
         eq = dj.get("eq") or {}
         for deck in ("A", "B"):
             e = eq.get(deck) or {}
@@ -389,10 +400,30 @@ class MusicTab(QWidget):
         title = dlg2.values().get("track")
         tr = next((t for t in tracks
                    if t.get("title", t.get("path")) == title), None)
+        self._set_deck(deck, tr)
+
+    def load_file(self, deck):
+        """Один аудиофайл с диска/флешки (абсолютный путь)."""
+        path, _f = QFileDialog.getOpenFileName(
+            self, "Трек на дек %s" % deck, "", AUDIO_FILTER)
+        if not path:
+            return
+        self._set_deck(deck, {"title": os.path.splitext(os.path.basename(path))[0],
+                              "path": path})
+
+    def load_folder(self, deck):
+        """Вся папка с диска/флешки: агент играет файлы по очереди."""
+        d = QFileDialog.getExistingDirectory(
+            self, "Папка на дек %s — все треки по очереди" % deck)
+        if not d:
+            return
+        self._set_deck(deck, {"title": "📁 " + os.path.basename(d), "path": d})
+
+    def _set_deck(self, deck, track):
         if deck == "A":
-            self._deck_a = tr
+            self._deck_a = track
         else:
-            self._deck_b = tr
+            self._deck_b = track
         self.apply_dj()
 
     def set_active(self, deck):

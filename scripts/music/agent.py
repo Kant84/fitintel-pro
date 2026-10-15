@@ -1,21 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-FitIntel DJ Agent v4.1 — пакетная версия.
-  Деки A/B (mpv IPC), кроссфейд, авто-микс, мастер-громкость.
-  Эквалайзер: bass/mid/treble на дек (-12..+12 дБ, lavfi equalizer).
-  Сэмплер: PAD-канал one-shot по очереди /agent/pads.
-  Дакинг: микрофон -> музыка вниз (duck.py).
+FitIntel DJ Agent v4.2 — пакетная версия.
+  Деки A/B (mpv IPC), кроссфейд, авто-микс (плейлист ИЛИ очередь папки),
+  мастер-громкость, EQ, сэмплер (PAD one-shot), дакинг микрофона.
   Без dj-блока — простой плеер (playlist play/stop).
 
   --dry-run   только лог, без mpv/звука
   --debug     подробный лог каждого опроса
-  --lib DIR   папка с MP3/FLAC/OGG
+  --lib DIR   папка с музыкой (пути резолвятся от неё; абсолютные — как есть)
   --mic       авто-дакинг (pip install sounddevice)
 
-mpv: https://mpv.io | winget install mpv
+mpv: https://mpv.io | консольная сборка обязательна (IPC)
 """
 import argparse
 import json
+import os
 import sys
 import threading
 import time
@@ -44,7 +43,7 @@ class Agent:
         self.active = "A"
         self.master = 70
         self.applied_sig = None
-        self._last_dj = None        # предыдущее состояние пульта (для мягкого сведения)
+        self._last_dj = None
         self.mixing = False
         self.base_key = None
         self.ducker = None
@@ -60,7 +59,7 @@ class Agent:
 
     # --- основной цикл ---
     def run(self):
-        print("FitIntel DJ Agent v4.1 | dry-run=%s | mic=%s | poll %.1fs | lib=%s"
+        print("FitIntel DJ Agent v4.2 | dry-run=%s | mic=%s | poll %.1fs | lib=%s"
               % (self.a.dry_run, self.a.mic, self.poll, self.a.lib or "—"))
         if not self.a.dry_run:
             for d in self.decks.values():
@@ -109,7 +108,7 @@ class Agent:
     # --- режим 2: DJ-пульт ---
     def handle_dj(self, st, dj):
         if self.mixing:
-            return                  # идёт сведение — не мешаем
+            return
         cf = float(dj.get("crossfade_seconds") or 8.0)
         want_active = dj.get("active_deck", "A")
         self.master = int(dj.get("master_volume") or 70)
@@ -128,14 +127,11 @@ class Agent:
                 self.decks["A"].load_paused(da)
             if db and (self.decks["B"].track or {}).get("path") != db.get("path"):
                 self.decks["B"].load_paused(db)
-            # Эквалайзер деков (применяется на лету, без перерыва трека)
             eq = dj.get("eq") or {}
             for name in ("A", "B"):
                 e = eq.get(name) or {}
                 self.decks[name].set_eq(e.get("bass", 0), e.get("mid", 0), e.get("treble", 0))
             if want_active in ("A", "B"):
-                # Треки те же, сменился только активный дек -> плавное сведение;
-                # треки новые -> первичная подача без фейда
                 self.switch_to(want_active, cf, immediate=not decks_same)
             print("DJ | применено: активный дек %s | мастер %s | кроссфейд %.1fs"
                   % (want_active, self.master, cf))
@@ -148,7 +144,7 @@ class Agent:
         idle_name = "B" if self.active == "A" else "A"
         idle = self.decks[idle_name]
         if (not self.mixing and rem is not None
-                and rem <= cf + 1.0 and idle.track):
+                and rem <= cf + 1.0 and (idle.track or idle.folder_queue)):
             self.auto_mix(idle_name, cf)
 
     def switch_to(self, name, cf, immediate=False):
@@ -160,7 +156,7 @@ class Agent:
             self.active = name
             print("DJ | эфир: дек %s | %s" % (name, (idle.track or {}).get("title")))
             return
-        self.mixing = True          # главный цикл на время сведения не трогает деки
+        self.mixing = True
 
         def _fade():
             idle.play(0)
@@ -176,6 +172,23 @@ class Agent:
 
     def auto_mix(self, idle_name, cf):
         idle = self.decks[idle_name]
+        act = self.decks[self.active]
+        # 1) приоритет: очередь папки активного дека
+        q = getattr(act, "folder_queue", None)
+        if q and getattr(act, "folder_index", 0) + 1 < len(q):
+            act.folder_index += 1
+            f = q[act.folder_index]
+            nxt_title = os.path.basename(f)
+            print("DJ | AUTO-MIX (папка): дек %s -> %s | след.: %s | фейд %.1fs"
+                  % (self.active, idle_name, nxt_title, cf))
+            idle.track = {"title": nxt_title, "path": (act.track or {}).get("path")}
+            idle.folder_queue = q
+            idle.folder_index = act.folder_index
+            idle._loaded_at = time.time()
+            idle.load_file_paused(f)
+            self.switch_to(idle_name, cf, immediate=False)
+            return
+        # 2) fallback: следующий трек из плейлиста зоны
         nxt = self.next_track(idle.track)
         if nxt and nxt.get("path") != (idle.track or {}).get("path"):
             idle.load_paused(nxt)
@@ -222,7 +235,7 @@ class Agent:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="FitIntel DJ Agent v4.1")
+    ap = argparse.ArgumentParser(description="FitIntel DJ Agent v4.2")
     ap.add_argument("--server", required=True, help="http://192.168.101.182/api/v1")
     ap.add_argument("--token", required=True)
     ap.add_argument("--dry-run", action="store_true")
