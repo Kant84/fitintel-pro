@@ -332,10 +332,13 @@ class MusicTab(QWidget):
             return
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
         try:
+            os.makedirs(r"E:\music\logs", exist_ok=True)
+            logf = open(r"E:\music\logs\agent_gui.log", "ab")
             self._agent_proc = subprocess.Popen(
                 [str(py), str(script), "--server", server,
                  "--token", token, "--lib", lib],
-                cwd=str(root / "scripts" / "music"), creationflags=flags)
+                cwd=str(root / "scripts" / "music"), creationflags=flags,
+                stdout=logf, stderr=logf)
         except Exception as e:
             self._show("Не удалось запустить плеер: %s" % e, ok=False)
             return
