@@ -1,3 +1,4 @@
+#app\api\v1\music\__init__.py
 # -*- coding: utf-8 -*-
 """Music API v3 — пакет. Собирает роутеры модулей под prefix="/music"."""
 from fastapi import APIRouter

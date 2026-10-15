@@ -1,3 +1,4 @@
+#app\api\v1\music\agent.py
 # -*- coding: utf-8 -*-
 """Endpoint'ы DJ-агента: состояние зоны, очередь падов, подтверждения."""
 import datetime
@@ -28,6 +29,8 @@ def agent_state(token: str = Query(...), db=Depends(get_db)):
     if zone["provider_type"] != "local_agent":
         raise HTTPException(400, "зона не в режиме local_agent")
     zone = deps.resolve_schedule(db, zone)
+    state = zone["desired_state"]
+
     playlist = None
     if zone["desired_playlist_id"]:
         pr = db.execute(text("SELECT * FROM music_playlists WHERE id=:p"),
@@ -38,9 +41,12 @@ def agent_state(token: str = Query(...), db=Depends(get_db)):
             if isinstance(tracks, str):
                 tracks = json.loads(tracks)
             playlist = {"id": p["id"], "name": p["name"], "tracks": tracks}
-    dj = deps.dj_state(zone)
+
+    # ФИКС: если зона остановлена — не отдаём dj, чтобы агент паузил деки
+    dj = deps.dj_state(zone) if state == "playing" else {}
+
     return {"zone_id": zone["id"], "name": zone["name"],
-            "state": zone["desired_state"], "volume": zone["volume"],
+            "state": state, "volume": zone["volume"],
             "playlist": playlist, "dj": dj or {},
             "server_time": datetime.datetime.now().isoformat(timespec="seconds")}
 

@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """Музыка/DJ-пульт (экран 29): зоны, ПЛЕЕР НА ЭТОМ ПК (вкл/выкл, микрофон вкл/выкл),
 настройка провайдера и лицензии из окна, деки A/B, файлы/папки с диска,
-кроссфейд, мастер, эквалайзер, пады 1-8, энерджи-режим, лицензия фоновой музыки."""
+кроссфейд, мастер, эквалайзер, пады 1-8, энерджи-режим, лицензия фоновой музыки.
+Сервер может быть удалённым — плеер на этом ПК общается с ним по HTTP."""
 import json
 import os
 import subprocess
@@ -103,7 +104,7 @@ class MusicTab(QWidget):
         v.addWidget(self.banner)
 
         # ---- плеер на этом ПК ----
-        pl_box = QGroupBox("Плеер на этом ПК (DJ Agent)")
+        pl_box = QGroupBox("Плеер на этом ПК / провайдер")
         plh = QHBoxLayout(pl_box)
         self.lbl_agent = QLabel("—")
         self.btn_agent = QPushButton("⏵ Плеер: ВКЛ")
@@ -113,11 +114,15 @@ class MusicTab(QWidget):
         self.btn_mic.setToolTip("Микрофон: авто-дакинг музыки во время речи.\n"
                                 "Если плеер работает — перезапустит его с новой настройкой.")
         self.btn_mic.clicked.connect(self.toggle_mic)
-        b_new_zone = QPushButton("＋ Зона на этом ПК")
-        b_new_zone.setToolTip("Создать зону local_agent и сохранить токен плеера в настройках")
-        b_new_zone.clicked.connect(self.create_zone_here)
+        b_new_zone = QPushButton("＋ Новая зона…")
+        b_new_zone.setToolTip("Создать зону: плеер на этом ПК (local_agent) "
+                              "или коробка провайдера (external)")
+        b_new_zone.clicked.connect(self.create_zone)
+        b_agent_cfg = QPushButton("⚙ Плеер…")
+        b_agent_cfg.setToolTip("Папка музыки по умолчанию для плеера на этом ПК")
+        b_agent_cfg.clicked.connect(self.agent_settings)
         b_prov = QPushButton("⚙ Провайдер…")
-        b_prov.setToolTip("Настройка зоны external — «коробки» провайдера")
+        b_prov.setToolTip("Настройка выбранной зоны external")
         b_prov.clicked.connect(self.provider_settings)
         b_lic = QPushButton("⚙ Лицензия…")
         b_lic.setToolTip("Договор на коммерческий фон (РАО/ВОИС или провайдер)")
@@ -126,9 +131,16 @@ class MusicTab(QWidget):
         plh.addWidget(self.btn_agent)
         plh.addWidget(self.btn_mic)
         plh.addWidget(b_new_zone)
+        plh.addWidget(b_agent_cfg)
         plh.addWidget(b_prov)
         plh.addWidget(b_lic)
         v.addWidget(pl_box)
+
+        # строка «Сервер: ...»
+        self.lbl_server = QLabel("")
+        self.lbl_server.setStyleSheet("color: #94a3b8;")
+        v.addWidget(self.lbl_server)
+        self._update_server_label()
 
         # ---- верх: зона + фоновый режим ----
         bar = QHBoxLayout()
@@ -138,9 +150,9 @@ class MusicTab(QWidget):
         self.cmb_zone.setToolTip("local_agent = плеер на ПК; external = коробка провайдера")
         bar.addWidget(self.cmb_zone, 1)
         for text, slot in [("Обновить", self.reload_all),
-                           (" Фон (плейлист)", self.bg_play),
-                           (" Стоп", self.bg_pause),
-                           (" Energize", self.energize)]:
+                           ("Фон (плейлист)", self.bg_play),
+                           ("Стоп", self.bg_pause),
+                           ("Energize", self.energize)]:
             b = QPushButton(text)
             b.clicked.connect(slot)
             bar.addWidget(b)
@@ -202,7 +214,7 @@ class MusicTab(QWidget):
         b_apply = QPushButton("Применить пульт")
         b_apply.clicked.connect(self.apply_dj)
         g.addWidget(b_apply, 4, 2, 1, 3)
-        b_mute = QPushButton(" MUTE ALL")
+        b_mute = QPushButton("MUTE ALL")
         b_mute.setStyleSheet(MUTE_STYLE)
         self._btn_mute = b_mute
         b_mute.clicked.connect(self.mute_all)
@@ -238,7 +250,7 @@ class MusicTab(QWidget):
         pads_box = QGroupBox("Сэмплер (пады 1-8)")
         pv = QVBoxLayout(pads_box)
         ph = QHBoxLayout()
-        b_add_sfx = QPushButton(" Добавить сэмпл")
+        b_add_sfx = QPushButton("Добавить сэмпл")
         b_add_sfx.clicked.connect(self.add_sfx)
         b_rf_sfx = QPushButton("Обновить сэмплы")
         b_rf_sfx.clicked.connect(self.load_sfx)
@@ -257,7 +269,8 @@ class MusicTab(QWidget):
         self.cmb_zone.currentIndexChanged.connect(lambda _i: self.refresh_status())
         self.reload_all()
         if not self._agent_token():
-            self.create_zone_here()
+            self._show("Зона плеера ещё не создана. Нажмите «＋ Новая зона…» "
+                       "и выберите «local_agent — на этом ПК».", ok=False)
         self._upd_agent_btn()
         self._tmr = QTimer(self)
         self._tmr.timeout.connect(self._upd_agent_btn)
@@ -273,7 +286,7 @@ class MusicTab(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(scroll)
 
-    # ---------- локальный плеер (DJ Agent) ----------
+    # ---------- настройки ----------
     def _settings_rw(self, mutate=None):
         try:
             from paths import SETTINGS as _p
@@ -284,7 +297,8 @@ class MusicTab(QWidget):
             cfg = mutate(cfg)
             try:
                 from paths import SETTINGS as _p
-                _p.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+                _p.write_text(json.dumps(cfg, ensure_ascii=False, indent=2),
+                              encoding="utf-8")
             except Exception:
                 pass
         return cfg
@@ -298,6 +312,11 @@ class MusicTab(QWidget):
     def _mic_on(self):
         return bool(self._agent_cfg().get("mic"))
 
+    def _update_server_label(self):
+        server = (getattr(self.api, "base_url", "") or "").rstrip("/")
+        self.lbl_server.setText("Сервер: %s" % (server or "—"))
+
+    # ---------- плеер на этом ПК ----------
     def _agent_running(self):
         p = getattr(self, "_agent_proc", None)
         if p is not None and p.poll() is not None:
@@ -320,11 +339,10 @@ class MusicTab(QWidget):
             self.lbl_agent.setText("Плеер на этом ПК: остановлен. Нажмите «Плеер: ВКЛ».")
             self.lbl_agent.setStyleSheet("color: #d97706;")
         else:
-            self.lbl_agent.setText("Зона-плеер ещё не создан — нажмите «＋ Зона на этом ПК».")
+            self.lbl_agent.setText("Зона-плеер ещё не создана — нажмите «＋ Новая зона…».")
             self.lbl_agent.setStyleSheet("color: #94a3b8;")
 
     def toggle_mic(self):
-        """Вкл/выкл дакинга. Сохраняет настройку; если плеер работает — перезапускает его."""
         new_val = not self._mic_on()
         def _mut(cfg):
             dj = cfg.get("dj_agent") or {}
@@ -336,14 +354,32 @@ class MusicTab(QWidget):
         if self._agent_running():
             self._stop_agent()
             self._start_agent()
-            self._show("Микрофон %s — плеер перезапущен." % ("включён" if new_val else "выключен"))
+            self._show("Микрофон %s — плеер перезапущен."
+                       % ("включён" if new_val else "выключен"))
         else:
-            self._show("Микрофон %s. Включится при запуске плеера." % ("включён" if new_val else "выключен"))
+            self._show("Микрофон %s. Включится при запуске плеера."
+                       % ("включён" if new_val else "выключен"))
 
     def _stop_agent(self):
+        """ФИКС: на Windows убиваем всё дерево процессов (python + mpv).
+        terminate() оставляет mpv жить → музыка продолжает играть."""
+        p = getattr(self, "_agent_proc", None)
+        if not p:
+            return
         try:
-            if self._agent_proc:
-                self._agent_proc.terminate()
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(p.pid)],
+                    capture_output=True, timeout=5)
+            else:
+                p.terminate()
+        except Exception as e:
+            print("stop_agent ERR:", e)
+        # страховка: добить осиротевшие mpv
+        try:
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/F", "/IM", "mpv.exe"],
+                               capture_output=True, timeout=5)
         except Exception:
             pass
         self._agent_proc = None
@@ -351,7 +387,7 @@ class MusicTab(QWidget):
     def _start_agent(self):
         token = self._agent_token()
         if not token:
-            self._show("Сначала создайте зону: кнопка «＋ Зона на этом ПК».", ok=False)
+            self._show("Сначала создайте зону: кнопка «＋ Новая зона…».", ok=False)
             return False
         root = Path(__file__).resolve().parents[2]
         py = root / ".venv" / "Scripts" / "python.exe"
@@ -363,25 +399,29 @@ class MusicTab(QWidget):
             self._show("Не задан адрес сервера (api_base).", ok=False)
             return False
         if not py.exists() or not script.exists():
-            self._show("Не найдены python.exe или агент в репозитории:\n%s" % root, ok=False)
+            self._show("Не найдены python.exe или агент в репозитории:\n%s"
+                       % root, ok=False)
             return False
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-        # --debug: лог каждые 3 с (state, active, master, rem) — для диагностики авто-микса
-        args = [str(py), "-u", str(script), "--server", server,
-                "--token", token, "--lib", lib, "--debug"]
+        args = [str(py), "-u", str(script),
+                "--server", server,
+                "--token", token,
+                "--lib", lib,
+                "--debug"]
         if self._mic_on():
             args.append("--mic")
         try:
             os.makedirs(r"E:\music\logs", exist_ok=True)
-            logf = open(r"E:\music\logs\agent_gui.log", "a", encoding="utf-8", buffering=1)
+            logf = open(r"E:\music\logs\agent_gui.log", "a",
+                        encoding="utf-8", buffering=1)
             self._agent_proc = subprocess.Popen(
-                args, cwd=str(root / "scripts" / "music"), creationflags=flags,
-                stdout=logf, stderr=logf)
+                args, cwd=str(root / "scripts" / "music"),
+                creationflags=flags, stdout=logf, stderr=logf)
         except Exception as e:
             self._show("Не удалось запустить плеер: %s" % e, ok=False)
             return False
         return True
-        
+
     def toggle_agent(self):
         if self._agent_running():
             self._stop_agent()
@@ -392,36 +432,87 @@ class MusicTab(QWidget):
             self._show("Плеер запущен. Управляйте деками ниже.")
         self._upd_agent_btn()
 
-    def create_zone_here(self):
-        tok = self._agent_token()
-        if tok:
-            try:
-                zs = self.api.session.get(self._url("/zones"), timeout=10).json()
-            except Exception:
-                zs = self._zones
-            for z in (zs if isinstance(zs, list) else []):
-                if z.get("agent_token") == tok:
-                    self._show("Зона плеера уже есть: %s · %s. Создание не требуется."
-                               % (z["name"], str(z["id"])[:8]))
-                    return
+    # ---------- диалоги ----------
+    def create_zone(self):
+        """Один диалог: тип провайдера + параметры."""
         import socket as _sock
-        name = "Зал %s" % _sock.gethostname()
-        body = {"name": name, "provider_type": "local_agent"}
+        default_name = "Зал %s" % _sock.gethostname()
+        dlg = FormDialog("Новая зона", [
+            ("ptype", "Плеер", "combo",
+             ["local_agent — плеер на этом ПК",
+              "external — коробка провайдера"]),
+            ("name", "Имя зоны", "text", default_name),
+            ("lib", "Папка музыки для local_agent (флешка/диск)", "text",
+             self._agent_cfg().get("lib") or r"E:\music\club"),
+            ("base_url", "Адрес коробки http://IP:порт (для external)", "text", ""),
+            ("cmd_path", "Путь команд (обычно /cmd)", "text", "/cmd"),
+        ], self)
+        if not dlg.exec():
+            return
+        v = dlg.values()
+        ptype_label = v.get("ptype") or ""
+        ptype = "local_agent" if ptype_label.startswith("local_agent") else "external"
+        name = (v.get("name") or default_name).strip()
+        body = {"name": name, "provider_type": ptype}
+        lib = (v.get("lib") or "").strip()
+        if ptype == "local_agent":
+            if lib:
+                lib = os.path.normpath(lib)
+            def _mut(cfg):
+                dj = cfg.get("dj_agent") or {}
+                dj["lib"] = lib or r"E:\music\club"
+                cfg["dj_agent"] = dj
+                return cfg
+            self._settings_rw(mutate=_mut)
+        else:
+            body["provider_config"] = {
+                "base_url": (v.get("base_url") or "").strip(),
+                "cmd_path": (v.get("cmd_path") or "/cmd").strip(),
+            }
+
         def _do():
             r = self.api.session.post(self._url("/zones"), json=body, timeout=15)
             r.raise_for_status()
             return r.json()
+
         def _done(z):
-            def _mut(cfg):
-                dj = cfg.get("dj_agent") or {}
-                dj["token"] = z.get("agent_token")
-                dj.setdefault("lib", r"E:\music\club")
-                cfg["dj_agent"] = dj
-                return cfg
-            self._settings_rw(mutate=_mut)
-            self._show("Зона «%s» создана, токен плеера сохранён." % name)
+            if ptype == "local_agent":
+                def _mut(cfg):
+                    dj = cfg.get("dj_agent") or {}
+                    dj["token"] = z.get("agent_token")
+                    cfg["dj_agent"] = dj
+                    return cfg
+                self._settings_rw(mutate=_mut)
+                self._show("Зона «%s» создана (плеер на этом ПК). Токен сохранён." % name)
+            else:
+                self._show("Зона «%s» создана (провайдер: %s)."
+                           % (name, body["provider_config"].get("base_url")))
             self.reload_all()
         self._run(_do, _done)
+
+    def agent_settings(self):
+        cfg = self._agent_cfg()
+        dlg = FormDialog("Плеер на этом ПК", [
+            ("lib", "Папка музыки по умолчанию", "text",
+             cfg.get("lib") or r"E:\music\club"),
+        ], self)
+        if not dlg.exec():
+            return
+        lib = (dlg.values().get("lib") or "").strip()
+        if lib:
+            lib = os.path.normpath(lib)
+        def _mut(c):
+            dj = c.get("dj_agent") or {}
+            dj["lib"] = lib
+            c["dj_agent"] = dj
+            return c
+        self._settings_rw(mutate=_mut)
+        if self._agent_running():
+            self._stop_agent()
+            self._start_agent()
+            self._show("Папка музыки: %s — плеер перезапущен." % lib)
+        else:
+            self._show("Папка музыки: %s" % lib)
 
     def provider_settings(self):
         zid = self._zid()
@@ -429,19 +520,24 @@ class MusicTab(QWidget):
         is_ext = bool(cur and cur.get("provider_type") == "external")
         cfg = (cur or {}).get("provider_config") or {}
         dlg = FormDialog("Провайдер (external-зона)", [
-            ("name", "Имя зоны", "text", (cur or {}).get("name") or "Кардио-зона (провайдер)"),
-            ("base_url", "Адрес коробки http://IP:порт", "text", cfg.get("base_url") or ""),
-            ("cmd_path", "Путь команд (обычно /cmd)", "text", cfg.get("cmd_path") or "/cmd"),
+            ("name", "Имя зоны", "text",
+             (cur or {}).get("name") or "Кардио-зона (провайдер)"),
+            ("base_url", "Адрес коробки http://IP:порт", "text",
+             cfg.get("base_url") or ""),
+            ("cmd_path", "Путь команд (обычно /cmd)", "text",
+             cfg.get("cmd_path") or "/cmd"),
         ], self)
         if not dlg.exec():
             return
         v = dlg.values()
         body = {"name": v.get("name"),
-                "provider_config": {"base_url": (v.get("base_url") or "").strip(),
-                                    "cmd_path": (v.get("cmd_path") or "/cmd").strip()}}
+                "provider_config": {
+                    "base_url": (v.get("base_url") or "").strip(),
+                    "cmd_path": (v.get("cmd_path") or "/cmd").strip()}}
         if is_ext:
             def _do():
-                r = self.api.session.patch(self._url("/zones/%s" % zid), json=body, timeout=15)
+                r = self.api.session.patch(self._url("/zones/%s" % zid),
+                                           json=body, timeout=15)
                 r.raise_for_status()
                 return r.json()
             self._run(_do, lambda _r: (self._show("Настройки провайдера сохранены."),
@@ -473,7 +569,8 @@ class MusicTab(QWidget):
             r = self.api.session.post(self._url("/license"), json=body, timeout=15)
             r.raise_for_status()
             return r.json()
-        self._run(_do, lambda r: (self._show("Лицензия сохранена: %s" % r.get("status")),
+        self._run(_do, lambda r: (self._show("Лицензия сохранена: %s"
+                                             % r.get("status")),
                                   self.load_license()))
 
     # ---------- infra ----------
@@ -486,7 +583,8 @@ class MusicTab(QWidget):
         w.done.connect(cb)
         w.fail.connect(lambda e: self._show(_err_text(e), ok=False))
         self._workers.append(w)
-        w.finished.connect(lambda: self._workers.remove(w) if w in self._workers else None)
+        w.finished.connect(lambda: self._workers.remove(w)
+                           if w in self._workers else None)
         w.start()
 
     def _show(self, msg, ok=True):
@@ -510,8 +608,9 @@ class MusicTab(QWidget):
         self.cmb_zone.blockSignals(True)
         self.cmb_zone.clear()
         for z in self._zones:
-            self.cmb_zone.addItem("%s (%s) · %s" % (z["name"], z["provider_type"],
-                                                    str(z["id"])[:8]), z["id"])
+            self.cmb_zone.addItem("%s (%s) · %s"
+                                  % (z["name"], z["provider_type"],
+                                     str(z["id"])[:8]), z["id"])
         pick = cur
         if tok:
             for z in self._zones:
@@ -524,6 +623,7 @@ class MusicTab(QWidget):
                 self.cmb_zone.setCurrentIndex(i)
         self.cmb_zone.blockSignals(False)
         self.refresh_status()
+
     def _fill_playlists(self, data):
         self._playlists = data if isinstance(data, list) else []
 
@@ -564,11 +664,14 @@ class MusicTab(QWidget):
         st = d.get("status")
         text = {
             "ok": " %s, действует до %s (договор %s)" % (
-                d.get("license_type"), d.get("valid_until"), d.get("contract_number") or "—"),
+                d.get("license_type"), d.get("valid_until"),
+                d.get("contract_number") or "—"),
             "warning": " Лицензия не указана — фон заблокирован (⚙ Лицензия…)",
-            "expired": " Лицензия ИСТЕКЛА %s — фоновое воспроизведение заблокировано" % d.get("valid_until"),
+            "expired": " Лицензия ИСТЕКЛА %s — фоновое воспроизведение заблокировано"
+                       % d.get("valid_until"),
         }.get(st, "—")
-        color = {"ok": "#16a34a", "warning": "#d97706", "expired": "#dc2626"}.get(st, "#888")
+        color = {"ok": "#16a34a", "warning": "#d97706",
+                 "expired": "#dc2626"}.get(st, "#888")
         self.lbl_license.setText("Лицензия фоновой музыки: " + text)
         self.lbl_license.setStyleSheet("color: %s;" % color)
 
@@ -580,9 +683,9 @@ class MusicTab(QWidget):
         zid = self._zid()
         if not zid:
             return
-        self._run(lambda: self.api.session.get(self._url("/zones/%s/status" % zid),
-                                               timeout=15).json(),
-                  self._fill_status)
+        self._run(lambda: self.api.session.get(
+            self._url("/zones/%s/status" % zid), timeout=15).json(),
+            self._fill_status)
 
     def _fill_status(self, d):
         if not isinstance(d, dict):
@@ -590,8 +693,10 @@ class MusicTab(QWidget):
         dj = d.get("dj") or {}
         self._deck_a = dj.get("deck_a")
         self._deck_b = dj.get("deck_b")
-        self.lbl_deck_a.setText("Deck A: %s" % ((self._deck_a or {}).get("title") or "пусто"))
-        self.lbl_deck_b.setText("Deck B: %s" % ((self._deck_b or {}).get("title") or "пусто"))
+        self.lbl_deck_a.setText("Deck A: %s"
+                                % ((self._deck_a or {}).get("title") or "пусто"))
+        self.lbl_deck_b.setText("Deck B: %s"
+                                % ((self._deck_b or {}).get("title") or "пусто"))
         self.lbl_onair.setText("ЭФИР: Deck %s | мастер %s | кроссфейд %ss" % (
             dj.get("active_deck", "—"), dj.get("master_volume", "—"),
             dj.get("crossfade_seconds", "—")))
@@ -631,11 +736,31 @@ class MusicTab(QWidget):
                         self.refresh_status()))
 
     def bg_pause(self):
+        """ФИКС: «Стоп» должен и зону остановить, и очистить dj_state,
+        чтобы агент перестал крутить деки."""
         zid = self._zid()
-        self._run(lambda: self.api.session.post(
-            self._url("/zones/%s/pause" % zid), timeout=15).json(),
-            lambda _r: (self._show("Остановлено."), self.refresh_status()))
-
+        if not zid:
+            self._show("Не выбрана зона.", ok=False)
+            return
+        body = {"deck_a": None, "deck_b": None, "active_deck": "A",
+                "crossfade_seconds": float(self.spin_cf.value()),
+                "master_volume": int(self.sld_master.value()),
+                "eq": {"A": {"bass": 0, "mid": 0, "treble": 0},
+                       "B": {"bass": 0, "mid": 0, "treble": 0}}}
+        def _do():
+            # 1) зона в stopped
+            self.api.session.post(self._url("/zones/%s/pause" % zid),
+                                  timeout=15)
+            # 2) пустой dj_state — агент остановит оба деку
+            self.api.session.post(self._url("/zones/%s/dj" % zid),
+                                  json=body, timeout=15)
+            return True
+        def _done(_r):
+            self._deck_a = None
+            self._deck_b = None
+            self._show("Стоп: зона остановлена, деки очищены.")
+            self.refresh_status()
+        self._run(_do, _done)
     def energize(self):
         zid = self._zid()
         self._run(lambda: self.api.session.post(
@@ -661,7 +786,8 @@ class MusicTab(QWidget):
             self._show("В плейлисте нет треков.", ok=False)
             return
         dlg2 = FormDialog("Трек из «%s»" % pl["name"], [
-            ("track", "Трек", "combo", [t.get("title", t.get("path")) for t in tracks]),
+            ("track", "Трек", "combo",
+             [t.get("title", t.get("path")) for t in tracks]),
         ], self)
         if not dlg2.exec():
             return
@@ -683,7 +809,14 @@ class MusicTab(QWidget):
             self, "Папка на дек %s — все треки по очереди" % deck)
         if not d:
             return
-        self._set_deck(deck, {"title": "[папка] " + os.path.basename(d), "path": d})
+        d = os.path.normpath(d)
+        # ФИКС: запрет корня диска — иначе os.walk обойдёт всю флешку
+        if os.path.dirname(d) == d:
+            self._show("Выбран корень диска %s. Выберите папку с музыкой "
+                       "(например, G:\\music)." % d, ok=False)
+            return
+        base = os.path.basename(d) or d
+        self._set_deck(deck, {"title": "[папка] " + base, "path": d})
 
     def _set_deck(self, deck, track):
         if deck == "A":
@@ -697,6 +830,9 @@ class MusicTab(QWidget):
 
     def apply_dj(self, active=None):
         zid = self._zid()
+        if not zid:
+            self._show("Не выбрана зона.", ok=False)
+            return
         body = {"deck_a": self._deck_a, "deck_b": self._deck_b,
                 "active_deck": active or self._current_active(),
                 "crossfade_seconds": float(self.spin_cf.value()),
@@ -734,7 +870,8 @@ class MusicTab(QWidget):
         self._run(lambda: self.api.session.post(
             self._url("/zones/%s/pad-fire" % zid),
             json={"sfx_id": sfx_id}, timeout=15).json(),
-            lambda r: self._show("Пад: %s (%s)" % (r.get("sfx"), r.get("mode", "local"))))
+            lambda r: self._show("Пад: %s (%s)"
+                                 % (r.get("sfx"), r.get("mode", "local"))))
 
     def add_sfx(self):
         dlg = FormDialog("Новый сэмпл", [
@@ -745,11 +882,19 @@ class MusicTab(QWidget):
         if not dlg.exec():
             return
         v = dlg.values()
+        path = (v.get("path") or "").strip()
+        if not path:
+            self._show("Путь к сэмплу пуст.", ok=False)
+            return
+        if os.path.isdir(path):
+            self._show("Это папка, а не файл. Укажите конкретный аудиофайл.",
+                       ok=False)
+            return
         try:
             vol = int(v.get("volume") or 80)
         except ValueError:
             vol = 80
-        body = {"name": v.get("name"), "path": v.get("path"),
+        body = {"name": v.get("name"), "path": path,
                 "volume": max(0, min(100, vol)), "sort": len(self._sfx) + 1}
         self._run(lambda: self.api.session.post(self._url("/sfx"),
                                                 json=body, timeout=15).json(),

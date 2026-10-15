@@ -1,3 +1,4 @@
+#scripts\music\fitintel_player_agent.py
 # -*- coding: utf-8 -*-
 """Обёртка совместимости: прежнее имя скрипта, теперь запускает пакетный agent.py.
 Все аргументы (--server, --token, --dry-run, --lib, --mic ...) — без изменений."""
