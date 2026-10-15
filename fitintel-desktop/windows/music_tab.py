@@ -366,8 +366,9 @@ class MusicTab(QWidget):
             self._show("Не найдены python.exe или агент в репозитории:\n%s" % root, ok=False)
             return False
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        # --debug: лог каждые 3 с (state, active, master, rem) — для диагностики авто-микса
         args = [str(py), "-u", str(script), "--server", server,
-                "--token", token, "--lib", lib]
+                "--token", token, "--lib", lib, "--debug"]
         if self._mic_on():
             args.append("--mic")
         try:
@@ -380,7 +381,7 @@ class MusicTab(QWidget):
             self._show("Не удалось запустить плеер: %s" % e, ok=False)
             return False
         return True
-
+        
     def toggle_agent(self):
         if self._agent_running():
             self._stop_agent()
