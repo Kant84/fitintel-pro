@@ -209,9 +209,10 @@ class BotSettingsWidget(QWidget):
         f.addRow("ЮKassa секретный ключ:", self.ed_ykkey)
         f.addRow(self.chk_wallet)
         f.addRow(self.chk_bonus)
-        f.setVerticalSpacing(10)
+        f.setVerticalSpacing(14)
         for _c in (self.chk_pay, self.chk_wallet, self.chk_bonus):
-            _c.setMinimumHeight(26)
+            _c.setMinimumHeight(34)
+            _c.setContentsMargins(0, 3, 0, 3)
         v.addLayout(f)
         bar = QHBoxLayout()
         b1 = QPushButton(" Сохранить"); b1.clicked.connect(self.save)
