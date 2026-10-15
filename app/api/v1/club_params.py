@@ -44,6 +44,8 @@ if engine is None or not _ping(engine):
         raise RuntimeError("club_params: DB engine not available")
 
 DEFAULT_PARAMS = {
+    "WALLET_ENABLED": ("1", "Кошелёк: 1 — пополнение/оплата разрешены, 0 — выключено"),
+    "BONUS_ENABLED": ("1", "Бонусы: 1 — начисление/оплата разрешены, 0 — выключено"),
     "BONUS_PAY_ENABLED": ("1", "Оплата бонусами: 1 — включена, 0 — выключена (решает клуб)"),
     "BONUS_PAY_MAX_PERCENT": ("30", "Макс. % чека, оплачиваемый бонусами"),
     "BONUS_TO_RUB_RATE": ("1", "Курс: рублей за 1 бонус"),
