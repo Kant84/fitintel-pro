@@ -285,30 +285,30 @@ class Agent:
 
             da = dj.get("deck_a")
             db = dj.get("deck_b")
+
+            # если поменялся трек — загружаем на паузе (volume 0)
             if da and self._track_key(self.decks["A"].track) != self._track_key(da):
                 self.decks["A"].load_paused(da)
             if db and self._track_key(self.decks["B"].track) != self._track_key(db):
                 self.decks["B"].load_paused(db)
 
+            # EQ применяем всегда
             eq = dj.get("eq") or {}
             for nm in ("A", "B"):
                 e = eq.get(nm) or {}
                 self.decks[nm].set_eq(e.get("bass", 0), e.get("mid", 0),
                                       e.get("treble", 0))
 
-            if want_active in ("A", "B") and not active_same:
+            # ФИКС: НЕ проверяем active_same — всегда просим switch_to.
+            # switch_to сам разрулит: если active==name и дек на паузе — снимет паузу,
+            # если играет — ничего не сделает, если сменился — переключит.
+            if want_active in ("A", "B"):
                 self.switch_to(want_active, cf, immediate=True)
-
-            if active_same and want_active == self.active:
-                try:
-                    self.decks[self.active].cmd("set_property", "volume",
-                                                self.master)
-                except Exception:
-                    pass
 
             print("DJ | применено: активный дек %s | мастер %s | кроссфейд %.1fs"
                   % (want_active, self.master, cf))
 
+        # --- ниже: авто-микс по времени ---
         act = self.decks[self.active]
         idle_name = "B" if self.active == "A" else "A"
         idle = self.decks[idle_name]
@@ -334,17 +334,35 @@ class Agent:
                 act.play(self.master)
             except Exception as e:
                 print("DJ | repeat ERR:", e)
-
     # ---------- переключение деков ----------
     def switch_to(self, name, cf, immediate=False):
         if name not in ("A", "B"):
             return
+        idle = self.decks[name]
+
+        # Если это уже активный дек — не переключаем, но если он на паузе или
+        # с нулевой громкостью — запускаем. Это сценарий: дек A выбран,
+        # трек загружен через load_paused, но не запущен.
         if self.active == name:
             if immediate:
+                try:
+                    if idle.track:
+                        paused = idle.prop("pause", None)
+                        vol = idle.prop("volume", None)
+                        need_resume = (paused is not False) or (vol is None) \
+                            or (float(vol or 0) < 1.0)
+                        if need_resume:
+                            idle.cmd("set_property", "volume", self.master)
+                            idle.cmd("set_property", "pause", False)
+                            print("DJ | resume: дек %s запущен "
+                                  "(pause=%s vol=%s -> %s)"
+                                  % (name, paused, vol, self.master))
+                except Exception as e:
+                    print("DJ | resume ERR:", e)
                 self.mixing = False
             return
+
         other = "B" if name == "A" else "A"
-        idle = self.decks[name]
         old = self.decks[other]
 
         if immediate:
