@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Зоны: CRUD, play/pause/volume/energize/status."""
 import uuid
+import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
