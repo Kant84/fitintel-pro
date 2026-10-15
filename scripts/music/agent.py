@@ -30,16 +30,14 @@ class Agent:
     def __init__(self, args):
         self.a = args
         is_win = sys.platform.startswith("win")
+        import uuid as _uuid
+        suf = _uuid.uuid4().hex[:8]          # уникальные каналы у каждого запуска
         if is_win:
-            base = r"\\.\pipe\fitintel_"
+            base = r"\\.\pipe\fitintel_%s_" % suf
             ia, ib, ip = base + "deck_a", base + "deck_b", base + "pad"
         else:
-            base = "/tmp/fitintel_"
+            base = "/tmp/fitintel_%s_" % suf
             ia, ib, ip = base + "deck_a.sock", base + "deck_b.sock", base + "pad.sock"
-        self.decks = {"A": Deck("A", ia, args.lib, args.dry_run),
-                      "B": Deck("B", ib, args.lib, args.dry_run),
-                      "PAD": Deck("PAD", ip, args.lib, args.dry_run)}
-        self.pads = Pads(args.server, args.token, args.lib,
                          self.decks["PAD"], dry=args.dry_run)
         self.active = "A"
         self.master = 70
