@@ -393,7 +393,12 @@ class MusicTab(QWidget):
         self._upd_agent_btn()
 
     def create_zone_here(self):
-        import socket as _sock
+        tok = self._agent_token()
+        if tok:
+            for z in self._zones:
+                if z.get("agent_token") == tok:
+                    self._show("Зона плеера уже есть: %s. Создание не требуется." % z["name"])
+                    return        import socket as _sock
         name = "Зал %s" % _sock.gethostname()
         body = {"name": name, "provider_type": "local_agent"}
         def _do():
@@ -494,18 +499,25 @@ class MusicTab(QWidget):
 
     def _fill_zones(self, data):
         self._zones = data if isinstance(data, list) else []
+        tok = self._agent_token()
         cur = self.cmb_zone.currentData()
         self.cmb_zone.blockSignals(True)
         self.cmb_zone.clear()
         for z in self._zones:
-            self.cmb_zone.addItem("%s (%s)" % (z["name"], z["provider_type"]), z["id"])
-        if cur:
-            i = self.cmb_zone.findData(cur)
+            self.cmb_zone.addItem("%s (%s) · %s" % (z["name"], z["provider_type"],
+                                                    str(z["id"])[:8]), z["id"])
+        pick = cur
+        if tok:
+            for z in self._zones:
+                if z.get("agent_token") == tok:
+                    pick = z["id"]
+                    break
+        if pick:
+            i = self.cmb_zone.findData(pick)
             if i >= 0:
                 self.cmb_zone.setCurrentIndex(i)
         self.cmb_zone.blockSignals(False)
         self.refresh_status()
-
     def _fill_playlists(self, data):
         self._playlists = data if isinstance(data, list) else []
 
