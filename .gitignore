@@ -101,3 +101,15 @@ mpv.exe
 mpv.com
 *.dll
 !mpv/.gitkeep
+
+# Бинари (распространяются через инсталлятор, не через git)
+mpv/
+tools/nssm.exe
+*.exe
+*.dll
+*.7z
+*.zip
+
+# Исключения — оставляем .gitkeep для структуры папок
+!mpv/.gitkeep
+!tools/.gitkeep

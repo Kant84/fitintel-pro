@@ -78,15 +78,53 @@ def main():
     )
 
     app = QApplication(sys.argv)
-    # ICONS-APPLY: window icon
+
+    # ─── Иконка окна / панели задач / Alt+Tab ─────────────────
+    # Ищем в порядке приоритета: работает и из исходников, и из PyInstaller-сборки.
     try:
         from PyQt6.QtGui import QIcon as _AppIcon
         from pathlib import Path as _P
-        _ic = _P(__file__).parent / 'assets' / 'app_icon_512.png'
-        if _ic.exists():
-            app.setWindowIcon(_AppIcon(str(_ic)))
-    except Exception:
-        pass
+        import sys as _sys
+
+        _bases = []
+        # 1) bundle PyInstaller
+        if hasattr(_sys, "_MEIPASS"):
+            _bases.append(_P(_sys._MEIPASS))
+            _bases.append(_P(_sys._MEIPASS) / "_internal")
+        # 2) рядом с exe (onedir)
+        if getattr(_sys, "frozen", False):
+            _exe_dir = _P(_sys.executable).parent
+            _bases.append(_exe_dir)
+            _bases.append(_exe_dir / "_internal")
+        # 3) рядом с main.py (запуск из исходников)
+        _bases.append(_P(__file__).parent)
+
+        _candidates = [
+            "assets/FitIntel_icon.ico",
+            "assets/fitintel.ico",
+            "assets/app_icon_512.png",
+            "assets/app_icon_1024.png",
+            "assets/fitintel_256.png",
+            "assets/FitIntel_icon_256.png",
+        ]
+
+        _chosen = None
+        for _base in _bases:
+            for _c in _candidates:
+                _p = _base / _c
+                if _p.exists():
+                    _chosen = _p
+                    break
+            if _chosen:
+                break
+
+        if _chosen:
+            app.setWindowIcon(_AppIcon(str(_chosen)))
+            log.info("Иконка приложения: %s", _chosen)
+        else:
+            log.warning("Иконка приложения не найдена (искали в %s)", _bases)
+    except Exception as _e:
+        log.warning("Ошибка установки иконки окна: %s", _e)
 
 
 
