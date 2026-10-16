@@ -11,7 +11,7 @@ class Client(TimestampedUUIDMixin, Base):
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     middle_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     phone: Mapped[str] = mapped_column(String(20), nullable=False, unique=True, index=True)
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     
     gender: Mapped[str] = mapped_column(String(50), nullable=False, default="НЕ_УКАЗАН")
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -19,6 +19,7 @@ class Client(TimestampedUUIDMixin, Base):
     
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="ACTIVE")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     
     # ✅ Оставляем только существующие связи
     subscriptions = relationship("Subscription", back_populates="client", cascade="all, delete-orphan")

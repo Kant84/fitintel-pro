@@ -107,7 +107,7 @@ def _import_client(data):
                 status=COALESCE(EXCLUDED.status, clients.status),
                 updated_at=NOW()"""),
             {"fn": data.get("first_name", ""), "ln": data.get("last_name", ""), "mn": data.get("middle_name"),
-             "p": data.get("phone", ""), "e": data.get("email"), "b": data.get("birth_date") or None,
+             "p": data.get("phone", ""), "e": data.get("email") or None, "b": data.get("birth_date") or None,
              "g": _norm_gender(data.get("gender")), "cc": _norm_category(data.get("client_category")), "st": _norm_status(data.get("status")), "ph": data.get("photo_url") or None})
 
 @router.post("/aa/import-csv")
