@@ -196,7 +196,7 @@ class IntegrationsTab(QWidget):
         sub.setMovable(True)
         sub.addTab(self._1c_export(), " Экспорт в 1С")
         sub.addTab(self._1c_import(), " Импорт из 1С")
-        sub.addTab(self._1c_settings(), " Настройки")
+        sub.addTab(self._1c_settings(), " Подключение и синхронизация")
         lay.addWidget(sub)
         return w
 
@@ -255,26 +255,122 @@ class IntegrationsTab(QWidget):
         lay.addStretch(1)
         return w
 
+    def _1c_load_cfg(self) -> dict:
+        from paths import SETTINGS
+        try:
+            cfg = json.load(open(SETTINGS, encoding="utf-8"))
+        except Exception:
+            cfg = {}
+        return cfg.get("integrations", {}).get("fitness1c", {}) or {}
+
+    def _1c_save_cfg(self):
+        from paths import SETTINGS
+        try:
+            cfg = json.load(open(SETTINGS, encoding="utf-8"))
+        except Exception:
+            cfg = {}
+        cfg.setdefault("integrations", {})["fitness1c"] = {
+            "base_url": self._1c_url.text().strip(),
+            "username": self._1c_user.text().strip(),
+            "password": self._1c_pass.text(),
+            "api_key": self._1c_key.text().strip(),
+            "club_id": self._1c_club.text().strip(),
+        }
+        json.dump(cfg, open(SETTINGS, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+
+    def _1c_client(self):
+        from integrations.fitness1c import Fitness1CClient, Fitness1CConfig
+        cfg = {k: v for k, v in self._1c_load_cfg().items()
+               if k in ("base_url", "username", "password", "api_key", "club_id", "timeout")}
+        return Fitness1CClient(Fitness1CConfig(**cfg))
+
+    def _1c_do_test(self):
+        try:
+            self._1c_save_cfg()
+            info = self._1c_client().test_connection()
+            club = info["clubs"][0]
+            self._1c_status.setStyleSheet("color: #10b981; font-weight: 600;")
+            self._1c_status.setText(f" OK: {club['name']} (club_id={info['club_id']})")
+        except Exception as e:
+            self._1c_status.setStyleSheet("color: #ef4444; font-weight: 600;")
+            self._1c_status.setText(" Ошибка: " + str(e)[:220])
+
+    def _1c_do_sync(self):
+        try:
+            self._1c_save_cfg()
+            client = self._1c_client()
+            customers = client.list_customers()
+            lines = ["ФИО;Телефон;Email;Дата рождения;Пол;Категория;Статус;Фото(URL)"]
+            for c in customers:
+                ms = client.list_memberships(c["id"])
+                status, cat = "Активен", ""
+                if ms:
+                    m0 = ms[0]
+                    cat = m0.get("name", "")
+                    if not m0.get("is_active"):
+                        status = "Истёк"
+                    elif m0.get("freezes"):
+                        status = "Заморожен"
+                photo = f"{client.config.base_url.rstrip('/')}/customers/{c['id']}/photo/"
+
+                def esc(v):
+                    return str(v or "").replace(";", ",").replace("\n", " ")
+
+                lines.append(";".join([
+                    esc(c.get("name")), esc(c.get("phone")), esc(c.get("email")),
+                    esc(c.get("birthday")), esc(c.get("sex")), esc(cat), status, photo,
+                ]))
+            r = self._req("POST", "/aa/import-csv", {"csv": "\n".join(lines), "entity": "clients"})
+            self._1c_status.setStyleSheet("color: #10b981; font-weight: 600;")
+            self._1c_status.setText(
+                f" Синхронизировано: {r.get('imported', 0)}, ошибок: {r.get('errors', 0)} (из 1С: {len(customers)})")
+        except Exception as e:
+            self._1c_status.setStyleSheet("color: #ef4444; font-weight: 600;")
+            self._1c_status.setText(" Ошибка синхронизации: " + str(e)[:220])
+
     def _1c_settings(self):
         w = QWidget()
         lay = QVBoxLayout(w)
-        lay.addWidget(QLabel("<h3>Настройки подключения к 1С</h3>"))
+        lay.addWidget(QLabel("<h3>Подключение к 1С:Фитнес клуб (API V3)</h3>"))
+        cfg = self._1c_load_cfg()
         f = QFormLayout()
-        self._1c_url = QLineEdit("http://1c-server:8080/base")
-        f.addRow("URL 1С:", self._1c_url)
-        self._1c_user = QLineEdit("Администратор")
+        self._1c_url = QLineEdit(cfg.get("base_url", ""))
+        self._1c_url.setPlaceholderText("http://192.168.101.182:8095/hs/api/v3")
+        f.addRow("URL API V3:", self._1c_url)
+        self._1c_user = QLineEdit(cfg.get("username", ""))
+        self._1c_user.setPlaceholderText("Имя для входа пользователя ИБ")
         f.addRow("Пользователь:", self._1c_user)
-        self._1c_pass = QLineEdit()
+        self._1c_pass = QLineEdit(cfg.get("password", ""))
         self._1c_pass.setEchoMode(QLineEdit.EchoMode.Password)
         f.addRow("Пароль:", self._1c_pass)
+        self._1c_key = QLineEdit(cfg.get("api_key", ""))
+        self._1c_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self._1c_key.setPlaceholderText("ключ приложения (Настройки API в 1С)")
+        f.addRow("Ключ (apikey):", self._1c_key)
+        self._1c_club = QLineEdit(cfg.get("club_id", ""))
+        self._1c_club.setPlaceholderText("пусто = первый клуб из /clubs/")
+        f.addRow("Club ID:", self._1c_club)
         lay.addLayout(f)
-        b_save = QPushButton(" Сохранить настройки")
-        b_save.clicked.connect(lambda: QMessageBox.information(self, "1С", "Настройки сохранены (локально)"))
-        lay.addWidget(b_save)
-        lay.addWidget(QLabel(" Режим mock — реальное подключение требует настройки на стороне 1С"))
+        h = QHBoxLayout()
+        b_save = QPushButton(" Сохранить")
+        b_save.clicked.connect(self._1c_save_cfg)
+        b_test = QPushButton(" Тест связи")
+        b_test.setStyleSheet("QPushButton { background: #3B82F6; color: white; border: none; border-radius: 6px; padding: 6px 12px; font-weight: 600; }")
+        b_test.clicked.connect(self._1c_do_test)
+        b_sync = QPushButton(" Синхронизировать клиентов")
+        b_sync.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 6px 12px; font-weight: 600; }")
+        b_sync.clicked.connect(self._1c_do_sync)
+        h.addWidget(b_save)
+        h.addWidget(b_test)
+        h.addWidget(b_sync)
+        h.addStretch(1)
+        lay.addLayout(h)
+        self._1c_status = QLabel("Укажите параметры и нажмите «Тест связи»")
+        self._1c_status.setWordWrap(True)
+        lay.addWidget(self._1c_status)
+        lay.addWidget(QLabel(" Пароль и ключ хранятся в client_settings.json (шифрование — в roadmap C1–C4)"))
         lay.addStretch(1)
         return w
-    
     def _connectors_tab(self):
         from windows.connectors_tab import ConnectorsTab
         return ConnectorsTab(self.api, self)

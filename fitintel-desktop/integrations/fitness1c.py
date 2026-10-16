@@ -1,25 +1,20 @@
 # -*- coding: utf-8 -*-
-"""Клиент HTTP API 1С:Фитнес клуб (V3) для FitIntel Pro.
-
-Авторизация двухуровневая (как в спецификации Helix-QA/API):
-  1) Basic: base64(UTF-8("Пользователь:Пароль"))
-  2) заголовок apikey: ключ приложения (внешней системы).
+"""Клиент HTTP API 1С:Фитнес клуб (V3) для десктопа FitIntel Pro.
+Только стандартная библиотека (urllib) — PyInstaller без внешних зависимостей.
+Авторизация: Basic base64(UTF-8("Пользователь:Пароль")) + заголовок apikey.
 """
 from __future__ import annotations
 
 import base64
-import logging
+import json
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from typing import Any, Optional
 
-import requests
-
-logger = logging.getLogger(__name__)
-
 
 class Fitness1CError(Exception):
-    """Ошибка API 1С (error/error_message из ответа или сети)."""
-
     def __init__(self, code: Any, message: str, http_status: Optional[int] = None):
         super().__init__(f"[{code}] {message}")
         self.code = code
@@ -29,21 +24,18 @@ class Fitness1CError(Exception):
 
 @dataclass
 class Fitness1CConfig:
-    base_url: str = ""        # например http://192.168.101.182:8095/hs/api/v3
-    username: str = ""        # имя для входа пользователя ИБ
+    base_url: str = ""
+    username: str = ""
     password: str = ""
-    api_key: str = ""         # ключ приложения
-    club_id: str = ""         # UUID клуба; если пусто — берётся первый из /clubs/
+    api_key: str = ""
+    club_id: str = ""
     timeout: int = 25
-    verify_tls: bool = True
 
 
 class Fitness1CClient:
     def __init__(self, config: Fitness1CConfig):
         self.config = config
-        self._session = requests.Session()
 
-    # ---------- транспорт ----------
     def _headers(self) -> dict:
         pair = f"{self.config.username}:{self.config.password}".encode("utf-8")
         return {
@@ -54,31 +46,43 @@ class Fitness1CClient:
 
     def _request(self, method: str, path: str, params: dict = None, json_body: dict = None) -> Any:
         url = self.config.base_url.rstrip("/") + path
+        if params:
+            url += "?" + urllib.parse.urlencode(params)
+        data = json.dumps(json_body).encode("utf-8") if json_body is not None else None
+        req = urllib.request.Request(url, data=data, headers=self._headers(), method=method)
+        if data is not None:
+            req.add_header("Content-Type", "application/json")
         try:
-            resp = self._session.request(
-                method, url, headers=self._headers(), params=params, json=json_body,
-                timeout=self.config.timeout, verify=self.config.verify_tls)
-        except requests.RequestException as exc:
-            raise Fitness1CError(-2, f"Сетевая ошибка: {exc}") from exc
-        if resp.status_code == 401:
-            raise Fitness1CError(401, "Ошибка аутентификации пользователя 1С (Basic)", 401)
+            with urllib.request.urlopen(req, timeout=self.config.timeout) as resp:
+                raw = resp.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            raw = exc.read().decode("utf-8", "replace")
+            try:
+                payload = json.loads(raw)
+                if isinstance(payload, dict) and payload.get("result") is False:
+                    raise Fitness1CError(payload.get("error"), payload.get("error_message", "Ошибка API"), exc.code)
+            except ValueError:
+                pass
+            if exc.code == 401:
+                raise Fitness1CError(401, "Ошибка аутентификации пользователя 1С (Basic)", 401)
+            raise Fitness1CError(exc.code, f"HTTP {exc.code}: {raw[:200]}", exc.code)
+        except urllib.error.URLError as exc:
+            raise Fitness1CError(-2, f"Сетевая ошибка: {exc.reason}") from exc
         try:
-            payload = resp.json()
+            payload = json.loads(raw)
         except ValueError as exc:
-            raise Fitness1CError(-1, f"Невалидный ответ (не JSON): {resp.text[:200]}", resp.status_code) from exc
+            raise Fitness1CError(-1, f"Невалидный ответ (не JSON): {raw[:200]}") from exc
         if isinstance(payload, dict) and payload.get("result") is False:
-            raise Fitness1CError(payload.get("error"), payload.get("error_message", "Ошибка API"), resp.status_code)
-        resp.raise_for_status()
+            raise Fitness1CError(payload.get("error"), payload.get("error_message", "Ошибка API"))
         return payload.get("data") if isinstance(payload, dict) and "data" in payload else payload
 
     # ---------- сервисные ----------
     def test_connection(self) -> dict:
-        """Аналог кнопки «Тест связи». Возвращает auth_types + клубы."""
         auth_types = self._request("GET", "/auth_types")
         clubs = self._request("GET", "/clubs/") or []
-        club_id = self.config.club_id or (clubs[0]["id"] if clubs else "")
         if not clubs:
-            raise Fitness1CError(-3, "API ответил, но список клубов пуст (проверьте «Соответствие клубов» в 1С)")
+            raise Fitness1CError(-3, "API ответил, но список клубов пуст (в 1С проверьте «Соответствие клубов»)")
+        club_id = self.config.club_id or clubs[0]["id"]
         return {"ok": True, "auth_types": auth_types, "clubs": clubs, "club_id": club_id}
 
     def get_club_id(self) -> str:
@@ -110,10 +114,9 @@ class Fitness1CClient:
 
     def get_customer_photo(self, customer_id: str) -> bytes:
         url = self.config.base_url.rstrip("/") + f"/customers/{customer_id}/photo/"
-        resp = self._session.get(url, headers=self._headers(),
-                                 timeout=self.config.timeout, verify=self.config.verify_tls)
-        resp.raise_for_status()
-        return resp.content
+        req = urllib.request.Request(url, headers=self._headers())
+        with urllib.request.urlopen(req, timeout=self.config.timeout) as resp:
+            return resp.read()
 
     # ---------- членства ----------
     def list_memberships(self, customer_id: str) -> list:
@@ -134,7 +137,7 @@ class Fitness1CClient:
     def release_cabinet(self, assignment_id: str) -> dict:
         return self._request("DELETE", f"/club_cabinets/{assignment_id}/")
 
-    # ---------- персонал и расписание ----------
+    # ---------- персонал / расписание / визиты ----------
     def list_employees(self) -> list:
         return self._request("GET", "/employees/") or []
 
@@ -144,7 +147,6 @@ class Fitness1CClient:
             params["date"] = on_date
         return self._request("GET", "/schedules/", params=params) or []
 
-    # ---------- визиты (turnstile) ----------
     def set_person_state(self, person_id: str, state_id: int) -> dict:
         return self._request("POST", f"/persons/{person_id}/state/", json_body={"state_id": state_id})
 
