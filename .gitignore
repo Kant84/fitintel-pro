@@ -93,3 +93,11 @@ face_turnstile_test.py
 club_params_test.db
 
 deploy/uploads_data/
+
+
+# mpv плеер — 120 МБ, распространяется через инсталлятор, не через git
+mpv/
+mpv.exe
+mpv.com
+*.dll
+!mpv/.gitkeep
