@@ -45,7 +45,8 @@ class IntegrationsTab(QWidget):
             headers={"Content-Type": "application/json"}, method=method)
         if tok:
             r.add_header("Authorization", "Bearer " + tok)
-        return json.load(urllib.request.urlopen(r, timeout=15))
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        return json.load(opener.open(r, timeout=15))
 
     # === A&A ===
     def _aa_tab(self):
@@ -320,13 +321,15 @@ class IntegrationsTab(QWidget):
                     esc(c.get("name")), esc(c.get("phone")), esc(c.get("email")),
                     esc(c.get("birthday")), esc(c.get("sex")), esc(cat), status, photo,
                 ]))
+            self._1c_status.setText(f" 1С: клиентов получено {len(customers)}. Отправка в FitIntel: {self._base()}/aa/import-csv ...")
+            from PyQt6.QtWidgets import QApplication; QApplication.processEvents()
             r = self._req("POST", "/aa/import-csv", {"csv": "\n".join(lines), "entity": "clients"})
             self._1c_status.setStyleSheet("color: #10b981; font-weight: 600;")
             self._1c_status.setText(
                 f" Синхронизировано: {r.get('imported', 0)}, ошибок: {r.get('errors', 0)} (из 1С: {len(customers)})")
         except Exception as e:
             self._1c_status.setStyleSheet("color: #ef4444; font-weight: 600;")
-            self._1c_status.setText(" Ошибка синхронизации: " + str(e)[:220])
+            self._1c_status.setText(f" Ошибка синхронизации [бэкенд: {self._base()}]: " + str(e)[:200])
 
     def _1c_settings(self):
         w = QWidget()
