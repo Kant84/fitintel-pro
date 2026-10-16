@@ -22,9 +22,9 @@ class IntegrationsTab(QWidget):
     def _base(self):
         try:
             cfg = json.load(open("client_settings.json", encoding="utf-8"))
-            return cfg.get("api_base") or "http://localhost:8001/api/v1"
+            return cfg.get("api_base") or "http://192.168.101.182/api/v1"
         except Exception:
-            return "http://localhost:8001/api/v1"
+            return "http://192.168.101.182/api/v1"
 
     def _token(self):
         try:
