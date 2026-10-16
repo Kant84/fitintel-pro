@@ -1,23 +1,6 @@
 version: "3.8"
 
 services:
-  fitintel-1c-mock:
-    build: ./fitintel-1c-mock
-    container_name: fitintel-1c-mock
-    ports:
-      - "8095:5000"
-    restart: unless-stopped
-    environment:
-      - MOCK_API_KEY=fitintel-mock-key-2026
-      - MOCK_USER=СанакинАВ
-      - MOCK_PASSWORD=demo123
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.1cmock.rule=Host(`1c.andreisanakin.ru`)"
-      - "traefik.http.routers.1cmock.entrypoints=websecure"
-      - "traefik.http.routers.1cmock.tls=true"
-      - "traefik.http.routers.1cmock.tls.certresolver=myresolver"
-      - "traefik.http.services.1cmock.loadbalancer.server.port=5000"
   db:
     image: postgres:16-alpine
     container_name: fitintel-db
@@ -48,3 +31,4 @@ services:
 
 volumes:
   postgres_data:
+
