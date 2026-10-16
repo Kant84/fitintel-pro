@@ -4,7 +4,13 @@
 настройка провайдера и лицензии из окна, деки A/B, файлы/папки с диска,
 кроссфейд, мастер, эквалайзер, пады 1-8, энерджи-режим, лицензия фоновой музыки.
 Сервер может быть удалённым — плеер на этом ПК общается с ним по HTTP.
-v4.5: агент сам регистрируется по machine_id, ручной токен не требуется."""
+
+v4.6:
+- агент запускается ПОТОКОМ внутри GUI (в onefile-сборке нет python.exe);
+- панель плейлистов справа от DJ-пульта (выбор трека, →A/→B, ▶A/▶B, двойной клик);
+- авто-регистрация агента по machine_id;
+- один _agent_running, без дублей.
+"""
 import json
 import os
 import subprocess
@@ -47,6 +53,7 @@ MIC_ON_STYLE = (
 
 AUDIO_FILTER = "Аудио (*.mp3 *.flac *.ogg *.wav *.m4a);;Все файлы (*)"
 
+
 def _t(name, *args):
     f = getattr(theme, name, None)
     if not callable(f):
@@ -60,17 +67,21 @@ def _t(name, *args):
             return ""
     return ""
 
+
 class Worker(QThread):
     done = pyqtSignal(object)
     fail = pyqtSignal(object)
+
     def __init__(self, fn, parent=None):
         super().__init__(parent)
         self._fn = fn
+
     def run(self):
         try:
             self.done.emit(self._fn())
         except Exception as e:
             self.fail.emit(e)
+
 
 def _err_text(e):
     resp = getattr(e, "response", None)
@@ -84,6 +95,7 @@ def _err_text(e):
         return "Ошибка сервера %s" % resp.status_code
     return str(e)
 
+
 class MusicTab(QWidget):
     def __init__(self, api, parent=None):
         super().__init__(parent)
@@ -95,7 +107,9 @@ class MusicTab(QWidget):
         self._deck_a = None
         self._deck_b = None
         self._btn_mute = None
-        self._agent_proc = None
+        # агент работает как поток внутри GUI
+        self._agent_thread = None
+        self._agent_obj = None
         self.setStyleSheet(_t("widget_style"))
         outer = QWidget()
         v = QVBoxLayout(outer)
@@ -365,11 +379,8 @@ class MusicTab(QWidget):
 
     # ---------- плеер на этом ПК ----------
     def _agent_running(self):
-        p = getattr(self, "_agent_proc", None)
-        if p is not None and p.poll() is not None:
-            self._agent_proc = None
-            return False
-        return p is not None
+        t = getattr(self, "_agent_thread", None)
+        return bool(t and t.is_alive())
 
     def _upd_agent_btn(self):
         running = self._agent_running()
@@ -392,11 +403,13 @@ class MusicTab(QWidget):
 
     def toggle_mic(self):
         new_val = not self._mic_on()
+
         def _mut(cfg):
             dj = cfg.get("dj_agent") or {}
             dj["mic"] = new_val
             cfg["dj_agent"] = dj
             return cfg
+
         self._settings_rw(mutate=_mut)
         self._upd_agent_btn()
         if self._agent_running():
@@ -408,63 +421,78 @@ class MusicTab(QWidget):
             self._show("Микрофон %s. Включится при запуске плеера."
                        % ("включён" if new_val else "выключен"))
 
+    def _start_agent(self):
+        """Запускает агент как ПОТОК внутри GUI.
+        В собранном exe python.exe отсутствует — запускать subprocess'ом нельзя."""
+        # Уже запущен?
+        t = getattr(self, "_agent_thread", None)
+        if t and t.is_alive():
+            return True
+
+        cfg = self._agent_cfg()
+        lib = cfg.get("lib") or r"E:\music\club"
+        server = (getattr(self.api, "base_url", "") or "").rstrip("/")
+        token = self._agent_token() or ""
+        if not server:
+            self._show("Не задан адрес сервера (api_base).", ok=False)
+            return False
+
+        # Ищем папку агента: bundle (PyInstaller) или репозиторий
+        import sys as _sys
+        bundle = getattr(_sys, "_MEIPASS", None)
+        if bundle:
+            agent_dir = Path(bundle) / "scripts" / "music"
+        else:
+            agent_dir = Path(__file__).resolve().parents[2] / "scripts" / "music"
+
+        if not (agent_dir / "agent.py").exists():
+            self._show("Не найден агент: %s" % (agent_dir / "agent.py"), ok=False)
+            return False
+
+        sdir = str(agent_dir)
+        if sdir not in _sys.path:
+            _sys.path.insert(0, sdir)
+
+        import argparse
+        args = argparse.Namespace(
+            server=server, token=token, lib=lib,
+            dry_run=False, debug=True,
+            mic=self._mic_on(), interval=0.5,
+            duck_threshold=0.08, duck_factor=0.2, duck_hold=2.0,
+        )
+
+        def _run():
+            try:
+                from agent import Agent as _Agent
+                ag = _Agent(args)
+                self._agent_obj = ag
+                ag.run()
+            except Exception as e:
+                import traceback
+                print("AGENT THREAD ERR:", e)
+                traceback.print_exc()
+
+        import threading
+        self._agent_thread = threading.Thread(target=_run, daemon=True,
+                                              name="FitIntelAgent")
+        self._agent_thread.start()
+        self._show("Плеер запущен (агент в потоке).")
+        return True
+
     def _stop_agent(self):
-        p = getattr(self, "_agent_proc", None)
-        if not p:
-            return
-        try:
-            if os.name == "nt":
-                subprocess.run(
-                    ["taskkill", "/F", "/T", "/PID", str(p.pid)],
-                    capture_output=True, timeout=5)
-            else:
-                p.terminate()
-        except Exception as e:
-            print("stop_agent ERR:", e)
+        ag = getattr(self, "_agent_obj", None)
+        if ag is not None:
+            try:
+                ag.stop()
+            except Exception as e:
+                print("stop agent ERR:", e)
+            self._agent_obj = None
         try:
             if os.name == "nt":
                 subprocess.run(["taskkill", "/F", "/IM", "mpv.exe"],
                                capture_output=True, timeout=5)
         except Exception:
             pass
-        self._agent_proc = None
-
-    def _start_agent(self):
-        root = Path(__file__).resolve().parents[2]
-        py = root / ".venv" / "Scripts" / "python.exe"
-        script = root / "scripts" / "music" / "fitintel_player_agent.py"
-        cfg = self._agent_cfg()
-        lib = cfg.get("lib") or r"E:\music\club"
-        server = (getattr(self.api, "base_url", "") or "").rstrip("/")
-        if not server:
-            self._show("Не задан адрес сервера (api_base).", ok=False)
-            return False
-        if not py.exists() or not script.exists():
-            self._show("Не найдены python.exe или агент в репозитории:\n%s"
-                       % root, ok=False)
-            return False
-        flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-        args = [str(py), "-u", str(script),
-                "--server", server,
-                "--interval", "0.5",
-                "--debug"]
-        token = self._agent_token()
-        if token:
-            args += ["--token", token]
-        # иначе агент сам зарегистрируется и запишет токен в client_settings.json
-        if self._mic_on():
-            args.append("--mic")
-        try:
-            os.makedirs(r"E:\music\logs", exist_ok=True)
-            logf = open(r"E:\music\logs\agent_gui.log", "a",
-                        encoding="utf-8", buffering=1)
-            self._agent_proc = subprocess.Popen(
-                args, cwd=str(root / "scripts" / "music"),
-                creationflags=flags, stdout=logf, stderr=logf)
-        except Exception as e:
-            self._show("Не удалось запустить плеер: %s" % e, ok=False)
-            return False
-        return True
 
     def toggle_agent(self):
         if self._agent_running():
@@ -499,21 +527,22 @@ class MusicTab(QWidget):
         lib = (v.get("lib") or "").strip()
 
         if ptype == "local_agent":
-            # Сохраняем lib, но зону НЕ создаём через API — агент сам зарегистрируется
-            # по machine_id при первом запуске «Плеер: ВКЛ».
+            # Сохраняем lib — зону агент сам создаст при «Плеер: ВКЛ»
             if lib:
                 lib = os.path.normpath(lib)
+
             def _mut(cfg):
                 dj = cfg.get("dj_agent") or {}
                 dj["lib"] = lib or r"E:\music\club"
                 cfg["dj_agent"] = dj
                 return cfg
+
             self._settings_rw(mutate=_mut)
             self._show("Папка музыки сохранена: %s. Запустите «Плеер: ВКЛ» — "
                        "агент сам зарегистрирует зону." % (lib or r"E:\music\club"))
             return
 
-        # external — как раньше, через API
+        # external — через API
         body = {"name": name, "provider_type": "external",
                 "provider_config": {
                     "base_url": (v.get("base_url") or "").strip(),
@@ -528,6 +557,7 @@ class MusicTab(QWidget):
             self._show("Зона «%s» создана (провайдер: %s)."
                        % (name, body["provider_config"].get("base_url")))
             self.reload_all()
+
         self._run(_do, _done)
 
     def agent_settings(self):
@@ -541,11 +571,13 @@ class MusicTab(QWidget):
         lib = (dlg.values().get("lib") or "").strip()
         if lib:
             lib = os.path.normpath(lib)
+
         def _mut(c):
             dj = c.get("dj_agent") or {}
             dj["lib"] = lib
             c["dj_agent"] = dj
             return c
+
         self._settings_rw(mutate=_mut)
         if self._agent_running():
             self._stop_agent()
@@ -584,6 +616,7 @@ class MusicTab(QWidget):
                                        self.reload_all()))
         else:
             body["provider_type"] = "external"
+
             def _do2():
                 r = self.api.session.post(self._url("/zones"), json=body, timeout=15)
                 r.raise_for_status()
@@ -605,10 +638,12 @@ class MusicTab(QWidget):
                 "provider_name": (v.get("provider") or "").strip(),
                 "contract_number": (v.get("contract") or "").strip(),
                 "valid_until": (v.get("valid") or "").strip() or None}
+
         def _do():
             r = self.api.session.post(self._url("/license"), json=body, timeout=15)
             r.raise_for_status()
             return r.json()
+
         self._run(_do, lambda r: (self._show("Лицензия сохранена: %s"
                                              % r.get("status")),
                                   self.load_license()))
@@ -679,7 +714,7 @@ class MusicTab(QWidget):
                 self.cmb_pl_dj.setCurrentIndex(i)
         self.cmb_pl_dj.blockSignals(False)
         self._fill_dj_tracks()
-    
+
     def _fill_dj_tracks(self):
         """Заполняет список треков выбранного плейлиста."""
         self.list_dj_tracks.clear()
@@ -722,7 +757,7 @@ class MusicTab(QWidget):
         deck = self._current_active()
         self._set_deck(deck, tr)
         self.apply_dj(active=deck)
-    
+
     def load_sfx(self):
         self._run(lambda: self.api.session.get(self._url("/sfx"), timeout=15).json(),
                   self._fill_sfx)
@@ -841,16 +876,19 @@ class MusicTab(QWidget):
                 "master_volume": int(self.sld_master.value()),
                 "eq": {"A": {"bass": 0, "mid": 0, "treble": 0},
                        "B": {"bass": 0, "mid": 0, "treble": 0}}}
+
         def _do():
             self.api.session.post(self._url("/zones/%s/pause" % zid), timeout=15)
             self.api.session.post(self._url("/zones/%s/dj" % zid),
                                   json=body, timeout=15)
             return True
+
         def _done(_r):
             self._deck_a = None
             self._deck_b = None
             self._show("Стоп: зона остановлена, деки очищены.")
             self.refresh_status()
+
         self._run(_do, _done)
 
     def energize(self):
@@ -929,9 +967,11 @@ class MusicTab(QWidget):
                 "crossfade_seconds": float(self.spin_cf.value()),
                 "master_volume": int(self.sld_master.value()),
                 "eq": {"A": self._eq_values("A"), "B": self._eq_values("B")}}
+
         def _do():
             return self.api.session.post(self._url("/zones/%s/dj" % zid),
                                          json=body, timeout=15).json()
+
         self._run(_do, lambda _r: (self._show("Пульт применён."),
                                    self.refresh_status()))
 

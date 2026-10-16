@@ -15,16 +15,47 @@ AUDIO_EXTS = (".mp3", ".flac", ".ogg", ".wav", ".m4a")
 
 
 def _mpv_path():
+    import sys as _sys
+
+    # 1) PyInstaller bundle (--onefile или --onedir)
+    if getattr(_sys, "frozen", False) or hasattr(_sys, "_MEIPASS"):
+        bundle = getattr(_sys, "_MEIPASS", None) or os.path.dirname(_sys.executable)
+        for rel in ("mpv/mpv.exe", "mpv/mpv.com",
+                    "_internal/mpv/mpv.exe", "_internal/mpv/mpv.com"):
+            cand = os.path.join(bundle, rel)
+            if os.path.exists(cand):
+                return cand
+
+    # 2) рядом с приложением (корень репо при работе из исходников)
+    here = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.abspath(os.path.join(here, "..", ".."))
+    for rel in ("mpv/mpv.exe", "mpv/mpv.com"):
+        cand = os.path.join(root, rel)
+        if os.path.exists(cand):
+            return cand
+
+    # 3) рядом с exe (--onedir) — mpv лежит прямо в папке сборки
+    if getattr(_sys, "frozen", False):
+        base = os.path.dirname(_sys.executable)
+        for rel in ("mpv/mpv.exe", "mpv/mpv.com",
+                    "_internal/mpv/mpv.exe", "_internal/mpv/mpv.com"):
+            cand = os.path.join(base, rel)
+            if os.path.exists(cand):
+                return cand
+
+    # 4) системный PATH
     p = shutil.which("mpv")
     if p:
         return p
+
+    # 5) старые места
     for cand in (r"C:\mpv\mpv.exe",
                  r"C:\Program Files\MPV Player\mpv.exe",
                  r"C:\Program Files\mpv\mpv.exe"):
         if os.path.exists(cand):
             return cand
-    return "mpv"
 
+    return "mpv"
 
 def _norm(path):
     if not path:
@@ -328,6 +359,12 @@ class Deck:
         if not os.path.isfile(path):
             print("PAD | SKIP: файл не найден (%s)" % path)
             return
-        self.cmd("set_property", "volume", volume)
-        self.cmd("loadfile", path, "replace")
-        self.cmd("set_property", "pause", False)
+        # ФИКС: один IPC-вызов вместо трёх. Опции loadfile применяются атомарно.
+        try:
+            self.cmd("loadfile", path, "replace",
+                     "volume=%d" % int(volume), "pause=no")
+        except Exception:
+            # fallback: старый способ, если mpv не поддерживает опции
+            self.cmd("set_property", "volume", int(volume))
+            self.cmd("loadfile", path, "replace")
+            self.cmd("set_property", "pause", False)
