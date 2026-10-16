@@ -335,7 +335,7 @@ class IntegrationsTab(QWidget):
         cfg = self._1c_load_cfg()
         f = QFormLayout()
         self._1c_url = QLineEdit(cfg.get("base_url", ""))
-        self._1c_url.setPlaceholderText("http://192.168.101.182:8095/hs/api/v3")
+        self._1c_url.setPlaceholderText("http://192.168.101.50:8095/hs/api/v3")
         f.addRow("URL API V3:", self._1c_url)
         self._1c_user = QLineEdit(cfg.get("username", ""))
         self._1c_user.setPlaceholderText("Имя для входа пользователя ИБ")
