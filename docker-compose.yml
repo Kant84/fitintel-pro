@@ -4,6 +4,8 @@ services:
   fitintel-1c-mock:
     build: ./fitintel-1c-mock
     container_name: fitintel-1c-mock
+    ports:
+      - "8095:5000"
     restart: unless-stopped
     environment:
       - MOCK_API_KEY=fitintel-mock-key-2026
