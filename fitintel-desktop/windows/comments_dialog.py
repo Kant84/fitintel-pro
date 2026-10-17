@@ -29,6 +29,8 @@ class CommentsDialog(QDialog):
         self._load_users()
         self._reload()
         _polish(self)
+        from windows.help_dialog import install_f1
+        install_f1(self, "comments")
 
     def _build_ui(self):
         v = QVBoxLayout(self)

@@ -24,6 +24,8 @@ class VisitsStatsDialog(QDialog):
         self._build_ui()
         self._reload()
         _polish(self)
+        from windows.help_dialog import install_f1
+        install_f1(self, "visits_stats")
 
     # ---------- UI ----------
     def _build_ui(self):
