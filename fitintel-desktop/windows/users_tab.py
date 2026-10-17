@@ -1,16 +1,17 @@
-"""FitIntel Pro — Users Tab"""
+# -*- coding: utf-8 -*-
+"""FitIntel Pro — Users Tab: CRUD + фильтры + карточка сотрудника (двойной клик)."""
+import requests as _requests
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView
-)
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QComboBox,
+    QSplitter, QScrollArea, QTableWidget, QTableWidgetItem, QHeaderView,
+    QLabel, QMessageBox, QAbstractItemView)
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor
-
-from PyQt6.QtWidgets import QMessageBox
 
 from api import ApiClient
 from windows import theme
 from windows.form_dialog import FormDialog
+from app_logging import log
 
 
 class UsersWorker(QThread):
@@ -32,61 +33,164 @@ class UsersTab(QWidget):
     def __init__(self, api: ApiClient):
         super().__init__()
         self.api = api
+        self._all_users = []
         self._build_ui()
         self.refresh()
 
+    # ---------- UI ----------
+    def _btn(self, text, color="#f1f5f9", fg="#475569"):
+        b = QPushButton(text)
+        b.setStyleSheet(f"QPushButton {{ background: {color}; color: {fg}; "
+                        f"border: 1px solid #cbd5e1; border-radius: 6px; "
+                        f"padding: 8px 14px; font-weight: 600; }}")
+        return b
+
     def _build_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(12, 12, 12, 12)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # === Левая панель фильтров ===
+        fscroll = QScrollArea()
+        fscroll.setWidgetResizable(True)
+        fscroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        fscroll.setMinimumWidth(250)
+        fscroll.setMaximumWidth(300)
+        fw = QWidget()
+        fl = QVBoxLayout(fw)
+        fscroll.setWidget(fw)
+        splitter.addWidget(fscroll)
+
+        fl.addWidget(QLabel("Поиск:"))
+        self.edit_filter = QLineEdit()
+        self.edit_filter.setPlaceholderText("ФИО, логин, email…")
+        self.edit_filter.textChanged.connect(self._debounced_filter)
+        fl.addWidget(self.edit_filter)
+
+        fl.addWidget(QLabel("Отдел:"))
+        self.cb_dept = QComboBox()
+        self.cb_dept.addItem("Все (⏳ в разработке)", None)
+        fl.addWidget(self.cb_dept)
+
+        fl.addWidget(QLabel("Роль:"))
+        self.cb_role = QComboBox()
+        self.cb_role.addItem("Все", None)
+        self.cb_role.currentIndexChanged.connect(self._apply_filters)
+        fl.addWidget(self.cb_role)
+
+        fl.addWidget(QLabel("Статус:"))
+        self.cb_status = QComboBox()
+        self.cb_status.addItem("Все", None)
+        self.cb_status.addItem("Активен", "active")
+        self.cb_status.addItem("Отключён", "inactive")
+        self.cb_status.currentIndexChanged.connect(self._apply_filters)
+        fl.addWidget(self.cb_status)
+        fl.addStretch(1)
+
+        # === Правая часть ===
+        right = QWidget()
+        rl = QVBoxLayout(right)
+        rl.setContentsMargins(0, 0, 0, 0)
+        splitter.addWidget(right)
 
         row = QHBoxLayout()
         row.addStretch()
-        b_add = QPushButton("Создать пользователя")
-        b_add.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        b_add = self._btn("Создать пользователя", "#10b981", "white")
         b_add.clicked.connect(self._add)
-        row.addWidget(b_add)
-        b_edit = QPushButton(" Изменить")
-        b_edit.setStyleSheet("QPushButton { background: #3b82f6; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        b_edit = self._btn(" Изменить", "#3b82f6", "white")
         b_edit.clicked.connect(self._edit_user)
-        row.addWidget(b_edit)
-        b_del = QPushButton("Удалить")
-        b_del.setStyleSheet("QPushButton { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        b_del = self._btn("Удалить", "#fef2f2", "#b91c1c")
+        b_del.setStyleSheet("QPushButton { background: #fef2f2; border: 1px solid #fca5a5; "
+                            "color: #b91c1c; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         b_del.clicked.connect(self._delete)
-        row.addWidget(b_del)
-        btn = QPushButton("Обновить")
         self.chk_show_deleted = QPushButton("Показать удалённых")
         self.chk_show_deleted.setCheckable(True)
-        self.chk_show_deleted.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
-        self.chk_show_deleted.toggled.connect(lambda _c: self.refresh())
-        row.addWidget(self.chk_show_deleted)
-        btn.setStyleSheet("QPushButton { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 16px; font-weight: 600; }")
-        btn.clicked.connect(self.refresh)
-        row.addWidget(btn)
-        layout.addLayout(row)
+        self.chk_show_deleted.setStyleSheet("QPushButton { background: #f1f5f9; "
+                                            "border: 1px solid #cbd5e1; border-radius: 6px; "
+                                            "padding: 8px 14px; font-weight: 600; }")
+        self.chk_show_deleted.toggled.connect(lambda _c: self._apply_filters())
+        b_ref = self._btn("Обновить")
+        b_ref.clicked.connect(self.refresh)
+        for b in (b_add, b_edit, b_del, self.chk_show_deleted, b_ref):
+            row.addWidget(b)
+        rl.addLayout(row)
 
-        self.table = QTableWidget()
-        self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels(
-            ["ФИО", "Логин", "Email", "Роли", "Прав", "Статус"])
+        self.table = QTableWidget(0, 6)
+        self.table.setHorizontalHeaderLabels(["ФИО", "Логин", "Email", "Роли", "Прав", "Статус"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
         self.table.setStyleSheet(theme.table_style())
-        layout.addWidget(self.table)
+        self.table.doubleClicked.connect(self._open_card)
+        rl.addWidget(self.table, 1)
 
+        hb = QHBoxLayout()
+        hb.addStretch()
+        for fmt, label in [("xlsx", "XLSX"), ("pdf", "PDF"), ("1c", "1С")]:
+            b = QPushButton(label)
+            b.setStyleSheet("QPushButton { background: #f1f5f9; color: #475569; "
+                            "border: 1px solid #cbd5e1; border-radius: 6px; "
+                            "padding: 6px 12px; font-weight: 600; }")
+            b.clicked.connect(lambda _, f=fmt: self._export(f))
+            hb.addWidget(b)
+        rl.addLayout(hb)
+
+        splitter.setStretchFactor(1, 1)
+        root.addWidget(splitter, 1)
+
+        self._debounce = QTimer(self)
+        self._debounce.setSingleShot(True)
+        self._debounce.setInterval(300)
+        self._debounce.timeout.connect(self._apply_filters)
+
+    def _debounced_filter(self, _t):
+        self._debounce.start()
+
+    # ---------- Данные ----------
     def refresh(self):
         self.worker = UsersWorker(self.api)
         self.worker.finished.connect(self._on_loaded)
         self.worker.error.connect(self._on_error)
         self.worker.start()
 
-    def _on_loaded(self, users: list):
+    def _on_loaded(self, users):
+        self._all_users = users or []
+        # роли в фильтр
+        roles = self._load_roles()
+        cur = self.cb_role.currentData()
+        self.cb_role.blockSignals(True)
+        self.cb_role.clear()
+        self.cb_role.addItem("Все", None)
+        for label, code in roles:
+            self.cb_role.addItem(label, code)
+        idx = self.cb_role.findData(cur)
+        if idx >= 0:
+            self.cb_role.setCurrentIndex(idx)
+        self.cb_role.blockSignals(False)
+        self._apply_filters()
+
+    def _apply_filters(self):
+        users = list(self._all_users)
         show_del = self.chk_show_deleted.isChecked()
         if not show_del:
             users = [u for u in users
                      if not (str(u.get("username") or "").startswith("deleted_")
                              and not u.get("is_active"))]
+        t = self.edit_filter.text().strip().lower()
+        if t:
+            users = [u for u in users if t in "%s %s %s" % (
+                (u.get("full_name") or ""), u.get("username", ""), u.get("email", "")).lower()]
+        role = self.cb_role.currentData()
+        if role:
+            users = [u for u in users
+                     if any(str(r.get("code", "")).lower() == role
+                            for r in (u.get("roles") or []) if isinstance(r, dict))]
+        st = self.cb_status.currentData()
+        if st == "active":
+            users = [u for u in users if u.get("is_active")]
+        elif st == "inactive":
+            users = [u for u in users if not u.get("is_active")]
         self.table.setRowCount(len(users))
         for i, u in enumerate(users):
             _fn = (u.get("full_name") or "").strip()
@@ -108,8 +212,21 @@ class UsersTab(QWidget):
             item.setForeground(QColor("#059669" if active else "#ef4444"))
             self.table.setItem(i, 5, item)
 
+    # ---------- Карточка ----------
+    def _open_card(self, _idx=None):
+        row = self.table.currentRow()
+        if row < 0:
+            return
+        item = self.table.item(row, 1)
+        uid = item.data(Qt.ItemDataRole.UserRole) if item else None
+        if not uid:
+            return
+        from windows.employee_card import EmployeeCard
+        dlg = EmployeeCard(self.api, uid, user_data={}, parent=None)
+        dlg.show()
+
+    # ---------- CRUD (без изменений логики) ----------
     def _load_roles(self):
-        """Роли из RBAC (без системных client/device и superadmin)."""
         try:
             resp = self.api.session.get(self.api._url("/rbac/roles-matrix"))
             resp.raise_for_status()
@@ -139,7 +256,7 @@ class UsersTab(QWidget):
             ("username", "Логин *"),
             ("full_name", "ФИО (видят клиенты в приложении)"),
             ("email", "Email *"),
-            ("password", "Пароль *"),
+            ("password", "Пароль * (мин. 6 символов)"),
             ("role", "Роль *", "combo", self._load_roles()),
         ], self)
         if dlg.exec() != FormDialog.DialogCode.Accepted:
@@ -149,56 +266,19 @@ class UsersTab(QWidget):
             QMessageBox.warning(self, "Ошибка", "Логин и пароль обязательны")
             return
         try:
-            _payload = {
-                "username": v["username"],
-                "email": v["email"],
-                "password": v["password"],
-            }
+            payload = {"username": v["username"], "email": v["email"], "password": v["password"]}
             if v.get("full_name"):
-                _payload["full_name"] = v["full_name"]
-            r = self.api.session.post(self.api._url("/users/"), json=_payload)
+                payload["full_name"] = v["full_name"]
+            r = self.api.session.post(self.api._url("/users/"), json=payload)
             r.raise_for_status()
             uid = r.json().get("id")
             if uid and v.get("role"):
-                r2 = self.api.session.post(
-                    self.api._url(f"/users/{uid}/roles/assign"),
-                    json={"role_code": v["role"]})
+                r2 = self.api.session.post(self.api._url(f"/users/{uid}/roles/assign"),
+                                           json={"role_code": v["role"]})
                 r2.raise_for_status()
             self.refresh()
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка создания", str(e))
-
-    def _delete(self):
-        row = self.table.currentRow()
-        if row < 0:
-            QMessageBox.information(self, "Удаление", "Сначала выберите пользователя в таблице")
-            return
-        item = self.table.item(row, 1)
-        uid = item.data(Qt.ItemDataRole.UserRole) if item else None
-        login = item.text() if item else "?"
-        if not uid:
-            QMessageBox.warning(self, "Удаление", "ID пользователя не найден — нажмите «Обновить»")
-            return
-        if login.lower() == "superadmin":
-            QMessageBox.warning(self, "Удаление", "superadmin нельзя удалить")
-            return
-        if QMessageBox.question(
-                self, "Удаление пользователя",
-                f"Удалить пользователя «{login}» безвозвратно?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
-            return
-        try:
-            r = self.api.session.delete(self.api._url(f"/users/{uid}"))
-            r.raise_for_status()
-            self.refresh()
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка удаления", str(e))
-
-    def _on_error(self, msg: str):
-        self.table.setRowCount(1)
-        self.table.setItem(0, 0, QTableWidgetItem(f"Ошибка загрузки: {msg}"))
-
+        except (RuntimeError, _requests.HTTPError) as e:
+            QMessageBox.critical(self, "Ошибка создания", str(e)[:300])
 
     def _edit_user(self):
         row = self.table.currentRow()
@@ -224,8 +304,55 @@ class UsersTab(QWidget):
             r = self.api.session.patch(self.api._url(f"/users/{uid}"), json=v)
             r.raise_for_status()
             self.refresh()
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка", str(e)[:200])
+        except (RuntimeError, _requests.HTTPError) as e:
+            QMessageBox.critical(self, "Ошибка", str(e)[:300])
+
+    def _delete(self):
+        row = self.table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "Удаление", "Сначала выберите пользователя в таблице")
+            return
+        item = self.table.item(row, 1)
+        uid = item.data(Qt.ItemDataRole.UserRole) if item else None
+        login = item.text() if item else "?"
+        if not uid:
+            QMessageBox.warning(self, "Удаление", "ID пользователя не найден — нажмите «Обновить»")
+            return
+        if login.lower() == "superadmin":
+            QMessageBox.warning(self, "Удаление", "superadmin нельзя удалить")
+            return
+        if QMessageBox.question(
+                self, "Удаление пользователя",
+                f"Удалить пользователя «{login}» безвозвратно?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            r = self.api.session.delete(self.api._url(f"/users/{uid}"))
+            r.raise_for_status()
+            self.refresh()
+        except (RuntimeError, _requests.HTTPError) as e:
+            QMessageBox.critical(self, "Ошибка удаления", str(e)[:300])
+
+    def _export(self, fmt):
+        from windows.export_helper import export_table_xlsx, export_table_pdf
+        try:
+            headers = [self.table.horizontalHeaderItem(i).text() for i in range(self.table.columnCount())]
+            rows = [[self.table.item(r, c).text() if self.table.item(r, c) else ""
+                     for c in range(self.table.columnCount())] for r in range(self.table.rowCount())]
+            if fmt == "xlsx":
+                export_table_xlsx(self, headers, rows, "users", "Пользователи")
+            elif fmt == "pdf":
+                export_table_pdf(self, headers, rows, "users", "Пользователи")
+            else:
+                QMessageBox.information(self, "1С", "Экспорт сотрудников в 1С — в разработке")
+        except (RuntimeError, _requests.HTTPError) as e:
+            QMessageBox.warning(self, "Экспорт", str(e)[:200])
+
+    def _on_error(self, msg):
+        self.table.setRowCount(1)
+        self.table.setItem(0, 0, QTableWidgetItem(f"Ошибка загрузки: {msg}"))
+
 
 # === E63_PRINT ===
 try:
