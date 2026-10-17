@@ -28,11 +28,6 @@ services:
   api:
     image: fitintel:prod            # загружается из fitintel-prod.tar (docker load)
     env_file: .env
-    volumes:
-      - static_trainers:/app/static/trainers
-      - static_products:/app/static/products
-      - static_scan:/app/static/scan
-      - static_brand:/app/static/brand
     environment:
       APP_ENV: prod
       APP_DEBUG: "false"
@@ -49,6 +44,10 @@ services:
       OMP_NUM_THREADS: "1"
       MKL_NUM_THREADS: "1"
     volumes:
+      - static_trainers:/app/static/trainers
+      - static_products:/app/static/products
+      - static_scan:/app/static/scan
+      - static_brand:/app/static/brand
       - face_photos:/app/data/face_photos   # опциональное хранение фото лиц (если клуб включил)
     depends_on:
       db:
