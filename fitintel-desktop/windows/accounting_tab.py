@@ -207,12 +207,111 @@ class AccountingTab(QWidget):
     def _export_tab(self):
         w = QWidget()
         lay = QVBoxLayout(w)
-        lay.addWidget(QLabel("Экспорт в 1С (CommerceML 2.0)"))
-        b1 = QPushButton(" Экспорт номенклатуры (mock)")
-        b1.clicked.connect(lambda: QMessageBox.information(self, "1С", "Файл сгенерирован (mock-режим)"))
+        lay.addWidget(QLabel("Экспорт в 1С (CommerceML 2.05 / API V3)"))
+        b1 = QPushButton(" Экспорт номенклатуры (CommerceML)")
+        b1.clicked.connect(lambda: _1c_export_nomenclature(self))
         lay.addWidget(b1)
-        b2 = QPushButton(" Экспорт контрагентов (mock)")
-        b2.clicked.connect(lambda: QMessageBox.information(self, "1С", "Файл сгенерирован (mock-режим)"))
+        b2 = QPushButton(" Экспорт контрагентов в 1С (API V3)")
+        b2.clicked.connect(lambda: _1c_export_counterparties(self))
         lay.addWidget(b2)
         lay.addStretch(1)
         return w
+
+# === 1С Fitness: реальный экспорт (CommerceML 2.05 + API V3) ===
+def _xml_esc(s):
+    return (str(s).replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+def _load_1c_cfg():
+    import json as _json
+    try:
+        from paths import SETTINGS
+        cfg = _json.load(open(SETTINGS, encoding="utf-8"))
+    except Exception:
+        cfg = {}
+    return cfg.get("integrations", {}).get("fitness1c", {}) or {}
+
+
+def _make_1c_client():
+    from integrations.fitness1c import Fitness1CClient, Fitness1CConfig
+    cfg = {k: v for k, v in _load_1c_cfg().items()
+           if k in ("base_url", "username", "password", "api_key", "club_id", "timeout")}
+    return Fitness1CClient(Fitness1CConfig(**cfg))
+
+
+def _1c_export_nomenclature(self):
+    """CommerceML 2.05 из реальных тарифов FitIntel Pro."""
+    from datetime import datetime
+    from PyQt6.QtWidgets import QFileDialog, QMessageBox
+    try:
+        tariffs = self.api.get_tariffs() if getattr(self, "api", None) else []
+    except Exception as exc:
+        QMessageBox.critical(self, "1С", f"Не удалось получить тарифы: {exc}")
+        return
+    items = []
+    for t in tariffs:
+        name = str(t.get("name") or t.get("title") or "Услуга")
+        price = t.get("price") or 0
+        days = t.get("duration_days") or ""
+        tid = str(t.get("id") or t.get("code") or name)
+        desc = f"Длительность: {days} дн." if days else "Услуга"
+        items.append(
+            "    <Товар>\n"
+            f"      <Ид>{_xml_esc(tid)}</Ид>\n"
+            f"      <Наименование>{_xml_esc(name)}</Наименование>\n"
+            "      <БазоваяЕдиница Код=\"796\" НаименованиеПолное=\"Штука\" МеждународноеСокращение=\"PCE\">шт</БазоваяЕдиница>\n"
+            f"      <Описание>{_xml_esc(desc)}</Описание>\n"
+            "      <Цены><Цена><Представление>" + str(price) + " RUB</Представление>"
+            "<ИдТипаЦены>BASE</ИдТипаЦены><ЦенаЗаЕдиницу>" + str(price) + "</ЦенаЗаЕдиницу>"
+            "<Валюта>RUB</Валюта><Единица>шт</Единица></Цена></Цены>\n"
+            "    </Товар>")
+    date = datetime.now().strftime("%Y-%m-%d")
+    xml = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+           f"<КоммерческаяИнформация ВерсияСхемы=\"2.05\" ДатаФормирования=\"{date}\">\n"
+           "  <Классификатор><Ид>CL-FITINTEL</Ид><Наименование>Номенклатура FitIntel Pro</Наименование>\n"
+           "    <Группы><Группа><Ид>G01</Ид><Наименование>Абонементы и услуги</Наименование></Группа></Группы>\n"
+           "    <ТипыЦен><ТипЦены><Ид>BASE</Ид><Наименование>Базовая</Наименование><Валюта>RUB</Валюта></ТипЦены></ТипыЦен>\n"
+           "  </Классификатор>\n"
+           "  <Каталог СодержитТолькоИзменения=\"false\"><Ид>CAT-FITINTEL</Ид><ИдКлассификатора>CL-FITINTEL</ИдКлассификатора>\n"
+           "    <Наименование>Услуги фитнес-клуба</Наименование>\n"
+           "    <Товары>\n" + "\n".join(items) + "\n    </Товары>\n  </Каталог>\n</КоммерческаяИнформация>\n")
+    path, _ = QFileDialog.getSaveFileName(self, "Сохранить CommerceML", "nomenclature_1c.xml", "XML (*.xml)")
+    if not path:
+        return
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(xml)
+    QMessageBox.information(self, "1С", f"CommerceML сохранён: {path}\nПозиций: {len(items)}")
+
+
+def _1c_export_counterparties(self):
+    """Экспорт клиентов FitIntel в 1С:Фитнес клуб через API V3."""
+    from PyQt6.QtWidgets import QMessageBox
+    try:
+        clients = self.api.get_clients() if getattr(self, "api", None) else []
+    except Exception as exc:
+        QMessageBox.critical(self, "1С", f"Не удалось получить клиентов: {exc}")
+        return
+    if not clients:
+        QMessageBox.information(self, "1С", "Нет клиентов для экспорта")
+        return
+    try:
+        client1c = _make_1c_client()
+    except Exception as exc:
+        QMessageBox.critical(self, "1С", f"Ошибка настроек подключения к 1С: {exc}")
+        return
+    created, errors = 0, 0
+    for cl in clients:
+        fio = " ".join(x for x in [cl.get("last_name"), cl.get("first_name"), cl.get("middle_name")] if x) \
+              or cl.get("name") or "Без имени"
+        phone = (cl.get("phone") or "").strip()
+        if not phone:
+            errors += 1
+            continue
+        try:
+            client1c.create_customer(name=fio, phone=phone, email=(cl.get("email") or "").strip())
+            created += 1
+        except Exception:
+            errors += 1
+    QMessageBox.information(self, "1С",
+                            f"Экспорт в 1С завершён.\nСоздано клиентов: {created}\nОшибок/пропущено: {errors}")
