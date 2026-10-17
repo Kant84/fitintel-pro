@@ -339,6 +339,15 @@ def customers_create():
     d = request.get_json(silent=True) or {}
     if not d.get("name") or not d.get("phone"):
         return fail(422, "Обязательные поля: name, phone")
+    phone = str(d.get("phone", "")).strip()
+    existing = next((x for x in CUSTOMERS if str(x.get("phone", "")).strip() == phone), None)
+    if existing:
+        for f in ("name", "email", "birthday", "sex", "note",
+                  "group_id", "membership_code", "passport", "home_address"):
+            if d.get(f):
+                existing[f] = d[f]
+        existing["updated_at"] = dt(0)
+        return ok(existing)
     new = dict(d)
     new.setdefault("id", str(uuid.uuid4()))
     new.setdefault("email",""); new.setdefault("birthday",""); new.setdefault("sex","")
