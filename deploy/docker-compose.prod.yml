@@ -89,6 +89,10 @@ services:
       disable: true
 
 volumes:
+  static_trainers:
+  static_products:
+  static_scan:
+  static_brand:
   postgres_prod:
   face_photos:
 
