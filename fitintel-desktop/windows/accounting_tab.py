@@ -283,10 +283,13 @@ def _1c_export_nomenclature(self):
         fh.write(xml)
     QMessageBox.information(self, "1С", f"CommerceML сохранён: {path}\nПозиций: {len(items)}")
 
+from PyQt6.QtCore import QThread, pyqtSignal
+
 
 def _1c_export_counterparties(self):
-    """Экспорт клиентов FitIntel в 1С:Фитнес клуб через API V3."""
-    from PyQt6.QtWidgets import QMessageBox
+    """Экспорт клиентов в 1С через API V3 (фоновый поток, прогресс-бар)."""
+    from PyQt6.QtWidgets import QMessageBox, QProgressDialog
+    from PyQt6.QtCore import Qt
     try:
         clients = self.api.get_clients() if getattr(self, "api", None) else []
     except Exception as exc:
@@ -295,23 +298,44 @@ def _1c_export_counterparties(self):
     if not clients:
         QMessageBox.information(self, "1С", "Нет клиентов для экспорта")
         return
-    try:
-        client1c = _make_1c_client()
-    except Exception as exc:
-        QMessageBox.critical(self, "1С", f"Ошибка настроек подключения к 1С: {exc}")
-        return
-    created, errors = 0, 0
-    for cl in clients:
-        fio = " ".join(x for x in [cl.get("last_name"), cl.get("first_name"), cl.get("middle_name")] if x) \
-              or cl.get("name") or "Без имени"
-        phone = (cl.get("phone") or "").strip()
-        if not phone:
-            errors += 1
-            continue
+    pg = QProgressDialog("Подключение к 1С...", "Отмена", 0, len(clients), self)
+    pg.setWindowTitle("Экспорт в 1С")
+    pg.setWindowModality(Qt.WindowModality.WindowModal)
+    pg.setMinimumDuration(300)
+    th = _CounterExportThread(clients, self)
+    th.progress.connect(lambda i, n: (pg.setValue(i), pg.setLabelText(f"Экспорт в 1С: {i}/{n}...")))
+    th.done.connect(lambda cr, er, err: (pg.close(),
+        QMessageBox.information(self, "1С", err or f"Экспорт завершён.\nСоздано клиентов: {cr}\nОшибок/пропущено: {er}")))
+    pg.canceled.connect(th.terminate)
+    th.start()
+
+
+class _CounterExportThread(QThread):
+    progress = pyqtSignal(int, int)
+    done = pyqtSignal(int, int, str)
+
+    def __init__(self, clients, parent=None):
+        super().__init__(parent)
+        self._clients = clients
+
+    def run(self):
         try:
-            client1c.create_customer(name=fio, phone=phone, email=(cl.get("email") or "").strip())
-            created += 1
-        except Exception:
-            errors += 1
-    QMessageBox.information(self, "1С",
-                            f"Экспорт в 1С завершён.\nСоздано клиентов: {created}\nОшибок/пропущено: {errors}")
+            client1c = _make_1c_client()
+        except Exception as exc:
+            self.done.emit(0, 0, f"Ошибка настроек подключения к 1С: {exc}")
+            return
+        created, errors, total = 0, 0, len(self._clients)
+        for i, cl in enumerate(self._clients, 1):
+            fio = " ".join(x for x in [cl.get("last_name"), cl.get("first_name"), cl.get("middle_name")] if x) \
+                  or cl.get("name") or "Без имени"
+            phone = (cl.get("phone") or "").strip()
+            if phone:
+                try:
+                    client1c.create_customer(name=fio, phone=phone, email=(cl.get("email") or "").strip())
+                    created += 1
+                except Exception:
+                    errors += 1
+            else:
+                errors += 1
+            self.progress.emit(i, total)
+        self.done.emit(created, errors, "")
