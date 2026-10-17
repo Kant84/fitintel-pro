@@ -130,6 +130,7 @@ class ClientsTab(QWidget):
         fw = QWidget()
         fl = QVBoxLayout(fw)
         fscroll.setWidget(fw)
+        fscroll.setVisible(False)
         splitter.addWidget(fscroll)
 
         fl.addWidget(QLabel("Поиск:"))
@@ -230,6 +231,12 @@ class ClientsTab(QWidget):
         splitter.addWidget(right)
 
         row = QHBoxLayout()
+        self._btn_filters = QToolButton()
+        self._btn_filters.setText(" Фильтры ▾")
+        self._btn_filters.setCheckable(True)
+        self._btn_filters.setStyleSheet("QToolButton { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        self._btn_filters.toggled.connect(lambda on: (fscroll.setVisible(on), self._btn_filters.setText(" Фильтры ▴" if on else " Фильтры ▾")))
+        row.addWidget(self._btn_filters)
         row.addStretch()
         b_add = self._btn(" Добавить", "#10b981", "white"); b_add.clicked.connect(self._add)
         b_edit = self._btn(" Изменить", "#3b82f6", "white"); b_edit.clicked.connect(self._edit)
