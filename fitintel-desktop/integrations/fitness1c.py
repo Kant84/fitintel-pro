@@ -88,10 +88,14 @@ class Fitness1CClient:
     def get_club_id(self) -> str:
         if self.config.club_id:
             return self.config.club_id
+        cached = getattr(self, "_club_id_cache", None)
+        if cached:
+            return cached
         clubs = self._request("GET", "/clubs/") or []
         if not clubs:
             raise Fitness1CError(-3, "Список клубов пуст")
-        return clubs[0]["id"]
+        self._club_id_cache = clubs[0]["id"]
+        return self._club_id_cache
 
     # ---------- клиенты ----------
     def list_customers(self, changed_after: Optional[str] = None) -> list:
