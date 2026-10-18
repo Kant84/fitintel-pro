@@ -114,6 +114,9 @@ app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 app.include_router(users_router, prefix=settings.API_V1_PREFIX)
 from app.api.v1.comments import router as _comments_router
 app.include_router(_comments_router, prefix=settings.API_V1_PREFIX)
+from app.api.v1.payroll import router as payroll_router
+app.include_router(payroll_router, prefix=settings.API_V1_PREFIX)
+
 app.include_router(clients_router, prefix=settings.API_V1_PREFIX)
 app.include_router(client_history_router, prefix=settings.API_V1_PREFIX)
 app.include_router(roles_router, prefix=settings.API_V1_PREFIX)
