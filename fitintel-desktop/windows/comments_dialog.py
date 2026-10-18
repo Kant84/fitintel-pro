@@ -15,11 +15,7 @@ class CommentsDialog(QDialog):
         super().__init__(parent)
         self.api = api
         self.user_data = user_data or {}
-        roles = [r.get("code", "").lower() for r in (self.user_data.get("roles") or []) if isinstance(r, dict)]
-        if not any(r in roles for r in ("superadmin", "admin", "manager")):
-            QMessageBox.warning(self, "Доступ", "Только для руководителей")
-            self.reject()
-            return
+
         self.setModal(False)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setWindowTitle("Все комментарии")
