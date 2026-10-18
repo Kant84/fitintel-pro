@@ -115,3 +115,7 @@ tools/nssm.exe
 !tools/.gitkeep
 fitintel-desktop/export/
 export/
+
+_context_for_prompt.txt
+collect_context*.ps1
+nomenclature_1c.xml
