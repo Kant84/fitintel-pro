@@ -453,6 +453,8 @@ class ClientCard(QDialog):
         lay = self._t_notes._layout
         self._clear(lay)
         self._notes_list = QListWidget()
+        self._notes_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._notes_list.customContextMenuRequested.connect(self._notes_menu)
         lay.addWidget(self._notes_list)
         form = QHBoxLayout()
         self._note_text = QTextEdit()
@@ -485,10 +487,12 @@ class ClientCard(QDialog):
             for n in items:
                 if not isinstance(n, dict):
                     continue
-                self._notes_list.addItem(
+                it = QListWidgetItem(
                     f"{str(n.get('created_at') or '')[:16]} · "
                     f"{n.get('author_name') or '—'} · [{n.get('type') or 'NOTE'}] "
                     f"{(n.get('text') or '')[:80]}")
+                it.setData(Qt.ItemDataRole.UserRole, str(n.get("id") or ""))
+                self._notes_list.addItem(it)
             if not items:
                 self._notes_list.addItem("Заметок нет")
         except (RuntimeError, _requests.HTTPError) as e:
@@ -521,6 +525,27 @@ class ClientCard(QDialog):
         rows = [[self._notes_list.item(r).text()] for r in range(self._notes_list.count())]
         return headers, rows, "Заметки клиента"
 
+    def _notes_menu(self, pos):
+        item = self._notes_list.itemAt(pos)
+        if not item:
+            return
+        cid = item.data(Qt.ItemDataRole.UserRole)
+        if not cid:
+            return
+        menu = QMenu(self)
+        a_done = menu.addAction("Отметить выполненным")
+        a_del = menu.addAction("Удалить")
+        act = menu.exec(self._notes_list.viewport().mapToGlobal(pos))
+        try:
+            if act == a_done:
+                self.api._e55_patch(f"/comments/{cid}", {"status": "DONE"})
+                self._load_notes()
+            elif act == a_del:
+                if QMessageBox.question(self, "Заметка", "Удалить запись?") == QMessageBox.StandardButton.Yes:
+                    self.api._e55_del(f"/comments/{cid}")
+                    self._load_notes()
+        except (RuntimeError, _requests.HTTPError) as e:
+            self._show_error(e)
     # ================= Правая панель =================
     def _render_right(self):
         self._clear(self._right_layout)
