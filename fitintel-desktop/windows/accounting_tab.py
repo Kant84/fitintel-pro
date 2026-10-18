@@ -197,12 +197,12 @@ class AccountingTab(QWidget):
 
     def _load_entries(self):
         try:
-                    from datetime import date as _dd
-        import calendar as _cal
-        _first = "%d-%02d-01" % (_dd.today().year, _dd.today().month)
-        _last = "%d-%02d-%02d" % (_dd.today().year, _dd.today().month,
-                                  _cal.monthrange(_dd.today().year, _dd.today().month)[1])
-        r = _req("GET", f"/accounting/entries?date_from={_first}&date_to={_last}")
+            from datetime import date as _dd
+            import calendar as _cal
+            _first = "%d-%02d-01" % (_dd.today().year, _dd.today().month)
+            _last = "%d-%02d-%02d" % (_dd.today().year, _dd.today().month,
+                                      _cal.monthrange(_dd.today().year, _dd.today().month)[1])
+            r = _req("GET", f"/accounting/entries?date_from={_first}&date_to={_last}")
 
             rows = r.get("entries", [])
             self.ent_tbl.setRowCount(len(rows))
