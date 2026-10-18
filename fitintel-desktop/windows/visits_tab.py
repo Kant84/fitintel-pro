@@ -108,12 +108,14 @@ class VisitsTab(QWidget):
         cards.addWidget(self.lbl_week)
         cards.addWidget(self.lbl_month)
         cards.addStretch()
+        layout.addLayout(cards)
 
         self.edit_filter = QLineEdit()
         self.edit_filter.setPlaceholderText("Поиск по ФИО, телефону, статусу...")
         self.edit_filter.setStyleSheet(
             "QLineEdit { border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; min-width: 260px; }")
         self.edit_filter.textChanged.connect(self._filter)
+        toolbar = QHBoxLayout()
         toolbar.addWidget(self.edit_filter)
 
         # === КНОПКИ ОПЕРАТОРА ===
