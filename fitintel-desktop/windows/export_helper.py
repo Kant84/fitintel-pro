@@ -318,7 +318,7 @@ def _save_one(parent, fmt, headers, rows, title):
         QMessageBox.warning(parent, "Сохранить", str(e)[:200])
 
 
-def make_save_menu_button(parent, on_format, label=" Сохранить в формате", with_1c=False):
+def make_save_menu_button(parent, on_format, label=" Сохранить в формате", with_1c=True):
     """Зелёная кнопка с выпадающим меню форматов. on_format(fmt) — обработчик."""
     from PyQt6.QtWidgets import QToolButton, QMenu
     btn = QToolButton()
@@ -332,7 +332,7 @@ def make_save_menu_button(parent, on_format, label=" Сохранить в фо�
         act = menu.addAction(txt)
         act.triggered.connect(lambda _, f=fmt: on_format(f))
     if with_1c:
-        act1c = menu.addAction("1С (контрагенты)")
+        act1c = menu.addAction("1С (CommerceML)")
         act1c.triggered.connect(lambda _: on_format("1c"))
     btn.setMenu(menu)
     return btn
@@ -411,7 +411,12 @@ def install_export_panel(widget, title=None, formats=("xlsx", "pdf", "csv", "jso
         except (RuntimeError, Exception) as e:
             QMessageBox.warning(widget, "Экспорт", str(e)[:200])
 
-    btn = make_save_menu_button(widget, lambda fmt: _save_one(widget, fmt, *_table_data(tbl), title))
+def _on(fmt):
+        if fmt == "1c":
+            export_nomenclature_1c(widget)
+            return
+        _save_one(widget, fmt, *_table_data(tbl), title)
+    btn = make_save_menu_button(widget, _on)
     hb = QHBoxLayout()
     hb.addStretch()
     hb.addWidget(btn)
