@@ -1602,6 +1602,7 @@ def install_f1(widget, key: str):
     """Включает F1 в любом QDialog: показывает HELP_TEXTS[key]."""
     from PyQt6.QtWidgets import QWidget as _QW
     def _kp(event):
+        from PyQt6.QtCore import Qt
         if event.key() == Qt.Key.Key_F1:
             show_help_text(widget, key)
         else:
