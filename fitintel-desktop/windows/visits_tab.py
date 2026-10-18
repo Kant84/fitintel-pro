@@ -247,7 +247,7 @@ def _fill_churn(data):
 _w = _CW()
 _w.done.connect(_fill_churn)
 _w.start()
-        self._render(self._all_data)   # <-- отсортированный список, а не исходный visits
+        self._render(self._all_data)
 
     def _render(self, rows: list):
         self._visible = rows
@@ -271,7 +271,7 @@ _w.start()
 
     def _filter(self, text: str):
         if not text:
-            self._render(self._all_data)
+        self._render(self._all_data)
             return
         t = text.lower()
         filtered = []
