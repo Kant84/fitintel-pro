@@ -9,7 +9,8 @@ from PyQt6.QtCore import Qt
 
 def _base():
     try:
-        cfg = json.load(open("client_settings.json", encoding="utf-8"))
+        from paths import SETTINGS
+            cfg = json.load(open(SETTINGS, encoding="utf-8"))
         return cfg.get("api_base") or cfg.get("base_url") or "http://localhost:8001/api/v1"
     except Exception:
         return "http://localhost:8001/api/v1"
@@ -17,7 +18,8 @@ def _base():
 
 def _token():
     try:
-        cfg = json.load(open("client_settings.json", encoding="utf-8"))
+        from paths import SETTINGS
+            cfg = json.load(open(SETTINGS, encoding="utf-8"))
         r = urllib.request.Request(_base() + "/auth/login",
             data=json.dumps({"login": cfg.get("saved_login"), "password": cfg.get("saved_password")}).encode(),
             headers={"Content-Type": "application/json"})
