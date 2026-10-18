@@ -114,7 +114,7 @@ class VisitsTab(QWidget):
         self.edit_filter.setStyleSheet(
             "QLineEdit { border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; min-width: 260px; }")
         self.edit_filter.textChanged.connect(self._filter)
-        cards.addWidget(self.edit_filter)
+        toolbar.addWidget(self.edit_filter)
 
         # === КНОПКИ ОПЕРАТОРА ===
         btn_in = QPushButton(" Впустить")
@@ -122,31 +122,31 @@ class VisitsTab(QWidget):
                           "Команда на турникет — с v1.6")
         btn_in.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         btn_in.clicked.connect(self._checkin)
-        cards.addWidget(btn_in)
+        toolbar.addWidget(btn_in)
 
         btn_out = QPushButton(" Выпустить")
         btn_out.setToolTip("Открыть выход: закрыть выбранный активный визит")
         btn_out.setStyleSheet("QPushButton { background: #ef4444; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
         btn_out.clicked.connect(self._checkout)
-        cards.addWidget(btn_out)
+        toolbar.addWidget(btn_out)
 
         btn_close = QPushButton("Завершить")
         btn_close.setToolTip("Принудительно закрыть выбранный визит (без открытия турникета)")
         btn_close.setStyleSheet(self._btn_secondary())
         btn_close.clicked.connect(self._complete_selected)
-        cards.addWidget(btn_close)
+        toolbar.addWidget(btn_close)
         # =======================
 
         btn = QPushButton("Обновить")
         btn.setStyleSheet(self._btn_secondary())
         btn.clicked.connect(self.refresh)
-        cards.addWidget(btn)
+        toolbar.addWidget(btn)
 
         self.chk_staff_qr = QCheckBox(" QR для сотрудников (служебный пропуск)")
         self.chk_staff_qr.setToolTip("Когда включено, сотрудники проходят по входному QR без абонемента")
         self.chk_staff_qr.stateChanged.connect(self._toggle_staff_qr)
-        cards.addWidget(self.chk_staff_qr)
-        layout.addLayout(cards)
+        toolbar.addWidget(self.chk_staff_qr)
+        layout.addLayout(toolbar)
         self.load_staff_qr_toggle()
 
         self.table = QTableWidget()
@@ -225,6 +225,19 @@ class VisitsTab(QWidget):
         self._card(self.lbl_today, "Сегодня", stats.get("today", stats.get("today_count", 0)))
         self._card(self.lbl_week, "Неделя", stats.get("week", stats.get("week_count", 0)))
         self._card(self.lbl_month, "Месяц", stats.get("month", stats.get("month_count", 0)))
+        from datetime import datetime as _dtm
+        _cur = _dtm.now().strftime("%Y-%m")
+        def _fill_churn(data):
+            for x in data:
+                if str(x.get("period", "")).startswith(_cur):
+                    self._card(self.lbl_new_month, "Новых в месяц", x.get("new", 0))
+                    self._card(self.lbl_lost_month, "Ушедших в месяц", x.get("lost", 0))
+                    return
+            self._card(self.lbl_new_month, "Новых в месяц", 0)
+            self._card(self.lbl_lost_month, "Ушедших в месяц", 0)
+        self._churn_worker = _ChurnWorker(self.api)
+        self._churn_worker.done.connect(_fill_churn)
+        self._churn_worker.start()
         self._render(self._all_data)
 
     def _render(self, rows: list):
