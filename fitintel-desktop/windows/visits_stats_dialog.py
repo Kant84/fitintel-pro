@@ -70,13 +70,35 @@ class VisitsStatsDialog(QDialog):
         b_csv.setStyleSheet("QPushButton { background: #f1f5f9; color: #475569; "
                             "border: 1px solid #cbd5e1; border-radius: 6px; "
                             "padding: 6px 12px; font-weight: 600; }")
-        b_csv.clicked.connect(lambda: QMessageBox.information(self, "Экспорт", "Экспорт CSV в разработке"))
+        b_csv.clicked.connect(self._export_csv)
         bottom.addWidget(b_csv)
         b_close = QPushButton("Закрыть")
         b_close.clicked.connect(self.accept)
         bottom.addWidget(b_close)
         v.addLayout(bottom)
 
+    def _export_csv(self):
+        from PyQt6.QtWidgets import QFileDialog
+        import csv as _csv
+        w = self._tabs.currentWidget()
+        tbl = w.findChild(QTableWidget) if w else None
+        if tbl is None or tbl.rowCount() == 0:
+            QMessageBox.information(self, "Экспорт", "Нет данных")
+            return
+        name = self._tabs.tabText(self._tabs.currentIndex())
+        path, _ = QFileDialog.getSaveFileName(self, "Экспорт CSV", f"{name}.csv", "CSV (*.csv)")
+        if not path:
+            return
+        try:
+            with open(path, "w", newline="", encoding="utf-8-sig") as fh:
+                wr = _csv.writer(fh, delimiter=";")
+                wr.writerow([tbl.horizontalHeaderItem(i).text() for i in range(tbl.columnCount())])
+                for r in range(tbl.rowCount()):
+                    wr.writerow([tbl.item(r, c).text() if tbl.item(r, c) else ""
+                                 for c in range(tbl.columnCount())])
+            QMessageBox.information(self, "Экспорт", f"Сохранено: {path}")
+        except Exception as e:
+            QMessageBox.warning(self, "Экспорт", str(e)[:200])
     def _make_tab(self, title):
         w = QWidget()
         lay = QVBoxLayout(w)
