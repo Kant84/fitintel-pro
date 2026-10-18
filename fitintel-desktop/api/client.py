@@ -749,5 +749,3 @@ def delete_face_template(self, tid):
 
 setattr(ApiClient, "delete_face_template", delete_face_template)
 
-ApiClient._e55_patch = _e55_patch
-ApiClient._e55_del = _e55_del
