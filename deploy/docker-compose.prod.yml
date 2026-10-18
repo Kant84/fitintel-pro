@@ -30,6 +30,7 @@ services:
     env_file: .env
     environment:
       APP_ENV: prod
+      ACCOUNTING_DB: /app/data_accounting/fitintel_accounting.db
       APP_DEBUG: "false"
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
@@ -48,7 +49,7 @@ services:
       - static_products:/app/static/products
       - static_scan:/app/static/scan
       - static_brand:/app/static/brand
-      - accounting_data:/app/fitintel_accounting.db
+      - accounting_data:/app/data_accounting
       - face_photos:/app/data/face_photos   # опциональное хранение фото лиц (если клуб включил)
     depends_on:
       db:

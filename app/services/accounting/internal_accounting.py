@@ -34,8 +34,9 @@ class InternalAccounting:
     99   - Прибыли и убытки
     """
 
-    def __init__(self, db_path: str = "fitintel_accounting.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        import os as _os
+        self.db_path = db_path or _os.environ.get("ACCOUNTING_DB", "fitintel_accounting.db")
         self._init_db()
 
     def _init_db(self):
