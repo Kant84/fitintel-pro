@@ -66,11 +66,11 @@ class VisitsStatsDialog(QDialog):
 
         bottom = QHBoxLayout()
         bottom.addStretch(1)
-        b_csv = QPushButton("Экспорт CSV")
+        b_csv = QPushButton(" Сохранить (XLSX+PDF+CSV+JSON)")
         b_csv.setStyleSheet("QPushButton { background: #f1f5f9; color: #475569; "
                             "border: 1px solid #cbd5e1; border-radius: 6px; "
                             "padding: 6px 12px; font-weight: 600; }")
-        b_csv.clicked.connect(self._export_csv)
+        b_csv.clicked.connect(self._save_all_formats)
         bottom.addWidget(b_csv)
         b_close = QPushButton("Закрыть")
         b_close.clicked.connect(self.accept)
@@ -99,6 +99,21 @@ class VisitsStatsDialog(QDialog):
             QMessageBox.information(self, "Экспорт", f"Сохранено: {path}")
         except Exception as e:
             QMessageBox.warning(self, "Экспорт", str(e)[:200])
+    def _save_all_formats(self):
+        w = self._tabs.currentWidget()
+        tbl = w.findChild(QTableWidget) if w else None
+        if tbl is None or tbl.rowCount() == 0:
+            QMessageBox.information(self, "Сохранить", "Нет данных")
+            return
+        from windows.export_helper import save_all_formats
+        headers = [tbl.horizontalHeaderItem(i).text() for i in range(tbl.columnCount())]
+        rows = [[tbl.item(r, c).text() if tbl.item(r, c) else ""
+                 for c in range(tbl.columnCount())] for r in range(tbl.rowCount())]
+        title = self._tabs.tabText(self._tabs.currentIndex())
+        try:
+            save_all_formats(self, headers, rows, title)
+        except Exception as e:
+            QMessageBox.warning(self, "Сохранить", str(e)[:200])
     def _make_tab(self, title):
         w = QWidget()
         lay = QVBoxLayout(w)

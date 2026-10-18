@@ -608,3 +608,26 @@ try:
     print("EXPORT panels OK:", __name__)
 except Exception as _e:
     print("EXPORT panels FAIL:", _e)
+
+# === скрыть лишнюю кнопку «В PDF» (E63 дублирует наш Сохранить) ===
+try:
+    import inspect as _i
+    from PyQt6.QtWidgets import QWidget as _W, QPushButton as _PB
+    for _n, _o in list(globals().items()):
+        if (_i.isclass(_o) and issubclass(_o, _W)
+                and getattr(_o, "__module__", "") == __name__ and not _n.startswith("_")):
+            _oi = _o.__init__
+            def _mk(orig):
+                def _ii(self, *a, **k):
+                    orig(self, *a, **k)
+                    try:
+                        for b in self.findChildren(_PB):
+                            if "PDF" in b.text() and "Сохранить" not in b.text():
+                                b.setVisible(False)
+                    except Exception:
+                        pass
+                return _ii
+            _o.__init__ = _mk(_oi)
+    print("PDF cleanup OK: payments_tab")
+except Exception as _e:
+    print("PDF cleanup FAIL:", _e)
