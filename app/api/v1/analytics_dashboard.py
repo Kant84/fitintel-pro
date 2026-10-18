@@ -194,3 +194,97 @@ def analytics_dashboard_chart(
 </html>'''
     
     return html
+
+# ---------- Полная статистика клуба за период (dashboard W7) ----------
+@router.get("/full-stats")
+def analytics_full_stats(date_from: str = None, date_to: str = None,
+                         db: Session = Depends(get_db)):
+    """Все агрегаты для аналитического дашборда одним запросом."""
+    from sqlalchemy import text as _text
+    from datetime import date as _date, timedelta as _td
+
+    t = _date.today()
+    d_to = date_to or t.isoformat()
+    d_from = date_from or (t - _td(days=30)).isoformat()
+    P = {"f": d_from, "t": d_to}
+
+    def q(sql):
+        try:
+            rows = db.execute(_text(sql), P).all()
+            return [dict(r._mapping) for r in rows]
+        except Exception as e:
+            return [{"error": str(e)[:140]}]
+
+    def probe(table_cands):
+        for tbl in table_cands:
+            cols = db.execute(_text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name=:t"),
+                {"t": tbl}).scalars().all()
+            if cols:
+                return tbl, set(cols)
+        return None, set()
+
+    out = {"period": {"from": d_from, "to": d_to}}
+
+    out["visits_by_day"] = q(
+        "SELECT entry_time::date AS d, COUNT(*) AS cnt FROM visits "
+        "WHERE entry_time::date BETWEEN :f AND :t GROUP BY 1 ORDER BY 1")
+    out["revenue_by_day"] = q(
+        "SELECT created_at::date AS d, COALESCE(SUM(amount),0) AS total, COUNT(*) AS cnt "
+        "FROM payments WHERE created_at::date BETWEEN :f AND :t AND status='COMPLETED' "
+        "GROUP BY 1 ORDER BY 1")
+    out["new_clients_by_day"] = q(
+        "SELECT created_at::date AS d, COUNT(*) AS cnt FROM clients "
+        "WHERE created_at::date BETWEEN :f AND :t GROUP BY 1 ORDER BY 1")
+    out["lost_clients_by_day"] = q(
+        "SELECT updated_at::date AS d, COUNT(*) AS cnt FROM clients "
+        "WHERE updated_at::date BETWEEN :f AND :t AND status IN ('INACTIVE','ARCHIVED') "
+        "GROUP BY 1 ORDER BY 1")
+    out["subs_by_day"] = q(
+        "SELECT s.created_at::date AS d, COUNT(*) AS cnt, COALESCE(SUM(tar.price),0) AS total "
+        "FROM subscriptions s LEFT JOIN tariffs tar ON tar.id = s.tariff_id "
+        "WHERE s.created_at::date BETWEEN :f AND :t GROUP BY 1 ORDER BY 1")
+    out["visits_wd_hour"] = q(
+        "SELECT (EXTRACT(ISODOW FROM entry_time)::int - 1) AS wd, "
+        "EXTRACT(HOUR FROM entry_time)::int AS hr, COUNT(*) AS cnt FROM visits "
+        "WHERE entry_time::date BETWEEN :f AND :t GROUP BY 1,2 ORDER BY 1,2")
+
+    # востребованность услуг (записи)
+    tbl, cols = probe(["bookings", "service_bookings", "appointments", "schedules"])
+    top_services = []
+    if tbl and cols:
+        name_col = next((c for c in ("service_name", "name", "title", "service") if c in cols), None)
+        date_col = next((c for c in ("date", "created_at", "start_time", "scheduled_at") if c in cols), None)
+        if name_col and date_col:
+            top_services = q(
+                f"SELECT {name_col} AS name, COUNT(*) AS cnt FROM {tbl} "
+                f"WHERE {date_col}::date BETWEEN :f AND :t GROUP BY 1 ORDER BY 2 DESC LIMIT 10")
+    out["top_services"] = top_services
+
+    # тренеры (из тех же записей)
+    top_trainers = []
+    if tbl and cols:
+        tr_col = next((c for c in ("trainer_name", "trainer", "trainer_id", "employee_name") if c in cols), None)
+        date_col = next((c for c in ("date", "created_at", "start_time", "scheduled_at") if c in cols), None)
+        if tr_col and date_col:
+            top_trainers = q(
+                f"SELECT CAST({tr_col} AS TEXT) AS name, COUNT(*) AS cnt FROM {tbl} "
+                f"WHERE {date_col}::date BETWEEN :f AND :t GROUP BY 1 ORDER BY 2 DESC LIMIT 10")
+    out["top_trainers"] = top_trainers
+
+    # товары (продажи)
+    tbl2, cols2 = probe(["sales", "warehouse_sales", "product_sales"])
+    top_products = []
+    if tbl2 and cols2:
+        name_col = next((c for c in ("product_name", "name", "title", "item", "product") if c in cols2), None)
+        date_col = next((c for c in ("created_at", "date", "sold_at") if c in cols2), None)
+        amount_col = next((c for c in ("amount", "total", "price", "sum") if c in cols2), None)
+        if name_col and date_col and amount_col:
+            top_products = q(
+                f"SELECT CAST({name_col} AS TEXT) AS name, COUNT(*) AS cnt, "
+                f"COALESCE(SUM({amount_col}),0) AS total FROM {tbl2} "
+                f"WHERE {date_col}::date BETWEEN :f AND :t GROUP BY 1 "
+                f"ORDER BY 3 DESC LIMIT 10")
+    out["top_products"] = top_products
+
+    return out
