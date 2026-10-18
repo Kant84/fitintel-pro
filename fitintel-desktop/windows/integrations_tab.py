@@ -377,3 +377,56 @@ class IntegrationsTab(QWidget):
     def _connectors_tab(self):
         from windows.connectors_tab import ConnectorsTab
         return ConnectorsTab(self.api, self)
+
+# === авто-refresh токена при 401 (паритет с E70 для urllib-вызовов) ===
+try:
+    import json as _json
+    import urllib.request as _uq
+    import urllib.error as _ue
+    from paths import SETTINGS as _SETTINGS
+    import inspect as _i
+
+    def _refresh_settings_token():
+        try:
+            cfg = _json.load(open(_SETTINGS, encoding="utf-8"))
+            rt = cfg.get("refresh_token")
+            if not rt:
+                return None
+            req = _uq.Request(cfg["api_base"] + "/auth/refresh",
+                              data=_json.dumps({"refresh_token": rt}).encode(),
+                              headers={"Content-Type": "application/json"})
+            resp = _json.load(_uq.urlopen(req, timeout=10))
+            cfg["token"] = resp["access_token"]
+            if resp.get("refresh_token"):
+                cfg["refresh_token"] = resp["refresh_token"]
+            _json.dump(cfg, open(_SETTINGS, "w", encoding="utf-8"),
+                       ensure_ascii=False, indent=2)
+            return cfg["token"]
+        except Exception:
+            return None
+
+    for _n, _o in list(globals().items()):
+        if (_i.isclass(_o) and hasattr(_o, "_req")
+                and getattr(_o, "__module__", "") == __name__):
+            _orig_req = _o._req
+            def _mk_req(orig):
+                def _req(self, method, path, data=None):
+                    try:
+                        return orig(self, method, path, data)
+                    except _ue.HTTPError as e:
+                        if e.code != 401:
+                            raise
+                        tok = _refresh_settings_token()
+                        if not tok:
+                            raise
+                        try:
+                            self.api.set_token(tok)
+                        except Exception:
+                            pass
+                        return orig(self, method, path, data)
+                return _req
+            _o._req = _mk_req(_orig_req)
+            print("401-refresh OK:", __name__)
+            break
+except Exception as _e:
+    print("401-refresh FAIL:", _e)
