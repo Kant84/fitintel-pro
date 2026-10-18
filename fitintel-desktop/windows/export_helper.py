@@ -1,8 +1,16 @@
 # -*- coding: utf-8 -*-
 """Экспорт таблиц: XLSX / PDF (DejaVu) / обёртки 1С."""
 import windows.theme as theme
-from paths import ASSETS
+from paths import ASSETS, APP_DIR
 from app_logging import log
+
+
+def _safe_name(s: str) -> str:
+    """Имя файла без запрещённых символов (для export/)."""
+    import re as _re
+    s = _re.sub(r'[\\/:*?"<>|]', " ", str(s or "export"))
+    s = _re.sub(r"\s+", " ", s).strip().strip(".")
+    return (s or "export")[:80]
 
 
 def export_table_xlsx(parent, headers, rows, filename, title=""):
@@ -14,8 +22,10 @@ def export_table_xlsx(parent, headers, rows, filename, title=""):
     except ImportError:
         QMessageBox.warning(parent, "XLSX", "Не установлен openpyxl")
         return
+    export_dir = APP_DIR / "export"
+    export_dir.mkdir(parents=True, exist_ok=True)
     path, _ = QFileDialog.getSaveFileName(
-        parent, "Сохранить XLSX", f"{filename}_{datetime.now():%Y%m%d}.xlsx", "Excel (*.xlsx)")
+        parent, "Сохранить XLSX", str(export_dir / f"{_safe_name(title or filename)}.xlsx"), "Excel (*.xlsx)")
     if not path:
         return
     try:
@@ -74,8 +84,10 @@ def export_table_pdf(parent, headers, rows, filename, title=""):
         QMessageBox.warning(parent, "PDF", "Не установлен reportlab")
         return
     pdfmetrics.registerFont(TTFont("DejaVu", str(ttf_path)))
+    export_dir = APP_DIR / "export"
+    export_dir.mkdir(parents=True, exist_ok=True)
     path, _ = QFileDialog.getSaveFileName(
-        parent, "Сохранить PDF", f"{filename}_{datetime.now():%Y%m%d}.pdf", "PDF (*.pdf)")
+        parent, "Сохранить PDF", str(export_dir / f"{_safe_name(title or filename)}.pdf"), "PDF (*.pdf)")
     if not path:
         return
     try:
