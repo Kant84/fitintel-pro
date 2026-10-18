@@ -130,6 +130,11 @@ class EmployeeCard(QDialog):
         avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         avatar.setStyleSheet("background: #3b82f6; color: white; font-size: 48px; border-radius: 90px;")
         self._left_layout.addWidget(avatar, 0, Qt.AlignmentFlag.AlignHCenter)
+        b_photo = QPushButton("Сменить фото")
+        b_photo.clicked.connect(self._change_photo)
+        self._left_layout.addWidget(b_photo)
+        self._load_avatar(avatar)
+
         lbl = QLabel(self._fio())
         f = lbl.font(); f.setBold(True); f.setPointSize(14)
         lbl.setFont(f); lbl.setWordWrap(True)
@@ -150,6 +155,36 @@ class EmployeeCard(QDialog):
         self._left_layout.addWidget(b2)
         self._left_layout.addStretch(1)
 
+    def _load_avatar(self, avatar):
+        try:
+            url = self.api._url("/static/staff/%s.jpg" % self.user_id)
+            r = self.api.session.get(url, timeout=8)
+            if r.status_code == 200 and r.content:
+                import tempfile
+                import os as _os
+                from PyQt6.QtGui import QPixmap
+                tmp = _os.path.join(tempfile.gettempdir(), "fitintel_staff_%s.jpg" % self.user_id)
+                with open(tmp, "wb") as fh:
+                    fh.write(r.content)
+                avatar.setPixmap(QPixmap(tmp).scaled(
+                    180, 180, Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation))
+        except Exception:
+            pass
+
+    def _change_photo(self):
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(self, "Фото сотрудника", "", "Images (*.jpg *.jpeg *.png)")
+        if not path:
+            return
+        try:
+            with open(path, "rb") as fh:
+                r = self.api.session.post(self.api._url("/users/%s/photo" % self.user_id),
+                                          files={"file": ("photo.jpg", fh, "image/jpeg")}, timeout=30)
+            r.raise_for_status()
+            self._render_left()
+        except Exception as e:
+            QMessageBox.warning(self, "Фото", str(e)[:200])
     def _render_main(self):
         lay = self._t_main._layout
         while lay.count():

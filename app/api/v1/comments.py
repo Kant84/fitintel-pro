@@ -3,7 +3,7 @@
 from typing import Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import text as _text
 from sqlalchemy.orm import Session
@@ -163,3 +163,25 @@ def delete_comment(comment_id: UUID,
     if not r:
         raise HTTPException(404, "Комментарий не найден")
     return {"ok": True}
+
+# ---------- фото сотрудника ----------
+@router.post("/users/{user_id}/photo")
+async def upload_user_photo(user_id: UUID, file: UploadFile = File(...),
+                            current_user=Depends(require_permission("users.update")),
+                            db: Session = Depends(get_db)):
+    import io as _io
+    import os as _os
+    from PIL import Image as _Image
+    from sqlalchemy import text as _text
+    if not db.execute(_text("SELECT 1 FROM users WHERE id=:i"), {"i": str(user_id)}).first():
+        raise HTTPException(404, "Пользователь не найден")
+    raw = await file.read()
+    try:
+        img = _Image.open(_io.BytesIO(raw)).convert("RGB")
+    except Exception:
+        raise HTTPException(400, "Файл не является изображением")
+    img.thumbnail((600, 600))
+    _os.makedirs("static/staff", exist_ok=True)
+    dest = "static/staff/%s.jpg" % user_id
+    img.save(dest, "JPEG", quality=85)
+    return {"ok": True, "url": "/static/staff/%s.jpg" % user_id}
