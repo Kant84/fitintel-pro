@@ -134,13 +134,8 @@ class UsersTab(QWidget):
 
         hb = QHBoxLayout()
         hb.addStretch()
-        for fmt, label in [("xlsx", "XLSX"), ("pdf", "PDF"), ("csv", "CSV"), ("json", "JSON")]:
-            b = QPushButton(label)
-            b.setStyleSheet("QPushButton { background: #f1f5f9; color: #475569; "
-                            "border: 1px solid #cbd5e1; border-radius: 6px; "
-                            "padding: 6px 12px; font-weight: 600; }")
-            b.clicked.connect(lambda _, f=fmt: self._export(f))
-            hb.addWidget(b)
+        from windows.export_helper import make_save_menu_button
+        hb.addWidget(make_save_menu_button(self, self._export))
         rl.addLayout(hb)
 
         splitter.setStretchFactor(1, 1)
@@ -371,3 +366,26 @@ try:
     print("E63 print OK: users_tab.py")
 except Exception as e:
     print("E63 FAIL:", e)
+
+# === скрыть лишнюю кнопку «В PDF» (E63) ===
+try:
+    import inspect as _i
+    from PyQt6.QtWidgets import QWidget as _W, QPushButton as _PB
+    for _n, _o in list(globals().items()):
+        if (_i.isclass(_o) and issubclass(_o, _W)
+                and getattr(_o, "__module__", "") == __name__ and not _n.startswith("_")):
+            _oi = _o.__init__
+            def _mk(orig):
+                def _ii(self, *a, **k):
+                    orig(self, *a, **k)
+                    try:
+                        for b in self.findChildren(_PB):
+                            if "PDF" in b.text() and "Сохранить" not in b.text():
+                                b.setVisible(False)
+                    except Exception:
+                        pass
+                return _ii
+            _o.__init__ = _mk(_oi)
+    print("PDF cleanup OK: users_tab")
+except Exception as _e:
+    print("PDF cleanup FAIL:", _e)
