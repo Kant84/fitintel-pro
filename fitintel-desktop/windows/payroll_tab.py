@@ -102,6 +102,11 @@ class PayrollTab(QWidget):
         b_save_acc = QPushButton(" Сохранить начисления")
         b_save_acc.setStyleSheet("background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600;")
         b_save_acc.clicked.connect(self._save_acc)
+        b_pay = QPushButton(" Выплачено")
+        b_pay.setStyleSheet("QPushButton { background: #f59e0b; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        b_pay.clicked.connect(self._zp_pay)
+        fa.addRow(b_pay)
+
         fa.addRow(b_save_acc)
         lay.addWidget(gb_acc)
 
@@ -302,6 +307,23 @@ class PayrollTab(QWidget):
             QMessageBox.warning(self, "ЗП", str(e)[:200])
 
     # ---------- расчёт ----------
+    def _zp_pay(self):
+        uid = self._current_user()
+        if not uid:
+            QMessageBox.information(self, "ЗП", "Выберите сотрудника")
+            return
+        amount, ok = QInputDialog.getDouble(self, "Выплата ЗП", "Сумма выплаты, ₽:",
+                                             float(self._adv.value()), 0, 100000000, 2)
+        if not ok:
+            return
+        payload = {"period": self._month.currentData(), "amount": float(amount)}
+        try:
+            r = self.api.session.post(self.api._url("/payroll/monthly/pay?user_id=%s" % uid),
+                                      json=payload, timeout=30)
+            r.raise_for_status()
+            QMessageBox.information(self, "ЗП", "Выплата зафиксирована: %s ₽ (%s)" % (amount, self._month.currentData()))
+        except Exception as e:
+            QMessageBox.warning(self, "ЗП", str(e)[:200])
     def _load_calc(self):
         if not hasattr(self, "_tbl"):
             return
