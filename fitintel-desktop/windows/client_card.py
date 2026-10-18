@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal, QDate
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QSplitter, QScrollArea, QTabWidget, QWidget, QFormLayout, QGridLayout,
-    QFrame, QTableWidget, QTableWidgetItem, QHeaderView, QListWidget, QTextEdit,
+    QFrame, QTableWidget, QTableWidgetItem, QHeaderView, QListWidget, QListWidgetItem, QTextEdit,
     QDateEdit, QMenu, QInputDialog, QMessageBox, QAbstractItemView)
 from windows.icons import icon as _icon, polish as _polish
 from app_logging import log
