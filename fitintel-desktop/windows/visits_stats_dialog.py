@@ -107,6 +107,10 @@ class VisitsStatsDialog(QDialog):
         rows = [[tbl.item(r, c).text() if tbl.item(r, c) else ""
                  for c in range(tbl.columnCount())] for r in range(tbl.rowCount())]
         title = self._tabs.tabText(self._tabs.currentIndex())
+        if fmt == "1cml":
+            from windows.export_helper import export_1c_commerceml
+            export_1c_commerceml(self)
+            return
         if fmt == "1c":
             from windows.export_helper import export_1c_xml
             export_1c_xml(self)

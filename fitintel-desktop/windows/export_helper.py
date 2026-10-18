@@ -415,6 +415,9 @@ def install_export_panel(widget, title=None, formats=("xlsx", "pdf", "csv", "jso
         if fmt == "1c":
             export_1c_xml(widget)
             return
+        if fmt == "1cml":
+            export_1c_commerceml(widget)
+            return
         _save_one(widget, fmt, *_table_data(tbl), title)
     btn = make_save_menu_button(widget, _on)
 
@@ -444,7 +447,7 @@ def export_1c_xml(parent, title="export_1c"):
         except Exception:
             clients = []
         try:
-            r = api._e55_get("/payments/") or {}
+            r = api._e55_get("/sales/") or {}
             sales = r.get("items", []) if isinstance(r, dict) else (r if isinstance(r, list) else [])
         except Exception:
             sales = []
@@ -462,12 +465,12 @@ def export_1c_xml(parent, title="export_1c"):
     L.append('  </Clients>')
     L.append('  <Sales>')
     for s in sales[:5000]:
-        amt = s.get("amount") or s.get("sum") or 0
+        amt = s.get("amount") or s.get("total") or s.get("price") or s.get("sum") or 0
         L.append('    <Sale>')
         L.append('      <ExternalId>%s</ExternalId>' % escape(str(s.get("id"))))
         L.append('      <Date>%s</Date>' % escape(str(s.get("created_at") or s.get("date") or "")[:10]))
         L.append('      <ClientExternalId>%s</ClientExternalId>' % escape(str(s.get("client_id") or "")))
-        L.append('      <ProductName>%s</ProductName>' % escape(str(s.get("category") or s.get("description") or s.get("comment") or "Услуга")))
+        L.append('      <ProductName>%s</ProductName>' % escape(str(s.get("category") or s.get("title") or s.get("name") or s.get("description") or s.get("comment") or "Услуга")))
         L.append('      <Quantity>1</Quantity>')
         L.append('      <Price>%s</Price>' % escape(str(amt)))
         L.append('      <Total>%s</Total>' % escape(str(amt)))
@@ -479,3 +482,30 @@ def export_1c_xml(parent, title="export_1c"):
         fh.write("\n".join(L))
     QMessageBox.information(parent, "1С (XML)",
         "Сохранено: %s\nКлиентов: %d, продаж: %d" % (path, len(clients), len(sales)))
+
+def export_1c_commerceml(parent):
+    """1С CommerceML с сервера: catalog/contragents/documents -> export/1c_*.xml."""
+    from PyQt6.QtWidgets import QMessageBox
+    from paths import APP_DIR
+    api = getattr(parent, "api", None)
+    if api is None:
+        QMessageBox.warning(parent, "1С (CommerceML)", "Нет API-клиента")
+        return
+    d = APP_DIR / "export"
+    d.mkdir(parents=True, exist_ok=True)
+    saved, errors = [], []
+    for name, path in [("catalog", "/accounting/1c/export-catalog"),
+                       ("contragents", "/accounting/1c/export-contragents"),
+                       ("documents", "/accounting/1c/export-documents")]:
+        try:
+            r = api.session.get(api._url(path), timeout=60)
+            r.raise_for_status()
+            p = d / ("1c_%s.xml" % name)
+            p.write_bytes(r.content)
+            saved.append(str(p))
+        except Exception as e:
+            errors.append("%s: %s" % (name, str(e)[:120]))
+    msg = "Сохранено:\n" + "\n".join(saved) if saved else "Ничего не сохранено"
+    if errors:
+        msg += "\n\nОшибки:\n" + "\n".join(errors)
+    (QMessageBox.warning if not saved else QMessageBox.information)(parent, "1С (CommerceML)", msg)
