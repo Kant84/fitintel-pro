@@ -46,6 +46,8 @@ class ClientCard(QDialog):
         subs_ready = pyqtSignal(list)
         visits_ready = pyqtSignal(list)
         tariffs_ready = pyqtSignal(list)
+        classes_ready = pyqtSignal(list)
+        goods_ready = pyqtSignal(list)
         error = pyqtSignal(str)
 
         def __init__(self, api, client_id):
@@ -70,6 +72,27 @@ class ClientCard(QDialog):
                 visits = resp.get("items", []) if isinstance(resp, dict) else []
                 self.visits_ready.emit(visits)
                 self.tariffs_ready.emit(self.api.get_tariffs())
+                try:
+                    r = self.api._e55_get(f"/services/bookings/client/{self.client_id}") or {}
+                    classes = r.get("items", []) if isinstance(r, dict) else (r if isinstance(r, list) else [])
+                except Exception:
+                    classes = []
+                self.classes_ready.emit(classes)
+                goods = []
+                try:
+                    r = self.api._e55_get("/warehouse/bar/sales") or {}
+                    items = r.get("items", []) if isinstance(r, dict) else (r if isinstance(r, list) else [])
+                    goods += [g for g in items if str(g.get("client_id")) == str(self.client_id)]
+                except Exception:
+                    pass
+                try:
+                    r = self.api._e55_get("/sales/") or {}
+                    items = r.get("items", []) if isinstance(r, dict) else (r if isinstance(r, list) else [])
+                    goods += [g for g in items if str(g.get("client_id")) == str(self.client_id)]
+                except Exception:
+                    pass
+                self.goods_ready.emit(goods)
+
             except Exception as e:
                 self.error.emit(str(e))
 
@@ -79,6 +102,8 @@ class ClientCard(QDialog):
         self._loader.subs_ready.connect(self._on_subs)
         self._loader.visits_ready.connect(self._on_visits)
         self._loader.tariffs_ready.connect(self._on_tariffs)
+        self._loader.classes_ready.connect(self._on_classes)
+        self._loader.goods_ready.connect(self._on_goods)
         self._loader.error.connect(
             lambda m: QMessageBox.warning(self, "Ошибка загрузки", str(m)[:300]))
         self._loader.start()
@@ -127,6 +152,9 @@ class ClientCard(QDialog):
         self._t_visits = self._add_tab("История визитов")
         self._t_stats = self._add_tab("Статистика посещений")
         self._t_notes = self._add_tab("Комментарии")
+        self._t_classes = self._add_tab("Занятия")
+        self._t_trainers = self._add_tab("Тренеры")
+        self._t_goods = self._add_tab("Товары")
         self._render_notes()
 
     def _side_panel(self):
@@ -560,6 +588,141 @@ class ClientCard(QDialog):
             self._load()
         except (RuntimeError, _requests.HTTPError) as e:
             self._show_error(e)
+    def _on_classes(self, items):
+        self._classes = items or []
+        self._render_classes()
+        self._render_trainers()
+
+    def _on_goods(self, items):
+        self._goods = items or []
+        self._render_goods()
+
+    @staticmethod
+    def _cls_status(x):
+        s = str(x.get("status") or x.get("state") or "").upper()
+        if "CANCEL" in s:
+            return "cancelled"
+        if s in ("COMPLETED", "DONE", "VISITED", "ATTENDED", "CLOSED") or x.get("visited"):
+            return "fact"
+        return "record"
+
+    def _render_classes(self):
+        lay = self._t_classes._layout
+        while lay.count():
+            it = lay.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        fact = sum(1 for x in self._classes if self._cls_status(x) == "fact")
+        rec = sum(1 for x in self._classes if self._cls_status(x) == "record")
+        canc = sum(1 for x in self._classes if self._cls_status(x) == "cancelled")
+        grid = QGridLayout()
+        for i, (title, val) in enumerate([("Фактические", fact), ("По записям", rec), ("Отменённые", canc)]):
+            card = QFrame()
+            card.setStyleSheet(theme.card_style())
+            cv = QVBoxLayout(card)
+            tl = QLabel(title)
+            tl.setStyleSheet("color: #64748b; font-size: 11px;")
+            vl = QLabel(str(val))
+            fnt = vl.font()
+            fnt.setBold(True)
+            fnt.setPointSize(16)
+            vl.setFont(fnt)
+            cv.addWidget(tl)
+            cv.addWidget(vl)
+            grid.addWidget(card, 0, i)
+        lay.addLayout(grid)
+        tbl = QTableWidget(0, 4)
+        tbl.setHorizontalHeaderLabels(["Дата", "Услуга", "Тренер", "Статус"])
+        tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        tbl.setAlternatingRowColors(True)
+        tbl.setStyleSheet(theme.table_style())
+        for x in self._classes[:500]:
+            r = tbl.rowCount()
+            tbl.insertRow(r)
+            who = x.get("trainer_name") or x.get("trainer") or x.get("trainer_id") or "—"
+            if not isinstance(who, str):
+                who = str(who)[:8]
+            st = {"fact": "Состоялось", "record": "Запись", "cancelled": "Отменено"}.get(self._cls_status(x), "—")
+            for c, v in enumerate([str(x.get("date") or x.get("created_at") or "")[:16],
+                                   str(x.get("service_name") or x.get("service") or x.get("title") or "—"),
+                                   who, st]):
+                tbl.setItem(r, c, QTableWidgetItem(v))
+        lay.addWidget(tbl)
+        self._t_classes._table = tbl
+        lay.addStretch(1)
+        self._export_panel(lay, lambda fmt=None: self._table_export(self._t_classes, "Занятия клиента"))
+
+    def _render_trainers(self):
+        lay = self._t_trainers._layout
+        while lay.count():
+            it = lay.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        agg = {}
+        for x in self._classes:
+            st = self._cls_status(x)
+            who = x.get("trainer_name") or x.get("trainer") or x.get("trainer_id") or "—"
+            if not isinstance(who, str):
+                who = str(who)[:8]
+            a = agg.setdefault(who, {"fact": 0, "record": 0, "cancelled": 0, "last": ""})
+            a[st] = a.get(st, 0) + 1
+            d = str(x.get("date") or x.get("created_at") or "")
+            if d > a["last"]:
+                a["last"] = d
+        tbl = QTableWidget(0, 4)
+        tbl.setHorizontalHeaderLabels(["Тренер", "Состоялось", "Записей", "Последнее"])
+        tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        tbl.setAlternatingRowColors(True)
+        tbl.setStyleSheet(theme.table_style())
+        for who, a in sorted(agg.items(), key=lambda kv: -kv[1]["fact"]):
+            r = tbl.rowCount()
+            tbl.insertRow(r)
+            for c, v in enumerate([who, a["fact"], a["record"] + a["cancelled"], a["last"][:10]]):
+                tbl.setItem(r, c, QTableWidgetItem(str(v)))
+        lay.addWidget(tbl)
+        self._t_trainers._table = tbl
+        lay.addStretch(1)
+        self._export_panel(lay, lambda fmt=None: self._table_export(self._t_trainers, "Тренеры клиента"))
+
+    def _render_goods(self):
+        lay = self._t_goods._layout
+        while lay.count():
+            it = lay.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        total = 0.0
+        rows = []
+        for g in self._goods:
+            amt = g.get("amount") or g.get("total") or g.get("price") or g.get("sum") or 0
+            try:
+                total += float(amt)
+            except Exception:
+                pass
+            rows.append(g)
+        lbl = QLabel("Покупок: %d на %.2f ₽" % (len(rows), total))
+        lbl.setStyleSheet("color: #64748b;")
+        lay.addWidget(lbl)
+        tbl = QTableWidget(0, 4)
+        tbl.setHorizontalHeaderLabels(["Дата", "Товар/услуга", "Кол-во", "Сумма"])
+        tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        tbl.setAlternatingRowColors(True)
+        tbl.setStyleSheet(theme.table_style())
+        for g in rows[:500]:
+            r = tbl.rowCount()
+            tbl.insertRow(r)
+            name = g.get("product_name") or g.get("name") or g.get("title") or g.get("item") or "—"
+            qty = g.get("quantity") or g.get("qty") or 1
+            amt = g.get("amount") or g.get("total") or g.get("price") or g.get("sum") or "—"
+            for c, v in enumerate([str(g.get("created_at") or g.get("date") or "")[:16],
+                                   str(name), str(qty), str(amt)]):
+                tbl.setItem(r, c, QTableWidgetItem(v))
+        lay.addWidget(tbl)
+        self._t_goods._table = tbl
+        lay.addStretch(1)
+        self._export_panel(lay, lambda fmt=None: self._table_export(self._t_goods, "Покупки клиента"))
     # ================= Правая панель =================
     def _render_right(self):
         self._clear(self._right_layout)
