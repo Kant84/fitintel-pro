@@ -267,23 +267,24 @@ def payroll_monthly_pay(user_id: UUID, body: PayIn,
            VALUES (:i, :u, :p, :a, now())
            ON CONFLICT (user_id, period) DO UPDATE SET paid_amount=:a, paid_at=now()"""),
         {"i": str(uuid4()), "u": str(user_id), "p": body.period, "a": body.amount})
-    # проводки: начисление Дт 44 Кт 70, выплата Дт 70 Кт 50
+    # проводки через сервис бухгалтерии (SQLite-журнал): начисление Дт 44 Кт 70, выплата Дт 70 Кт 50
+    entries_done = False
     try:
-        from datetime import date as _d
+        from app.services.accounting.internal_accounting import InternalAccounting
         nm = db.execute(_text(
             "SELECT COALESCE(NULLIF(full_name,''), username) FROM users WHERE id=:u"),
             {"u": str(user_id)}).first()
         name = nm[0] if nm else str(user_id)[:8]
-        dt = _d.today().isoformat()
-        for doc_type, dr, cr, desc in (
-                ("PAYROLL_ACCRUE", "44", "70", "ЗП начислена: %s (%s)" % (name, body.period)),
-                ("PAYROLL_PAY", "70", "50", "ЗП выплачена: %s (%s)" % (name, body.period))):
-            db.execute(_text(
-                """INSERT INTO entries (id, date, doc_type, doc_number, debit, credit, amount, description)
-                   VALUES (:i, :dt, :t, :n, :d, :c, :a, :s)"""),
-                {"i": str(uuid4()), "dt": dt, "t": doc_type, "n": "PAY-%s" % body.period,
-                 "d": dr, "c": cr, "a": body.amount, "s": desc})
-    except Exception:
-        pass
+        acc = InternalAccounting()
+        for dr, cr, desc in (("44", "70", "ЗП начислена: %s (%s)" % (name, body.period)),
+                             ("70", "50", "ЗП выплачена: %s (%s)" % (name, body.period))):
+            try:
+                acc.create_manual_entry(dr, cr, body.amount, description=desc)
+            except TypeError:
+                acc.create_manual_entry(dr, cr, body.amount)
+        entries_done = True
+    except Exception as _e:
+        print("payroll entries:", _e)
+
     db.commit()
-    return {"ok": True, "entries": True}
+    return {"ok": True, "entries": entries_done}
