@@ -225,28 +225,28 @@ class VisitsTab(QWidget):
         self._card(self.lbl_today, "Сегодня", stats.get("today", stats.get("today_count", 0)))
         self._card(self.lbl_week, "Неделя", stats.get("week", stats.get("week_count", 0)))
         self._card(self.lbl_month, "Месяц", stats.get("month", stats.get("month_count", 0)))
-from PyQt6.QtCore import QThread as _QT, pyqtSignal as _ps
-from datetime import datetime as _dtm
-class _CW(_QT):
-    done = _ps(list)
-    def run(self_):
-        try:
-            d = self.api._e55_get("/clients/stats/churn-flow") or []
-            self_.done.emit(d if isinstance(d, list) else [])
-        except Exception:
-            self_.done.emit([])
-_cur = _dtm.now().strftime("%Y-%m")
-def _fill_churn(data):
-    for x in data:
-        if str(x.get("period", "")).startswith(_cur):
-            self._card(self.lbl_new_month, "Новых в месяц", x.get("new", 0))
-            self._card(self.lbl_lost_month, "Ушедших в месяц", x.get("lost", 0))
-            return
-    self._card(self.lbl_new_month, "Новых в месяц", 0)
-    self._card(self.lbl_lost_month, "Ушедших в месяц", 0)
-_w = _CW()
-_w.done.connect(_fill_churn)
-_w.start()
+        from PyQt6.QtCore import QThread as _QT, pyqtSignal as _ps
+        from datetime import datetime as _dtm
+        class _CW(_QT):
+            done = _ps(list)
+            def run(self_):
+                try:
+                    d = self.api._e55_get("/clients/stats/churn-flow") or []
+                    self_.done.emit(d if isinstance(d, list) else [])
+                except Exception:
+                    self_.done.emit([])
+        _cur = _dtm.now().strftime("%Y-%m")
+        def _fill_churn(data):
+            for x in data:
+                if str(x.get("period", "")).startswith(_cur):
+                    self._card(self.lbl_new_month, "Новых в месяц", x.get("new", 0))
+                    self._card(self.lbl_lost_month, "Ушедших в месяц", x.get("lost", 0))
+                    return
+            self._card(self.lbl_new_month, "Новых в месяц", 0)
+            self._card(self.lbl_lost_month, "Ушедших в месяц", 0)
+        _w = _CW()
+        _w.done.connect(_fill_churn)
+        _w.start()
         self._render(self._all_data)
 
     def _render(self, rows: list):
