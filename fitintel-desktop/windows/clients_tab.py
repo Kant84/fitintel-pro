@@ -261,14 +261,8 @@ class ClientsTab(QWidget):
         # Панель экспорта
         hb = QHBoxLayout()
         hb.addStretch()
-        b_save = QPushButton(" Сохранить (XLSX+PDF+CSV+JSON)")
-        b_save.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
-        b_save.clicked.connect(lambda _: self._export("all"))
-        hb.addWidget(b_save)
-        b_1c = QPushButton("1С")
-        b_1c.setStyleSheet("QPushButton { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
-        b_1c.clicked.connect(lambda _: self._export("1c"))
-        hb.addWidget(b_1c)
+        from windows.export_helper import make_save_menu_button
+        hb.addWidget(make_save_menu_button(self, self._export, with_1c=True))
         rl.addLayout(hb)
 
         splitter.setStretchFactor(1, 1)
@@ -518,8 +512,8 @@ class ClientsTab(QWidget):
             headers = [self.table.horizontalHeaderItem(i).text() for i in range(self.table.columnCount())]
             rows = [[self.table.item(r, c).text() if self.table.item(r, c) else ""
                      for c in range(self.table.columnCount())] for r in range(self.table.rowCount())]
-            from windows.export_helper import save_all_formats
-            save_all_formats(self, headers, rows, "Клиенты")
+            from windows.export_helper import _save_one
+            _save_one(self, fmt, headers, rows, "Клиенты")
         except (RuntimeError, _requests.HTTPError) as e:
             QMessageBox.warning(self, "Экспорт", str(e)[:200])
 
