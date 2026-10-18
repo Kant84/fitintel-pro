@@ -3,7 +3,7 @@
 import windows.theme as theme
 from PyQt6.QtCore import Qt, QDate, QThread, pyqtSignal
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+from PyQt6.QtWidgets import (QWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QLineEdit, QDoubleSpinBox, QGroupBox, QGridLayout, QFormLayout,
     QTableWidget, QTableWidgetItem, QHeaderView, QInputDialog, QMessageBox,
     QAbstractItemView)
@@ -22,7 +22,11 @@ class PayrollTab(QWidget):
         _polish(self)
 
     def _build_ui(self):
-        lay = QVBoxLayout(self)
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        container = QWidget()
+        lay = QVBoxLayout(container)
         lay.setContentsMargins(16, 16, 16, 16)
         lay.setSpacing(12)
 
@@ -41,6 +45,14 @@ class PayrollTab(QWidget):
         top.addWidget(b_calc)
         top.addStretch()
         lay.addLayout(top)
+        sr = QHBoxLayout()
+        sr.addWidget(QLabel("Поиск сотрудника:"))
+        self._emp_filter = QLineEdit()
+        self._emp_filter.setPlaceholderText("ФИО или логин...")
+        self._emp_filter.textChanged.connect(self._on_emp_filter)
+        sr.addWidget(self._emp_filter, 1)
+        lay.addLayout(sr)
+
 
         gb_pos = QGroupBox("Штатное расписание (должность → оклад ₽/мес)")
         gp = QGridLayout(gb_pos)
@@ -110,6 +122,10 @@ class PayrollTab(QWidget):
 
         self._load_positions()
         self._load_calc()
+        scroll.setWidget(container)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(scroll)
 
     # ---------- сотрудники ----------
     def _load_users(self):
@@ -131,7 +147,12 @@ class PayrollTab(QWidget):
         cur = self._emp.currentData()
         self._emp.blockSignals(True)
         self._emp.clear()
+        _ft = getattr(self, "_emp_filter_text", "")
         for u in self._users:
+            _nm = ((u.get("full_name") or "").strip() or u.get("username") or "")
+            if _ft and _ft not in (_nm + " " + str(u.get("username") or "")).lower():
+                continue
+
             name = (u.get("full_name") or "").strip() or u.get("username") or "—"
             self._emp.addItem(name, str(u.get("id")))
         i = self._emp.findData(cur)
@@ -140,6 +161,9 @@ class PayrollTab(QWidget):
         self._emp.blockSignals(False)
         self._load_me()
 
+    def _on_emp_filter(self, text):
+        self._emp_filter_text = text.strip().lower()
+        self._fill_users(self._users)
     def _current_user(self):
         return self._emp.currentData()
 
