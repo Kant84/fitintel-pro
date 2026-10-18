@@ -158,3 +158,84 @@ def make_export_panel(parent_widget, data_fn):
         b.clicked.connect(lambda _, f=fmt: _do(f))
         hb.addWidget(b)
     return hb
+
+def _table_data(tbl):
+    headers = [tbl.horizontalHeaderItem(i).text() for i in range(tbl.columnCount())]
+    rows = [[tbl.item(r, c).text() if tbl.item(r, c) else ""
+             for c in range(tbl.columnCount())] for r in range(tbl.rowCount())]
+    return headers, rows
+
+
+def _write_csv(parent, headers, rows, title):
+    from PyQt6.QtWidgets import QFileDialog, QMessageBox
+    export_dir = APP_DIR / "export"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    import csv as _csv
+    path, _ = QFileDialog.getSaveFileName(parent, "Экспорт CSV",
+        str(export_dir / f"{_safe_name(title)}.csv"), "CSV (*.csv)")
+    if not path:
+        return
+    with open(path, "w", newline="", encoding="utf-8-sig") as fh:
+        wr = _csv.writer(fh, delimiter=";")
+        wr.writerow(headers)
+        wr.writerows(rows)
+    QMessageBox.information(parent, "Экспорт", f"Сохранено: {path}")
+
+
+def _write_json(parent, headers, rows, title):
+    from PyQt6.QtWidgets import QFileDialog, QMessageBox
+    from datetime import datetime
+    import json as _json
+    export_dir = APP_DIR / "export"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    path, _ = QFileDialog.getSaveFileName(parent, "Экспорт JSON",
+        str(export_dir / f"{_safe_name(title)}.json"), "JSON (*.json)")
+    if not path:
+        return
+    payload = {"title": title, "exported_at": datetime.now().isoformat(timespec="seconds"),
+               "headers": headers, "rows": rows}
+    with open(path, "w", encoding="utf-8") as fh:
+        _json.dump(payload, fh, ensure_ascii=False, indent=2)
+    QMessageBox.information(parent, "Экспорт", f"Сохранено: {path}")
+
+
+def install_export_panel(widget, title=None, formats=("xlsx", "pdf", "csv", "json")):
+    """Ищет самый крупный QTableWidget в widget и добавляет панель экспорта вниз."""
+    from PyQt6.QtWidgets import QTableWidget, QHBoxLayout, QPushButton, QMessageBox
+    tbls = widget.findChildren(QTableWidget)
+    if not tbls:
+        return False
+    tbl = max(tbls, key=lambda x: x.width() * x.height())
+    host = tbl.parentWidget()
+    lay = host.layout() if host else None
+    if lay is None:
+        return False
+    title = title or widget.__class__.__name__
+
+    def _do(fmt):
+        headers, rows = _table_data(tbl)
+        try:
+            if fmt == "xlsx":
+                export_table_xlsx(widget, headers, rows, title, title)
+            elif fmt == "pdf":
+                export_table_pdf(widget, headers, rows, title, title)
+            elif fmt == "csv":
+                _write_csv(widget, headers, rows, title)
+            elif fmt == "json":
+                _write_json(widget, headers, rows, title)
+            elif fmt == "1c":
+                export_nomenclature_1c(widget, [])
+        except (RuntimeError, Exception) as e:
+            QMessageBox.warning(widget, "Экспорт", str(e)[:200])
+
+    hb = QHBoxLayout()
+    hb.addStretch()
+    for fmt in formats:
+        b = QPushButton(fmt.upper())
+        b.setStyleSheet("QPushButton { background: #f1f5f9; color: #475569; "
+                        "border: 1px solid #cbd5e1; border-radius: 6px; "
+                        "padding: 6px 12px; font-weight: 600; }")
+        b.clicked.connect(lambda _, f=fmt: _do(f))
+        hb.addWidget(b)
+    lay.addLayout(hb)
+    return True

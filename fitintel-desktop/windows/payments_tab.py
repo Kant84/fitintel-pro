@@ -570,3 +570,41 @@ try:
     print("E63 print OK: payments_tab.py")
 except Exception as e:
     print("E63 FAIL:", e)
+
+# === EXPORT PANEL: XLSX/PDF/CSV/JSON на каждой подвкладке ===
+try:
+    import inspect as _inspect
+    from PyQt6.QtWidgets import QWidget as _QW, QTabWidget as _QTW
+    from windows.export_helper import install_export_panel as _iep
+
+    def _install_export_panels(widget, depth=0):
+        if depth > 4:
+            return
+        tabs = widget.findChildren(_QTW)
+        if not tabs:
+            _iep(widget, title=widget.__class__.__name__)
+            return
+        for tw in tabs:
+            for i in range(tw.count()):
+                page = tw.widget(i)
+                if page is not None:
+                    _iep(page, title=tw.tabText(i) or widget.__class__.__name__)
+                    _install_export_panels(page, depth + 1)
+
+    for _name, _obj in list(globals().items()):
+        if (_inspect.isclass(_obj) and issubclass(_obj, _QW)
+                and getattr(_obj, "__module__", "") == __name__
+                and not _name.startswith("_")):
+            _orig_init = _obj.__init__
+            def _mk(orig):
+                def _init(self, *a, **kw):
+                    orig(self, *a, **kw)
+                    try:
+                        _install_export_panels(self)
+                    except Exception as _e:
+                        print("export panel:", _e)
+                return _init
+            _obj.__init__ = _mk(_orig_init)
+    print("EXPORT panels OK:", __name__)
+except Exception as _e:
+    print("EXPORT panels FAIL:", _e)
