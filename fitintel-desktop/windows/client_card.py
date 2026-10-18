@@ -126,7 +126,8 @@ class ClientCard(QDialog):
         self._t_subs = self._add_tab("Пакеты/Услуги")
         self._t_visits = self._add_tab("История визитов")
         self._t_stats = self._add_tab("Статистика посещений")
-        self._t_notes = self._add_tab("Задачи и Заметки")
+        self._t_notes = self._add_tab("Комментарии")
+        self._render_notes()
 
     def _side_panel(self):
         scroll = QScrollArea()
