@@ -520,18 +520,12 @@ for _n in _N59:
 
 # === E59B_EXT: PATCH helper + fix update_tariff ===
 def _e55_patch(self, path, payload=None):
-    import requests
-    url = _e55_url(self, path)
-    if hasattr(self, "_session"):
-        r = self._session.patch(url, json=payload or {}, timeout=30)
-    else:
-        r = requests.patch(url, json=payload or {}, timeout=30)
+    r = _e55_sess(self).patch(_e55_url(self, path), json=payload or {}, timeout=30)
     _rs(r)
     try:
         return r.json()
     except Exception:
         return {}
-
 def update_tariff(self, tariff_id, data):
     """Backend accepts PATCH (not PUT) on /tariffs/{id}."""
     last = None
