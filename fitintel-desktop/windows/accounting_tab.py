@@ -20,14 +20,9 @@ def _token():
     try:
         from paths import SETTINGS
         cfg = json.load(open(SETTINGS, encoding="utf-8"))
-        r = urllib.request.Request(_base() + "/auth/login",
-            data=json.dumps({"login": cfg.get("saved_login"), "password": cfg.get("saved_password")}).encode(),
-            headers={"Content-Type": "application/json"})
-        return json.load(urllib.request.urlopen(r, timeout=10)).get("access_token")
+        return cfg.get("token")
     except Exception:
         return None
-
-
 def _req(method, path, data=None):
     tok = _token()
     r = urllib.request.Request(_base() + path,
