@@ -8,6 +8,9 @@ class ClientStatus(str, Enum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
     BLOCKED = "BLOCKED"
+    FROZEN = "FROZEN"
+    DEBTOR = "DEBTOR"
+    ARCHIVED = "ARCHIVED"
 # пол клиента
 class GenderEnum(str, Enum):
     MALE = "MALE"
