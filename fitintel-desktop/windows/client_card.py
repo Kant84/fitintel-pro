@@ -182,7 +182,7 @@ class ClientCard(QDialog):
         self._left_layout.addWidget(avatar, 0, Qt.AlignmentFlag.AlignHCenter)
 
         b_photo = self._btn("Сменить фото")
-        b_photo.clicked.connect(lambda: QMessageBox.information(self, "Фото", "Загрузка фото в разработке"))
+        b_photo.clicked.connect(self._change_photo)
         self._left_layout.addWidget(b_photo)
 
         lbl_fio = QLabel(self._fio())
@@ -544,6 +544,19 @@ class ClientCard(QDialog):
                 if QMessageBox.question(self, "Заметка", "Удалить запись?") == QMessageBox.StandardButton.Yes:
                     self.api._e55_del(f"/comments/{cid}")
                     self._load_notes()
+        except (RuntimeError, _requests.HTTPError) as e:
+            self._show_error(e)
+    def _change_photo(self):
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(self, "Фото клиента", "", "Images (*.jpg *.jpeg *.png)")
+        if not path:
+            return
+        try:
+            with open(path, "rb") as fh:
+                self.api.session.post(
+                    self.api._url(f"/clients/{self.client_id}/photo"),
+                    files={"file": ("photo.jpg", fh, "image/jpeg")}, timeout=30)
+            self._load()
         except (RuntimeError, _requests.HTTPError) as e:
             self._show_error(e)
     # ================= Правая панель =================

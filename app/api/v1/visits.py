@@ -1,3 +1,4 @@
+from typing import Optional
 # app/api/v1/visits.py
 
 from uuid import UUID
@@ -575,3 +576,27 @@ def auto_close_visits(
         "closed_count": closed_count,
         "message": f"Закрыто {closed_count} незавершённых посещений",
     }
+
+# ============================================================
+# Динамика посещений (тренд)
+# ============================================================
+@router.get("/stats/trend")
+def visits_stats_trend(
+    granularity: str = Query("week", pattern="^(day|week|month)$"),
+    from_: Optional[str] = Query(None, alias="from"),
+    to: Optional[str] = Query(None),
+    current_user=Depends(require_permission("visits.read")),
+    db: Session = Depends(get_db),
+):
+    from sqlalchemy import text as _text
+    trunc = {"day": "day", "week": "week", "month": "month"}[granularity]
+    sql = ("SELECT date_trunc('" + trunc + "', entry_time)::date AS date, count(*) AS count "
+           "FROM visits WHERE entry_time IS NOT NULL")
+    params = {}
+    if from_:
+        sql += " AND entry_time::date >= :f"; params["f"] = from_
+    if to:
+        sql += " AND entry_time::date <= :t"; params["t"] = to
+    sql += " GROUP BY 1 ORDER BY 1"
+    rows = db.execute(_text(sql), params).mappings().all()
+    return [{"date": str(r["date"]), "count": int(r["count"])} for r in rows]

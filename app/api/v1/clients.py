@@ -1,10 +1,11 @@
+from typing import Optional
 # app/api/v1/clients.py
 
 # импорт UUID для типизации идентификаторов клиентов
 from uuid import UUID
 
 # импорт FastAPI-инструментов
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 
 # импорт SQLAlchemy Session
 from sqlalchemy.orm import Session
@@ -213,3 +214,62 @@ def update_client(
 
     # возвращаем ответ
     return client_service.build_client_response(client)
+
+# ============================================================
+# Приток/отток клиентов по месяцам
+# ============================================================
+@router.get("/stats/churn-flow")
+def clients_churn_flow(
+    current_user=Depends(require_permission("clients.read")),
+    db: Session = Depends(get_db),
+):
+    from sqlalchemy import text as _text
+    new_rows = db.execute(_text(
+        "SELECT date_trunc('month', created_at)::date AS period, count(*) AS new "
+        "FROM clients WHERE created_at IS NOT NULL GROUP BY 1")).mappings().all()
+    lost_rows = db.execute(_text(
+        "SELECT date_trunc('month', updated_at)::date AS period, count(*) AS lost "
+        "FROM clients WHERE status IN ('INACTIVE', 'ARCHIVED') AND updated_at IS NOT NULL "
+        "GROUP BY 1")).mappings().all()
+    new_map = {str(r["period"]): int(r["new"]) for r in new_rows}
+    lost_map = {str(r["period"]): int(r["lost"]) for r in lost_rows}
+    periods = sorted(set(new_map) | set(lost_map))
+    return [{"period": p, "new": new_map.get(p, 0), "lost": lost_map.get(p, 0)} for p in periods]
+
+
+# ============================================================
+# Фото клиента
+# ============================================================
+@router.post("/{client_id}/photo")
+async def upload_client_photo(
+    client_id: UUID,
+    file: UploadFile = File(...),
+    current_user=Depends(require_permission("clients.update")),
+    db: Session = Depends(get_db),
+):
+    import io as _io
+    import os as _os
+    from PIL import Image as _Image
+    from sqlalchemy import text as _text
+
+    if not db.execute(_text("SELECT 1 FROM clients WHERE id=:i"), {"i": str(client_id)}).first():
+        raise HTTPException(status_code=404, detail="Клиент не найден")
+    raw = await file.read()
+    try:
+        img = _Image.open(_io.BytesIO(raw)).convert("RGB")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Файл не является изображением")
+    img.thumbnail((600, 600))
+    _os.makedirs("static/clients", exist_ok=True)
+    dest = "static/clients/%s.jpg" % client_id
+    img.save(dest, "JPEG", quality=85)
+    pub = ""
+    try:
+        row = db.execute(_text("SELECT api_url FROM max_bot_settings WHERE id=1")).first()
+        pub = (row[0] or "").rstrip("/") if row else ""
+    except Exception:
+        pass
+    url = (pub or "") + "/static/clients/%s.jpg" % client_id
+    db.execute(_text("UPDATE clients SET photo_url=:u WHERE id=:i"), {"u": url, "i": str(client_id)})
+    db.commit()
+    return {"ok": True, "url": url}
