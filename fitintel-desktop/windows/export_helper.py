@@ -261,6 +261,83 @@ def save_all_formats(parent, headers, rows, title):
     return saved
 
 
+def _write_xlsx_path(path, headers, rows, title):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from datetime import datetime
+    wb = Workbook()
+    ws = wb.active
+    ws.title = _sheet_title(title)
+    ws.cell(1, 1, title).font = Font(bold=True, size=14)
+    ws.cell(2, 1, f"Дата: {datetime.now():%Y-%m-%d %H:%M}")
+    fill = PatternFill("solid", fgColor=("1E293B" if theme.DARK else "F1F5F9"))
+    fnt = Font(bold=True, color=("FFFFFF" if theme.DARK else "0F172A"))
+    for c, h in enumerate(headers, 1):
+        cell = ws.cell(5, c, h); cell.font = fnt; cell.fill = fill
+    for r, row in enumerate(rows, 6):
+        for c, val in enumerate(row, 1):
+            ws.cell(r, c, "" if val is None else str(val))
+    for c in range(1, len(headers) + 1):
+        ml = 10
+        for r in range(1, ws.max_row + 1):
+            v = ws.cell(r, c).value
+            if v: ml = max(ml, len(str(v)))
+        ws.column_dimensions[ws.cell(1, c).column_letter].width = min(ml + 2, 60)
+    wb.save(str(path))
+
+
+def _save_one(parent, fmt, headers, rows, title):
+    """Сохранить таблицу в ОДНО выбранный формат (export/ без диалога)."""
+    from PyQt6.QtWidgets import QMessageBox
+    from paths import APP_DIR
+    from datetime import datetime
+    import json as _json, csv as _csv
+    d = APP_DIR / "export"
+    d.mkdir(parents=True, exist_ok=True)
+    name = _safe_name(title)
+    try:
+        if fmt == "xlsx":
+            p = d / (name + ".xlsx"); _write_xlsx_path(p, headers, rows, title)
+        elif fmt == "pdf":
+            if not (ASSETS / "DejaVuSans.ttf").exists():
+                QMessageBox.warning(parent, "PDF", "Не найден assets/DejaVuSans.ttf"); return
+            p = d / (name + ".pdf"); _write_pdf_file(p, headers, rows, title)
+        elif fmt == "csv":
+            p = d / (name + ".csv")
+            with open(p, "w", newline="", encoding="utf-8-sig") as fh:
+                wr = _csv.writer(fh, delimiter=";"); wr.writerow(headers); wr.writerows(rows)
+        elif fmt == "json":
+            p = d / (name + ".json")
+            with open(p, "w", encoding="utf-8") as fh:
+                _json.dump({"title": title, "exported_at": datetime.now().isoformat(timespec="seconds"),
+                            "headers": headers, "rows": rows}, fh, ensure_ascii=False, indent=2)
+        else:
+            QMessageBox.warning(parent, "Сохранить", "Неизвестный формат: %s" % fmt); return
+        QMessageBox.information(parent, "Сохранено", str(p))
+    except Exception as e:
+        QMessageBox.warning(parent, "Сохранить", str(e)[:200])
+
+
+def make_save_menu_button(parent, on_format, label=" Сохранить в формате", with_1c=False):
+    """Зелёная кнопка с выпадающим меню форматов. on_format(fmt) — обработчик."""
+    from PyQt6.QtWidgets import QToolButton, QMenu
+    btn = QToolButton()
+    btn.setText(label + " ▾")
+    btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+    btn.setStyleSheet("QToolButton { background: #10b981; color: white; border: none; "
+                      "border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+    menu = QMenu(btn)
+    for fmt, txt in [("xlsx", "XLSX (.xlsx)"), ("pdf", "PDF (.pdf)"),
+                     ("csv", "CSV (.csv)"), ("json", "JSON (.json)")]:
+        act = menu.addAction(txt)
+        act.triggered.connect(lambda _, f=fmt: on_format(f))
+    if with_1c:
+        act1c = menu.addAction("1С (контрагенты)")
+        act1c.triggered.connect(lambda _: on_format("1c"))
+    btn.setMenu(menu)
+    return btn
+
+
 def _table_data(tbl):
     headers = [tbl.horizontalHeaderItem(i).text() for i in range(tbl.columnCount())]
     rows = [[tbl.item(r, c).text() if tbl.item(r, c) else ""
@@ -334,19 +411,10 @@ def install_export_panel(widget, title=None, formats=("xlsx", "pdf", "csv", "jso
         except (RuntimeError, Exception) as e:
             QMessageBox.warning(widget, "Экспорт", str(e)[:200])
 
-    def _save_all():
-        headers, rows = _table_data(tbl)
-        try:
-            save_all_formats(widget, headers, rows, title)
-        except Exception as e:
-            QMessageBox.warning(widget, "Сохранить", str(e)[:200])
+    btn = make_save_menu_button(widget, lambda fmt: _save_one(widget, fmt, *_table_data(tbl), title))
     hb = QHBoxLayout()
     hb.addStretch()
-    b = QPushButton(" Сохранить (XLSX+PDF+CSV+JSON)")
-    b.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; "
-                    "border-radius: 6px; padding: 6px 14px; font-weight: 600; }")
-    b.clicked.connect(lambda _: _save_all())
-    hb.addWidget(b)
+    hb.addWidget(btn)
     lay.addLayout(hb)
     widget._export_panel_done = True
     return True
