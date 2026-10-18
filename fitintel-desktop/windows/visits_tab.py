@@ -271,7 +271,7 @@ class VisitsTab(QWidget):
 
     def _filter(self, text: str):
         if not text:
-        self._render(self._all_data)
+            self._render(self._all_data)
             return
         t = text.lower()
         filtered = []
