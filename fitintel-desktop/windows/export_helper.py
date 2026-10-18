@@ -202,6 +202,8 @@ def _write_json(parent, headers, rows, title):
 def install_export_panel(widget, title=None, formats=("xlsx", "pdf", "csv", "json")):
     """Ищет самый крупный QTableWidget в widget и добавляет панель экспорта вниз."""
     from PyQt6.QtWidgets import QTableWidget, QHBoxLayout, QPushButton, QMessageBox
+    if getattr(widget, "_export_panel_done", False):
+        return False
     tbls = widget.findChildren(QTableWidget)
     if not tbls:
         return False
@@ -238,4 +240,5 @@ def install_export_panel(widget, title=None, formats=("xlsx", "pdf", "csv", "jso
         b.clicked.connect(lambda _, f=fmt: _do(f))
         hb.addWidget(b)
     lay.addLayout(hb)
+    widget._export_panel_done = True
     return True

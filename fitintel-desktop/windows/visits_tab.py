@@ -366,3 +366,68 @@ class VisitsTab(QWidget):
         self.table.setRowCount(1)
         short = msg if len(msg) < 120 else msg[:117] + "..."
         self.table.setItem(0, 0, QTableWidgetItem("Не удалось загрузить данные: " + short))
+
+# === CHURN COUNTERS: новые/ушедшие клиенты за месяц ===
+try:
+    import inspect as _inspect
+    from datetime import datetime as _dt
+    from PyQt6.QtWidgets import QWidget as _QW, QLabel as _QL
+    from PyQt6.QtCore import QThread as _QT, pyqtSignal as _ps
+
+    class _ChurnWorker(_QT):
+        done = _ps(list)
+        def __init__(self, api):
+            super().__init__(); self.api = api
+        def run(self):
+            try:
+                data = self.api._e55_get("/clients/stats/churn-flow") or []
+                self.done.emit(data if isinstance(data, list) else [])
+            except Exception:
+                self.done.emit([])
+
+    def _add_churn_counters(widget):
+        api = getattr(widget, "api", None)
+        if api is None:
+            return
+        targets = [l for l in widget.findChildren(_QL) if l.text().strip() in ("Сегодня", "Неделя", "Месяц")]
+        if not targets:
+            return
+        row = targets[0].parentWidget()
+        lay = row.layout()
+        if lay is None:
+            return
+        style = targets[0].styleSheet()
+        lbl_new = _QL("—"); lbl_new.setStyleSheet(style)
+        lbl_lost = _QL("—"); lbl_lost.setStyleSheet(style)
+        cap_new = _QL("Новых в месяц"); cap_new.setStyleSheet("color: #64748b; font-size: 11px;")
+        cap_lost = _QL("Ушедших в месяц"); cap_lost.setStyleSheet("color: #64748b; font-size: 11px;")
+        lay.addWidget(cap_new); lay.addWidget(lbl_new)
+        lay.addWidget(cap_lost); lay.addWidget(lbl_lost)
+        cur = _dt.now().strftime("%Y-%m")
+        def _fill(data):
+            for x in data:
+                if str(x.get("period", "")).startswith(cur):
+                    lbl_new.setText(str(x.get("new", 0)))
+                    lbl_lost.setText(str(x.get("lost", 0)))
+                    return
+            lbl_new.setText("0"); lbl_lost.setText("0")
+        w = _ChurnWorker(api)
+        w.done.connect(_fill)
+        w.start()
+
+    for _n, _o in list(globals().items()):
+        if (_inspect.isclass(_o) and issubclass(_o, _QW)
+                and getattr(_o, "__module__", "") == __name__ and not _n.startswith("_")):
+            _orig = _o.__init__
+            def _mk(orig):
+                def _i(self, *a, **k):
+                    orig(self, *a, **k)
+                    try:
+                        _add_churn_counters(self)
+                    except Exception as e:
+                        print("churn counters:", e)
+                return _i
+            _o.__init__ = _mk(_orig)
+    print("CHURN counters OK:", __name__)
+except Exception as e:
+    print("CHURN counters FAIL:", e)
