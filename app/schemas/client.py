@@ -142,6 +142,9 @@ class ClientResponse(BaseModel):
 
     # статус клиента
     status: ClientStatus = Field(
+    client_tag: str | None = None
+    segment: str | None = None
+    source: str | None = None
         description="Статус клиента",
         examples=["ACTIVE"],
     )
@@ -232,6 +235,9 @@ class ClientCreateRequest(_ClientDatesMixin, _ClientGenderMixin, BaseModel):
 
     # статус клиента
     status: ClientStatus | None = Field(
+    client_tag: str | None = None
+    segment: str | None = None
+    source: str | None = None
         default=None,
         description="Статус клиента",
         examples=["ACTIVE"],
@@ -312,6 +318,9 @@ class ClientUpdateRequest(_ClientDatesMixin, _ClientGenderMixin, BaseModel):
 
     # новый статус клиента
     status: ClientStatus | None = Field(
+    client_tag: str | None = None
+    segment: str | None = None
+    source: str | None = None
         default=None,
         description="Новый статус клиента",
         examples=["BLOCKED"],

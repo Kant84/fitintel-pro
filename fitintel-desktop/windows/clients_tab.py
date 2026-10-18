@@ -55,6 +55,9 @@ CLIENT_FIELDS = [
     ("email", "Email *"),
     ("gender", "Пол", "combo", [("Мужской", "MALE"), ("Женский", "FEMALE"), ("Не указан", "НЕ_УКАЗАН")]),
     ("birth_date", "Дата рождения (ДД-ММ-ГГГГ)"),
+    ("client_tag", "Тег"),
+    ("segment", "Сегмент"),
+    ("source", "Источник"),
 ]
 
 CAT_LABELS = {"ADULT": "Взрослый", "CHILD": "Ребёнок", "VIP": "VIP", "STAFF": "Персонал",
@@ -157,12 +160,14 @@ class ClientsTab(QWidget):
 
         fl.addWidget(QLabel("Тег/сегмент:"))
         self.cb_tag = QComboBox()
-        self.cb_tag.addItem("Все (⏳ в разработке)", None)
+        self.cb_tag.addItem("Все", None)
+        self.cb_tag.currentIndexChanged.connect(self._apply_filters)
         fl.addWidget(self.cb_tag)
 
         fl.addWidget(QLabel("Источник:"))
         self.cb_source = QComboBox()
-        self.cb_source.addItem("Все (⏳ в разработке)", None)
+        self.cb_source.addItem("Все", None)
+        self.cb_source.currentIndexChanged.connect(self._apply_filters)
         fl.addWidget(self.cb_source)
 
         fl.addWidget(QLabel("Пол:"))
@@ -303,6 +308,20 @@ class ClientsTab(QWidget):
         if idx >= 0:
             self.cb_manager.setCurrentIndex(idx)
         self.cb_manager.blockSignals(False)
+        for _combo, _keys in ((self.cb_tag, ("client_tag", "segment")), (self.cb_source, ("source",))):
+            _cur = _combo.currentData()
+            _combo.blockSignals(True)
+            _combo.clear()
+            _combo.addItem("Все", None)
+            _vals = set()
+            for _c in self._all_data:
+                for _k in _keys:
+                    _v = str(_c.get(_k) or "").strip()
+                    if _v: _vals.add(_v)
+            for _v in sorted(_vals): _combo.addItem(_v, _v)
+            _i = _combo.findData(_cur)
+            if _i >= 0: _combo.setCurrentIndex(_i)
+            _combo.blockSignals(False)
         self._apply_filters()
 
     def _subs_of(self, cid):
@@ -323,6 +342,13 @@ class ClientsTab(QWidget):
         g = self.cb_gender.currentData()
         if g:
             rows = [c for c in rows if str(c.get("gender") or "НЕ_УКАЗАН").upper() == g]
+        # тег/сегмент + источник
+        _tag = self.cb_tag.currentData()
+        if _tag:
+            rows = [c for c in rows if _tag in (str(c.get("client_tag") or ""), str(c.get("segment") or ""))]
+        _src = self.cb_source.currentData()
+        if _src:
+            rows = [c for c in rows if str(c.get("source") or "") == _src]
         # тип подписки
         sub_t = self.cb_subtype.currentData()
         if sub_t:
@@ -447,6 +473,9 @@ class ClientsTab(QWidget):
             ("email", "Email *", "text", c.get("email")),
             ("gender", "Пол", "combo", [("Мужской", "MALE"), ("Женский", "FEMALE"), ("Не указан", "НЕ_УКАЗАН")]),
             ("birth_date", "Дата рождения (ДД-ММ-ГГГГ)", "text", _fmt_date(c.get("birth_date"))),
+            ("client_tag", "Тег", "text", c.get("client_tag") or ""),
+            ("segment", "Сегмент", "text", c.get("segment") or ""),
+            ("source", "Источник", "text", c.get("source") or ""),
         ]
         dlg = FormDialog(f"Клиент: {self._fio(c)}", fields, self)
         if dlg.exec() != FormDialog.DialogCode.Accepted:
@@ -531,33 +560,3 @@ class ClientsTab(QWidget):
         self.table.setRowCount(1)
         self.table.setItem(0, 0, QTableWidgetItem(f"Ошибка загрузки: {msg}"))
 
-# === ALL COMMENTS BUTTON ===
-try:
-    from PyQt6.QtWidgets import QHBoxLayout as _HL, QPushButton as _PB
-    _orig_ci = ClientsTab.__init__
-    def _ci(self, api, *a, **kw):
-        _orig_ci(self, api, *a, **kw)
-        try:
-            b = _PB(" Все комментарии")
-            b.setStyleSheet("QPushButton { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
-            def _open():
-                try:
-                    me = self.api.me() or {}
-                except Exception:
-                    me = {}
-                from windows.comments_dialog import CommentsDialog
-                dlg = CommentsDialog(self.api, user_data=me, parent=None)
-                dlg.show()
-            b.clicked.connect(_open)
-            lay = None
-            for ch in self.findChildren(_HL):
-                lay = ch
-                break
-            if lay is not None:
-                lay.insertWidget(0, b)
-        except Exception as _e:
-            print("comments button:", _e)
-    ClientsTab.__init__ = _ci
-    print("ALL COMMENTS BUTTON OK")
-except Exception as _e:
-    print("ALL COMMENTS BUTTON FAIL:", _e)
