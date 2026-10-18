@@ -150,8 +150,7 @@ class EmployeeCard(QDialog):
         b1.clicked.connect(lambda: QMessageBox.information(self, "Роли", "Откройте экран Роли и права"))
         self._left_layout.addWidget(b1)
         b2 = self._btn("Сбросить пароль")
-        b2.clicked.connect(lambda: QMessageBox.information(
-            self, "Пароль", "Откройте экран Пользователи → Изменить"))
+        b2.clicked.connect(self._reset_password)
         self._left_layout.addWidget(b2)
         self._left_layout.addStretch(1)
 
@@ -185,6 +184,30 @@ class EmployeeCard(QDialog):
             self._render_left()
         except Exception as e:
             QMessageBox.warning(self, "Фото", str(e)[:200])
+    def _reset_password(self):
+        p1, ok = QInputDialog.getText(self, "Сброс пароля", "Новый пароль (мин. 6 символов):")
+        if not ok or not p1:
+            return
+        if len(p1) < 6:
+            QMessageBox.warning(self, "Пароль", "Минимум 6 символов")
+            return
+        p2, ok2 = QInputDialog.getText(self, "Сброс пароля", "Повторите пароль:")
+        if not ok2 or p1 != p2:
+            QMessageBox.warning(self, "Пароль", "Пароли не совпадают")
+            return
+        try:
+            r = self.api.session.post(self.api._url(f"/users/{self.user_id}/reset-password"),
+                                      json={"password": p1}, timeout=30)
+            r.raise_for_status()
+            QMessageBox.information(self, "Пароль", "Пароль сброшен")
+        except Exception as e1:
+            try:
+                r = self.api.session.patch(self.api._url(f"/users/{self.user_id}"),
+                                           json={"password": p1}, timeout=30)
+                r.raise_for_status()
+                QMessageBox.information(self, "Пароль", "Пароль изменён")
+            except Exception as e2:
+                QMessageBox.warning(self, "Пароль", "Не удалось: %s" % str(e2)[:180])
     def _render_main(self):
         lay = self._t_main._layout
         while lay.count():

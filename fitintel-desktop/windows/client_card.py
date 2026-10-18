@@ -243,11 +243,11 @@ class ClientCard(QDialog):
         self._left_layout.addWidget(self._cb_status)
 
         b_sell = self._btn("Продать услугу", "#10b981", "white")
-        b_sell.clicked.connect(lambda: QMessageBox.information(self, "Продажа", "Откройте вкладку Абонементы"))
+        b_sell.clicked.connect(self._sell_service)
         self._left_layout.addWidget(b_sell)
 
         b_card = self._btn("Выдать карту")
-        b_card.clicked.connect(lambda: QMessageBox.information(self, "Карта", "Откройте экран Браслеты/Карты"))
+        b_card.clicked.connect(self._assign_card)
         self._left_layout.addWidget(b_card)
 
         b_freeze = self._btn("Заморозить")
@@ -258,7 +258,7 @@ class ClientCard(QDialog):
         self._left_layout.addWidget(QLabel(
             f"Face ID: {'привязан (' + str(face_cnt) + ')' if face_cnt else 'нет'}"))
         b_face = self._btn("Зарегистрировать")
-        b_face.clicked.connect(lambda: QMessageBox.information(self, "Face ID", "Откройте экран Face ID"))
+        b_face.clicked.connect(lambda: self._open_screen("Face ID"))
         self._left_layout.addWidget(b_face)
         self._left_layout.addStretch(1)
 
@@ -723,6 +723,90 @@ class ClientCard(QDialog):
         self._t_goods._table = tbl
         lay.addStretch(1)
         self._export_panel(lay, lambda fmt=None: self._table_export(self._t_goods, "Покупки клиента"))
+    def _open_screen(self, title):
+        from PyQt6.QtWidgets import QApplication, QListWidget
+        for w in QApplication.topLevelWidgets():
+            lw = w.findChild(QListWidget)
+            if lw is None:
+                continue
+            for i in range(lw.count()):
+                if title.lower() in lw.item(i).text().lower():
+                    lw.setCurrentRow(i)
+                    try:
+                        w.raise_()
+                        w.activateWindow()
+                    except Exception:
+                        pass
+                    return
+        QMessageBox.information(self, "Навигация", "Экран «%s» не найден" % title)
+
+    def _edit_client(self):
+        from windows.form_dialog import FormDialog
+        c = self._client or {}
+        fields = [
+            ("last_name", "Фамилия *", "text", c.get("last_name") or ""),
+            ("first_name", "Имя *", "text", c.get("first_name") or ""),
+            ("middle_name", "Отчество", "text", c.get("middle_name") or ""),
+            ("phone", "Телефон *", "text", c.get("phone") or ""),
+            ("email", "Email", "text", c.get("email") or ""),
+            ("gender", "Пол", "combo", [("Мужской", "MALE"), ("Женский", "FEMALE"), ("Не указан", "НЕ_УКАЗАН")]),
+            ("birth_date", "Дата рождения (ГГГГ-ММ-ДД)", "text", str(c.get("birth_date") or "")[:10]),
+            ("client_tag", "Тег", "text", c.get("client_tag") or ""),
+            ("segment", "Сегмент", "text", c.get("segment") or ""),
+            ("source", "Источник", "text", c.get("source") or ""),
+        ]
+        dlg = FormDialog("Редактирование клиента", fields, self)
+        if dlg.exec() != FormDialog.DialogCode.Accepted:
+            return
+        v = {k: val for k, val in dlg.values().items() if val not in ("", None)}
+        try:
+            self.api.update_client(self.client_id, v)
+            self._load()
+            QMessageBox.information(self, "Клиент", "Данные сохранены")
+        except (RuntimeError, _requests.HTTPError) as e:
+            self._show_error(e)
+
+    def _sell_service(self):
+        from windows.form_dialog import FormDialog
+        from datetime import datetime as _dt
+        try:
+            tariffs = self.api.get_tariffs() or []
+        except Exception as e:
+            QMessageBox.warning(self, "Продажа", "Не удалось загрузить тарифы: %s" % str(e)[:150])
+            return
+        if not tariffs:
+            QMessageBox.information(self, "Продажа", "Нет доступных тарифов")
+            return
+        combo = [(str(t_.get("name") or t_.get("code") or t_.get("id")), t_.get("id")) for t_ in tariffs]
+        dlg = FormDialog("Продать услугу", [
+            ("tariff", "Тариф *", "combo", combo),
+            ("start_date", "Дата начала (ГГГГ-ММ-ДД)", "text", _dt.now().strftime("%Y-%m-%d")),
+        ], self)
+        if dlg.exec() != FormDialog.DialogCode.Accepted:
+            return
+        v = dlg.values()
+        payload = {"client_id": self.client_id, "tariff_id": v.get("tariff")}
+        if v.get("start_date"):
+            payload["start_date"] = v["start_date"]
+        try:
+            self.api.create_subscription(payload)
+            QMessageBox.information(self, "Продажа", "Абонемент создан")
+            self._load()
+        except (RuntimeError, _requests.HTTPError) as e:
+            self._show_error(e)
+
+    def _assign_card(self):
+        uid, ok = QInputDialog.getText(self, "Выдать карту",
+                                       "UID карты (пусто = сгенерировать):")
+        if not ok:
+            return
+        try:
+            r = self.api.session.post(self.api._url(f"/credentials/rfid/client/{self.client_id}"),
+                                      json={"uid": uid.strip() or None}, timeout=30)
+            r.raise_for_status()
+            QMessageBox.information(self, "Карта", "Карта привязана")
+        except Exception:
+            self._open_screen("Браслеты")
     # ================= Правая панель =================
     def _render_right(self):
         self._clear(self._right_layout)
