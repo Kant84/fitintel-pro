@@ -31,7 +31,7 @@ def export_table_xlsx(parent, headers, rows, filename, title=""):
     try:
         wb = Workbook()
         ws = wb.active
-        ws.title = (title or filename)[:31]
+        ws.title = _sheet_title(title or filename)
         ws.cell(1, 1, title or filename).font = Font(bold=True, size=14)
         ws.cell(2, 1, f"Дата: {datetime.now():%Y-%m-%d %H:%M}")
         try:
@@ -159,6 +159,108 @@ def make_export_panel(parent_widget, data_fn):
         hb.addWidget(b)
     return hb
 
+def _sheet_title(s: str) -> str:
+    """Имя листа XLSX: без [ ] : * ? / \\ (лимит openpyxl 31)."""
+    import re as _re
+    s = _re.sub(r"[\[\]:*?/\\]", " ", str(s or "export"))
+    s = _re.sub(r"\s+", " ", s).strip()
+    return (s or "export")[:31]
+
+
+def _write_pdf_file(path, headers, rows, title):
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    pdfmetrics.registerFont(TTFont("DejaVu", str(ASSETS / "DejaVuSans.ttf")))
+    doc = SimpleDocTemplate(str(path), pagesize=landscape(A4),
+                            leftMargin=10*mm, rightMargin=10*mm, topMargin=10*mm, bottomMargin=10*mm)
+    from datetime import datetime
+    story = [Paragraph(f"<font name='DejaVu' size='14'><b>{title}</b></font>"),
+             Spacer(1, 4*mm),
+             Paragraph(f"<font name='DejaVu' size='9'>{datetime.now():%Y-%m-%d %H:%M}</font>"),
+             Spacer(1, 6*mm)]
+    data = [headers] + [[str(v or "") for v in row] for row in rows]
+    table = Table(data, repeatRows=1)
+    table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), "DejaVu"), ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E293B")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F1F5F9")]),
+    ]))
+    story.append(table)
+    doc.build(story)
+
+
+def save_all_formats(parent, headers, rows, title):
+    """Одна кнопка — сразу XLSX+PDF+CSV+JSON в export/."""
+    from PyQt6.QtWidgets import QMessageBox
+    from paths import APP_DIR
+    from datetime import datetime
+    import json as _json, csv as _csv
+    d = APP_DIR / "export"
+    d.mkdir(parents=True, exist_ok=True)
+    name = _safe_name(title)
+    saved, errors = [], []
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill
+        p = d / (name + ".xlsx")
+        wb = Workbook(); ws = wb.active
+        ws.title = _sheet_title(title)
+        ws.cell(1, 1, title).font = Font(bold=True, size=14)
+        ws.cell(2, 1, f"Дата: {datetime.now():%Y-%m-%d %H:%M}")
+        fill = PatternFill("solid", fgColor=("1E293B" if theme.DARK else "F1F5F9"))
+        fnt = Font(bold=True, color=("FFFFFF" if theme.DARK else "0F172A"))
+        for c, h in enumerate(headers, 1):
+            cell = ws.cell(5, c, h); cell.font = fnt; cell.fill = fill
+        for r, row in enumerate(rows, 6):
+            for c, val in enumerate(row, 1):
+                ws.cell(r, c, "" if val is None else str(val))
+        for c in range(1, len(headers) + 1):
+            ml = 10
+            for r in range(1, ws.max_row + 1):
+                v = ws.cell(r, c).value
+                if v: ml = max(ml, len(str(v)))
+            ws.column_dimensions[ws.cell(1, c).column_letter].width = min(ml + 2, 60)
+        wb.save(str(p)); saved.append(p)
+    except Exception as e:
+        errors.append("XLSX: %s" % e)
+    try:
+        p = d / (name + ".csv")
+        with open(p, "w", newline="", encoding="utf-8-sig") as fh:
+            wr = _csv.writer(fh, delimiter=";"); wr.writerow(headers); wr.writerows(rows)
+        saved.append(p)
+    except Exception as e:
+        errors.append("CSV: %s" % e)
+    try:
+        p = d / (name + ".json")
+        with open(p, "w", encoding="utf-8") as fh:
+            _json.dump({"title": title, "exported_at": datetime.now().isoformat(timespec="seconds"),
+                        "headers": headers, "rows": rows}, fh, ensure_ascii=False, indent=2)
+        saved.append(p)
+    except Exception as e:
+        errors.append("JSON: %s" % e)
+    if (ASSETS / "DejaVuSans.ttf").exists():
+        try:
+            p = d / (name + ".pdf")
+            _write_pdf_file(p, headers, rows, title)
+            saved.append(p)
+        except Exception as e:
+            errors.append("PDF: %s" % e)
+    else:
+        errors.append("PDF: нет assets/DejaVuSans.ttf")
+    msg = "Сохранено файлов: %d\n%s" % (len(saved), "\n".join(str(s) for s in saved))
+    if errors:
+        msg += "\n\nПропущено:\n" + "\n".join(errors)
+    QMessageBox.information(parent, "Сохранить (все форматы)", msg)
+    return saved
+
+
 def _table_data(tbl):
     headers = [tbl.horizontalHeaderItem(i).text() for i in range(tbl.columnCount())]
     rows = [[tbl.item(r, c).text() if tbl.item(r, c) else ""
@@ -211,6 +313,8 @@ def install_export_panel(widget, title=None, formats=("xlsx", "pdf", "csv", "jso
     host = tbl.parentWidget()
     lay = host.layout() if host else None
     if lay is None:
+        lay = widget.layout()
+    if lay is None:
         return False
     title = title or widget.__class__.__name__
 
@@ -230,15 +334,19 @@ def install_export_panel(widget, title=None, formats=("xlsx", "pdf", "csv", "jso
         except (RuntimeError, Exception) as e:
             QMessageBox.warning(widget, "Экспорт", str(e)[:200])
 
+    def _save_all():
+        headers, rows = _table_data(tbl)
+        try:
+            save_all_formats(widget, headers, rows, title)
+        except Exception as e:
+            QMessageBox.warning(widget, "Сохранить", str(e)[:200])
     hb = QHBoxLayout()
     hb.addStretch()
-    for fmt in formats:
-        b = QPushButton(fmt.upper())
-        b.setStyleSheet("QPushButton { background: #f1f5f9; color: #475569; "
-                        "border: 1px solid #cbd5e1; border-radius: 6px; "
-                        "padding: 6px 12px; font-weight: 600; }")
-        b.clicked.connect(lambda _, f=fmt: _do(f))
-        hb.addWidget(b)
+    b = QPushButton(" Сохранить (XLSX+PDF+CSV+JSON)")
+    b.setStyleSheet("QPushButton { background: #10b981; color: white; border: none; "
+                    "border-radius: 6px; padding: 6px 14px; font-weight: 600; }")
+    b.clicked.connect(lambda _: _save_all())
+    hb.addWidget(b)
     lay.addLayout(hb)
     widget._export_panel_done = True
     return True

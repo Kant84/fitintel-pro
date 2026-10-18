@@ -347,16 +347,8 @@ class UsersTab(QWidget):
             headers = [self.table.horizontalHeaderItem(i).text() for i in range(self.table.columnCount())]
             rows = [[self.table.item(r, c).text() if self.table.item(r, c) else ""
                      for c in range(self.table.columnCount())] for r in range(self.table.rowCount())]
-            if fmt == "xlsx":
-                export_table_xlsx(self, headers, rows, "users", "Пользователи")
-            elif fmt == "pdf":
-                export_table_pdf(self, headers, rows, "users", "Пользователи")
-            elif fmt == "csv":
-                from windows.export_helper import _write_csv
-                _write_csv(self, headers, rows, "Пользователи")
-            elif fmt == "json":
-                from windows.export_helper import _write_json
-                _write_json(self, headers, rows, "Пользователи")
+            from windows.export_helper import save_all_formats
+            save_all_formats(self, headers, rows, "Пользователи")
         except (RuntimeError, _requests.HTTPError) as e:
             QMessageBox.warning(self, "Экспорт", str(e)[:200])
 

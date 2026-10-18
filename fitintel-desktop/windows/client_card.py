@@ -611,19 +611,17 @@ class ClientCard(QDialog):
                     export_counterparties_1c(self, [self._client] if self._client else [])
                     return
                 headers, rows, title = data_fn(fmt)
-                if fmt == "xlsx":
-                    export_table_xlsx(self, headers, rows, "export", title)
-                else:
-                    export_table_pdf(self, headers, rows, "export", title)
+                from windows.export_helper import save_all_formats
+                save_all_formats(self, headers, rows, title)
             except (RuntimeError, _requests.HTTPError) as e:
                 self._show_error(e)
-        for fmt, label in [("xlsx", "XLSX"), ("pdf", "PDF"), ("1c", "1С")]:
-            b = self._btn(label)
-            b.setStyleSheet("QPushButton { background: #f1f5f9; color: #475569; "
-                            "border: 1px solid #cbd5e1; border-radius: 6px; "
-                            "padding: 6px 12px; font-weight: 600; }")
-            b.clicked.connect(lambda _, f=fmt: _do(f))
-            hb.addWidget(b)
+        b_all = self._btn(" Сохранить (XLSX+PDF+CSV+JSON)", "#10b981", "white")
+        b_all.clicked.connect(lambda _: _do("all"))
+        hb.addWidget(b_all)
+        b_1c = self._btn("1С")
+        b_1c.setStyleSheet("QPushButton { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 12px; font-weight: 600; }")
+        b_1c.clicked.connect(lambda _: _do("1c"))
+        hb.addWidget(b_1c)
         lay.addLayout(hb)
 
     def _show_error(self, e):
