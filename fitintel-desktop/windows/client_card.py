@@ -317,8 +317,7 @@ class ClientCard(QDialog):
         form.addRow("Категория:", QLabel(str(c.get("client_category") or "—")))
         lay.addLayout(form)
         b_edit = self._btn("Редактировать")
-        b_edit.clicked.connect(lambda: QMessageBox.information(
-            self, "Редактирование", "Откройте экран Клиенты → Изменить"))
+        b_edit.clicked.connect(self._edit_client)
         lay.addWidget(b_edit)
         lay.addStretch(1)
         self._export_panel(lay, self._anketa_export)
