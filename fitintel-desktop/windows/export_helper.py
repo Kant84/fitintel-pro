@@ -318,7 +318,7 @@ def _save_one(parent, fmt, headers, rows, title):
         QMessageBox.warning(parent, "Сохранить", str(e)[:200])
 
 
-def make_save_menu_button(parent, on_format, label=" Сохранить в формате", with_1c=False):
+def make_save_menu_button(parent, on_format, label=" Сохранить в формате", with_1c=True):
     """Зелёная кнопка с выпадающим меню форматов. on_format(fmt) — обработчик."""
     from PyQt6.QtWidgets import QToolButton, QMenu
     btn = QToolButton()
@@ -332,7 +332,7 @@ def make_save_menu_button(parent, on_format, label=" Сохранить в фо�
         act = menu.addAction(txt)
         act.triggered.connect(lambda _, f=fmt: on_format(f))
     if with_1c:
-        act1c = menu.addAction("1С (контрагенты)")
+        act1c = menu.addAction("1С (XML)")
         act1c.triggered.connect(lambda _: on_format("1c"))
     btn.setMenu(menu)
     return btn
@@ -411,10 +411,71 @@ def install_export_panel(widget, title=None, formats=("xlsx", "pdf", "csv", "jso
         except (RuntimeError, Exception) as e:
             QMessageBox.warning(widget, "Экспорт", str(e)[:200])
 
-    btn = make_save_menu_button(widget, lambda fmt: _save_one(widget, fmt, *_table_data(tbl), title))
+    def _on(fmt):
+        if fmt == "1c":
+            export_1c_xml(widget)
+            return
+        _save_one(widget, fmt, *_table_data(tbl), title)
+    btn = make_save_menu_button(widget, _on)
+
     hb = QHBoxLayout()
     hb.addStretch()
     hb.addWidget(btn)
     lay.addLayout(hb)
     widget._export_panel_done = True
     return True
+
+def export_1c_xml(parent, title="export_1c"):
+    """Универсальная выгрузка в 1С: XML (Export > Clients/Client, Sales/Sale), UTF-8."""
+    from PyQt6.QtWidgets import QFileDialog, QMessageBox
+    from paths import APP_DIR
+    from xml.sax.saxutils import escape
+    d = APP_DIR / "export"
+    d.mkdir(parents=True, exist_ok=True)
+    path, _ = QFileDialog.getSaveFileName(parent, "Выгрузка в 1С (XML)",
+        str(d / "export_1c.xml"), "XML (*.xml)")
+    if not path:
+        return
+    api = getattr(parent, "api", None)
+    clients, sales = [], []
+    if api is not None:
+        try:
+            clients = api.get_clients() or []
+        except Exception:
+            clients = []
+        try:
+            r = api._e55_get("/payments/") or {}
+            sales = r.get("items", []) if isinstance(r, dict) else (r if isinstance(r, list) else [])
+        except Exception:
+            sales = []
+    def _fio(c):
+        return " ".join(x for x in (c.get("last_name"), c.get("first_name"), c.get("middle_name")) if x)
+    L = ['<?xml version="1.0" encoding="UTF-8"?>', '<Export>', '  <Clients>']
+    for c in clients:
+        L.append('    <Client>')
+        L.append('      <ExternalId>%s</ExternalId>' % escape(str(c.get("id"))))
+        L.append('      <FullName>%s</FullName>' % escape(_fio(c)))
+        L.append('      <Phone>%s</Phone>' % escape(str(c.get("phone") or "")))
+        L.append('      <Email>%s</Email>' % escape(str(c.get("email") or "")))
+        L.append('      <ContractNumber>%s</ContractNumber>' % escape(str(c.get("id"))[:8]))
+        L.append('    </Client>')
+    L.append('  </Clients>')
+    L.append('  <Sales>')
+    for s in sales[:5000]:
+        amt = s.get("amount") or s.get("sum") or 0
+        L.append('    <Sale>')
+        L.append('      <ExternalId>%s</ExternalId>' % escape(str(s.get("id"))))
+        L.append('      <Date>%s</Date>' % escape(str(s.get("created_at") or s.get("date") or "")[:10]))
+        L.append('      <ClientExternalId>%s</ClientExternalId>' % escape(str(s.get("client_id") or "")))
+        L.append('      <ProductName>%s</ProductName>' % escape(str(s.get("category") or s.get("description") or s.get("comment") or "Услуга")))
+        L.append('      <Quantity>1</Quantity>')
+        L.append('      <Price>%s</Price>' % escape(str(amt)))
+        L.append('      <Total>%s</Total>' % escape(str(amt)))
+        L.append('      <PaymentType>%s</PaymentType>' % escape(str(s.get("method") or s.get("payment_method") or "")))
+        L.append('    </Sale>')
+    L.append('  </Sales>')
+    L.append('</Export>')
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(L))
+    QMessageBox.information(parent, "1С (XML)",
+        "Сохранено: %s\nКлиентов: %d, продаж: %d" % (path, len(clients), len(sales)))
