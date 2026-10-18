@@ -134,7 +134,7 @@ class UsersTab(QWidget):
 
         hb = QHBoxLayout()
         hb.addStretch()
-        for fmt, label in [("xlsx", "XLSX"), ("pdf", "PDF"), ("1c", "1С")]:
+        for fmt, label in [("xlsx", "XLSX"), ("pdf", "PDF"), ("csv", "CSV"), ("json", "JSON")]:
             b = QPushButton(label)
             b.setStyleSheet("QPushButton { background: #f1f5f9; color: #475569; "
                             "border: 1px solid #cbd5e1; border-radius: 6px; "
@@ -351,8 +351,12 @@ class UsersTab(QWidget):
                 export_table_xlsx(self, headers, rows, "users", "Пользователи")
             elif fmt == "pdf":
                 export_table_pdf(self, headers, rows, "users", "Пользователи")
-            else:
-                QMessageBox.information(self, "1С", "Экспорт сотрудников в 1С — в разработке")
+            elif fmt == "csv":
+                from windows.export_helper import _write_csv
+                _write_csv(self, headers, rows, "Пользователи")
+            elif fmt == "json":
+                from windows.export_helper import _write_json
+                _write_json(self, headers, rows, "Пользователи")
         except (RuntimeError, _requests.HTTPError) as e:
             QMessageBox.warning(self, "Экспорт", str(e)[:200])
 
