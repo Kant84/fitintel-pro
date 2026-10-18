@@ -113,3 +113,5 @@ tools/nssm.exe
 # Исключения — оставляем .gitkeep для структуры папок
 !mpv/.gitkeep
 !tools/.gitkeep
+fitintel-desktop/export/
+export/
