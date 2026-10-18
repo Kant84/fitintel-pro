@@ -8,6 +8,7 @@ _MOD2CLS = {
     "documents_tab": "DocumentsTab",
     "tariffs_tab": "TariffsTab",
     "export_tab": "ExportTab",
+    "payroll_tab": "PayrollTab",
 }
 
 def FinanceHubTab(api):
@@ -29,4 +30,5 @@ _ITEMS = [
     ("Документы", "documents_tab"),
     ("Тарифы", "tariffs_tab"),
     ("Экспорт", "export_tab"),
+    ("Зарплата", "payroll_tab"),
 ]
