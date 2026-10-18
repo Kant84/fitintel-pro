@@ -66,6 +66,8 @@ _DDL = [
 def _ensure(db: Session):
     for ddl in _DDL:
         db.execute(_text(ddl))
+    db.execute(_text("ALTER TABLE payroll_monthly ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(12,2) NOT NULL DEFAULT 0"))
+    db.execute(_text("ALTER TABLE payroll_monthly ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP WITH TIME ZONE"))
     db.commit()
 
 
@@ -248,3 +250,22 @@ def calc(period: str = Query(..., pattern="^\d{4}-\d{2}$"),
                       "commission": commission, "bonus": bonus, "advance": advance,
                       "deductions": deductions, "fines": fines, "total": total})
     return {"period": period, "items": items, "count": len(items)}
+
+# ---------- выплата ЗП ----------
+class PayIn(BaseModel):
+    period: str
+    amount: float
+
+
+@router.post("/payroll/monthly/pay")
+def payroll_monthly_pay(user_id: UUID, body: PayIn,
+                        current_user=Depends(require_permission("users.update")),
+                        db: Session = Depends(get_db)):
+    _ensure(db)
+    db.execute(_text(
+        """INSERT INTO payroll_monthly (id, user_id, period, paid_amount, paid_at)
+           VALUES (:i, :u, :p, :a, now())
+           ON CONFLICT (user_id, period) DO UPDATE SET paid_amount=:a, paid_at=now()"""),
+        {"i": str(uuid4()), "u": str(user_id), "p": body.period, "a": body.amount})
+    db.commit()
+    return {"ok": True}
