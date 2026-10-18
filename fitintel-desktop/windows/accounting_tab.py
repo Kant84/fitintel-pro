@@ -197,7 +197,13 @@ class AccountingTab(QWidget):
 
     def _load_entries(self):
         try:
-            r = _req("GET", "/accounting/entries?date_from=2026-08-01&date_to=2026-08-31")
+                    from datetime import date as _dd
+        import calendar as _cal
+        _first = "%d-%02d-01" % (_dd.today().year, _dd.today().month)
+        _last = "%d-%02d-%02d" % (_dd.today().year, _dd.today().month,
+                                  _cal.monthrange(_dd.today().year, _dd.today().month)[1])
+        r = _req("GET", f"/accounting/entries?date_from={_first}&date_to={_last}")
+
             rows = r.get("entries", [])
             self.ent_tbl.setRowCount(len(rows))
             for i, e in enumerate(rows):
@@ -432,3 +438,19 @@ try:
             break
 except Exception as _e:
     print("401-refresh FAIL:", _e)
+
+# === авто-refresh токена при 401 для module-level _req ===
+try:
+    _orig_req_fn = _req
+    def _req(method, path, data=None):
+        try:
+            return _orig_req_fn(method, path, data)
+        except _ue.HTTPError as e:
+            if e.code != 401:
+                raise
+            if not _refresh_settings_token():
+                raise
+            return _orig_req_fn(method, path, data)
+    print("401-refresh-fn OK:", __name__)
+except Exception as _e:
+    print("401-refresh-fn FAIL:", _e)
