@@ -115,10 +115,11 @@ class VisitsTab(QWidget):
         self.edit_filter = QLineEdit()
         self.edit_filter.setPlaceholderText("Поиск по ФИО, телефону, статусу...")
         self.edit_filter.setStyleSheet(
-            "QLineEdit { border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; min-width: 260px; }")
+            "QLineEdit { border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; min-width: 200px; }")
         self.edit_filter.textChanged.connect(self._filter)
         toolbar = QHBoxLayout()
         toolbar.addWidget(self.edit_filter)
+        toolbar.addStretch()
 
         # === КНОПКИ ОПЕРАТОРА ===
         btn_in = QPushButton(" Впустить")
@@ -146,7 +147,7 @@ class VisitsTab(QWidget):
         btn.clicked.connect(self.refresh)
         toolbar.addWidget(btn)
 
-        self.chk_staff_qr = QCheckBox(" QR для сотрудников (служебный пропуск)")
+        self.chk_staff_qr = QCheckBox(" QR сотрудников")
         self.chk_staff_qr.setToolTip("Когда включено, сотрудники проходят по входному QR без абонемента")
         self.chk_staff_qr.stateChanged.connect(self._toggle_staff_qr)
         toolbar.addWidget(self.chk_staff_qr)
