@@ -107,6 +107,8 @@ class VisitsTab(QWidget):
         cards.addWidget(self.lbl_today)
         cards.addWidget(self.lbl_week)
         cards.addWidget(self.lbl_month)
+        cards.addWidget(self.lbl_new_month)
+        cards.addWidget(self.lbl_lost_month)
         cards.addStretch()
         layout.addLayout(cards)
 
