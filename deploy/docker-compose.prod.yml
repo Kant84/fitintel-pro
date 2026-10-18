@@ -48,6 +48,7 @@ services:
       - static_products:/app/static/products
       - static_scan:/app/static/scan
       - static_brand:/app/static/brand
+      - accounting_data:/app/fitintel_accounting.db
       - face_photos:/app/data/face_photos   # опциональное хранение фото лиц (если клуб включил)
     depends_on:
       db:
@@ -93,6 +94,7 @@ volumes:
   static_products:
   static_scan:
   static_brand:
+  accounting_data:
   postgres_prod:
   face_photos:
 
