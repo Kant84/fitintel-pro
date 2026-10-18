@@ -530,3 +530,34 @@ class ClientsTab(QWidget):
     def _on_error(self, msg):
         self.table.setRowCount(1)
         self.table.setItem(0, 0, QTableWidgetItem(f"Ошибка загрузки: {msg}"))
+
+# === ALL COMMENTS BUTTON ===
+try:
+    from PyQt6.QtWidgets import QHBoxLayout as _HL, QPushButton as _PB
+    _orig_ci = ClientsTab.__init__
+    def _ci(self, api, *a, **kw):
+        _orig_ci(self, api, *a, **kw)
+        try:
+            b = _PB(" Все комментарии")
+            b.setStyleSheet("QPushButton { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+            def _open():
+                try:
+                    me = self.api.me() or {}
+                except Exception:
+                    me = {}
+                from windows.comments_dialog import CommentsDialog
+                dlg = CommentsDialog(self.api, user_data=me, parent=None)
+                dlg.show()
+            b.clicked.connect(_open)
+            lay = None
+            for ch in self.findChildren(_HL):
+                lay = ch
+                break
+            if lay is not None:
+                lay.insertWidget(0, b)
+        except Exception as _e:
+            print("comments button:", _e)
+    ClientsTab.__init__ = _ci
+    print("ALL COMMENTS BUTTON OK")
+except Exception as _e:
+    print("ALL COMMENTS BUTTON FAIL:", _e)
