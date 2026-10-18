@@ -20,6 +20,9 @@ class Client(TimestampedUUIDMixin, Base):
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="ACTIVE")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    client_tag: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    segment: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source: Mapped[str | None] = mapped_column(String(100), nullable=True)
     
     # ✅ Оставляем только существующие связи
     subscriptions = relationship("Subscription", back_populates="client", cascade="all, delete-orphan")
