@@ -1,728 +1,830 @@
 # -*- coding: utf-8 -*-
-"""Карточка клиента: анкета / пакеты / визиты / статистика / заметки.
-TODO(FastAPI): POST+GET /clients/{id}/comments, GET /comments."""
+"""W11: Карточка клиента v2 — шапка + левое меню секций (классика F02000)."""
+import datetime
 import requests as _requests
-import windows.theme as theme
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QDate
-from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QComboBox, QSplitter, QScrollArea, QTabWidget, QWidget, QFormLayout, QGridLayout,
-    QFrame, QTableWidget, QTableWidgetItem, QHeaderView, QListWidget, QListWidgetItem, QTextEdit,
-    QDateEdit, QMenu, QInputDialog, QMessageBox, QAbstractItemView)
-from windows.icons import icon as _icon, polish as _polish
-from app_logging import log
+from PyQt6.QtCore import Qt, QTimer, QDate
+from PyQt6.QtGui import QColor, QPixmap
+from PyQt6.QtWidgets import (
+    QWidget, QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton,
+    QLineEdit, QComboBox, QCheckBox, QSpinBox, QDateEdit, QListWidget, QListWidgetItem,
+    QStackedWidget, QSplitter, QScrollArea, QTableWidget, QTableWidgetItem,
+    QHeaderView, QMessageBox, QFileDialog, QToolButton, QAbstractItemView, QFrame,
+    QSizePolicy)
 
-_STATUS_LABELS = {"ACTIVE": "Активен", "FROZEN": "Заморожен", "DEBTOR": "Должник",
-                  "ARCHIVED": "Архив", "INACTIVE": "Неактивен"}
-_METHOD_MAP = {"QR": "QR", "CARD": "Карта", "FACE_ID": "Face ID",
-               "MANUAL": "Ручной", "OTHER": "Другое"}
-_SUB_COLORS = {"ACTIVE": "#059669", "FROZEN": "#3b82f6",
-               "EXPIRED": "#ef4444", "CANCELLED": "#94a3b8"}
+STATUS_LABELS = {"ACTIVE": "Активен", "FROZEN": "Заморожен", "DEBTOR": "Должник",
+                 "ARCHIVED": "Архив", "INACTIVE": "Неактивен"}
+STATUS_COLORS = {"ACTIVE": "#059669", "FROZEN": "#3b82f6", "DEBTOR": "#d97706",
+                 "ARCHIVED": "#64748b", "INACTIVE": "#ef4444"}
+KIND_LABELS = {"phone": "Телефон", "max": "MAX", "telegram": "Telegram", "email": "Email"}
+
+
+def _fmt(iso):
+    return str(iso or "")[:10]
 
 
 class ClientCard(QDialog):
-    def __init__(self, api, client_id: str, user_data=None, parent=None):
+    def __init__(self, api, client_id, user_data=None, parent=None):
         super().__init__(parent)
         self.api = api
-        self.client_id = str(client_id)          # ПОЛНЫЙ UUID
+        self.client_id = str(client_id)
         self.user_data = user_data or {}
-        self.setModal(False)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setWindowTitle("Карточка клиента")
-        self.resize(1200, 800)
-        self._client = None
+        self.resize(1240, 820)
+        self._client = {}
+        self._profile = {}
         self._subs = []
-        self._visits = []
-        self._tariffs_map = {}
-        self._build_ui()
-        self._load()
-        _polish(self)
-        from windows.help_dialog import install_f1
-        install_f1(self, "client_card")
+        self._files = {"photos": [], "documents": []}
 
-    # ================= Загрузка =================
-    class _Loader(QThread):
-        client_ready = pyqtSignal(dict)
-        subs_ready = pyqtSignal(list)
-        visits_ready = pyqtSignal(list)
-        tariffs_ready = pyqtSignal(list)
-        classes_ready = pyqtSignal(list)
-        goods_ready = pyqtSignal(list)
-        error = pyqtSignal(str)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(8, 8, 8, 8)
 
-        def __init__(self, api, client_id):
-            super().__init__()
-            self.api = api
-            self.client_id = client_id
+        # ── Шапка ──
+        hb = QHBoxLayout()
+        self.hdr = {}
+        for key, title in (("fio", "Клиент"), ("club", "Клуб"), ("tariff", "Тариф"),
+                           ("card", "Карта"), ("dogovor", "Договор"), ("wallet", "Лиц. счёт"),
+                           ("state", "Состояние")):
+            box = QFrame()
+            box.setStyleSheet("QFrame{background:#ffffff;border:1px solid #dfe3e8;border-radius:8px;}"
+                              "QLabel{background:transparent;border:none;}")
+            v = QVBoxLayout(box)
+            v.setContentsMargins(8, 4, 8, 4)
+            t = QLabel(title)
+            t.setStyleSheet("color:#637381;font-size:10px;")
+            val = QLabel("—")
+            val.setStyleSheet("color:#212b36;font-size:13px;font-weight:700;")
+            val.setWordWrap(True)
+            v.addWidget(t)
+            v.addWidget(val)
+            hb.addWidget(box, 1)
+            self.hdr[key] = val
+        self.eye = QToolButton()
+        self.eye.setText("👁")
+        self.eye.setCheckable(True)
+        self.eye.setToolTip("Конфиденциально: скрывать данные от ролей без права")
+        self.eye.toggled.connect(self._toggle_confidential)
+        hb.addWidget(self.eye)
+        root.addLayout(hb)
 
-        def run(self):
-            try:
-                # api.get_client() НЕТ → фильтруем из get_clients()
-                clients = self.api.get_clients()
-                client = next((c for c in clients
-                               if str(c.get("id")) == str(self.client_id)), None)
-                if client:
-                    self.client_ready.emit(client)
-                subs = [s for s in self.api.get_subscriptions()
-                        if str(s.get("client_id")) == str(self.client_id)]
-                self.subs_ready.emit(subs)
-                # params — ВТОРОЙ аргумент dict; client_id — ПОЛНЫЙ UUID
-                resp = self.api._e55_get(f"/visits/client/{self.client_id}",
-                                         {"limit": 200, "offset": 0})
-                visits = resp.get("items", []) if isinstance(resp, dict) else []
-                self.visits_ready.emit(visits)
-                self.tariffs_ready.emit(self.api.get_tariffs())
-                try:
-                    r = self.api._e55_get(f"/services/bookings/client/{self.client_id}") or {}
-                    classes = r.get("items", []) if isinstance(r, dict) else (r if isinstance(r, list) else [])
-                except Exception:
-                    classes = []
-                self.classes_ready.emit(classes)
-                goods = []
-                try:
-                    r = self.api._e55_get("/warehouse/bar/sales") or {}
-                    items = r.get("items", []) if isinstance(r, dict) else (r if isinstance(r, list) else [])
-                    goods += [g for g in items if str(g.get("client_id")) == str(self.client_id)]
-                except Exception:
-                    pass
-                try:
-                    r = self.api._e55_get("/sales/") or {}
-                    items = r.get("items", []) if isinstance(r, dict) else (r if isinstance(r, list) else [])
-                    goods += [g for g in items if str(g.get("client_id")) == str(self.client_id)]
-                except Exception:
-                    pass
-                self.goods_ready.emit(goods)
+        # ── Действия ──
+        ar = QHBoxLayout()
+        for text, slot, color in (
+                (" Продать услугу", self._sell_service, "#10b981"),
+                (" Выдать карту", self._assign_card, "#3b82f6"),
+                (" Заморозить", self._freeze, "#f59e0b"),
+                (" К сообщениям MAX", self._open_max, "#8b5cf6")):
+            b = QPushButton(text)
+            b.setStyleSheet("QPushButton{background:%s;color:white;border:none;border-radius:6px;padding:8px 14px;font-weight:600;}" % color)
+            b.clicked.connect(slot)
+            ar.addWidget(b)
+        ar.addStretch(1)
+        root.addLayout(ar)
 
-            except Exception as e:
-                self.error.emit(str(e))
+        # ── Меню + страницы ──
+        sp = QSplitter(Qt.Orientation.Horizontal)
+        self.menu = QListWidget()
+        self.menu.setFixedWidth(210)
+        self.menu.setStyleSheet(
+            "QListWidget{background:#f8fafc;border:1px solid #e2e8f0;outline:none;}"
+            "QListWidget::item{padding:7px 10px;color:#334155;}"
+            "QListWidget::item:selected{background:#0ea5e9;color:white;}")
+        sp.addWidget(self.menu)
+        self.stack = QStackedWidget()
+        sp.addWidget(self.stack)
+        sp.setStretchFactor(1, 1)
+        root.addWidget(sp, 1)
 
-    def _load(self):
-        self._loader = self._Loader(self.api, self.client_id)
-        self._loader.client_ready.connect(self._on_client)
-        self._loader.subs_ready.connect(self._on_subs)
-        self._loader.visits_ready.connect(self._on_visits)
-        self._loader.tariffs_ready.connect(self._on_tariffs)
-        self._loader.classes_ready.connect(self._on_classes)
-        self._loader.goods_ready.connect(self._on_goods)
-        self._loader.error.connect(
-            lambda m: QMessageBox.warning(self, "Ошибка загрузки", str(m)[:300]))
-        self._loader.start()
+        self._pages = {}
+        for section, items in (
+                ("ДАННЫЕ", ["Анкета", "Телефоны/Контакты", "Документы", "Фото",
+                            "Пакеты/Услуги", "Замечания"]),
+                ("СЧЁТ", ["Чеки", "Баланс", "Бонусы", "Скидки"]),
+                ("ПРОЧЕЕ", ["Сообщения", "История", "Блоки", "Автомобили", "Гость"])):
+            sec = QListWidgetItem(section)
+            sec.setFlags(Qt.ItemFlag.NoItemFlags)
+            sec.setForeground(QColor("#94a3b8"))
+            self.menu.addItem(sec)
+            for it in items:
+                self.menu.addItem(it)
+                page = self._build_page(it)
+                self._pages[it] = page
+                self.stack.addWidget(page)
+        self.menu.currentRowChanged.connect(self._on_menu)
+        self.menu.setCurrentRow(1)
 
-    def _on_client(self, c):
-        self._client = c
-        self._render_left()
-        self._render_right()
-        self._render_anketa()
+        hint = QLabel("Подсказка: двойной клик по строкам таблиц открывает детали; все списки обновляются кнопками «Обновить».")
+        hint.setStyleSheet("color:#94a3b8;font-size:11px;")
+        root.addWidget(hint)
 
-    def _on_subs(self, subs):
-        self._subs = subs or []
-        self._render_subs()
+        QTimer.singleShot(60, self.reload)
 
-    def _on_visits(self, visits):
-        self._visits = visits or []
-        self._render_visits()
-        self._render_stats()
+    # ================= data =================
+    def _get(self, path, params=None):
+        r = self.api.session.get(self.api._url(path), params=params or {}, timeout=30)
+        r.raise_for_status()
+        return r.json()
 
-    def _on_tariffs(self, tariffs):
-        self._tariffs_map = {str(t.get("id")): t for t in (tariffs or [])}
-        self._render_subs()
+    def _post(self, path, data=None):
+        r = self.api.session.post(self.api._url(path), json=data or {}, timeout=30)
+        r.raise_for_status()
+        return r.json()
 
-    # ================= UI-скелет =================
-    def _build_ui(self):
-        main = QVBoxLayout(self)
-        main.setContentsMargins(0, 0, 0, 0)
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+    def reload(self):
+        try:
+            d = self._get("/clients/%s" % self.client_id)
+            self._client = d if isinstance(d, dict) else {}
+        except Exception:
+            self._client = {}
+        try:
+            d = self._get("/analytics/clients/%s/profile" % self.client_id)
+            self._profile = d if isinstance(d, dict) else {}
+        except Exception:
+            self._profile = {}
+        try:
+            subs = self.api.get_subscriptions()
+            if isinstance(subs, dict):
+                subs = subs.get("items") or []
+            self._subs = [s for s in (subs or [])
+                          if str(s.get("client_id")) == self.client_id]
+        except Exception:
+            self._subs = []
+        try:
+            self._files = self._get("/analytics/clients/%s/files" % self.client_id)
+        except Exception:
+            self._files = {"photos": [], "documents": []}
+        self._fill_header()
+        name = self.menu.currentItem().text() if self.menu.currentItem() else "Анкета"
+        self._load_page(name)
 
-        self._left_layout, left_scroll = self._side_panel()
-        splitter.addWidget(left_scroll)
+    def _fill_header(self):
+        c, p = self._client, self._profile
+        fio = " ".join(x for x in (c.get("last_name"), c.get("first_name"), c.get("middle_name")) if x) or "—"
+        self.setWindowTitle("Карточка: " + fio)
+        self.hdr["fio"].setText(fio)
+        self.hdr["club"].setText(str(c.get("club_name") or "Основной клуб"))
+        act = [s for s in self._subs if str(s.get("status", "")).upper() == "ACTIVE"]
+        tname = "—"
+        period = ""
+        if act:
+            tname = str(act[0].get("tariff_name") or act[0].get("tariff") or "Абонемент")
+            period = "%s – %s" % (_fmt(act[0].get("start_date")), _fmt(act[0].get("end_date")))
+        elif self._subs:
+            tname = str(self._subs[-1].get("tariff_name") or "—")
+        ck = (p.get("contract_kind") or "").strip()
+        if ck:
+            tname = "%s (%s)" % (tname, ck)
+        self.hdr["tariff"].setText(tname)
+        self.hdr["card"].setText(str(c.get("card_uid") or c.get("rfid_uid") or "—"))
+        self.hdr["dogovor"].setText("№ анкеты " + self.client_id[:8])
+        wb = c.get("wallet_balance")
+        self.hdr["wallet"].setText(("%s ₽" % wb) if wb is not None else "—")
+        st = str(c.get("status") or "—").upper()
+        self.hdr["state"].setText(STATUS_LABELS.get(st, st) + (("  " + period) if period else ""))
+        self.hdr["state"].setStyleSheet("color:%s;font-size:13px;font-weight:700;" % STATUS_COLORS.get(st, "#212b36"))
+        self.eye.blockSignals(True)
+        self.eye.setChecked(bool(p.get("confidential")))
+        self.eye.blockSignals(False)
 
-        self._tabs = QTabWidget()
-        splitter.addWidget(self._tabs)
+    # ================= pages =================
+    def _wrap(self, inner):
+        sc = QScrollArea()
+        sc.setWidgetResizable(True)
+        sc.setWidget(inner)
+        return sc
 
-        self._right_layout, right_scroll = self._side_panel()
-        splitter.addWidget(right_scroll)
-
-        splitter.setStretchFactor(0, 0)
-        splitter.setStretchFactor(1, 1)
-        splitter.setStretchFactor(2, 0)
-        main.addWidget(splitter, 1)
-
-        self._t_anketa = self._add_tab("Анкета")
-        self._t_subs = self._add_tab("Пакеты/Услуги")
-        self._t_visits = self._add_tab("История визитов")
-        self._t_stats = self._add_tab("Статистика посещений")
-        self._t_notes = self._add_tab("Комментарии")
-        self._t_classes = self._add_tab("Занятия")
-        self._t_trainers = self._add_tab("Тренеры")
-        self._t_goods = self._add_tab("Товары")
-        self._render_notes()
-
-    def _side_panel(self):
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setMinimumWidth(260)
-        scroll.setMaximumWidth(320)
+    def _build_page(self, name):
         w = QWidget()
-        lay = QVBoxLayout(w)
-        scroll.setWidget(w)
-        return lay, scroll
+        v = QVBoxLayout(w)
+        v.setContentsMargins(8, 8, 8, 8)
+        v.addWidget(QLabel("Загрузка…"))
+        return self._wrap(w)
 
-    def _add_tab(self, title):
+    def _on_menu(self, row):
+        it = self.menu.item(row)
+        if it is None or not (it.flags() & Qt.ItemFlag.ItemIsEnabled):
+            return
+        self.stack.setCurrentIndex(max(0, row - 1 - row // 7))
+        self._load_page(it.text())
+
+    def _page_layout(self, name):
+        sc = self._pages[name]
         w = QWidget()
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(12, 12, 12, 12)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setWidget(w)
-        self._tabs.addTab(scroll, title)
-        w._layout = lay
-        return w
+        v = QVBoxLayout(w)
+        v.setContentsMargins(10, 10, 10, 10)
+        sc.setWidget(w)
+        return v
 
-    def _clear(self, lay):
-        while lay.count():
-            it = lay.takeAt(0)
-            if it.widget():
-                it.widget().deleteLater()
+    def _load_page(self, name):
+        try:
+            {"Анкета": self._p_anketa, "Телефоны/Контакты": self._p_contacts,
+             "Документы": self._p_docs, "Фото": self._p_photos,
+             "Пакеты/Услуги": self._p_subs, "Замечания": self._p_comments,
+             "Чеки": self._p_payments, "Баланс": self._p_wallet, "Бонусы": self._p_bonuses,
+             "Скидки": self._p_discount, "Сообщения": self._p_messages,
+             "История": self._p_history, "Блоки": self._p_blocks,
+             "Автомобили": self._p_cars, "Гость": self._p_guest}.get(name, lambda: None)()
+        except Exception as e:
+            v = self._page_layout(name)
+            v.addWidget(QLabel("Ошибка загрузки раздела: %s" % str(e)[:200]))
+            v.addStretch(1)
 
-    @staticmethod
-    def _btn(text, color="#f1f5f9", fg="#475569"):
-        b = QPushButton(text)
-        b.setStyleSheet(f"QPushButton {{ background: {color}; color: {fg}; "
-                        f"border: 1px solid #cbd5e1; border-radius: 6px; "
-                        f"padding: 8px 14px; font-weight: 600; }}")
+    def _tbl(self, headers):
+        t = QTableWidget(0, len(headers))
+        t.setHorizontalHeaderLabels(headers)
+        t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        t.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        t.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        t.setAlternatingRowColors(True)
+        return t
+
+    def _refresh_btn(self, fn):
+        b = QPushButton(" Обновить")
+        b.clicked.connect(fn)
         return b
 
-    def _fio(self, c=None):
-        c = c or self._client or {}
-        return " ".join(x for x in (c.get("last_name"), c.get("first_name"),
-                                    c.get("middle_name")) if x) or "—"
+    # ── Анкета ──
+    def _p_anketa(self):
+        v = self._page_layout("Анкета")
+        c, p = self._client, self._profile
+        top = QHBoxLayout()
+        self.ava = QLabel("—")
+        self.ava.setFixedSize(120, 120)
+        self.ava.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.ava.setStyleSheet("background:#e2e8f0;border-radius:60px;color:#64748b;font-size:28px;font-weight:700;")
+        self._set_avatar(c.get("photo_url") or c.get("avatar_url"))
+        top.addWidget(self.ava)
+        bp = QPushButton("Сменить фото")
+        bp.clicked.connect(self._change_photo)
+        top.addWidget(bp, 0, Qt.AlignmentFlag.AlignBottom)
+        ttl = QLabel(" ".join(x for x in (c.get("last_name"), c.get("first_name"), c.get("middle_name")) if x) or "—")
+        ttl.setStyleSheet("font-size:20px;font-weight:700;color:#212b36;")
+        sub = QLabel("ID: %s   ·   Телефон: %s   ·   Email: %s" % (
+            self.client_id[:8], c.get("phone") or "—", c.get("email") or "—"))
+        sub.setStyleSheet("color:#637381;")
+        tv = QVBoxLayout()
+        tv.addWidget(ttl)
+        tv.addWidget(sub)
+        tv.addStretch(1)
+        top.addLayout(tv, 1)
+        v.addLayout(top)
 
-    # ================= Левая панель =================
-    def _render_left(self):
-        self._clear(self._left_layout)
-        c = self._client or {}
-
-        avatar = QLabel(self._fio()[:2].upper())
-        avatar.setFixedSize(180, 180)
-        avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        avatar.setStyleSheet("background: #3b82f6; color: white; font-size: 48px; border-radius: 90px;")
-        self._left_layout.addWidget(avatar, 0, Qt.AlignmentFlag.AlignHCenter)
-
-        b_photo = self._btn("Сменить фото")
-        b_photo.clicked.connect(self._change_photo)
-        self._left_layout.addWidget(b_photo)
-
-        lbl_fio = QLabel(self._fio())
-        f = lbl_fio.font(); f.setBold(True); f.setPointSize(14)
-        lbl_fio.setFont(f); lbl_fio.setWordWrap(True)
-        self._left_layout.addWidget(lbl_fio)
-
-        age = ""
-        bd = c.get("birth_date")
-        if bd:
-            try:
-                from datetime import datetime as _dt
-                age = f" · {_dt.now().year - _dt.fromisoformat(str(bd)[:10]).year} лет"
-            except Exception:
-                pass
-        self._left_layout.addWidget(QLabel(f"ID: {self.client_id[:8]}...{age}"))
-
-        self._left_layout.addWidget(QLabel("Статус:"))
-        self._cb_status = QComboBox()
-        for code in ("ACTIVE", "FROZEN", "DEBTOR", "ARCHIVED"):
-            self._cb_status.addItem(_STATUS_LABELS.get(code, code), code)
-        cur = str(c.get("status") or "ACTIVE").upper()
-        idx = self._cb_status.findData(cur)
-        if idx < 0:
-            idx = self._cb_status.findData("ACTIVE")
-        if idx >= 0:
-            self._cb_status.setCurrentIndex(idx)
-        self._cb_status.currentIndexChanged.connect(self._change_status)
-        self._left_layout.addWidget(self._cb_status)
-
-        b_sell = self._btn("Продать услугу", "#10b981", "white")
-        b_sell.clicked.connect(self._sell_service)
-        self._left_layout.addWidget(b_sell)
-
-        b_card = self._btn("Выдать карту")
-        b_card.clicked.connect(self._assign_card)
-        self._left_layout.addWidget(b_card)
-
-        b_freeze = self._btn("Заморозить")
-        b_freeze.clicked.connect(self._do_freeze)
-        self._left_layout.addWidget(b_freeze)
-
-        face_cnt = self._face_templates_count()
-        self._left_layout.addWidget(QLabel(
-            f"Face ID: {'привязан (' + str(face_cnt) + ')' if face_cnt else 'нет'}"))
-        b_face = self._btn("Зарегистрировать")
-        b_face.clicked.connect(lambda: self._open_screen("Face ID"))
-        self._left_layout.addWidget(b_face)
-        self._left_layout.addStretch(1)
-
-    def _change_status(self, _i):
-        if not self._client or not self._cb_status:
-            return
-        new_status = self._cb_status.currentData()
-        try:
-            self.api.update_client(self.client_id, {
-                "status": new_status, "is_active": (new_status == "ACTIVE")})
-            self._client["status"] = new_status
-            log.info("Статус клиента %s → %s", self.client_id[:8], new_status)
-        except (RuntimeError, _requests.HTTPError) as e:
-            self._show_error(e)
-            cur = str((self._client or {}).get("status") or "ACTIVE").upper()
-            self._cb_status.blockSignals(True)
-            idx = self._cb_status.findData(cur)
-            if idx >= 0:
-                self._cb_status.setCurrentIndex(idx)
-            self._cb_status.blockSignals(False)
-
-    def _do_freeze(self):
-        active_sub = next((s for s in self._subs if s.get("status") == "ACTIVE"), None)
-        if not active_sub:
-            QMessageBox.information(self, "Заморозка", "Нет активного абонемента")
-            return
-        try:
-            self.api.freeze_subscription(active_sub["id"])
-            QMessageBox.information(self, "Готово", "Абонемент заморожен")
-            self._load()
-        except (RuntimeError, _requests.HTTPError) as e:
-            self._show_error(e)
-
-    def _face_templates_count(self):
-        try:
-            templates = self.api.face_templates()
-            if not isinstance(templates, list):
-                return 0
-            return sum(1 for t in templates
-                       if isinstance(t, dict) and str(t.get("client_id")) == str(self.client_id))
-        except Exception:
-            return 0
-
-    # ================= Анкета =================
-    def _render_anketa(self):
-        lay = self._t_anketa._layout
-        self._clear(lay)
-        c = self._client or {}
-        form = QFormLayout()
-        form.addRow("ФИО:", QLabel(self._fio()))
-        form.addRow("Дата рождения:", QLabel(str(c.get("birth_date") or "—")))
-        form.addRow("Пол:", QLabel({"MALE": "Мужской", "МУЖСКОЙ": "Мужской",
-                                    "FEMALE": "Женский", "ЖЕНСКИЙ": "Женский"}.get(str(c.get("gender")), "—")))
-        form.addRow("Телефон:", QLabel(str(c.get("phone") or "—")))
-        form.addRow("Email:", QLabel(str(c.get("email") or "—")))
-        form.addRow("Категория:", QLabel(str(c.get("client_category") or "—")))
-        lay.addLayout(form)
-        b_edit = self._btn("Редактировать")
-        b_edit.clicked.connect(self._edit_client)
-        lay.addWidget(b_edit)
-        lay.addStretch(1)
-        self._export_panel(lay, self._anketa_export)
-
-    def _anketa_export(self, fmt=None):
-        c = self._client or {}
-        headers = ["ФИО", "Дата рождения", "Пол", "Телефон", "Email", "Категория"]
-        rows = [[self._fio(), str(c.get("birth_date") or ""),
-                 {"MALE": "Мужской", "FEMALE": "Женский"}.get(str(c.get("gender")), ""),
-                 str(c.get("phone") or ""), str(c.get("email") or ""),
-                 str(c.get("client_category") or "")]]
-        return headers, rows, "Клиент: " + self._fio()
-
-    # ================= Пакеты =================
-    def _render_subs(self):
-        lay = self._t_subs._layout
-        self._clear(lay)
-        tbl = QTableWidget(0, 6)
-        tbl.setHorizontalHeaderLabels(["Название", "Тип", "Остаток", "Срок", "Статус", "Заморожен до"])
-        tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        tbl.setAlternatingRowColors(True)
-        tbl.setStyleSheet(theme.table_style())
-        for s in self._subs:
-            r = tbl.rowCount()
-            tbl.insertRow(r)
-            tid = str(s.get("tariff_id"))
-            name = (self._tariffs_map.get(tid) or {}).get("name") or tid[:8]
-            if s.get("is_unlimited"):
-                typ, ost = "Безлимит", "∞"
-            elif s.get("visit_limit"):
-                typ = "Пакет"
-                ost = f"{s.get('visits_used', 0)}/{s.get('visit_limit')}"
-            else:
-                typ, ost = "Членство", "—"
-            period = f"{(s.get('start_date') or '')[:10]}–{(s.get('end_date') or '')[:10]}"
-            status = str(s.get("status") or "—")
-            frozen = str(s.get("frozen_until") or "")[:10] if s.get("frozen_until") else "—"
-            for col, val in enumerate([name, typ, ost, period, status, frozen]):
-                item = QTableWidgetItem(str(val))
-                if col == 4:
-                    item.setForeground(QColor(_SUB_COLORS.get(status.upper(), "#0f172a")))
-                tbl.setItem(r, col, item)
-        lay.addWidget(tbl)
-        self._t_subs._table = tbl
-        lay.addStretch(1)
-        self._export_panel(lay, lambda fmt=None: self._table_export(self._t_subs, "Пакеты клиента"))
-
-    # ================= Визиты =================
-    def _render_visits(self):
-        lay = self._t_visits._layout
-        self._clear(lay)
-        tbl = QTableWidget(0, 7)
-        tbl.setHorizontalHeaderLabels(["Дата", "Вход", "Выход", "Длит.", "Зона", "Способ", "Сотрудник"])
-        tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        tbl.setAlternatingRowColors(True)
-        tbl.setStyleSheet(theme.table_style())
-        for v in self._visits:
-            r = tbl.rowCount()
-            tbl.insertRow(r)
-            entry = str(v.get("entry_time") or "")
-            exit_ = str(v.get("exit_time") or "")
-            dur = v.get("duration_minutes")
-            vals = [
-                entry[:10],
-                entry[11:16] if len(entry) >= 16 else "—",
-                exit_[11:16] if len(exit_) >= 16 else "—",
-                f"{dur} мин" if dur else "—",
-                str(v.get("zone") or "—"),
-                _METHOD_MAP.get(str(v.get("access_method") or "OTHER"), "—"),
-                str(v.get("processed_by_user_id") or "—")[:8],
-            ]
-            for col, val in enumerate(vals):
-                item = QTableWidgetItem(str(val))
-                item.setData(Qt.ItemDataRole.UserRole, str(v.get("id")))
-                tbl.setItem(r, col, item)
-        tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        tbl.customContextMenuRequested.connect(lambda pos: self._visit_menu(tbl, pos))
-        lay.addWidget(tbl)
-        self._t_visits._table = tbl
-        lay.addStretch(1)
-        self._export_panel(lay, lambda fmt=None: self._table_export(self._t_visits, "Визиты клиента"))
-
-    def _visit_menu(self, tbl, pos):
-        item = tbl.itemAt(pos)
-        if not item:
-            return
-        vid = item.data(Qt.ItemDataRole.UserRole)
-        if not vid:
-            return
-        menu = QMenu(self)
-        act_cancel = menu.addAction("Отменить визит")
-        if menu.exec(tbl.viewport().mapToGlobal(pos)) != act_cancel:
-            return
-        reason, ok = QInputDialog.getText(self, "Отмена визита", "Причина:")
-        if not ok or not reason.strip():
-            return
-        try:
-            # DELETE с телом — только session.request
-            self.api.session.request("DELETE", self.api._url(f"/visits/{vid}"),
-                                     json={"reason": reason.strip()}, timeout=30)
-            self._load()
-        except (RuntimeError, _requests.HTTPError) as e:
-            self._show_error(e)
-
-    # ================= Статистика =================
-    def _render_stats(self):
-        lay = self._t_stats._layout
-        self._clear(lay)
-        visits = self._visits
-        from datetime import datetime as _dt, timedelta as _td
-        cutoff = (_dt.now() - _td(days=30)).isoformat()[:10]
-        month_count = sum(1 for v in visits if (v.get("entry_time") or "")[:10] >= cutoff)
-        durs = [v.get("duration_minutes") for v in visits if v.get("duration_minutes")]
-        avg = int(sum(durs) / len(durs)) if durs else 0
-        last = max((v.get("entry_time") or "") for v in visits) if visits else "—"
         grid = QGridLayout()
-        for i, (title, val) in enumerate([
-                ("Всего визитов", len(visits)),
-                ("За месяц", month_count),
-                ("Средняя длительность", f"{avg} мин"),
-                ("Последний визит", str(last)[:16])]):
-            card = QFrame()
-            card.setStyleSheet(theme.card_style())
-            cv = QVBoxLayout(card)
-            tl = QLabel(title); tl.setStyleSheet("color: #64748b; font-size: 11px;")
-            vl = QLabel(str(val)); f = vl.font(); f.setBold(True); f.setPointSize(14)
-            vl.setFont(f)
-            cv.addWidget(tl); cv.addWidget(vl)
-            grid.addWidget(card, 0, i)
-        lay.addLayout(grid)
-        lay.addWidget(QLabel("Тренд по неделям:"))
-        weeks = {}
-        for v in visits:
-            ts = (v.get("entry_time") or "")[:10]
-            if not ts:
-                continue
-            try:
-                d = _dt.fromisoformat(ts)
-                y, wk, _ = d.isocalendar()
-                key = f"{y}-W{wk:02d}"
-                weeks[key] = weeks.get(key, 0) + 1
-            except Exception:
-                continue
-        tbl = QTableWidget(len(weeks), 2)
-        tbl.setHorizontalHeaderLabels(["Неделя", "Кол-во"])
-        tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        tbl.setStyleSheet(theme.table_style())
-        for r, (wk, cnt) in enumerate(sorted(weeks.items())):
-            tbl.setItem(r, 0, QTableWidgetItem(wk))
-            tbl.setItem(r, 1, QTableWidgetItem(str(cnt)))
-        lay.addWidget(tbl)
-        self._t_stats._table = tbl
-        lay.addStretch(1)
-        self._export_panel(lay, lambda fmt=None: self._table_export(self._t_stats, "Статистика клиента"))
+        rows = [
+            ("Дата рождения", _fmt(c.get("birth_date")) or "—"), ("Пол", c.get("gender") or "—"),
+            ("Категория", c.get("client_category") or "—"), ("Тег", c.get("client_tag") or "—"),
+            ("Сегмент", c.get("segment") or "—"), ("Источник", c.get("source") or "—"),
+            ("Паспорт", p.get("passport") or "—"), ("Гражданство", p.get("citizenship") or "—"),
+            ("Семейное положение", p.get("marital_status") or "—"), ("Дети", p.get("children") or "—"),
+            ("Домашний адрес", p.get("home_address") or "—"), ("Почтовый адрес", p.get("postal_address") or "—"),
+            ("Компания", p.get("work_company") or "—"), ("Должность", p.get("work_position") or "—"),
+            ("Вид договора", p.get("contract_kind") or "—"),
+        ]
+        for i, (k, val) in enumerate(rows):
+            l = QLabel(k + ":")
+            l.setStyleSheet("color:#637381;")
+            grid.addWidget(l, i, 0)
+            grid.addWidget(QLabel(str(val)), i, 1)
+        v.addLayout(grid)
+        br = QHBoxLayout()
+        b1 = QPushButton(" Редактировать (основное)")
+        b1.clicked.connect(self._edit_main)
+        b2 = QPushButton(" Редактировать (паспорт, адреса, работа)")
+        b2.clicked.connect(self._edit_extra)
+        br.addWidget(b1)
+        br.addWidget(b2)
+        br.addStretch(1)
+        v.addLayout(br)
+        v.addStretch(1)
 
-    # ================= Заметки =================
-    def _render_notes(self):
-        lay = self._t_notes._layout
-        self._clear(lay)
-        self._notes_list = QListWidget()
-        self._notes_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self._notes_list.customContextMenuRequested.connect(self._notes_menu)
-        lay.addWidget(self._notes_list)
-        form = QHBoxLayout()
-        self._note_text = QTextEdit()
-        self._note_text.setPlaceholderText("Текст заметки…")
-        self._note_text.setMaximumHeight(80)
-        form.addWidget(self._note_text, 1)
-        col = QVBoxLayout()
-        self._note_type = QComboBox()
-        self._note_type.addItem("Заметка", "NOTE")
-        self._note_type.addItem("Задача", "TASK")
-        self._note_type.addItem("Звонок", "CALL")
-        col.addWidget(self._note_type)
-        self._note_due = QDateEdit(QDate.currentDate())
-        self._note_due.setCalendarPopup(True)
-        col.addWidget(self._note_due)
-        form.addLayout(col)
-        b_add = self._btn("Добавить", "#10b981", "white")
-        b_add.clicked.connect(self._add_note)
-        form.addWidget(b_add)
-        lay.addLayout(form)
-        self._load_notes()
-        self._export_panel(lay, lambda fmt=None: self._notes_export())
-
-    def _load_notes(self):
-        try:
-            resp = self.api._e55_get(f"/clients/{self.client_id}/comments")
-            items = (resp.get("items", []) if isinstance(resp, dict)
-                     else (resp if isinstance(resp, list) else []))
-            self._notes_list.clear()
-            for n in items:
-                if not isinstance(n, dict):
-                    continue
-                it = QListWidgetItem(
-                    f"{str(n.get('created_at') or '')[:16]} · "
-                    f"{n.get('author_name') or '—'} · [{n.get('type') or 'NOTE'}] "
-                    f"{(n.get('text') or '')[:80]}")
-                it.setData(Qt.ItemDataRole.UserRole, str(n.get("id") or ""))
-                self._notes_list.addItem(it)
-            if not items:
-                self._notes_list.addItem("Заметок нет")
-        except (RuntimeError, _requests.HTTPError) as e:
-            s = str(e)
-            if "404" in s or "not found" in s.lower():
-                self._notes_list.clear()
-                self._notes_list.addItem("⏳ Заметки недоступны — эндпоинт /comments в разработке")
-                self._note_text.setEnabled(False)
-            else:
-                self._show_error(e)
-
-    def _add_note(self):
-        text = self._note_text.toPlainText().strip()
-        if not text:
-            QMessageBox.information(self, "Заметка", "Введите текст")
+    def _set_avatar(self, url):
+        if not url:
             return
         try:
-            self.api._e55_post(f"/clients/{self.client_id}/comments", {
-                "text": text,
-                "type": self._note_type.currentData(),
-                "due_date": self._note_due.date().toString("yyyy-MM-dd"),
-            })
-            self._note_text.clear()
-            self._load_notes()
-        except (RuntimeError, _requests.HTTPError) as e:
-            self._show_error(e)
+            full = url if str(url).startswith("http") else (self.api.base_url.rstrip("/").replace("/api/v1", "") + str(url))
+            r = self.api.session.get(full, timeout=15)
+            px = QPixmap()
+            px.loadFromData(r.content)
+            if not px.isNull():
+                self.ava.setPixmap(px.scaled(120, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        except Exception:
+            pass
 
-    def _notes_export(self, fmt=None):
-        headers = ["Заметка"]
-        rows = [[self._notes_list.item(r).text()] for r in range(self._notes_list.count())]
-        return headers, rows, "Заметки клиента"
-
-    def _notes_menu(self, pos):
-        item = self._notes_list.itemAt(pos)
-        if not item:
-            return
-        cid = item.data(Qt.ItemDataRole.UserRole)
-        if not cid:
-            return
-        menu = QMenu(self)
-        a_done = menu.addAction("Отметить выполненным")
-        a_del = menu.addAction("Удалить")
-        act = menu.exec(self._notes_list.viewport().mapToGlobal(pos))
-        try:
-            if act == a_done:
-                self.api._e55_patch(f"/comments/{cid}", {"status": "DONE"})
-                self._load_notes()
-            elif act == a_del:
-                if QMessageBox.question(self, "Заметка", "Удалить запись?") == QMessageBox.StandardButton.Yes:
-                    self.api._e55_del(f"/comments/{cid}")
-                    self._load_notes()
-        except (RuntimeError, _requests.HTTPError) as e:
-            self._show_error(e)
     def _change_photo(self):
-        from PyQt6.QtWidgets import QFileDialog
-        path, _ = QFileDialog.getOpenFileName(self, "Фото клиента", "", "Images (*.jpg *.jpeg *.png)")
+        path, _ = QFileDialog.getOpenFileName(self, "Фото клиента", "", "Images (*.png *.jpg *.jpeg)")
         if not path:
             return
         try:
-            with open(path, "rb") as fh:
-                self.api.session.post(
-                    self.api._url(f"/clients/{self.client_id}/photo"),
-                    files={"file": ("photo.jpg", fh, "image/jpeg")}, timeout=30)
-            self._load()
-        except (RuntimeError, _requests.HTTPError) as e:
-            self._show_error(e)
-    def _on_classes(self, items):
-        self._classes = items or []
-        self._render_classes()
-        self._render_trainers()
+            r = self.api.session.post(self.api._url("/clients/%s/photo" % self.client_id),
+                                      files={"file": open(path, "rb")}, timeout=60)
+            r.raise_for_status()
+            QMessageBox.information(self, "Фото", "Фото обновлено")
+            self.reload()
+        except Exception as e:
+            QMessageBox.warning(self, "Фото", "Не удалось загрузить фото: %s" % str(e)[:200])
 
-    def _on_goods(self, items):
-        self._goods = items or []
-        self._render_goods()
+    def _edit_main(self):
+        from windows.form_dialog import FormDialog
+        c = self._client
+        dlg = FormDialog("Основные данные", [
+            ("last_name", "Фамилия *", "text", c.get("last_name") or ""),
+            ("first_name", "Имя *", "text", c.get("first_name") or ""),
+            ("middle_name", "Отчество", "text", c.get("middle_name") or ""),
+            ("phone", "Телефон *", "text", c.get("phone") or ""),
+            ("email", "Email *", "text", c.get("email") or ""),
+            ("gender", "Пол", "combo", [("Мужской", "MALE"), ("Женский", "FEMALE"), ("Не указан", "НЕ_УКАЗАН")]),
+            ("birth_date", "Дата рождения (ГГГГ-ММ-ДД)", "text", _fmt(c.get("birth_date"))),
+            ("client_tag", "Тег", "text", c.get("client_tag") or ""),
+            ("segment", "Сегмент", "text", c.get("segment") or ""),
+            ("source", "Источник", "text", c.get("source") or ""),
+        ], self)
+        if dlg.exec() != FormDialog.DialogCode.Accepted:
+            return
+        v = {k: val for k, val in dlg.values().items() if val not in (None, "")}
+        try:
+            self.api.update_client(self.client_id, v)
+            self.reload()
+        except Exception as e:
+            QMessageBox.warning(self, "Сохранение", str(e)[:200])
 
-    @staticmethod
-    def _cls_status(x):
-        s = str(x.get("status") or x.get("state") or "").upper()
-        if "CANCEL" in s:
-            return "cancelled"
-        if s in ("COMPLETED", "DONE", "VISITED", "ATTENDED", "CLOSED") or x.get("visited"):
-            return "fact"
-        return "record"
+    def _edit_extra(self):
+        from windows.form_dialog import FormDialog
+        p = self._profile
+        dlg = FormDialog("Дополнительные данные", [
+            ("passport", "Паспорт (серия/номер)", "text", p.get("passport") or ""),
+            ("citizenship", "Гражданство", "text", p.get("citizenship") or ""),
+            ("marital_status", "Семейное положение", "text", p.get("marital_status") or ""),
+            ("children", "Дети", "text", p.get("children") or ""),
+            ("home_address", "Домашний адрес", "text", p.get("home_address") or ""),
+            ("postal_address", "Почтовый адрес", "text", p.get("postal_address") or ""),
+            ("work_company", "Компания", "text", p.get("work_company") or ""),
+            ("work_position", "Должность", "text", p.get("work_position") or ""),
+            ("contract_kind", "Вид договора (абонемент/разовое/услуга/занятие)", "text", p.get("contract_kind") or ""),
+        ], self)
+        if dlg.exec() != FormDialog.DialogCode.Accepted:
+            return
+        v = {k: val for k, val in dlg.values().items() if val not in (None, "")}
+        try:
+            self._post("/analytics/clients/%s/profile" % self.client_id, v)
+            self.reload()
+        except Exception as e:
+            QMessageBox.warning(self, "Сохранение", str(e)[:200])
 
-    def _render_classes(self):
-        lay = self._t_classes._layout
-        while lay.count():
-            it = lay.takeAt(0)
-            if it.widget():
-                it.widget().deleteLater()
-        fact = sum(1 for x in self._classes if self._cls_status(x) == "fact")
-        rec = sum(1 for x in self._classes if self._cls_status(x) == "record")
-        canc = sum(1 for x in self._classes if self._cls_status(x) == "cancelled")
-        grid = QGridLayout()
-        for i, (title, val) in enumerate([("Фактические", fact), ("По записям", rec), ("Отменённые", canc)]):
-            card = QFrame()
-            card.setStyleSheet(theme.card_style())
-            cv = QVBoxLayout(card)
-            tl = QLabel(title)
-            tl.setStyleSheet("color: #64748b; font-size: 11px;")
-            vl = QLabel(str(val))
-            fnt = vl.font()
-            fnt.setBold(True)
-            fnt.setPointSize(16)
-            vl.setFont(fnt)
-            cv.addWidget(tl)
-            cv.addWidget(vl)
-            grid.addWidget(card, 0, i)
-        lay.addLayout(grid)
-        tbl = QTableWidget(0, 4)
-        tbl.setHorizontalHeaderLabels(["Дата", "Услуга", "Тренер", "Статус"])
-        tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        tbl.setAlternatingRowColors(True)
-        tbl.setStyleSheet(theme.table_style())
-        for x in self._classes[:500]:
-            r = tbl.rowCount()
-            tbl.insertRow(r)
-            who = x.get("trainer_name") or x.get("trainer") or x.get("trainer_id") or "—"
-            if not isinstance(who, str):
-                who = str(who)[:8]
-            st = {"fact": "Состоялось", "record": "Запись", "cancelled": "Отменено"}.get(self._cls_status(x), "—")
-            for c, v in enumerate([str(x.get("date") or x.get("created_at") or "")[:16],
-                                   str(x.get("service_name") or x.get("service") or x.get("title") or "—"),
-                                   who, st]):
-                tbl.setItem(r, c, QTableWidgetItem(v))
-        lay.addWidget(tbl)
-        self._t_classes._table = tbl
-        lay.addStretch(1)
-        self._export_panel(lay, lambda fmt=None: self._table_export(self._t_classes, "Занятия клиента"))
+    # ── Контакты ──
+    def _p_contacts(self):
+        v = self._page_layout("Телефоны/Контакты")
+        self.tbl_contacts = self._tbl(["Тип", "Вид", "Значение", "Основной"])
+        v.addWidget(self.tbl_contacts, 1)
+        bar = QHBoxLayout()
+        self.cb_ckind = QComboBox()
+        for k, lab in KIND_LABELS.items():
+            self.cb_ckind.addItem(lab, k)
+        self.ed_ctype = QLineEdit(); self.ed_ctype.setPlaceholderText("Вид (Мобильный, Рабочий…)") 
+        self.ed_cval = QLineEdit(); self.ed_cval.setPlaceholderText("Значение (+7…, @max, @telegram, email)")
+        b_add = QPushButton(" Добавить"); b_add.clicked.connect(self._contact_add)
+        b_del = QPushButton(" Удалить выбранный"); b_del.clicked.connect(self._contact_del)
+        bar.addWidget(self.cb_ckind); bar.addWidget(self.ed_ctype, 1); bar.addWidget(self.ed_cval, 1)
+        bar.addWidget(b_add); bar.addWidget(b_del)
+        bar.addWidget(self._refresh_btn(self.reload))
+        v.addLayout(bar)
+        try:
+            d = self._get("/analytics/clients/%s/contacts" % self.client_id)
+            rows = d.get("items", [])
+        except Exception:
+            rows = []
+        self.tbl_contacts.setRowCount(len(rows))
+        for i, r in enumerate(rows):
+            self.tbl_contacts.setItem(i, 0, QTableWidgetItem(KIND_LABELS.get(r.get("kind"), str(r.get("kind")))))
+            self.tbl_contacts.setItem(i, 1, QTableWidgetItem(str(r.get("type_label") or "—")))
+            self.tbl_contacts.setItem(i, 2, QTableWidgetItem(str(r.get("value") or "—")))
+            self.tbl_contacts.setItem(i, 3, QTableWidgetItem("★" if r.get("is_primary") else ""))
+            self.tbl_contacts.item(i, 0).setData(Qt.ItemDataRole.UserRole, r.get("id"))
 
-    def _render_trainers(self):
-        lay = self._t_trainers._layout
-        while lay.count():
-            it = lay.takeAt(0)
-            if it.widget():
-                it.widget().deleteLater()
-        agg = {}
-        for x in self._classes:
-            st = self._cls_status(x)
-            who = x.get("trainer_name") or x.get("trainer") or x.get("trainer_id") or "—"
-            if not isinstance(who, str):
-                who = str(who)[:8]
-            a = agg.setdefault(who, {"fact": 0, "record": 0, "cancelled": 0, "last": ""})
-            a[st] = a.get(st, 0) + 1
-            d = str(x.get("date") or x.get("created_at") or "")
-            if d > a["last"]:
-                a["last"] = d
-        tbl = QTableWidget(0, 4)
-        tbl.setHorizontalHeaderLabels(["Тренер", "Состоялось", "Записей", "Последнее"])
-        tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        tbl.setAlternatingRowColors(True)
-        tbl.setStyleSheet(theme.table_style())
-        for who, a in sorted(agg.items(), key=lambda kv: -kv[1]["fact"]):
-            r = tbl.rowCount()
-            tbl.insertRow(r)
-            for c, v in enumerate([who, a["fact"], a["record"] + a["cancelled"], a["last"][:10]]):
-                tbl.setItem(r, c, QTableWidgetItem(str(v)))
-        lay.addWidget(tbl)
-        self._t_trainers._table = tbl
-        lay.addStretch(1)
-        self._export_panel(lay, lambda fmt=None: self._table_export(self._t_trainers, "Тренеры клиента"))
+    def _contact_add(self):
+        val = self.ed_cval.text().strip()
+        if not val:
+            return
+        try:
+            self._post("/analytics/clients/%s/contacts" % self.client_id,
+                       {"kind": self.cb_ckind.currentData(),
+                        "type_label": self.ed_ctype.text().strip(),
+                        "value": val, "is_primary": False})
+            self.ed_cval.clear()
+            self._load_page("Телефоны/Контакты")
+        except Exception as e:
+            QMessageBox.warning(self, "Контакт", str(e)[:200])
 
-    def _render_goods(self):
-        lay = self._t_goods._layout
-        while lay.count():
-            it = lay.takeAt(0)
-            if it.widget():
-                it.widget().deleteLater()
-        total = 0.0
-        rows = []
-        for g in self._goods:
-            amt = g.get("amount") or g.get("total") or g.get("price") or g.get("sum") or 0
-            try:
-                total += float(amt)
-            except Exception:
-                pass
-            rows.append(g)
-        lbl = QLabel("Покупок: %d на %.2f ₽" % (len(rows), total))
-        lbl.setStyleSheet("color: #64748b;")
-        lay.addWidget(lbl)
-        tbl = QTableWidget(0, 4)
-        tbl.setHorizontalHeaderLabels(["Дата", "Товар/услуга", "Кол-во", "Сумма"])
-        tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        tbl.setAlternatingRowColors(True)
-        tbl.setStyleSheet(theme.table_style())
-        for g in rows[:500]:
-            r = tbl.rowCount()
-            tbl.insertRow(r)
-            name = g.get("product_name") or g.get("name") or g.get("title") or g.get("item") or "—"
-            qty = g.get("quantity") or g.get("qty") or 1
-            amt = g.get("amount") or g.get("total") or g.get("price") or g.get("sum") or "—"
-            for c, v in enumerate([str(g.get("created_at") or g.get("date") or "")[:16],
-                                   str(name), str(qty), str(amt)]):
-                tbl.setItem(r, c, QTableWidgetItem(v))
-        lay.addWidget(tbl)
-        self._t_goods._table = tbl
-        lay.addStretch(1)
-        self._export_panel(lay, lambda fmt=None: self._table_export(self._t_goods, "Покупки клиента"))
-    def _open_screen(self, title):
+    def _contact_del(self):
+        row = self.tbl_contacts.currentRow()
+        if row < 0:
+            return
+        it = self.tbl_contacts.item(row, 0)
+        cid2 = it.data(Qt.ItemDataRole.UserRole) if it else None
+        if not cid2:
+            return
+        try:
+            r = self.api.session.delete(self.api._url("/analytics/clients/%s/contacts/%s" % (self.client_id, cid2)), timeout=20)
+            r.raise_for_status()
+            self._load_page("Телефоны/Контакты")
+        except Exception as e:
+            QMessageBox.warning(self, "Контакт", str(e)[:200])
+
+    # ── Документы ──
+    def _p_docs(self):
+        v = self._page_layout("Документы")
+        self.tbl_docs = self._tbl(["Файл", "Действия"])
+        v.addWidget(self.tbl_docs, 1)
+        bar = QHBoxLayout()
+        b_up = QPushButton(" Загрузить файл (договор, справка…)"); b_up.clicked.connect(lambda: self._upload("documents"))
+        b_op = QPushButton("Открыть"); b_op.clicked.connect(lambda: self._file_open("documents"))
+        b_del = QPushButton("Удалить"); b_del.clicked.connect(lambda: self._file_del("documents"))
+        bar.addWidget(b_up); bar.addWidget(b_op); bar.addWidget(b_del)
+        bar.addWidget(self._refresh_btn(self.reload))
+        bar.addStretch(1)
+        v.addLayout(bar)
+        rows = self._files.get("documents", [])
+        self.tbl_docs.setRowCount(len(rows))
+        for i, r in enumerate(rows):
+            it = QTableWidgetItem(r.get("name", ""))
+            it.setData(Qt.ItemDataRole.UserRole, r.get("url"))
+            self.tbl_docs.setItem(i, 0, it)
+            self.tbl_docs.setItem(i, 1, QTableWidgetItem("«Открыть» выше"))
+
+    # ── Фото ──
+    def _p_photos(self):
+        v = self._page_layout("Фото")
+        self.tbl_photos = self._tbl(["Файл", "Действия"])
+        v.addWidget(self.tbl_photos, 1)
+        bar = QHBoxLayout()
+        b_up = QPushButton(" Загрузить фото"); b_up.clicked.connect(lambda: self._upload("photos"))
+        b_op = QPushButton("Открыть"); b_op.clicked.connect(lambda: self._file_open("photos"))
+        b_del = QPushButton("Удалить"); b_del.clicked.connect(lambda: self._file_del("photos"))
+        bar.addWidget(b_up); bar.addWidget(b_op); bar.addWidget(b_del)
+        bar.addWidget(self._refresh_btn(self.reload))
+        bar.addStretch(1)
+        v.addLayout(bar)
+        rows = self._files.get("photos", [])
+        self.tbl_photos.setRowCount(len(rows))
+        for i, r in enumerate(rows):
+            it = QTableWidgetItem(r.get("name", ""))
+            it.setData(Qt.ItemDataRole.UserRole, r.get("url"))
+            self.tbl_photos.setItem(i, 0, it)
+            self.tbl_photos.setItem(i, 1, QTableWidgetItem("«Открыть» выше"))
+
+    def _upload(self, kind):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Выберите файл", "",
+            "Images (*.png *.jpg *.jpeg)" if kind == "photos" else "All (*.*)")
+        if not path:
+            return
+        try:
+            r = self.api.session.post(
+                self.api._url("/analytics/clients/%s/files" % self.client_id),
+                data={"kind": "Documents" if kind == "documents" else "Photos"},
+                files={"file": open(path, "rb")}, timeout=120)
+            r.raise_for_status()
+            QMessageBox.information(self, "Загрузка", "Файл сохранён в папку клиента (Clients/%s/%s/)" % (self.client_id, "Documents" if kind == "documents" else "Photos"))
+            self.reload()
+        except Exception as e:
+            QMessageBox.warning(self, "Загрузка", str(e)[:250])
+
+    def _file_open(self, kind):
+        tbl = self.tbl_docs if kind == "documents" else self.tbl_photos
+        row = tbl.currentRow()
+        if row < 0:
+            return
+        it = tbl.item(row, 0)
+        url = it.data(Qt.ItemDataRole.UserRole) if it else None
+        if url:
+            import os
+            full = url if str(url).startswith("http") else ("http://192.168.101.182" + str(url))
+            os.startfile(full)
+
+    def _file_del(self, kind):
+        tbl = self.tbl_docs if kind == "documents" else self.tbl_photos
+        row = tbl.currentRow()
+        if row < 0:
+            return
+        it = tbl.item(row, 0)
+        url = it.data(Qt.ItemDataRole.UserRole) if it else None
+        name = str(url).rsplit("/", 1)[-1] if url else ""
+        if not name:
+            return
+        try:
+            r = self.api.session.delete(self.api._url(
+                "/analytics/clients/%s/files/%s/%s" % (self.client_id, "Documents" if kind == "documents" else "Photos", name)), timeout=20)
+            r.raise_for_status()
+            self.reload()
+        except Exception as e:
+            QMessageBox.warning(self, "Удаление", str(e)[:200])
+
+    # ── Пакеты/Услуги ──
+    def _p_subs(self):
+        v = self._page_layout("Пакеты/Услуги")
+        t = self._tbl(["Название", "Тип", "Остаток", "Срок", "Статус", "Заморожен до"])
+        v.addWidget(t, 1)
+        for i, s in enumerate(self._subs):
+            t.insertRow(i)
+            t.setItem(i, 0, QTableWidgetItem(str(s.get("tariff_name") or s.get("tariff") or "—")))
+            if s.get("is_unlimited"):
+                typ, ost = "Безлимит", "∞"
+            elif s.get("visit_limit"):
+                typ, ost = "Пакет", "%s/%s" % (s.get("visits_used") or 0, s.get("visit_limit"))
+            else:
+                typ, ost = "Членство", "—"
+            t.setItem(i, 1, QTableWidgetItem(typ))
+            t.setItem(i, 2, QTableWidgetItem(str(ost)))
+            t.setItem(i, 3, QTableWidgetItem("%s – %s" % (_fmt(s.get("start_date")), _fmt(s.get("end_date")))))
+            st = str(s.get("status", "")).upper()
+            it = QTableWidgetItem(st)
+            it.setForeground(QColor(STATUS_COLORS.get(st, "#212b36")))
+            t.setItem(i, 4, it)
+            t.setItem(i, 5, QTableWidgetItem(_fmt(s.get("frozen_until")) or "—"))
+
+    # ── Замечания ──
+    def _p_comments(self):
+        v = self._page_layout("Замечания")
+        self.ed_note = QLineEdit(); self.ed_note.setPlaceholderText("Текст заметки/задачи…")
+        self.cb_ntype = QComboBox()
+        for lab, code in (("Заметка", "NOTE"), ("Задача", "TASK"), ("Звонок", "CALL")):
+            self.cb_ntype.addItem(lab, code)
+        b = QPushButton(" Добавить"); b.clicked.connect(self._note_add)
+        bar = QHBoxLayout()
+        bar.addWidget(self.ed_note, 1); bar.addWidget(self.cb_ntype); bar.addWidget(b)
+        v.addLayout(bar)
+        self.lst_notes = QListWidget()
+        v.addWidget(self.lst_notes, 1)
+        v.addWidget(self._refresh_btn(self.reload))
+        try:
+            d = self._get("/comments", {"client_id": self.client_id})
+            rows = d.get("items", d if isinstance(d, list) else [])
+        except Exception:
+            rows = []
+        for r in rows or []:
+            self.lst_notes.addItem("%s · %s · [%s] %s" % (str(r.get("created_at") or "")[:16],
+                r.get("author") or r.get("author_name") or "—", r.get("type") or "NOTE", r.get("text") or ""))
+
+    def _note_add(self):
+        txt = self.ed_note.text().strip()
+        if not txt:
+            return
+        try:
+            self._post("/comments", {"client_id": self.client_id, "text": txt,
+                                     "type": self.cb_ntype.currentData()})
+            self.ed_note.clear()
+            self._load_page("Замечания")
+        except Exception as e:
+            QMessageBox.warning(self, "Замечание", str(e)[:200])
+
+    # ── Чеки / Баланс / Бонусы ──
+    def _p_payments(self):
+        v = self._page_layout("Чеки")
+        t = self._tbl(["Дата", "Сумма", "Способ", "Статус", "Комментарий"])
+        v.addWidget(t, 1)
+        v.addWidget(self._refresh_btn(self.reload))
+        try:
+            d = self._get("/payments/", {"client_id": self.client_id})
+            rows = d.get("items", d if isinstance(d, list) else [])
+        except Exception:
+            rows = []
+        for i, p in enumerate(rows or []):
+            t.insertRow(i)
+            t.setItem(i, 0, QTableWidgetItem(str(p.get("created_at") or "")[:16]))
+            t.setItem(i, 1, QTableWidgetItem(str(p.get("amount") or 0)))
+            t.setItem(i, 2, QTableWidgetItem(str(p.get("method") or p.get("payment_method") or "—")))
+            t.setItem(i, 3, QTableWidgetItem(str(p.get("status") or "—")))
+            t.setItem(i, 4, QTableWidgetItem(str(p.get("comment") or p.get("description") or "")[:80]))
+
+    def _p_wallet(self):
+        v = self._page_layout("Баланс")
+        wb = self._client.get("wallet_balance")
+        big = QLabel(("%s ₽" % wb) if wb is not None else "—")
+        big.setStyleSheet("font-size:34px;font-weight:700;color:#059669;")
+        v.addWidget(big)
+        v.addWidget(QLabel("Лицевой счёт клиента (кошелёк приложения). Пополнение — через приложение/бота или администратором."))
+        v.addStretch(1)
+
+    def _p_bonuses(self):
+        v = self._page_layout("Бонусы")
+        bn = self._client.get("bonuses")
+        big = QLabel(str(bn) if bn is not None else "—")
+        big.setStyleSheet("font-size:34px;font-weight:700;color:#8b5cf6;")
+        v.addWidget(big)
+        v.addWidget(QLabel("Бонусные баллы. Правила начисления задаются в «Параметры клуба → Бонусы»."))
+        v.addStretch(1)
+
+    def _p_discount(self):
+        v = self._page_layout("Скидки")
+        cur = self._profile.get("discount_percent") or 0
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Персональная скидка, %:"))
+        self.sp_disc = QSpinBox(); self.sp_disc.setRange(0, 100); self.sp_disc.setValue(int(float(cur)))
+        row.addWidget(self.sp_disc)
+        b = QPushButton("Сохранить"); b.clicked.connect(self._discount_save)
+        row.addWidget(b)
+        row.addStretch(1)
+        v.addLayout(row)
+        v.addWidget(QLabel("Применяется менеджером при продаже (фиксируйте в комментарии платежа)."))
+        v.addStretch(1)
+
+    def _discount_save(self):
+        try:
+            self._post("/analytics/clients/%s/profile" % self.client_id,
+                       {"discount_percent": self.sp_disc.value()})
+            QMessageBox.information(self, "Скидка", "Сохранено")
+            self.reload()
+        except Exception as e:
+            QMessageBox.warning(self, "Скидка", str(e)[:200])
+
+    # ── Сообщения / История / Блоки / Авто / Гость ──
+    def _p_messages(self):
+        v = self._page_layout("Сообщения")
+        v.addWidget(QLabel("Переписка с клиентом в MAX."))
+        b = QPushButton(" Открыть MAX сообщения"); b.clicked.connect(self._open_max)
+        v.addWidget(b)
+        v.addWidget(QLabel("Контакты клиента (MAX/Telegram) — в разделе «Телефоны/Контакты»."))
+        v.addStretch(1)
+
+    def _p_history(self):
+        v = self._page_layout("История")
+        t = self._tbl(["Дата", "Вход", "Выход", "Зона", "Способ"])
+        v.addWidget(t, 1)
+        v.addWidget(self._refresh_btn(self.reload))
+        try:
+            d = self._get("/visits/", {"client_id": self.client_id})
+            rows = d.get("items", d.get("visits", d if isinstance(d, list) else []))
+        except Exception:
+            rows = []
+        for i, x in enumerate(rows or []):
+            t.insertRow(i)
+            t.setItem(i, 0, QTableWidgetItem(str(x.get("entry_time") or x.get("created_at") or "")[:16]))
+            t.setItem(i, 1, QTableWidgetItem(str(x.get("entry_time") or "")[11:16]))
+            t.setItem(i, 2, QTableWidgetItem(str(x.get("exit_time") or "")[11:16] or "—"))
+            t.setItem(i, 3, QTableWidgetItem(str(x.get("zone") or "—")))
+            t.setItem(i, 4, QTableWidgetItem(str(x.get("method") or x.get("access_method") or "—")))
+
+    def _p_blocks(self):
+        v = self._page_layout("Блоки")
+        self.chk_block = QCheckBox("Вход заблокирован (чёрный список)")
+        self.chk_block.setChecked(bool(self._profile.get("blocked")))
+        v.addWidget(self.chk_block)
+        self.ed_breason = QLineEdit(); self.ed_breason.setPlaceholderText("Причина блокировки")
+        self.ed_breason.setText(str(self._profile.get("blocked_reason") or ""))
+        v.addWidget(self.ed_breason)
+        b = QPushButton("Сохранить"); b.clicked.connect(self._block_save)
+        v.addWidget(b)
+        v.addStretch(1)
+
+    def _block_save(self):
+        try:
+            self._post("/analytics/clients/%s/profile" % self.client_id,
+                       {"blocked": bool(self.chk_block.isChecked()),
+                        "blocked_reason": self.ed_breason.text().strip()})
+            QMessageBox.information(self, "Блоки", "Сохранено")
+            self.reload()
+        except Exception as e:
+            QMessageBox.warning(self, "Блоки", str(e)[:200])
+
+    def _p_cars(self):
+        v = self._page_layout("Автомобили")
+        self.tbl_cars = self._tbl(["Марка", "Номер", "Примечание"])
+        v.addWidget(self.tbl_cars, 1)
+        bar = QHBoxLayout()
+        self.ed_car_m = QLineEdit(); self.ed_car_m.setPlaceholderText("Марка/модель")
+        self.ed_car_n = QLineEdit(); self.ed_car_n.setPlaceholderText("Гос. номер")
+        self.ed_car_t = QLineEdit(); self.ed_car_t.setPlaceholderText("Примечание")
+        b_add = QPushButton(" Добавить"); b_add.clicked.connect(self._car_add)
+        b_del = QPushButton(" Удалить выбранный"); b_del.clicked.connect(self._car_del)
+        for w in (self.ed_car_m, self.ed_car_n, self.ed_car_t):
+            bar.addWidget(w, 1)
+        bar.addWidget(b_add); bar.addWidget(b_del)
+        bar.addWidget(self._refresh_btn(self.reload))
+        v.addLayout(bar)
+        try:
+            d = self._get("/analytics/clients/%s/cars" % self.client_id)
+            rows = d.get("items", [])
+        except Exception:
+            rows = []
+        self.tbl_cars.setRowCount(len(rows))
+        for i, r in enumerate(rows):
+            self.tbl_cars.setItem(i, 0, QTableWidgetItem(str(r.get("mark") or "—")))
+            self.tbl_cars.setItem(i, 1, QTableWidgetItem(str(r.get("number") or "—")))
+            self.tbl_cars.setItem(i, 2, QTableWidgetItem(str(r.get("note") or "—")))
+            self.tbl_cars.item(i, 0).setData(Qt.ItemDataRole.UserRole, r.get("id"))
+
+    def _car_add(self):
+        if not self.ed_car_n.text().strip():
+            return
+        try:
+            self._post("/analytics/clients/%s/cars" % self.client_id,
+                       {"mark": self.ed_car_m.text().strip(),
+                        "number": self.ed_car_n.text().strip(),
+                        "note": self.ed_car_t.text().strip()})
+            self.ed_car_m.clear(); self.ed_car_n.clear(); self.ed_car_t.clear()
+            self._load_page("Автомобили")
+        except Exception as e:
+            QMessageBox.warning(self, "Авто", str(e)[:200])
+
+    def _car_del(self):
+        row = self.tbl_cars.currentRow()
+        if row < 0:
+            return
+        it = self.tbl_cars.item(row, 0)
+        cid2 = it.data(Qt.ItemDataRole.UserRole) if it else None
+        if not cid2:
+            return
+        try:
+            r = self.api.session.delete(self.api._url("/analytics/clients/%s/cars/%s" % (self.client_id, cid2)), timeout=20)
+            r.raise_for_status()
+            self._load_page("Автомобили")
+        except Exception as e:
+            QMessageBox.warning(self, "Авто", str(e)[:200])
+
+    def _p_guest(self):
+        v = self._page_layout("Гость")
+        v.addWidget(QLabel("Гостевой пропуск / примечание о госте:"))
+        self.ed_guest = QLineEdit()
+        self.ed_guest.setText(str(self._profile.get("guest_note") or ""))
+        self.ed_guest.setPlaceholderText("Напр.: гостевой визит до 25.10, сопровождает Сидорова А.")
+        v.addWidget(self.ed_guest)
+        b = QPushButton("Сохранить"); b.clicked.connect(self._guest_save)
+        v.addWidget(b)
+        v.addStretch(1)
+
+    def _guest_save(self):
+        try:
+            self._post("/analytics/clients/%s/profile" % self.client_id,
+                       {"guest_note": self.ed_guest.text().strip()})
+            QMessageBox.information(self, "Гость", "Сохранено")
+        except Exception as e:
+            QMessageBox.warning(self, "Гость", str(e)[:200])
+
+    # ================= actions =================
+    def _toggle_confidential(self, on):
+        try:
+            self._post("/analytics/clients/%s/profile" % self.client_id, {"confidential": bool(on)})
+        except Exception as e:
+            QMessageBox.warning(self, "Конфиденциально", str(e)[:200])
+
+    def _sell_service(self):
+        from windows.form_dialog import FormDialog
+        try:
+            d = self._get("/tariffs")
+            tariffs = d.get("items", d if isinstance(d, list) else [])
+        except Exception:
+            tariffs = []
+        if not tariffs:
+            QMessageBox.information(self, "Продажа", "Нет доступных тарифов")
+            return
+        combo = [(str(t.get("name") or t.get("id")), t.get("id")) for t in tariffs]
+        dlg = FormDialog("Продать услугу", [
+            ("tariff", "Тариф *", "combo", combo),
+            ("start_date", "Дата начала (ГГГГ-ММ-ДД)", "text",
+             datetime.date.today().isoformat()),
+        ], self)
+        if dlg.exec() != FormDialog.DialogCode.Accepted:
+            return
+        val = dlg.values()
+        payload = {"client_id": self.client_id, "tariff_id": val.get("tariff")}
+        if val.get("start_date"):
+            payload["start_date"] = val["start_date"]
+        try:
+            self._post("/subscriptions", payload)
+            QMessageBox.information(self, "Продажа", "Абонемент создан")
+            self.reload()
+        except Exception as e:
+            QMessageBox.warning(self, "Продажа", str(e)[:250])
+
+    def _assign_card(self):
+        from PyQt6.QtWidgets import QInputDialog
+        uid, ok = QInputDialog.getText(self, "Выдать карту", "UID карты (пусто = сгенерировать):")
+        if not ok:
+            return
+        try:
+            r = self.api.session.post(self.api._url("/credentials/rfid/client/%s" % self.client_id),
+                                      json={"uid": uid.strip() or None}, timeout=30)
+            r.raise_for_status()
+            QMessageBox.information(self, "Карта", "Карта привязана")
+        except Exception:
+            self._open_max_screen("Браслеты")
+
+    def _freeze(self):
+        act = [s for s in self._subs if str(s.get("status", "")).upper() == "ACTIVE"]
+        if not act:
+            QMessageBox.information(self, "Заморозка", "Нет активного абонемента")
+            return
+        sid = act[0].get("id")
+        try:
+            r = self.api.session.post(self.api._url("/subscriptions/%s/freeze" % sid), json={}, timeout=30)
+            r.raise_for_status()
+            QMessageBox.information(self, "Заморозка", "Абонемент заморожен")
+            self.reload()
+        except Exception as e:
+            QMessageBox.warning(self, "Заморозка", str(e)[:250])
+
+    def _open_max(self):
+        self._open_max_screen("MAX")
+
+    def _open_max_screen(self, title):
         from PyQt6.QtWidgets import QApplication, QListWidget
         for w in QApplication.topLevelWidgets():
             lw = w.findChild(QListWidget)
@@ -732,147 +834,7 @@ class ClientCard(QDialog):
                 if title.lower() in lw.item(i).text().lower():
                     lw.setCurrentRow(i)
                     try:
-                        w.raise_()
-                        w.activateWindow()
+                        w.raise_(); w.activateWindow()
                     except Exception:
                         pass
                     return
-        QMessageBox.information(self, "Навигация", "Экран «%s» не найден" % title)
-
-    def _edit_client(self):
-        from windows.form_dialog import FormDialog
-        c = self._client or {}
-        fields = [
-            ("last_name", "Фамилия *", "text", c.get("last_name") or ""),
-            ("first_name", "Имя *", "text", c.get("first_name") or ""),
-            ("middle_name", "Отчество", "text", c.get("middle_name") or ""),
-            ("phone", "Телефон *", "text", c.get("phone") or ""),
-            ("email", "Email", "text", c.get("email") or ""),
-            ("gender", "Пол", "combo", [("Мужской", "MALE"), ("Женский", "FEMALE"), ("Не указан", "НЕ_УКАЗАН")]),
-            ("birth_date", "Дата рождения (ГГГГ-ММ-ДД)", "text", str(c.get("birth_date") or "")[:10]),
-            ("client_tag", "Тег", "text", c.get("client_tag") or ""),
-            ("segment", "Сегмент", "text", c.get("segment") or ""),
-            ("source", "Источник", "text", c.get("source") or ""),
-        ]
-        dlg = FormDialog("Редактирование клиента", fields, self)
-        if dlg.exec() != FormDialog.DialogCode.Accepted:
-            return
-        v = {k: val for k, val in dlg.values().items() if val not in ("", None)}
-        try:
-            self.api.update_client(self.client_id, v)
-            self._load()
-            QMessageBox.information(self, "Клиент", "Данные сохранены")
-        except (RuntimeError, _requests.HTTPError) as e:
-            self._show_error(e)
-
-    def _sell_service(self):
-        from windows.form_dialog import FormDialog
-        from datetime import datetime as _dt
-        try:
-            tariffs = self.api.get_tariffs() or []
-        except Exception as e:
-            QMessageBox.warning(self, "Продажа", "Не удалось загрузить тарифы: %s" % str(e)[:150])
-            return
-        if not tariffs:
-            QMessageBox.information(self, "Продажа", "Нет доступных тарифов")
-            return
-        combo = [(str(t_.get("name") or t_.get("code") or t_.get("id")), t_.get("id")) for t_ in tariffs]
-        dlg = FormDialog("Продать услугу", [
-            ("tariff", "Тариф *", "combo", combo),
-            ("start_date", "Дата начала (ГГГГ-ММ-ДД)", "text", _dt.now().strftime("%Y-%m-%d")),
-        ], self)
-        if dlg.exec() != FormDialog.DialogCode.Accepted:
-            return
-        v = dlg.values()
-        payload = {"client_id": self.client_id, "tariff_id": v.get("tariff")}
-        if v.get("start_date"):
-            payload["start_date"] = v["start_date"]
-        try:
-            self.api.create_subscription(payload)
-            QMessageBox.information(self, "Продажа", "Абонемент создан")
-            self._load()
-        except (RuntimeError, _requests.HTTPError) as e:
-            self._show_error(e)
-
-    def _assign_card(self):
-        uid, ok = QInputDialog.getText(self, "Выдать карту",
-                                       "UID карты (пусто = сгенерировать):")
-        if not ok:
-            return
-        try:
-            r = self.api.session.post(self.api._url(f"/credentials/rfid/client/{self.client_id}"),
-                                      json={"uid": uid.strip() or None}, timeout=30)
-            r.raise_for_status()
-            QMessageBox.information(self, "Карта", "Карта привязана")
-        except Exception:
-            self._open_screen("Браслеты")
-    # ================= Правая панель =================
-    def _render_right(self):
-        self._clear(self._right_layout)
-        c = self._client or {}
-        finance = QFrame()
-        finance.setStyleSheet(theme.card_style())
-        fl = QVBoxLayout(finance)
-        fl.addWidget(QLabel("Финансы"))
-        wb = c.get("wallet_balance")
-        if wb is not None:
-            try:
-                wb_float = float(wb)
-                lbl = QLabel(f"Баланс ЛС: {wb_float:.2f} ₽")
-                lbl.setStyleSheet(theme.banner_style(ok=(wb_float >= 0)))
-                fl.addWidget(lbl)
-            except (TypeError, ValueError):
-                fl.addWidget(QLabel(f"Баланс ЛС: {wb}"))
-        else:
-            grey = QLabel("Нет доступа к финансам")
-            grey.setStyleSheet("color: #94a3b8;")
-            fl.addWidget(grey)
-        bonuses = c.get("bonuses")
-        fl.addWidget(QLabel(f"Бонусы: {bonuses if bonuses is not None else '—'}"))
-        fl.addWidget(QLabel("Депозит: —"))
-        self._right_layout.addWidget(finance)
-        bookings = QFrame()
-        bookings.setStyleSheet(theme.card_style())
-        bl = QVBoxLayout(bookings)
-        bl.addWidget(QLabel("Ближайшие брони"))
-        bl.addWidget(QLabel("Нет данных"))
-        self._right_layout.addWidget(bookings)
-        self._right_layout.addStretch(1)
-
-    # ================= Экспорт / ошибки =================
-    def _table_export(self, tab_widget, title):
-        tbl = getattr(tab_widget, "_table", None)
-        headers = [tbl.horizontalHeaderItem(i).text() for i in range(tbl.columnCount())] if tbl else []
-        rows = [[tbl.item(r, c).text() if tbl.item(r, c) else ""
-                 for c in range(tbl.columnCount())] for r in range(tbl.rowCount())] if tbl else []
-        return headers, rows, title
-
-    def _export_panel(self, lay, data_fn):
-        hb = QHBoxLayout()
-        hb.addStretch()
-        def _do(fmt):
-            from windows.export_helper import (export_table_xlsx, export_table_pdf,
-                                               export_counterparties_1c)
-            try:
-                if fmt == "1c":
-                    export_counterparties_1c(self, [self._client] if self._client else [])
-                    return
-                headers, rows, title = data_fn(fmt)
-                from windows.export_helper import _save_one
-                _save_one(self, fmt, headers, rows, title)
-            except (RuntimeError, _requests.HTTPError) as e:
-                self._show_error(e)
-        from windows.export_helper import make_save_menu_button
-        hb.addWidget(make_save_menu_button(self, _do, with_1c=True))
-        lay.addLayout(hb)
-
-    def _show_error(self, e):
-        s = str(e)
-        if "401" in s or "Unauthorized" in s:
-            QMessageBox.warning(self, "Сессия", "Сессия истекла, войдите заново")
-        elif "403" in s or "Нет прав" in s:
-            QMessageBox.warning(self, "Нет прав", s[:300])
-        elif "404" in s or "not found" in s.lower():
-            QMessageBox.information(self, "Недоступно", "Раздел в разработке")
-        else:
-            QMessageBox.warning(self, "Ошибка", s[:300])
