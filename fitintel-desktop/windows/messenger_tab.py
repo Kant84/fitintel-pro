@@ -650,3 +650,12 @@ def _reactivate_send3(self):
     self._run(self.api.run_reminders, _done)
 
 MessengerTab._build_reactivate = _reactivate_build3
+
+# === W10-3b: привязка методов «Возврат клиентов» к классу ===
+try:
+    MessengerTab._reactivate_load3 = _reactivate_load3
+    MessengerTab._reactivate_save3 = _reactivate_save3
+    MessengerTab._reactivate_send3 = _reactivate_send3
+    print("W10-3b reactivate methods OK")
+except Exception as _e3b:
+    print("W10-3b FAIL:", _e3b)
