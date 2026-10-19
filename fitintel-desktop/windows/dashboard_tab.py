@@ -192,8 +192,8 @@ class DashboardTab(QWidget):
         total_fc = 0.0
         try:
             for i, (metric, title, color) in enumerate(
-                    (("attendance", "Прогноз посещений (+14 дн.)", "#00f0ff"),
-                     ("revenue", "Прогноз выручки (+14 дн.)", "#39ff14"))):
+                    (("attendance", "Посещения — факт и прогноз", "#00f0ff"),
+                     ("revenue", "Выручка — факт и прогноз", "#39ff14"))):
                 r = self._get("/analytics/trend-forecast?metric=%s&days_ahead=14" % metric)
                 hist = r.get("history", [])
                 fore = r.get("forecast", [])
@@ -264,25 +264,57 @@ class DashboardTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Прогноз", str(e))
 
-    # ---------- tab 3: heatmap ----------
+    # ---------- tab 3: heatmap (matplotlib turbo) ----------
     def _heatmap_tab(self):
         w = QWidget(); v = QVBoxLayout(w)
         b = QPushButton(" Загрузить тепловую карту"); b.clicked.connect(self.load_heatmap)
         v.addWidget(b)
-        self.hm = HeatmapWidget()
-        v.addWidget(self.hm)
+        self._hm_holder = QGridLayout()
+        v.addLayout(self._hm_holder, 1)
+        QTimer.singleShot(300, self.load_heatmap)
         return w
 
     def load_heatmap(self):
+        if not _HAS_MPL:
+            QMessageBox.warning(self, "Тепловая карта", "matplotlib не установлен")
+            return
         try:
-            r = self._get("/analytics/heatmap?club_id=1")
-            if r.get("ok"):
-                self.hm.set_grid(r["grid"])
-            else:
-                QMessageBox.warning(self, "Тепловая карта", str(r.get("error", "нет данных")))
+            r = self._get("/analytics/full-stats")
+            rows = r.get("visits_wd_hour", [])
+            wd_names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+            grid = [[0] * 24 for _ in range(7)]
+            for x in rows:
+                wd = int(x.get("wd") or 0); hr = int(x.get("hr") or 0)
+                if 0 <= wd < 7 and 0 <= hr < 24:
+                    grid[wd][hr] = int(x.get("cnt") or 0)
+            fig = Figure(figsize=(11, 4.4), tight_layout=True)
+            ax = fig.add_subplot(111)
+            fig.patch.set_facecolor("#0e0e1d"); ax.set_facecolor("#0e0e1d")
+            im = ax.imshow(grid, cmap="turbo", aspect="auto")
+            ax.set_xticks(range(24))
+            ax.set_xticklabels(range(24), color="#9a9ac0", fontsize=8)
+            ax.set_yticks(range(7)); ax.set_yticklabels(wd_names, color="#9a9ac0", fontsize=9)
+            for wd in range(7):
+                for hr in range(24):
+                    if grid[wd][hr]:
+                        ax.text(hr, wd, str(grid[wd][hr]), ha="center", va="center",
+                                fontsize=7, color="white")
+            cb = fig.colorbar(im, ax=ax, shrink=0.85)
+            cb.ax.tick_params(colors="#9a9ac0")
+            cb.set_label("визитов", color="#9a9ac0")
+            ax.set_title("Тепловая карта: день недели × час (цвет = число визитов)",
+                         color="#e8e8ff", fontsize=11)
+            for s in ax.spines.values():
+                s.set_color("#333355")
+            while self._hm_holder.count():
+                it = self._hm_holder.takeAt(0)
+                if it.widget():
+                    it.widget().deleteLater()
+            canvas = FigureCanvas(fig)
+            canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            self._hm_holder.addWidget(canvas, 0, 0)
         except Exception as e:
             QMessageBox.critical(self, "Тепловая карта", str(e))
-
     # ---------- tab 4: AI churn ----------
     def _ai_tab(self):
         w = QWidget(); v = QVBoxLayout(w)

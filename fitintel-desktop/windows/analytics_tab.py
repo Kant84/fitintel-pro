@@ -90,6 +90,7 @@ class AnalyticsTab(QWidget):
         self._tops = {}
         self._roles = {}
         self._canvases = []
+        self._chart_row = 0
 
         root = QVBoxLayout(self)
         bar = QHBoxLayout()
@@ -266,6 +267,7 @@ class AnalyticsTab(QWidget):
             if w is not None:
                 w.deleteLater()
         self._canvases = []
+        self._chart_row = 0
 
     def _add_canvas(self, fig, title, row, col):
         frame = QFrame()
@@ -278,7 +280,9 @@ class AnalyticsTab(QWidget):
         canvas = FigureCanvas(fig)
         canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         lay.addWidget(canvas)
-        self.charts_grid.addWidget(frame, row, col)
+        self._chart_row = getattr(self, '_chart_row', 0)
+        self.charts_grid.addWidget(frame, self._chart_row, 0, 1, 2)
+        self._chart_row += 1
         self._canvases.append((title, canvas))
 
     def _series(self, key, fallback_rows, val_key="cnt"):
