@@ -490,3 +490,26 @@ def _max_token():  # noqa: F811
         return (row[0] if row else None) or None
     except Exception:
         return None
+
+# === W10: авто-рассылка напоминаний ежедневно в send_time (настройки мессенджера) ===
+import threading as _mth, time as _mtime
+
+def _remind_scheduler():
+    last = {}
+    while True:
+        try:
+            cfg = _get_settings()
+            if cfg.get("enabled"):
+                dt = str(cfg.get("send_time") or "10:00")[:5]
+                now = datetime.datetime.now().strftime("%H:%M")
+                today = str(datetime.date.today())
+                if now >= dt and last.get("d") != today:
+                    last["d"] = today
+                    r = reminders_run()
+                    print("[MAX] авто-напоминания:", str(r)[:200])
+        except Exception as e:
+            print("[MAX] remind scheduler:", str(e)[:120])
+        _mtime.sleep(60)
+
+_mth.Thread(target=_remind_scheduler, daemon=True).start()
+print("[MAX] reminders scheduler OK")

@@ -1174,3 +1174,28 @@ def analytics_roles(db: Session = Depends(get_db)):
                 "FROM trainer_sales WHERE %s >= NOW() - interval '30 days' "
                 "GROUP BY 1 ORDER BY 3 DESC LIMIT 10" % (uname, amt, dcol))
     return out
+
+@router.get("/inactive-clients")
+def analytics_inactive_clients(days: int = 14, db: Session = Depends(get_db)):
+    """Клиенты (ACTIVE), у которых последний визит >= days назад или визитов не было."""
+    from sqlalchemy import text as _text
+    c_cols = set(db.execute(_text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='clients'")
+    ).scalars().all())
+    v_cols = set(db.execute(_text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='visits'")
+    ).scalars().all())
+    if not {"client_id", "entry_time"} <= v_cols:
+        return {"clients": []}
+    name_expr = _client_name_expr(c_cols)
+    where = " WHERE c.status='ACTIVE'" if "status" in c_cols else ""
+    sql = (
+        "SELECT c.id, %s AS name, "
+        "COALESCE(EXTRACT(DAY FROM NOW() - MAX(v.entry_time))::int, 9999) AS days "
+        "FROM clients c LEFT JOIN visits v ON v.client_id = c.id%s "
+        "GROUP BY c.id, %s "
+        "HAVING COALESCE(EXTRACT(DAY FROM NOW() - MAX(v.entry_time))::int, 9999) >= :d "
+        "ORDER BY days DESC LIMIT 50" % (name_expr, where, name_expr))
+    rows = db.execute(_text(sql), {"d": max(1, min(int(days or 14), 365))}).all()
+    return {"clients": [{"client_id": str(r._mapping["id"]), "name": r._mapping["name"],
+                         "days": r._mapping["days"]} for r in rows]}
