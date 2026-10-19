@@ -1,13 +1,23 @@
 # -*- coding: utf-8 -*-
-"""Analytics screen: sub-tabs (Overview / Forecast / Heatmap / AI churn), movable tabs, splitters."""
+"""Главная: обзор KPI, приток клиентов, полный прогноз (14 дн), тепловая карта, AI-отток."""
+import json as _json
 import requests as _rq
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QPushButton, QComboBox, QSpinBox, QTabWidget, QTableWidget, QTableWidgetItem,
-    QMessageBox, QSplitter, QFrame)
-from PyQt6.QtCore import Qt
+    QMessageBox, QSplitter, QFrame, QSizePolicy)
+from PyQt6.QtCore import Qt, QTimer
+
 from windows.chart_widget import ChartWidget, HeatmapWidget
 
+try:
+    from matplotlib.figure import Figure
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+    _HAS_MPL = True
+except Exception:
+    _HAS_MPL = False
+
 BASE_DEFAULT = "http://localhost:8001/api/v1"
+
 
 class DashboardTab(QWidget):
     def __init__(self, api=None, parent=None):
@@ -17,34 +27,53 @@ class DashboardTab(QWidget):
         self.api = api
         lay = QVBoxLayout(self)
         self.tabs = QTabWidget()
-        self.tabs.setMovable(True)  # вкладки можно перетаскивать местами
+        self.tabs.setMovable(True)
         lay.addWidget(self.tabs)
         self.tabs.addTab(self._overview_tab(), " Обзор")
         self.tabs.addTab(self._forecast_tab(), " Прогноз")
         self.tabs.addTab(self._heatmap_tab(), " Тепловая карта")
         self.tabs.addTab(self._ai_tab(), " AI Отток")
+        QTimer.singleShot(60, self._autoload)
+
+    def _autoload(self):
+        self.load_overview()
+        self.load_full_forecast()
+        self.ai_status()
 
     # ---------- helpers ----------
     def _base(self):
         b = getattr(self.api, "base_url", None) or getattr(self.api, "base", None) or BASE_DEFAULT
         return str(b).rstrip("/")
 
+    def _sess(self):
+        s = getattr(self.api, "session", None)
+        if s is not None:
+            return s
+        try:
+            from paths import SETTINGS
+            cfg = _json.load(open(SETTINGS, encoding="utf-8"))
+            s = _rq.Session()
+            s.headers["Authorization"] = "Bearer " + cfg.get("token", "")
+            return s
+        except Exception:
+            return _rq
+
     def _get(self, path):
-        r = _rq.get(self._base() + path, timeout=60)
+        r = self._sess().get(self._base() + path, timeout=60)
         r.raise_for_status()
         return r.json()
 
     def _post(self, path, payload=None):
-        r = _rq.post(self._base() + path, json=payload or {}, timeout=120)
+        r = self._sess().post(self._base() + path, json=payload or {}, timeout=120)
         r.raise_for_status()
         return r.json()
 
-    def _card(self, title):
+    def _card(self, title, val_color="#00f0ff"):
         f = QFrame()
         f.setStyleSheet("QFrame { background:#0e0e1d; border:1px solid #ff2bd6; border-radius:8px; }")
         v = QVBoxLayout(f)
         val = QLabel("—")
-        val.setStyleSheet("color:#00f0ff; font-size:24px; font-weight:bold; border:none;")
+        val.setStyleSheet("color:%s; font-size:22px; font-weight:bold; border:none;" % val_color)
         val.setAlignment(Qt.AlignmentFlag.AlignCenter)
         t = QLabel(title)
         t.setStyleSheet("color:#9a9ac0; border:none;")
@@ -52,55 +81,150 @@ class DashboardTab(QWidget):
         v.addWidget(val); v.addWidget(t)
         return f, val
 
+    def _mini_fig(self):
+        fig = Figure(figsize=(5, 2.2), tight_layout=True)
+        ax = fig.add_subplot(111)
+        fig.patch.set_facecolor("#0e0e1d")
+        ax.set_facecolor("#0e0e1d")
+        for s in ax.spines.values():
+            s.set_color("#333355")
+        ax.tick_params(colors="#9a9ac0", labelsize=7)
+        ax.title.set_color("#e8e8ff")
+        ax.grid(color="#22223a", linewidth=0.8)
+        ax.set_axisbelow(True)
+        return fig, ax
+
     # ---------- tab 1: overview ----------
     def _overview_tab(self):
         w = QWidget(); v = QVBoxLayout(w)
         grid = QGridLayout()
         self.c_att_f, self.c_att = self._card("Посещений сегодня")
-        self.c_rev_f, self.c_rev = self._card("Выручка сегодня, ₽")
-        self.c_fc_f, self.c_fc = self._card("Прогноз недели, ₽")
-        self.c_ch_f, self.c_ch = self._card("Клиентов в риске")
-        self.c_vs_f, self.c_vs = self._card("К прошлой неделе, %")
-        for i, f in enumerate((self.c_att_f, self.c_rev_f, self.c_fc_f, self.c_ch_f, self.c_vs_f)):
-            f.setMinimumHeight(90)
+        self.c_rev_f, self.c_rev = self._card("Выручка сегодня, ₽", "#39ff14")
+        self.c_new_f, self.c_new = self._card("Приток клиентов (мес.)", "#c084fc")
+        self.c_out_f, self.c_out = self._card("Отток (мес.)", "#ff6b6b")
+        self.c_fc_f, self.c_fc = self._card("Прогноз выручки +14 дн., ₽", "#ffd166")
+        self.c_ch_f, self.c_ch = self._card("Клиентов в риске", "#ff5252")
+        for i, f in enumerate((self.c_att_f, self.c_rev_f, self.c_new_f,
+                               self.c_out_f, self.c_fc_f, self.c_ch_f)):
+            f.setMinimumHeight(92)
             grid.addWidget(f, 0, i)
         v.addLayout(grid)
         self.lb_seg = QLabel("Сегменты риска: —")
         self.lb_seg.setStyleSheet("color:#39ff14; font-weight:bold; padding:6px;")
         v.addWidget(self.lb_seg)
+
+        charts = QGridLayout()
+        self._inflow_holder = QGridLayout()
+        self._fc_holder = QGridLayout()
+        charts.addLayout(self._inflow_holder, 0, 0)
+        charts.addLayout(self._fc_holder, 0, 1)
+        v.addLayout(charts, 1)
+
         row = QHBoxLayout()
         b1 = QPushButton(" Обновить"); b1.clicked.connect(self.load_overview)
         b2 = QPushButton(" Пересчитать историю (56 дн)"); b2.clicked.connect(self.recalc)
         row.addWidget(b1); row.addWidget(b2); row.addStretch(1)
         v.addLayout(row)
-        v.addStretch(1)
         return w
 
+    def _set_canvas(self, holder, fig, title):
+        while holder.count():
+            it = holder.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        box = QFrame()
+        box.setStyleSheet("QFrame{background:#0e0e1d;border:1px solid #ff2bd6;border-radius:8px;}")
+        bl = QVBoxLayout(box)
+        tl = QLabel(title)
+        tl.setStyleSheet("color:#e8e8ff;font-weight:bold;border:none;")
+        bl.addWidget(tl)
+        canvas = FigureCanvas(fig)
+        canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        bl.addWidget(canvas)
+        holder.addWidget(box, 0, 0)
+
     def load_overview(self):
+        ts = {}
+        try:
+            ts = self._get("/analytics/timeseries").get("series", {})
+        except Exception:
+            pass
         try:
             d = self._get("/analytics/dashboard?club_id=1")
             self.c_att.setText(str(d.get("attendance_today", "—")))
             self.c_rev.setText(str(d.get("revenue_today", "—")))
-            self.c_fc.setText(str(d.get("forecast_week_revenue", "—")))
             self.c_ch.setText(str(d.get("churn_risk_count", "—")))
-            self.c_vs.setText(str(d.get("vs_last_week", "—")))
-        except Exception as e:
-            QMessageBox.critical(self, "Обзор", str(e))
+        except Exception:
+            pass
+        try:
+            self.c_new.setText("{:,}".format(int(ts.get("new_clients", {}).get("total", 0))).replace(",", " "))
+            self.c_out.setText("{:,}".format(int(ts.get("lost_clients", {}).get("total", 0))).replace(",", " "))
+        except Exception:
+            pass
+        # приток по дням
+        if _HAS_MPL:
+            try:
+                s = ts.get("new_clients", {})
+                xs, ys = s.get("dates", []), s.get("values", [])
+                fig, ax = self._mini_fig()
+                ax.bar(range(len(xs)), ys, color="#c084fc", width=0.6)
+                ax.set_xticks(range(0, len(xs), max(1, len(xs) // 8)))
+                ax.set_xticklabels([xs[i][5:] for i in range(0, len(xs), max(1, len(xs) // 8))],
+                                   rotation=45)
+                ax.set_title("Приток клиентов по дням")
+                self._set_canvas(self._inflow_holder, fig, "Приток клиентов по дням")
+            except Exception:
+                pass
         try:
             r = self._get("/ai/churn/predict?limit=500")
             rows = r.get("at_risk", [])
             hi = sum(1 for x in rows if x.get("churn_prob", 0) >= 0.66)
             mid = sum(1 for x in rows if 0.33 <= x.get("churn_prob", 0) < 0.66)
             lo = sum(1 for x in rows if x.get("churn_prob", 0) < 0.33)
-            self.lb_seg.setText("Сегменты риска:  Низкий: %d  |  Средний: %d  |  Высокий: %d   (всего: %d)" % (lo, mid, hi, len(rows)))
+            self.lb_seg.setText("Сегменты риска:  Низкий: %d  |  Средний: %d  |  Высокий: %d   (всего: %d)"
+                                % (lo, mid, hi, len(rows)))
+        except Exception:
+            pass
+
+    def load_full_forecast(self):
+        if not _HAS_MPL:
+            return
+        total_fc = 0.0
+        try:
+            for i, (metric, title, color) in enumerate(
+                    (("attendance", "Прогноз посещений (+14 дн.)", "#00f0ff"),
+                     ("revenue", "Прогноз выручки (+14 дн.)", "#39ff14"))):
+                r = self._get("/analytics/trend-forecast?metric=%s&days_ahead=14" % metric)
+                hist = r.get("history", [])
+                fore = r.get("forecast", [])
+                fig, ax = self._mini_fig()
+                xs = [h["d"][5:] for h in hist]
+                ys = [h["value"] for h in hist]
+                ax.plot(range(len(ys)), ys, color=color, linewidth=1.8, label="Факт")
+                if fore and len(ys) >= 2:
+                    fvals = [f["value"] for f in fore]
+                    ax.plot(range(len(ys) - 1, len(ys) + len(fvals)), [ys[-1]] + fvals,
+                            "--", color="#ff2bd6", linewidth=1.8, label="Прогноз")
+                    ax.axvline(len(ys) - 1, color="#444466", lw=1)
+                    if metric == "revenue":
+                        total_fc = sum(fvals)
+                ax.set_xticks(range(0, len(xs), max(1, len(xs) // 6)))
+                ax.set_xticklabels([xs[i] for i in range(0, len(xs), max(1, len(xs) // 6))],
+                                   rotation=45, fontsize=6)
+                ax.set_title("%s  (тренд: %s)" % (title, r.get("trend", "?")))
+                ax.legend(frameon=False, fontsize=7)
+                holder = QGridLayout()
+                self._fc_holder.addLayout(holder, 0, i)
+                self._set_canvas(holder, fig, title)
+            self.c_fc.setText("{:,}".format(int(round(total_fc))).replace(",", " "))
         except Exception:
             pass
 
     def recalc(self):
         try:
-            r = self._post("/analytics/recalc?club_id=1&days=56")
+            self._post("/analytics/recalc?club_id=1&days=56")
             QMessageBox.information(self, "Пересчёт", "История пересчитана за 56 дней.")
-            self.load_overview()
+            self._autoload()
         except Exception as e:
             QMessageBox.critical(self, "Пересчёт", str(e))
 
@@ -228,5 +352,6 @@ class DashboardTab(QWidget):
             self.acc_chart.set_data(hist, [])
         except Exception:
             pass
+
 
 AnalyticsTab = DashboardTab
