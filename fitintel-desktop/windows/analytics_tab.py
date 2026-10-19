@@ -27,7 +27,7 @@ def _style(fig, ax, grid_axis=None):
         ax.spines[s].set_visible(False)
     for s in ("left", "bottom"):
         ax.spines[s].set_color("#dfe3e8")
-    ax.tick_params(colors="#637381", labelsize=8)
+    ax.tick_params(colors="#637381", labelsize=9)
     ax.title.set_color("#212b36")
     ax.title.set_fontsize(10)
     if grid_axis:
@@ -309,20 +309,24 @@ class AnalyticsTab(QWidget):
 
     def _donut(self, title, rows, name_key, val_key, row, col):
         rows = [r for r in (rows or []) if float(r.get(val_key) or 0) > 0]
-        fig = _fig(6, 3)
+        if len(rows) > 6:
+            top = sorted(rows, key=lambda r: -float(r.get(val_key) or 0))[:5]
+            other = sum(float(r.get(val_key) or 0) for r in rows[5:])
+            rows = top + [{name_key: "Прочие", val_key: other}]
+        fig = _fig(9, 3.8)
         ax = fig.add_subplot(111)
         if not rows:
             ax.text(0.5, 0.5, "Нет данных", ha="center", va="center", color="#637381")
             ax.set_axis_off()
         else:
             vals = [float(r[val_key]) for r in rows]
-            labels = [str(r.get(name_key, "—"))[:18] for r in rows]
+            labels = [str(r.get(name_key, "—"))[:14] for r in rows]
             wedges, _ = ax.pie(vals, colors=_PALETTE[:len(vals)],
                                wedgeprops=dict(width=0.42, edgecolor="white", linewidth=2),
                                startangle=90)
             total = sum(vals)
             ax.legend(wedges, ["%s — %s" % (l, _fmt_int(v)) for l, v in zip(labels, vals)],
-                      loc="center left", bbox_to_anchor=(1.0, 0.5), fontsize=8, frameon=False)
+                      loc="center left", bbox_to_anchor=(0.98, 0.5), fontsize=7, frameon=False)
             ax.text(0, 0, _fmt_int(total), ha="center", va="center",
                     fontsize=13, fontweight="bold", color="#212b36")
             ax.set_title(title + " (всего: %s)" % _fmt_int(total), fontsize=10)
@@ -330,7 +334,7 @@ class AnalyticsTab(QWidget):
 
     def _barh(self, title, rows, name_key, val_key, row, col, money=False):
         rows = rows or []
-        fig = _fig(6, 3)
+        fig = _fig(9, 3.8)
         ax = fig.add_subplot(111)
         if rows:
             names = [str(r.get(name_key, "—"))[:20] for r in rows][::-1]
@@ -357,7 +361,7 @@ class AnalyticsTab(QWidget):
         wd_names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
         xs, ys, ma7 = self._series("visits", "visits_by_day")
-        fig = _fig(6, 3); ax = fig.add_subplot(111)
+        fig = _fig(9, 3.8); ax = fig.add_subplot(111)
         ax.plot(range(len(xs)), ys, marker="o", color="#448AFF", linewidth=2, label="Факт")
         if ma7 and len(ma7) == len(ys):
             ax.plot(range(len(xs)), ma7, color="#B39DDB", linewidth=1.5, label="Скользящая средняя 7")
@@ -368,7 +372,7 @@ class AnalyticsTab(QWidget):
         self._add_canvas(fig, "Посещаемость и прогноз", 0, 0)
 
         xs, ys, _ = self._series("revenue", "revenue_by_day", "total")
-        fig = _fig(6, 3); ax = fig.add_subplot(111)
+        fig = _fig(9, 3.8); ax = fig.add_subplot(111)
         ax.bar(range(len(xs)), ys, color="#00BFA5", width=0.65)
         self._xlabels(ax, xs)
         ax.set_title("Выручка по дням, ₽")
@@ -377,7 +381,7 @@ class AnalyticsTab(QWidget):
 
         xs, nys, _ = self._series("new_clients", "new_clients_by_day")
         _, lys, _ = self._series("lost_clients", "lost_clients_by_day")
-        fig = _fig(6, 3); ax = fig.add_subplot(111)
+        fig = _fig(9, 3.8); ax = fig.add_subplot(111)
         ax.plot(range(len(xs)), nys, marker="o", color="#7C4DFF", linewidth=2, label="Приток")
         ax.plot(range(min(len(xs), len(lys))), lys[:len(xs)], marker="s",
                 color="#FF5252", linewidth=2, label="Отток")
@@ -388,7 +392,7 @@ class AnalyticsTab(QWidget):
         _style(fig, ax)
         self._add_canvas(fig, "Приток клиентов (и отток)", 1, 0)
 
-        fig = _fig(6, 3); ax = fig.add_subplot(111)
+        fig = _fig(9, 3.8); ax = fig.add_subplot(111)
         rows = d.get("visits_wd_hour", [])
         hours = list(range(6, 24))
         grid = [[0.0] * len(hours) for _ in range(7)]
@@ -409,7 +413,7 @@ class AnalyticsTab(QWidget):
         self._barh("Абонементы по тарифам (90 дн)", R.get("subs_by_tariff"), "name", "cnt", 3, 1)
 
         wd = R.get("visits_by_weekday") or []
-        fig = _fig(6, 3); ax = fig.add_subplot(111)
+        fig = _fig(9, 3.8); ax = fig.add_subplot(111)
         if wd:
             names = [wd_names[int(r["wd"])] for r in wd]
             vals = [int(r["cnt"]) for r in wd]
@@ -433,7 +437,7 @@ class AnalyticsTab(QWidget):
             self._barh(title, rows, "name", val_key, row, col)
 
         xs, ys, _ = self._series("subscriptions", "subs_by_day")
-        fig = _fig(6, 3); ax = fig.add_subplot(111)
+        fig = _fig(9, 3.8); ax = fig.add_subplot(111)
         ax.bar(range(len(xs)), ys, color="#E040FB", width=0.6)
         self._xlabels(ax, xs)
         ax.set_title("Продано абонементов по дням")
