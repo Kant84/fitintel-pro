@@ -499,7 +499,7 @@ def analytics_demand_tops(date_from: str = None, date_to: str = None,
                 "SELECT CAST(%s AS TEXT) AS name, COUNT(*) AS cnt FROM %s "
                 "WHERE %s::date BETWEEN :f AND :t GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
                 % (tr_col, tbl, date_col))
-        if out["top_services"] и out["top_trainers"]:
+        if out["top_services"] and out["top_trainers"]:
             break
     for tbl in find_tables(["sale", "product", "warehouse", "store", "shop", "good"]):
         cols = cols_of(tbl)
