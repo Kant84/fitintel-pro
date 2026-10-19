@@ -104,6 +104,7 @@ volumes:
   static_brand:
   clients_data:
     external: true
+    name: deploy_clients_data
     name: deploy_static_brand
   accounting_data:
     external: true

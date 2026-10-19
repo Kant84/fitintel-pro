@@ -1306,3 +1306,136 @@ def client_files_delete(cid: str, kind: str, name: str):
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)[:150]}
+
+# ═══════════════ W11: расширенная анкета клиента, контакты, автомобили ═══════════════
+CLIENT_EXTRA_COLS = [
+    ("passport", "VARCHAR(64)"), ("citizenship", "VARCHAR(64)"),
+    ("marital_status", "VARCHAR(32)"), ("children", "VARCHAR(128)"),
+    ("home_address", "VARCHAR(255)"), ("postal_address", "VARCHAR(255)"),
+    ("work_company", "VARCHAR(128)"), ("work_position", "VARCHAR(128)"),
+    ("contract_kind", "VARCHAR(128)"), ("discount_percent", "NUMERIC(5,2) DEFAULT 0"),
+    ("blocked", "BOOLEAN DEFAULT FALSE"), ("blocked_reason", "VARCHAR(255)"),
+    ("confidential", "BOOLEAN DEFAULT FALSE"), ("guest_note", "VARCHAR(255)"),
+]
+
+
+def _ensure_client_cols(db):
+    from sqlalchemy import text as _text
+    for name, typ in CLIENT_EXTRA_COLS:
+        try:
+            db.execute(_text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS %s %s" % (name, typ)))
+        except Exception:
+            pass
+    db.commit()
+
+
+@router.get("/clients/{cid}/profile")
+def client_profile_get(cid: str, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    _ensure_client_cols(db)
+    cols = ", ".join(c for c, _ in CLIENT_EXTRA_COLS)
+    row = db.execute(_text("SELECT %s FROM clients WHERE id::text = :i" % cols),
+                     {"i": str(cid)}).mappings().first()
+    return dict(row) if row else {}
+
+
+@router.post("/clients/{cid}/profile")
+def client_profile_set(cid: str, payload: dict, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    _ensure_client_cols(db)
+    allowed = {c for c, _ in CLIENT_EXTRA_COLS}
+    sets, params = [], {"i": str(cid)}
+    for k, v in (payload or {}).items():
+        if k in allowed:
+            sets.append("%s = :%s" % (k, k))
+            params[k] = v
+    if sets:
+        db.execute(_text("UPDATE clients SET %s WHERE id::text = :i" % ", ".join(sets)), params)
+        db.commit()
+    return {"ok": True, "updated": len(sets)}
+
+
+def _ensure_table(db, ddl):
+    from sqlalchemy import text as _text
+    db.execute(_text(ddl))
+    db.commit()
+
+
+@router.get("/clients/{cid}/contacts")
+def client_contacts_get(cid: str, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    _ensure_table(db, "CREATE TABLE IF NOT EXISTS client_contacts ("
+                      "id BIGSERIAL PRIMARY KEY, client_id TEXT, kind VARCHAR(16), "
+                      "type_label VARCHAR(32), value VARCHAR(160), "
+                      "is_primary BOOLEAN DEFAULT FALSE, "
+                      "created_at TIMESTAMP DEFAULT NOW())")
+    rows = db.execute(_text(
+        "SELECT id, kind, type_label, value, is_primary FROM client_contacts "
+        "WHERE client_id = :i ORDER BY id"), {"i": str(cid)}).mappings().all()
+    return {"items": [dict(r) for r in rows]}
+
+
+@router.post("/clients/{cid}/contacts")
+def client_contacts_add(cid: str, payload: dict, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    _ensure_table(db, "CREATE TABLE IF NOT EXISTS client_contacts ("
+                      "id BIGSERIAL PRIMARY KEY, client_id TEXT, kind VARCHAR(16), "
+                      "type_label VARCHAR(32), value VARCHAR(160), "
+                      "is_primary BOOLEAN DEFAULT FALSE, "
+                      "created_at TIMESTAMP DEFAULT NOW())")
+    kind = str(payload.get("kind") or "phone")[:16]
+    db.execute(_text(
+        "INSERT INTO client_contacts (client_id, kind, type_label, value, is_primary) "
+        "VALUES (:i, :k, :t, :v, :p)"),
+        {"i": str(cid), "k": kind, "t": str(payload.get("type_label") or "")[:32],
+         "v": str(payload.get("value") or "")[:160],
+         "p": bool(payload.get("is_primary"))})
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/clients/{cid}/contacts/{cid2}")
+def client_contacts_del(cid: str, cid2: int, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    db.execute(_text("DELETE FROM client_contacts WHERE id = :n AND client_id = :i"),
+               {"n": int(cid2), "i": str(cid)})
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/clients/{cid}/cars")
+def client_cars_get(cid: str, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    _ensure_table(db, "CREATE TABLE IF NOT EXISTS client_cars ("
+                      "id BIGSERIAL PRIMARY KEY, client_id TEXT, mark VARCHAR(64), "
+                      "number VARCHAR(32), note VARCHAR(160), "
+                      "created_at TIMESTAMP DEFAULT NOW())")
+    rows = db.execute(_text(
+        "SELECT id, mark, number, note FROM client_cars WHERE client_id = :i ORDER BY id"),
+        {"i": str(cid)}).mappings().all()
+    return {"items": [dict(r) for r in rows]}
+
+
+@router.post("/clients/{cid}/cars")
+def client_cars_add(cid: str, payload: dict, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    _ensure_table(db, "CREATE TABLE IF NOT EXISTS client_cars ("
+                      "id BIGSERIAL PRIMARY KEY, client_id TEXT, mark VARCHAR(64), "
+                      "number VARCHAR(32), note VARCHAR(160), "
+                      "created_at TIMESTAMP DEFAULT NOW())")
+    db.execute(_text(
+        "INSERT INTO client_cars (client_id, mark, number, note) VALUES (:i, :m, :n, :t)"),
+        {"i": str(cid), "m": str(payload.get("mark") or "")[:64],
+         "n": str(payload.get("number") or "")[:32],
+         "t": str(payload.get("note") or "")[:160]})
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/clients/{cid}/cars/{cid2}")
+def client_cars_del(cid: str, cid2: int, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    db.execute(_text("DELETE FROM client_cars WHERE id = :n AND client_id = :i"),
+               {"n": int(cid2), "i": str(cid)})
+    db.commit()
+    return {"ok": True}
