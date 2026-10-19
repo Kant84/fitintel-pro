@@ -93,14 +93,19 @@ services:
 volumes:
   static_trainers:
     external: true
+    name: deploy_static_trainers
   static_products:
     external: true
+    name: deploy_static_products
   static_scan:
     external: true
+    name: deploy_static_scan
   static_brand:
     external: true
+    name: deploy_static_brand
   accounting_data:
     external: true
+    name: deploy_accounting_data
   postgres_prod:
   face_photos:
 
