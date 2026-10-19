@@ -361,3 +361,53 @@ class ClientsAnalyticsTab(QWidget):
             self._load_csat()
         except Exception as e:
             QMessageBox.warning(self, "CSAT", str(e)[:150])
+
+# === W10: диаграмма топ клиентов по визитам (рядом с таблицей) ===
+def _build_att_w10(self):
+    _orig_build_att_w10(self)
+    from PyQt6.QtWidgets import QGridLayout as _g, QFrame as _fr, QLabel as _lb, QSizePolicy as _sp
+    self.att_chart_holder = _g()
+    holder = _fr()
+    holder.setStyleSheet("QFrame{background:#ffffff;border:1px solid #dfe3e8;border-radius:8px;}")
+    hl = _g(holder)
+    tl = _lb("Топ-15 клиентов по визитам")
+    tl.setStyleSheet("font-weight:700;color:#212b36;")
+    hl.addWidget(tl, 0, 0)
+    self.att_chart_holder.addWidget(holder, 0, 0)
+    self._w_att.layout().addLayout(self.att_chart_holder, 1)
+
+_orig_build_att_w10 = ClientsAnalyticsTab._build_attendance
+ClientsAnalyticsTab._build_attendance = _build_att_w10
+
+def _load_att_w10(self):
+    _orig_load_att_w10(self)
+    try:
+        from matplotlib.figure import Figure as _F
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as _C
+        rows = sorted(getattr(self, "_att_rows", []) or [],
+                      key=lambda r: -int(r.get("visits_total") or 0))[:15]
+        fig = _F(figsize=(9, 3.6), tight_layout=True)
+        ax = fig.add_subplot(111)
+        if rows:
+            names = [str(r.get("name"))[:18] for r in rows][::-1]
+            vals = [int(r.get("visits_total") or 0) for r in rows][::-1]
+            colors = ["#00BFA5" if v > 0 else "#E53935" for v in vals]
+            ax.barh(names, vals, color=colors, height=0.6)
+            for i, v in enumerate(vals):
+                ax.text(v, i, " %d" % v, va="center", fontsize=8, color="#212b36")
+        ax.set_title("Визиты (всего)", fontsize=10)
+        for s in ("top", "right"):
+            ax.spines[s].set_visible(False)
+        ax.tick_params(labelsize=8)
+        while self.att_chart_holder.count():
+            it = self.att_chart_holder.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        canvas = _C(fig)
+        canvas.setSizePolicy(_sp.Policy.Expanding, _sp.Policy.Expanding)
+        self.att_chart_holder.addWidget(canvas, 0, 0)
+    except Exception as e:
+        print("att chart:", str(e)[:120])
+
+_orig_load_att_w10 = ClientsAnalyticsTab._load_attendance
+ClientsAnalyticsTab._load_attendance = _load_att_w10

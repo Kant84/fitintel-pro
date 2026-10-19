@@ -65,6 +65,7 @@ class MessengerTab(QWidget):
         self._build_journal()
         self._build_feedback()
         self._build_news()
+        self._build_reactivate()
         self.load_chats()
         self.load_bindings()
         self.load_journal()
