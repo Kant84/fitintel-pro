@@ -284,6 +284,7 @@ class AnalyticsTab(QWidget):
         lay.addWidget(tl)
         canvas = FigureCanvas(fig)
         canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        canvas.setMinimumHeight(330)
         lay.addWidget(canvas)
         self._chart_row = getattr(self, '_chart_row', 0)
         self.charts_grid.addWidget(frame, self._chart_row, 0, 1, 2)
