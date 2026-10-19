@@ -1728,7 +1728,7 @@ def show_help(mw):
     else:
         te.setPlainText(text)
     from PyQt6.QtGui import QTextOption as _QO
-    te.setWordWrapMode(_QO.WrapMode.WrapAtAnywhere)
+    te.setWordWrapMode(_QO.WrapMode.WrapAnywhere)
     te.setReadOnly(True)
     v.addWidget(te, 1)
     b = QPushButton("Закрыть")
@@ -1830,7 +1830,7 @@ def show_help_text(parent, key: str):
     te = QTextEdit()
     te.setPlainText(text)
     from PyQt6.QtGui import QTextOption as _QO
-    te.setWordWrapMode(_QO.WrapMode.WrapAtAnywhere)
+    te.setWordWrapMode(_QO.WrapMode.WrapAnywhere)
     te.setReadOnly(True)
     v.addWidget(te, 1)
     b = QPushButton("Закрыть")
