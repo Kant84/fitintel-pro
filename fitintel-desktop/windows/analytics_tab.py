@@ -475,9 +475,6 @@ class AnalyticsTab(QWidget):
             it = QTableWidgetItem(lvl)
             it.setForeground(Qt.GlobalColor.red if lvl in ("high", "critical") else Qt.GlobalColor.darkGray)
             self.churn_table.setItem(row, 2, it)
-            hint = QTableWidgetItem("двойной клик")
-            hint.setForeground(Qt.GlobalColor.darkGray)
-            self.churn_table.setItem(row, 3, hint)
 
     def _churn_dbl_w10(self, idx):
         it = self.churn_table.item(idx.row(), 0)
@@ -522,11 +519,17 @@ def _init_fonts_w10(self, *a, **k):
 _orig_init_fonts_w10 = AnalyticsTab.__init__
 AnalyticsTab.__init__ = _init_fonts_w10
 
-# === W10: карточка по двойному клику в таблице оттока ===
+# === W10: отток — 3 колонки, подсказка, карточка по двойному клику ===
 def _init_churn_w10(self, *a, **k):
     _orig_init_churn_w10(self, *a, **k)
-    self.churn_table.setHorizontalHeaderLabels(["Клиент", "Вероятность", "Риск", "Карточка"])
+    self.churn_table.setColumnCount(3)
+    self.churn_table.setHorizontalHeaderLabels(["Клиент", "Вероятность", "Риск"])
     self.churn_table.doubleClicked.connect(self._churn_dbl_w10)
+    _lbl = QLabel("Двойной клик по строке — открыть карточку клиента")
+    _lbl.setStyleSheet("color:#637381; font-size:11px; padding:2px;")
+    _lay = self.churn_table.parentWidget().layout()
+    _idx = _lay.indexOf(self.churn_table)
+    _lay.insertWidget(_idx + 1, _lbl)
 
 _orig_init_churn_w10 = AnalyticsTab.__init__
 AnalyticsTab.__init__ = _init_churn_w10
