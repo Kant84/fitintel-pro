@@ -1089,3 +1089,88 @@ def analytics_csat_pending(db: Session = Depends(get_db)):
         return {"pending": rows, "count": len(rows)}
     except Exception as e:
         return {"pending": [], "count": 0, "error": str(e)[:200]}
+
+# ═══════════════ W10: ролевые блоки для дашборда (руководство/менеджеры/бухгалтерия) ═══════════════
+@router.get("/roles")
+def analytics_roles(db: Session = Depends(get_db)):
+    """Данные для визуальных блоков: источники, оплаты, тарифы, статусы, будни, активные абонементы, тренеры."""
+    from sqlalchemy import text as _text
+
+    def cols_of(tbl):
+        try:
+            return set(db.execute(_text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name=:t"),
+                {"t": tbl}).scalars().all())
+        except Exception:
+            return set()
+
+    def q(sql, P=None):
+        try:
+            return [dict(r._mapping) for r in db.execute(_text(sql), P or {}).all()]
+        except Exception:
+            return []
+
+    c_cols = cols_of("clients")
+    p_cols = cols_of("payments")
+    v_cols = cols_of("visits")
+    s_cols = cols_of("subscriptions")
+    out = {}
+
+    if "created_at" in c_cols:
+        src_col = "source" if "source" in c_cols else ("client_tag" if "client_tag" in c_cols else None)
+        if src_col:
+            out["new_by_source"] = q(
+                "SELECT COALESCE(NULLIF(c.%s,''),'(не указан)') AS name, COUNT(*) AS cnt "
+                "FROM clients c WHERE c.created_at >= NOW() - interval '30 days' "
+                "GROUP BY 1 ORDER BY 2 DESC LIMIT 8" % src_col)
+
+    if {"created_at", "amount"} <= p_cols:
+        mcol = next((c for c in ("method", "payment_method", "type", "kind") if c in p_cols), None)
+        if mcol:
+            st = " AND status='COMPLETED'" if "status" in p_cols else ""
+            out["revenue_by_method"] = q(
+                "SELECT CAST(%s AS TEXT) AS name, COALESCE(SUM(amount),0) AS total, COUNT(*) AS cnt "
+                "FROM payments WHERE created_at >= NOW() - interval '30 days'%s "
+                "GROUP BY 1 ORDER BY 2 DESC LIMIT 8" % (mcol, st))
+
+    t_cols = cols_of("tariffs")
+    if {"tariff_id", "created_at"} <= s_cols and t_cols:
+        tname = next((c for c in ("name", "title", "code") if c in t_cols), None)
+        tprice = "price" if "price" in t_cols else None
+        if tname:
+            sel = "COALESCE(SUM(t.%s),0) AS total," % tprice if tprice else "0 AS total,"
+            out["subs_by_tariff"] = q(
+                "SELECT CAST(t.%s AS TEXT) AS name, COUNT(*) AS cnt, %s "
+                "FROM subscriptions s JOIN tariffs t ON t.id = s.tariff_id "
+                "WHERE s.created_at >= NOW() - interval '90 days' "
+                "GROUP BY 1 ORDER BY 2 DESC LIMIT 10" % (tname, sel))
+
+    if {"tariff_id", "status"} <= s_cols and "price" in t_cols:
+        r = q("SELECT COALESCE(SUM(t.price),0) AS active_value, COUNT(*) AS active_cnt "
+              "FROM subscriptions s JOIN tariffs t ON t.id = s.tariff_id WHERE s.status='ACTIVE'")
+        out["active_subscriptions"] = r[0] if r else {}
+
+    if "status" in c_cols:
+        out["clients_by_status"] = q(
+            "SELECT status AS name, COUNT(*) AS cnt FROM clients GROUP BY 1 ORDER BY 2 DESC")
+
+    if "entry_time" in v_cols:
+        out["visits_by_weekday"] = q(
+            "SELECT (EXTRACT(ISODOW FROM entry_time)::int-1) AS wd, COUNT(*) AS cnt "
+            "FROM visits GROUP BY 1 ORDER BY 1")
+
+    if "status" in c_cols:
+        r = q("SELECT COUNT(*) AS cnt FROM clients WHERE status IN ('DEBTOR','Должник')")
+        out["debtors"] = r[0] if r else {}
+
+    ts_cols = cols_of("trainer_sales")
+    if ts_cols:
+        amt = next((c for c in ("amount", "sum", "total", "value") if c in ts_cols), None)
+        dcol = next((c for c in ("created_at", "date", "dt", "sale_date") if c in ts_cols), None)
+        uname = next((c for c in ("trainer_name", "trainer", "user_name", "employee", "name") if c in ts_cols), None)
+        if amt and dcol and uname:
+            out["trainer_sales"] = q(
+                "SELECT CAST(%s AS TEXT) AS name, COUNT(*) AS cnt, COALESCE(SUM(%s),0) AS total "
+                "FROM trainer_sales WHERE %s >= NOW() - interval '30 days' "
+                "GROUP BY 1 ORDER BY 3 DESC LIMIT 10" % (uname, amt, dcol))
+    return out
