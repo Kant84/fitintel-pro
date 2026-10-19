@@ -15,7 +15,9 @@ STATUS_LABELS = {"ACTIVE": "Активен", "FROZEN": "Заморожен", "DE
                  "ARCHIVED": "Архив", "INACTIVE": "Неактивен"}
 STATUS_COLORS = {"ACTIVE": "#059669", "FROZEN": "#3b82f6", "DEBTOR": "#d97706",
                  "ARCHIVED": "#64748b", "INACTIVE": "#ef4444"}
-KIND_LABELS = {"phone": "Телефон", "max": "MAX", "telegram": "Telegram", "email": "Email"}`n`n_OPEN_CARDS = []
+KIND_LABELS = {"phone": "Телефон", "max": "MAX", "telegram": "Telegram", "email": "Email"}
+
+_OPEN_CARDS = []
 
 
 def _fmt(iso):
@@ -28,7 +30,9 @@ class ClientCard(QDialog):
         self.api = api
         self.client_id = str(client_id)
         self.user_data = user_data or {}
-        self.setWindowTitle("Карточка клиента")`n        _OPEN_CARDS.append(self)  # держим ссылку, иначе GC уничтожит окно`n        print("client card opened:", self.client_id)
+        self.setWindowTitle("Карточка клиента")
+        _OPEN_CARDS.append(self)  # держим ссылку, иначе GC уничтожит окно
+        print("client card opened:", self.client_id)
         self.resize(1240, 820)
         self._client = {}
         self._profile = {}
