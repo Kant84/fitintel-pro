@@ -419,7 +419,7 @@ def analytics_trend_forecast(metric: str = "revenue", date_from: str = None,
 
 @router.get("/churn-summary")
 def analytics_churn_summary(db: Session = Depends(get_db)):
-    """Сводка рисков оттока — самодостаточные SQL-правила (автоподбор колонок)."""
+    """Сводка рисков оттока — SQL-правила, полный автоподбор схемы."""
     from sqlalchemy import text as _text
 
     def cols_of(tbl):
@@ -430,42 +430,53 @@ def analytics_churn_summary(db: Session = Depends(get_db)):
         except Exception:
             return set()
 
+    c_cols = cols_of("clients")
     v_cols = cols_of("visits")
     p_cols = cols_of("payments")
     s_cols = cols_of("subscriptions")
 
-    v_lat = "LEFT JOIN LATERAL (SELECT 1 WHERE FALSE) v ON TRUE"
+    # имя клиента из доступных колонок
+    if "full_name" in c_cols:
+        name_expr = "NULLIF(c.full_name,'')"
+    else:
+        parts = [p for p in ("last_name", "first_name", "middle_name") if p in c_cols]
+        if parts:
+            name_expr = "NULLIF(TRIM(CONCAT_WS(' ', %s)), '')" % ", ".join("c." + p for p in parts)
+        else:
+            name_expr = "NULL"
+    fb = ["NULLIF(c.%s,'')" % x for x in ("phone", "email") if x in c_cols]
+    if fb:
+        name_expr = "COALESCE(%s, %s)" % (name_expr, ", ".join(fb))
+    name_expr = "COALESCE(%s, c.id::text)" % name_expr
+
+    v_lat = "LEFT JOIN LATERAL (SELECT NULL::int AS last_visit_days, 0 AS visits_30d WHERE FALSE) v ON TRUE"
     if {"client_id", "entry_time"} <= v_cols:
-        v_lat = (
-            "LEFT JOIN LATERAL (SELECT EXTRACT(DAY FROM NOW() - MAX(entry_time))::int "
-            "AS last_visit_days, COUNT(*) FILTER (WHERE entry_time >= NOW() - "
-            "interval '30 days') AS visits_30d FROM visits v WHERE v.client_id = c.id) v ON TRUE")
+        v_lat = ("LEFT JOIN LATERAL (SELECT EXTRACT(DAY FROM NOW() - MAX(entry_time))::int "
+                 "AS last_visit_days, COUNT(*) FILTER (WHERE entry_time >= NOW() - "
+                 "interval '30 days') AS visits_30d FROM visits v WHERE v.client_id = c.id) v ON TRUE")
     p_lat = "LEFT JOIN LATERAL (SELECT 0 AS payments_90d WHERE FALSE) p ON TRUE"
     if {"client_id", "created_at"} <= p_cols:
         st = " AND pay.status = 'COMPLETED'" if "status" in p_cols else ""
-        p_lat = (
-            "LEFT JOIN LATERAL (SELECT COUNT(*) AS payments_90d FROM payments pay "
-            "WHERE pay.client_id = c.id AND pay.created_at >= NOW() - interval '90 days'"
-            + st + ") p ON TRUE")
-    s_lat = "LEFT JOIN LATERAL (SELECT 999 AS days_left WHERE FALSE) s ON TRUE"
+        p_lat = ("LEFT JOIN LATERAL (SELECT COUNT(*) AS payments_90d FROM payments pay "
+                 "WHERE pay.client_id = c.id AND pay.created_at >= NOW() - interval '90 days'"
+                 + st + ") p ON TRUE")
+    s_lat = "LEFT JOIN LATERAL (SELECT NULL::int AS days_left WHERE FALSE) s ON TRUE"
     if {"client_id", "end_date"} <= s_cols and "status" in s_cols:
-        s_lat = (
-            "LEFT JOIN LATERAL (SELECT MIN(GREATEST(EXTRACT(DAY FROM (end_date - NOW()))"
-            "::int, 0)) AS days_left FROM subscriptions s WHERE s.client_id = c.id "
-            "AND s.status = 'ACTIVE') s ON TRUE")
+        s_lat = ("LEFT JOIN LATERAL (SELECT MIN(GREATEST(EXTRACT(DAY FROM (end_date - NOW()))"
+                 "::int, 0)) AS days_left FROM subscriptions s WHERE s.client_id = c.id "
+                 "AND s.status = 'ACTIVE') s ON TRUE")
 
-    sql = (
-        "SELECT c.id, COALESCE(NULLIF(c.full_name,''), c.phone, c.email, c.id::text) AS name, "
-        "COALESCE(v.last_visit_days, 999) AS last_visit_days, "
-        "COALESCE(v.visits_30d, 0) AS visits_30d, "
-        "COALESCE(p.payments_90d, 0) AS payments_90d, "
-        "COALESCE(s.days_left, 999) AS subscription_days_left "
-        "FROM clients c " + v_lat + " " + p_lat + " " + s_lat +
-        " WHERE c.status = 'ACTIVE'")
+    where = " WHERE c.status = 'ACTIVE'" if "status" in c_cols else ""
+    sql = ("SELECT c.id, %s AS name, "
+           "COALESCE(v.last_visit_days, 999) AS last_visit_days, "
+           "COALESCE(v.visits_30d, 0) AS visits_30d, "
+           "COALESCE(p.payments_90d, 0) AS payments_90d, "
+           "COALESCE(s.days_left, 999) AS subscription_days_left "
+           "FROM clients c " + v_lat + " " + p_lat + " " + s_lat + where)
     try:
         rows = db.execute(_text(sql)).all()
     except Exception as e:
-        return {"error": str(e)[:200], "total_active": 0,
+        return {"error": str(e)[:250], "total_active": 0,
                 "counts": {"low": 0, "medium": 0, "high": 0, "critical": 0},
                 "top_risk": [], "model_type": "unavailable"}
 
