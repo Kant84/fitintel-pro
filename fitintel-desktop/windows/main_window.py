@@ -539,3 +539,114 @@ try:
     MainWindow.__init__ = _mw_init_clk
 except Exception as _e:
     print("clock menu FAIL:", _e)
+
+# ============================ W10: попап «Возврат клиентов» ============================
+try:
+    import os as _wos, json as _wjson, time as _wtime
+    from PyQt6.QtWidgets import (QDialog as _wQD, QVBoxLayout as _wQV, QHBoxLayout as _wQH,
+        QLabel as _wQL, QPushButton as _wQB, QListWidget as _wQLW, QListWidgetItem as _wQLWI)
+    from PyQt6.QtCore import QTimer as _wQT
+
+    _SNZ_PATH = _wos.path.join(_wos.path.dirname(__file__), "..", "return_snooze.json")
+
+    def _snz_load():
+        try:
+            return _wjson.load(open(_SNZ_PATH, encoding="utf-8"))
+        except Exception:
+            return {}
+
+    def _snz_save(key, days=0, hours=0):
+        d = _snz_load()
+        d[str(key)] = _wtime.time() + days * 86400 + hours * 3600
+        try:
+            _wjson.dump(d, open(_SNZ_PATH, "w", encoding="utf-8"))
+        except Exception:
+            pass
+
+    class _ReturnClientsPopup(_wQD):
+        def __init__(self, mw, clients):
+            super().__init__(mw)
+            self.mw = mw
+            self.setWindowTitle("Возврат клиентов")
+            self.setModal(False)
+            self.resize(430, 330)
+            v = _wQV(self)
+            v.addWidget(_wQL("Эти клиенты давно не были в клубе. "
+                             "«Забыть» — не напоминать про этого 30 дней."))
+            self.listw = _wQLW()
+            for c in clients:
+                it = _wQLWI("%s  —  %s дн. без визита" % (c.get("name"), c.get("days")))
+                it.setData(0x0100, c.get("client_id"))
+                self.listw.addItem(it)
+            v.addWidget(self.listw, 1)
+            row = _wQH()
+            b1 = _wQB(" Написать в MAX"); b1.clicked.connect(self._write)
+            b2 = _wQB(" Забыть (30 дн)"); b2.clicked.connect(self._forget)
+            b3 = _wQB(" Отложить на 3 часа"); b3.clicked.connect(self._snooze)
+            b4 = _wQB(" Закрыть"); b4.clicked.connect(self.close)
+            for b in (b1, b2, b3, b4):
+                row.addWidget(b)
+            v.addLayout(row)
+
+        def _write(self):
+            lw = self.mw.findChild(_wQLW)
+            if lw is not None:
+                for i in range(lw.count()):
+                    if "MAX" in lw.item(i).text():
+                        lw.setCurrentRow(i)
+                        break
+            self.close()
+
+        def _forget(self):
+            it = self.listw.currentItem()
+            if it is None:
+                return
+            _snz_save(it.data(0x0100), days=30)
+            self.listw.takeItem(self.listw.row(it))
+            if not self.listw.count():
+                self.close()
+
+        def _snooze(self):
+            _snz_save("__all__", hours=3)
+            self.close()
+
+    def _return_check(mw):
+        try:
+            d = _snz_load()
+            if d.get("__all__", 0) > _wtime.time():
+                return
+            if getattr(mw, "_return_popup", None) is not None:
+                return
+            days = 14
+            try:
+                s = mw.api.session.get(mw.api._url("/messenger/settings"), timeout=10).json()
+                days = int(s.get("inactive_days") or 14)
+            except Exception:
+                pass
+            r = mw.api.session.get(mw.api._url("/analytics/inactive-clients"),
+                                   params={"days": days}, timeout=20)
+            r.raise_for_status()
+            clients = [c for c in r.json().get("clients", [])
+                       if d.get(str(c.get("client_id")), 0) < _wtime.time()]
+            if clients:
+                mw._return_popup = _ReturnClientsPopup(mw, clients)
+                mw._return_popup.finished.connect(lambda _r: setattr(mw, "_return_popup", None))
+                mw._return_popup.show()
+        except Exception as e:
+            print("return check:", str(e)[:120])
+
+    _orig_init_w10 = MainWindow.__init__
+    def _mw_init_w10(self, *a, **kw):
+        _orig_init_w10(self, *a, **kw)
+        try:
+            t = _wQT(self)
+            t.timeout.connect(lambda: _return_check(self))
+            t.start(15 * 60 * 1000)
+            _wQT.singleShot(30000, lambda: _return_check(self))
+        except Exception as e:
+            print("W10 popup:", e)
+    MainWindow.__init__ = _mw_init_w10
+    print("W10 return-clients popup OK")
+except Exception as _w10e:
+    print("W10 FAIL:", _w10e)
+# ========================== W10 END ==========================
