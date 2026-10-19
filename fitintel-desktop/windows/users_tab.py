@@ -274,8 +274,12 @@ class UsersTab(QWidget):
             users = [u for u in users if u.get("is_active")]
         elif st == "inactive":
             users = [u for u in users if not u.get("is_active")]
+        print("users_tab: loaded=%d shown=%d" % (len(self._all_users or []), len(users)))
         self.table.setRowCount(len(users))
         for i, u in enumerate(users):
+            if not isinstance(u, dict):
+                print("users_tab: bad item at", i, type(u).__name__)
+                u = {}
             _fn = (u.get("full_name") or "").strip()
             self.table.setItem(i, 0, QTableWidgetItem(_fn or "—"))
             item0 = QTableWidgetItem(str(u.get("username") or "—"))
@@ -353,6 +357,12 @@ class UsersTab(QWidget):
         if dlg.exec() != FormDialog.DialogCode.Accepted:
             return
         v = dlg.values()
+        ROLE_DEPT = {"trainer": "Тренеры", "accountant": "Бухгалтерия",
+                     "reception": "Ресепшен", "cashier": "Ресепшен",
+                     "manager": "Администрация", "admin": "Администрация",
+                     "support": "Поддержка", "owner": "Руководство"}
+        if not (v.get("department") or "").strip():
+            v["department"] = ROLE_DEPT.get(str(v.get("role") or ""), "")
         if not v["username"] or not v["password"]:
             QMessageBox.warning(self, "Ошибка", "Логин и пароль обязательны")
             return
