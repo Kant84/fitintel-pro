@@ -473,7 +473,7 @@ class AnalyticsTab(QWidget):
             it = QTableWidgetItem(lvl)
             it.setForeground(Qt.GlobalColor.red if lvl in ("high", "critical") else Qt.GlobalColor.darkGray)
             self.churn_table.setItem(row, 2, it)
-            b = QPushButton("▶")
+            b = QPushButton(">>")
             b.setToolTip("Открыть карточку клиента")
             cid = item.get("client_id")
             b.clicked.connect(lambda _c=False, _cid=cid: self._open_client(_cid))

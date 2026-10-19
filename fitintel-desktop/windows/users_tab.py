@@ -389,3 +389,23 @@ try:
     print("PDF cleanup OK: users_tab")
 except Exception as _e:
     print("PDF cleanup FAIL:", _e)
+
+# === W10: скрыть фильтр «Отдел (в разработке)» до появления данных ===
+try:
+    _orig_init_ut_w10 = UsersTab.__init__
+    def _init_ut_w10(self, *a, **k):
+        _orig_init_ut_w10(self, *a, **k)
+        from PyQt6.QtWidgets import QComboBox as _CB, QLabel as _LB
+        for cb in self.findChildren(_CB):
+            for i in range(cb.count()):
+                if "разработке" in cb.itemText(i):
+                    for l in self.findChildren(_LB):
+                        if l.text().strip().startswith("Отдел"):
+                            l.setVisible(False)
+                            break
+                    cb.setVisible(False)
+                    break
+    UsersTab.__init__ = _init_ut_w10
+    print("users: dept filter hidden")
+except Exception as _e10u:
+    print("users dept patch FAIL:", _e10u)
