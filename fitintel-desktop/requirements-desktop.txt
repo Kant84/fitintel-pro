@@ -3,3 +3,9 @@ PyQt6>=6.6.0
 requests>=2.31.0
 opencv-python>=4.8.0  # для Face ID (веб-камера)
 PyInstaller>=6.0     # для сборки .exe
+matplotlib
+seaborn>=0.13
+plotly>=5.20
+bokeh>=3.4
+altair>=5.2
+folium>=0.16
