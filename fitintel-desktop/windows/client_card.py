@@ -95,6 +95,7 @@ class ClientCard(QDialog):
         root.addWidget(sp, 1)
 
         self._pages = {}
+        _idx = 0
         for section, items in (
                 ("ДАННЫЕ", ["Анкета", "Телефоны/Контакты", "Документы", "Фото",
                             "Пакеты/Услуги", "Замечания"]),
@@ -105,10 +106,13 @@ class ClientCard(QDialog):
             sec.setForeground(QColor("#94a3b8"))
             self.menu.addItem(sec)
             for it in items:
-                self.menu.addItem(it)
+                mi = QListWidgetItem(it)
+                mi.setData(Qt.ItemDataRole.UserRole, _idx)
+                self.menu.addItem(mi)
                 page = self._build_page(it)
                 self._pages[it] = page
                 self.stack.addWidget(page)
+                _idx += 1
         self.menu.currentRowChanged.connect(self._on_menu)
         self.menu.setCurrentRow(1)
 
@@ -203,7 +207,9 @@ class ClientCard(QDialog):
         it = self.menu.item(row)
         if it is None or not (it.flags() & Qt.ItemFlag.ItemIsEnabled):
             return
-        self.stack.setCurrentIndex(max(0, row - 1 - row // 7))
+        _idx = it.data(Qt.ItemDataRole.UserRole)
+        if _idx is not None:
+            self.stack.setCurrentIndex(int(_idx))
         self._load_page(it.text())
 
     def _page_layout(self, name):
