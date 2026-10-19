@@ -123,6 +123,8 @@ class DashboardTab(QWidget):
         row = QHBoxLayout()
         b1 = QPushButton(" Обновить"); b1.clicked.connect(self.load_overview)
         b2 = QPushButton(" Пересчитать историю (56 дн)"); b2.clicked.connect(self.recalc)
+        b3 = QPushButton(" Приток клиентов"); b3.clicked.connect(self.load_overview)
+        row.addWidget(b3)
         row.addWidget(b1); row.addWidget(b2); row.addStretch(1)
         v.addLayout(row)
         return w
