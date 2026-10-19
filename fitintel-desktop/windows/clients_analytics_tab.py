@@ -411,3 +411,17 @@ def _load_att_w10(self):
 
 _orig_load_att_w10 = ClientsAnalyticsTab._load_attendance
 ClientsAnalyticsTab._load_attendance = _load_att_w10
+
+# === W10: крупный шрифт таблиц ===
+def _init_fonts_ca(self, *a, **k):
+    _orig_init_fonts_ca(self, *a, **k)
+    from PyQt6.QtWidgets import QTableWidget as _QT
+    css = " QTableWidget{font-size:13px;} QHeaderView::section{font-size:12px;font-weight:600;}"
+    for _t in self.findChildren(_QT):
+        try:
+            _t.setStyleSheet((_t.styleSheet() or "") + css)
+        except Exception:
+            pass
+
+_orig_init_fonts_ca = ClientsAnalyticsTab.__init__
+ClientsAnalyticsTab.__init__ = _init_fonts_ca

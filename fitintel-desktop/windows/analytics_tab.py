@@ -27,9 +27,9 @@ def _style(fig, ax, grid_axis=None):
         ax.spines[s].set_visible(False)
     for s in ("left", "bottom"):
         ax.spines[s].set_color("#dfe3e8")
-    ax.tick_params(colors="#637381", labelsize=9)
+    ax.tick_params(colors="#637381", labelsize=11)
     ax.title.set_color("#212b36")
-    ax.title.set_fontsize(10)
+    ax.title.set_fontsize(13)
     if grid_axis:
         ax.grid(axis=grid_axis, color="#eef1f4", linewidth=0.9)
         ax.set_axisbelow(True)
@@ -322,7 +322,7 @@ class AnalyticsTab(QWidget):
             top = sorted(rows, key=lambda r: -float(r.get(val_key) or 0))[:5]
             other = sum(float(r.get(val_key) or 0) for r in rows[5:])
             rows = top + [{name_key: "Прочие", val_key: other}]
-        fig = _fig(9, 3.8)
+        fig = _fig(11.5, 6.4)
         ax = fig.add_subplot(111)
         if not rows:
             ax.text(0.5, 0.5, "Нет данных", ha="center", va="center", color="#637381")
@@ -343,7 +343,7 @@ class AnalyticsTab(QWidget):
 
     def _barh(self, title, rows, name_key, val_key, row, col, money=False):
         rows = rows or []
-        fig = _fig(9, 3.8)
+        fig = _fig(11.5, 6.4)
         ax = fig.add_subplot(111)
         if rows:
             names = [str(r.get(name_key, "—"))[:20] for r in rows][::-1]
@@ -370,7 +370,7 @@ class AnalyticsTab(QWidget):
         wd_names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
         xs, ys, ma7 = self._series("visits", "visits_by_day")
-        fig = _fig(9, 3.8); ax = fig.add_subplot(111)
+        fig = _fig(11.5, 6.4); ax = fig.add_subplot(111)
         ax.plot(range(len(xs)), ys, marker="o", color="#448AFF", linewidth=2, label="Факт")
         if ma7 and len(ma7) == len(ys):
             ax.plot(range(len(xs)), ma7, color="#B39DDB", linewidth=1.5, label="Скользящая средняя 7")
@@ -381,7 +381,7 @@ class AnalyticsTab(QWidget):
         self._add_canvas(fig, "Посещаемость и прогноз", 0, 0)
 
         xs, ys, _ = self._series("revenue", "revenue_by_day", "total")
-        fig = _fig(9, 3.8); ax = fig.add_subplot(111)
+        fig = _fig(11.5, 6.4); ax = fig.add_subplot(111)
         ax.bar(range(len(xs)), ys, color="#00BFA5", width=0.65)
         self._xlabels(ax, xs)
         ax.set_title("Выручка по дням, ₽")
@@ -390,7 +390,7 @@ class AnalyticsTab(QWidget):
 
         xs, nys, _ = self._series("new_clients", "new_clients_by_day")
         _, lys, _ = self._series("lost_clients", "lost_clients_by_day")
-        fig = _fig(9, 3.8); ax = fig.add_subplot(111)
+        fig = _fig(11.5, 6.4); ax = fig.add_subplot(111)
         ax.plot(range(len(xs)), nys, marker="o", color="#7C4DFF", linewidth=2, label="Приток")
         ax.plot(range(min(len(xs), len(lys))), lys[:len(xs)], marker="s",
                 color="#FF5252", linewidth=2, label="Отток")
@@ -401,7 +401,7 @@ class AnalyticsTab(QWidget):
         _style(fig, ax)
         self._add_canvas(fig, "Приток клиентов (и отток)", 1, 0)
 
-        fig = _fig(9, 3.8); ax = fig.add_subplot(111)
+        fig = _fig(11.5, 6.4); ax = fig.add_subplot(111)
         rows = d.get("visits_wd_hour", [])
         hours = list(range(6, 24))
         grid = [[0.0] * len(hours) for _ in range(7)]
@@ -422,7 +422,7 @@ class AnalyticsTab(QWidget):
         self._barh("Абонементы по тарифам (90 дн)", R.get("subs_by_tariff"), "name", "cnt", 3, 1)
 
         wd = R.get("visits_by_weekday") or []
-        fig = _fig(9, 3.8); ax = fig.add_subplot(111)
+        fig = _fig(11.5, 6.4); ax = fig.add_subplot(111)
         if wd:
             names = [wd_names[int(r["wd"])] for r in wd]
             vals = [int(r["cnt"]) for r in wd]
@@ -446,7 +446,7 @@ class AnalyticsTab(QWidget):
             self._barh(title, rows, "name", val_key, row, col)
 
         xs, ys, _ = self._series("subscriptions", "subs_by_day")
-        fig = _fig(9, 3.8); ax = fig.add_subplot(111)
+        fig = _fig(11.5, 6.4); ax = fig.add_subplot(111)
         ax.bar(range(len(xs)), ys, color="#E040FB", width=0.6)
         self._xlabels(ax, xs)
         ax.set_title("Продано абонементов по дням")
@@ -500,3 +500,17 @@ class AnalyticsTab(QWidget):
         if saved:
             QMessageBox.information(self, "Экспорт",
                                     "Сохранено графиков: %d\nПапка: %s" % (len(saved), out_dir))
+
+# === W10: крупный шрифт всех таблиц вкладки ===
+def _init_fonts_w10(self, *a, **k):
+    _orig_init_fonts_w10(self, *a, **k)
+    from PyQt6.QtWidgets import QTableWidget as _QT
+    css = " QTableWidget{font-size:13px;} QHeaderView::section{font-size:12px;font-weight:600;}"
+    for _t in self.findChildren(_QT):
+        try:
+            _t.setStyleSheet((_t.styleSheet() or "") + css)
+        except Exception:
+            pass
+
+_orig_init_fonts_w10 = AnalyticsTab.__init__
+AnalyticsTab.__init__ = _init_fonts_w10
