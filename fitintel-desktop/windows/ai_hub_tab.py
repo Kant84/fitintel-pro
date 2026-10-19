@@ -3,7 +3,7 @@ from windows.hub_base import HubTab
 
 _MOD2CLS = {
     "ai_center_tab": "AICenterTab",
-    "analytics_tab": "AnalyticsTab",
+    "analytics_tab": "AnalyticsTab", "clients_analytics_tab": "ClientsAnalyticsTab",
 }
 
 def AIHubTab(api):
@@ -20,5 +20,5 @@ def AIHubTab(api):
 
 _ITEMS = [
     ("AI Центр", "ai_center_tab"),
-    ("Аналитика", "analytics_tab"),
+    ("Аналитика", "analytics_tab"), ("Клиентская аналитика", "clients_analytics_tab"),
 ]
