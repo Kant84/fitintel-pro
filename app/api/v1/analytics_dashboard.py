@@ -467,7 +467,7 @@ def analytics_churn_summary(db: Session = Depends(get_db)):
                  "AND s.status = 'ACTIVE') s ON TRUE")
 
     where = " WHERE c.status = 'ACTIVE'" if "status" in c_cols else ""
-    sql = ("SELECT c.id, %s AS name, "
+    sql = ("SELECT c.id, " + name_expr + " AS name, "
            "COALESCE(v.last_visit_days, 999) AS last_visit_days, "
            "COALESCE(v.visits_30d, 0) AS visits_30d, "
            "COALESCE(p.payments_90d, 0) AS payments_90d, "
@@ -574,4 +574,211 @@ def analytics_demand_tops(date_from: str = None, date_to: str = None,
                 "WHERE %s::date BETWEEN :f AND :t GROUP BY 1 ORDER BY 3 DESC LIMIT 10"
                 % (name_col, amount_col, tbl, date_col))
             break
+    return out
+
+# ═══════════════ W8: расширенная аналитика (когорты, LTV, загрузка, прогнозы, рекомендации) ═══════════════
+@router.get("/extended")
+def analytics_extended(db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+
+    def cols_of(tbl):
+        try:
+            return set(db.execute(_text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name=:t"),
+                {"t": tbl}).scalars().all())
+        except Exception:
+            return set()
+
+    def q(sql, P=None):
+        try:
+            return [dict(r._mapping) for r in db.execute(_text(sql), P or {}).all()]
+        except Exception:
+            return []
+
+    c_cols = cols_of("clients")
+    v_cols = cols_of("visits")
+    p_cols = cols_of("payments")
+    s_cols = cols_of("subscriptions")
+    has_visits = {"client_id", "entry_time"} <= v_cols
+    has_payments = {"client_id", "created_at", "amount"} <= p_cols
+    pay_st = " AND p.status='COMPLETED'" if "status" in p_cols else ""
+    out = {}
+
+    # 1. когортный retention
+    if has_visits and "created_at" in c_cols:
+        rows = q(
+            "SELECT to_char(date_trunc('month', c.created_at),'YYYY-MM') AS cohort, "
+            "COUNT(*) AS registered, "
+            "COUNT(*) FILTER (WHERE NOW() - c.created_at >= interval '30 days') AS aged30, "
+            "COUNT(*) FILTER (WHERE NOW() - c.created_at >= interval '30 days' "
+            "AND v.last_visit >= NOW() - interval '30 days') AS retained30 "
+            "FROM clients c LEFT JOIN LATERAL (SELECT MAX(v.entry_time) AS last_visit "
+            "FROM visits v WHERE v.client_id = c.id) v ON TRUE "
+            "GROUP BY 1 ORDER BY 1 DESC LIMIT 6")
+        for r in rows:
+            r["retention30_pct"] = (round(r["retained30"] / r["aged30"] * 100, 1)
+                                    if r.get("aged30") else None)
+        out["cohorts"] = rows
+    else:
+        out["cohorts"] = []
+
+    # 2. LTV / ARPU (+ по сегменту)
+    out["ltv"] = {}
+    out["ltv_by_segment"] = []
+    if has_payments:
+        r = q("SELECT COALESCE(AVG(t.lifetime),0) AS ltv_avg, COALESCE(AVG(t.monthly),0) AS arpu_30d FROM ("
+              "SELECT c.id, COALESCE((SELECT SUM(p.amount) FROM payments p "
+              "WHERE p.client_id=c.id%s),0) AS lifetime, "
+              "COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.client_id=c.id%s "
+              "AND p.created_at >= NOW() - interval '30 days'),0) AS monthly FROM clients c) t" % (pay_st, pay_st))
+        if r:
+            out["ltv"] = r[0]
+        seg_col = ("segment" if "segment" in c_cols else
+                   ("client_tag" if "client_tag" in c_cols else None))
+        if seg_col:
+            out["ltv_by_segment"] = q(
+                "SELECT COALESCE(NULLIF(c.%s,''),'(не задан)') AS segment, COUNT(*) AS clients, "
+                "COALESCE(AVG(t.lifetime),0) AS ltv FROM clients c JOIN ("
+                "SELECT c2.id, COALESCE((SELECT SUM(p.amount) FROM payments p "
+                "WHERE p.client_id=c2.id%s),0) AS lifetime FROM clients c2) t ON t.id=c.id "
+                "GROUP BY 1 ORDER BY 3 DESC LIMIT 10" % (seg_col, pay_st))
+
+    # 3. месячный приток/отток + churn rate
+    out["monthly_flow"] = []
+    if "created_at" in c_cols:
+        new_m = {r["m"]: r["cnt"] for r in q(
+            "SELECT to_char(created_at,'YYYY-MM') AS m, COUNT(*) AS cnt FROM clients GROUP BY 1")}
+        lost_m = {}
+        if "status" in c_cols and "updated_at" in c_cols:
+            lost_m = {r["m"]: r["cnt"] for r in q(
+                "SELECT to_char(updated_at,'YYYY-MM') AS m, COUNT(*) AS cnt FROM clients "
+                "WHERE status IN ('INACTIVE','ARCHIVED') GROUP BY 1")}
+        total_r = q("SELECT COUNT(*) AS cnt FROM clients")
+        total = total_r[0]["cnt"] if total_r else 0
+        months = sorted(set(new_m) | set(lost_m))[-6:]
+        out["monthly_flow"] = [
+            {"month": m, "new": new_m.get(m, 0), "lost": lost_m.get(m, 0),
+             "churn_rate_pct": round(lost_m.get(m, 0) / max(total, 1) * 100, 2)}
+            for m in months]
+
+    # 4. загрузка клуба
+    occ = {}
+    if has_visits:
+        r = q("SELECT EXTRACT(HOUR FROM entry_time)::int AS hr, COUNT(*) AS cnt "
+              "FROM visits GROUP BY 1 ORDER BY 1")
+        occ["by_hour"] = r
+        if r:
+            mx = max(x["cnt"] for x in r)
+            tot = sum(x["cnt"] for x in r) or 1
+            occ["peak_hour"] = max(r, key=lambda x: x["cnt"])["hr"]
+            occ["peak_share_pct"] = round(mx / tot * 100, 1)
+        if "exit_time" in v_cols:
+            d = q("SELECT AVG(EXTRACT(EPOCH FROM (exit_time - entry_time))/60) AS avg_min "
+                  "FROM visits WHERE exit_time IS NOT NULL")
+            if d and d[0]["avg_min"]:
+                occ["avg_visit_min"] = round(d[0]["avg_min"], 1)
+    out["occupancy"] = occ
+
+    # 5. заморозки / должники
+    st = {}
+    if "status" in c_cols:
+        st["clients_by_status"] = q(
+            "SELECT status, COUNT(*) AS cnt FROM clients GROUP BY status ORDER BY 2 DESC")
+    if s_cols and "status" in s_cols:
+        st["subscriptions_by_status"] = q(
+            "SELECT status, COUNT(*) AS cnt FROM subscriptions GROUP BY status ORDER BY 2 DESC")
+    out["statuses"] = st
+
+    # 6. воронка (если есть лиды/пробные)
+    lt = q("SELECT table_name FROM information_schema.tables WHERE table_schema='public' "
+           "AND (table_name ILIKE '%lead%' OR table_name ILIKE '%trial%' OR table_name ILIKE '%guest%')")
+    out["funnel"] = {"available": bool(lt), "tables": [r["table_name"] for r in lt]}
+
+    # 7. Holt (экспоненциальное сглаживание с трендом)
+    def holt(vals, days, alpha=0.4, beta=0.1):
+        if len(vals) < 3:
+            return [float(vals[-1]) if vals else 0.0] * days
+        level = vals[0]
+        trend = vals[1] - vals[0]
+        for v in vals[1:]:
+            prev = level
+            level = alpha * v + (1 - alpha) * (level + trend)
+            trend = beta * (level - prev) + (1 - beta) * trend
+        return [max(level + i * trend, 0.0) for i in range(1, days + 1)]
+
+    ts = analytics_timeseries(None, None, db)["series"]
+    out["holt_forecast_14d"] = {
+        k: [round(x, 2) for x in holt(ts[k]["values"], 14)]
+        for k in ("visits", "revenue", "new_clients")}
+
+    # 8. отток в деньгах (рисковые клиенты × их средний платёж)
+    out["churn_money_30d"] = {}
+    if has_payments and has_visits and "status" in c_cols:
+        rows = q(
+            "SELECT COUNT(*) AS risky, COALESCE(SUM(avg_pay),0) AS expected_loss FROM ("
+            "SELECT c.id, COALESCE((SELECT AVG(p.amount) FROM payments p "
+            "WHERE p.client_id=c.id%s),0) AS avg_pay, "
+            "(SELECT MAX(v.entry_time) FROM visits v WHERE v.client_id=c.id) AS last_v "
+            "FROM clients c WHERE c.status='ACTIVE') t "
+            "WHERE last_v IS NULL OR last_v < NOW() - interval '14 days'" % pay_st)
+        if rows:
+            out["churn_money_30d"] = rows[0]
+
+    # 9. доверительный интервал прогноза выручки
+    out["revenue_forecast_ci"] = {}
+    vals = ts["revenue"]["values"]
+    n = len(vals)
+    if n >= 3:
+        sx = sum(range(n))
+        sy = sum(vals)
+        den = n * sum(i * i for i in range(n)) - sx * sx
+        if den:
+            a = (n * sum(i * v for i, v in enumerate(vals)) - sx * sy) / den
+            b = (sy - a * sx) / n
+            resid = [v - (a * i + b) for i, v in enumerate(vals)]
+            sd = (sum(r_ * r_ for r_ in resid) / (n - 2)) ** 0.5
+            out["revenue_forecast_ci"] = {
+                "sigma": round(sd, 2),
+                "band_80": round(1.28 * sd, 2),
+                "note": "±1.28σ ≈ 80%-ый интервал вокруг линии прогноза"}
+
+    # 10. оплаты по типам
+    pt = {}
+    if has_payments:
+        mcol = next((c for c in ("method", "payment_method", "type", "kind")
+                     if c in p_cols), None)
+        if mcol:
+            pt["by_method_month"] = q(
+                "SELECT to_char(created_at,'YYYY-MM') AS m, CAST(%s AS TEXT) AS method, "
+                "COUNT(*) AS cnt, COALESCE(SUM(amount),0) AS total FROM payments "
+                "GROUP BY 1,2 ORDER BY 1 DESC, 4 DESC LIMIT 24" % mcol)
+    out["payment_types"] = pt
+
+    # 11. рекомендации
+    recs = []
+    vwd = q("SELECT (EXTRACT(ISODOW FROM entry_time)::int-1) AS wd, "
+            "EXTRACT(HOUR FROM entry_time)::int AS hr, COUNT(*) AS cnt FROM visits GROUP BY 1,2")
+    if vwd:
+        peak = max(vwd, key=lambda x: x["cnt"])
+        recs.append("Пиковая загрузка: %s %d:00 (%d визитов) — усильте дежурство"
+                    % (["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"][peak["wd"]],
+                       peak["hr"], peak["cnt"]))
+    if "status" in c_cols and has_visits:
+        nod = q("SELECT COUNT(*) AS cnt FROM clients c WHERE c.status='ACTIVE' "
+                "AND NOT EXISTS (SELECT 1 FROM visits v WHERE v.client_id=c.id "
+                "AND v.entry_time >= NOW() - interval '14 days')")
+        if nod and nod[0]["cnt"]:
+            recs.append("%d активных клиентов без визита >14 дней — запустите "
+                        "возвратную кампанию" % nod[0]["cnt"])
+    cm = out.get("churn_money_30d") or {}
+    if cm.get("expected_loss"):
+        recs.append("Ожидаемые потери оттока: ~%s ₽ — предложите продление группе риска"
+                    % format(int(cm["expected_loss"]), ",").replace(",", " "))
+    for c_ in (out.get("cohorts") or []):
+        rp = c_.get("retention30_pct")
+        if rp is not None and rp < 50:
+            recs.append("Низкое удержание 30 дн. в когорте %s (%s%%) — проверьте онбординг"
+                        % (c_["cohort"], rp))
+            break
+    out["recommendations"] = recs
     return out
