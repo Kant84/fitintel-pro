@@ -782,3 +782,308 @@ def analytics_extended(db: Session = Depends(get_db)):
             break
     out["recommendations"] = recs
     return out
+
+# ═══════════════ W9: RFM, шкала посещений, отчёты по клиентам, CSAT ═══════════════
+def _client_name_expr(c_cols):
+    if "full_name" in c_cols:
+        name_expr = "NULLIF(c.full_name,'')"
+    else:
+        parts = [p for p in ("last_name", "first_name", "middle_name") if p in c_cols]
+        if parts:
+            name_expr = "NULLIF(TRIM(CONCAT_WS(' ', %s)), '')" % ", ".join("c." + p for p in parts)
+        else:
+            name_expr = "NULL"
+    fb = ["NULLIF(c.%s,'')" % x for x in ("phone", "email") if x in c_cols]
+    if fb:
+        name_expr = "COALESCE(%s, %s)" % (name_expr, ", ".join(fb))
+    return "COALESCE(%s, c.id::text)" % name_expr
+
+
+@router.get("/clients-rfm")
+def analytics_clients_rfm(db: Session = Depends(get_db)):
+    """RFM-анализ активных клиентов. Шкала 1-3: Recency 3=недавно,
+    Frequency 3=часто, Monetary 1=большая сумма, 3=маленькая."""
+    from sqlalchemy import text as _text
+
+    def cols_of(tbl):
+        try:
+            return set(db.execute(_text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name=:t"),
+                {"t": tbl}).scalars().all())
+        except Exception:
+            return set()
+
+    def q(sql, P=None):
+        try:
+            return [dict(r._mapping) for r in db.execute(_text(sql), P or {}).all()]
+        except Exception:
+            return []
+
+    c_cols = cols_of("clients")
+    v_cols = cols_of("visits")
+    p_cols = cols_of("payments")
+    if not ({"client_id", "entry_time"} <= v_cols and {"client_id", "created_at", "amount"} <= p_cols):
+        return {"available": False, "reason": "need visits(client_id,entry_time) and payments(client_id,created_at,amount)"}
+    pay_st = " AND p.status='COMPLETED'" if "status" in p_cols else ""
+    name_expr = _client_name_expr(c_cols)
+    where = " WHERE c.status='ACTIVE'" if "status" in c_cols else ""
+    rows = q(
+        "SELECT c.id, %s AS name, "
+        "(SELECT MAX(v.entry_time) FROM visits v WHERE v.client_id=c.id) AS last_v, "
+        "(SELECT COUNT(*) FROM visits v WHERE v.client_id=c.id) AS freq, "
+        "COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.client_id=c.id%s),0) AS mon "
+        "FROM clients c%s" % (name_expr, pay_st, where))
+
+    from datetime import datetime as _dt
+    now = _dt.now()
+    for r in rows:
+        r["recency_days"] = (now - r["last_v"]).days if r.get("last_v") else 9999
+        r["frequency"] = int(r.get("freq") or 0)
+        r["monetary"] = float(r.get("mon") or 0)
+
+    def scores(values, hi_best=True):
+        """Терцилы -> 1..3. hi_best: True => большие значения = 3."""
+        n = len(values)
+        if n == 0:
+            return []
+        order = sorted(range(n), key=lambda i: values[i], reverse=hi_best)
+        out = [0] * n
+        for rank, idx in enumerate(order):
+            tier = 2 if rank < n / 3 else (1 if rank < 2 * n / 3 else 0)
+            out[idx] = tier + 1
+        return out
+
+    n = len(rows)
+    rec_s = scores([r["recency_days"] for r in rows], hi_best=False)
+    fre_s = scores([r["frequency"] for r in rows], hi_best=True)
+    mon_s = scores([r["monetary"] for r in rows], hi_best=True)
+    mon_s = [4 - m for m in mon_s]
+
+    dist = {"R": {1: 0, 2: 0, 3: 0}, "F": {1: 0, 2: 0, 3: 0}, "M": {1: 0, 2: 0, 3: 0}}
+    cells = {}
+    for i, r in enumerate(rows):
+        R, F, M = rec_s[i], fre_s[i], mon_s[i]
+        r["R"], r["F"], r["M"] = R, F, M
+        dist["R"][R] += 1
+        dist["F"][F] += 1
+        dist["M"][M] += 1
+        cells["%d%d%d" % (R, F, M)] = cells.get("%d%d%d" % (R, F, M), 0) + 1
+
+    SEGMENTS = {
+        "331": "Чемпионы (частые, недавние)", "332": "Чемпионы (частые, недавние)",
+        "333": "Чемпионы+",
+        "321": "Лояльные", "322": "Лояльные", "323": "Лояльные",
+        "311": "Новички-спонсоры", "312": "Новички-спонсоры", "313": "Новички",
+        "231": "В зоне риска (давно не были)", "232": "В зоне риска",
+        "233": "В зоне риска", "221": "Спящие", "222": "Спящие", "223": "Спящие",
+        "131": "Почти ушедшие (очень давно)", "132": "Почти ушедшие", "133": "Почти ушедшие",
+        "211": "Разовые-спонсоры", "212": "Разовые", "213": "Разовые",
+        "121": "Ушедшие спонсоры", "122": "Ушедшие", "123": "Ушедшие",
+        "111": "Ушедшие (очень давно)", "112": "Ушедшие (очень давно)", "113": "Ушедшие (очень давно)",
+    }
+    segments = {}
+    for i, r in enumerate(rows):
+        key = "%d%d%d" % (r["R"], r["F"], r["M"])
+        seg = SEGMENTS.get(key, "Прочие")
+        segments.setdefault(seg, []).append(r)
+    seg_summary = sorted(
+        [{"segment": k, "count": len(v),
+          "monetary_sum": round(sum(x["monetary"] for x in v), 2)}
+         for k, v in segments.items()],
+        key=lambda x: -x["count"])
+
+    top = sorted(rows, key=lambda x: (x["R"], x["F"], x["M"]))[:10]
+    return {"available": True, "total": n,
+            "dist": dist, "cells27": cells,
+            "segments": seg_summary,
+            "top_champions": [
+                {"client_id": str(r["id"]), "name": r["name"],
+                 "R": r["R"], "F": r["F"], "M": r["M"],
+                 "recency_days": r["recency_days"],
+                 "frequency": r["frequency"], "monetary": r["monetary"]}
+                for r in top]}
+
+
+@router.get("/client-attendance")
+def analytics_client_attendance(limit: int = 50, db: Session = Depends(get_db)):
+    """Шкала посещений клиентов по ФИО: всего, за 30 дн, давность, в неделю."""
+    from sqlalchemy import text as _text
+
+    def cols_of(tbl):
+        try:
+            return set(db.execute(_text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name=:t"),
+                {"t": tbl}).scalars().all())
+        except Exception:
+            return set()
+
+    def q(sql, P=None):
+        try:
+            return [dict(r._mapping) for r in db.execute(_text(sql), P or {}).all()]
+        except Exception as e:
+            return [{"error": str(e)[:160]}]
+
+    c_cols = cols_of("clients")
+    v_cols = cols_of("visits")
+    name_expr = _client_name_expr(c_cols)
+    reg = "c.created_at" if "created_at" in c_cols else "NULL"
+    if not {"client_id", "entry_time"} <= v_cols:
+        return []
+    rows = q(
+        "SELECT c.id, %s AS name, COUNT(v.entry_time) AS visits_total, "
+        "COUNT(v.entry_time) FILTER (WHERE v.entry_time >= NOW() - interval '30 days') AS visits_30d, "
+        "MAX(v.entry_time) AS last_visit, %s AS registered "
+        "FROM clients c LEFT JOIN visits v ON v.client_id = c.id "
+        "GROUP BY c.id, %s ORDER BY visits_total DESC LIMIT :lim"
+        % (name_expr, reg, name_expr),
+        {"lim": min(max(int(limit or 50), 1), 500)})
+    from datetime import datetime as _dt
+    now = _dt.now()
+    out = []
+    for r in rows:
+        if "error" in r:
+            return rows
+        reg_d = r.get("registered")
+        weeks = max(1.0, (now - reg_d).days / 7.0) if reg_d else None
+        out.append({
+            "client_id": str(r["id"]), "name": r["name"],
+            "visits_total": int(r["visits_total"] or 0),
+            "visits_30d": int(r["visits_30d"] or 0),
+            "last_visit_days": (now - r["last_visit"]).days if r.get("last_visit") else None,
+            "avg_per_week": round(int(r["visits_total"] or 0) / weeks, 2) if weeks else None,
+        })
+    return out
+
+
+@router.get("/client-reports")
+def analytics_client_reports(type: str = "new", date_from: str = None,
+                             date_to: str = None, db: Session = Depends(get_db)):
+    """Отчёты: new (новые клиенты), top (рейтинг по оплатам), lost (потерянные)."""
+    from sqlalchemy import text as _text
+    from datetime import date as _date, timedelta as _td
+
+    def cols_of(tbl):
+        try:
+            return set(db.execute(_text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name=:t"),
+                {"t": tbl}).scalars().all())
+        except Exception:
+            return set()
+
+    def q(sql, P=None):
+        try:
+            return [dict(r._mapping) for r in db.execute(_text(sql), P or {}).all()]
+        except Exception:
+            return []
+
+    c_cols = cols_of("clients")
+    v_cols = cols_of("visits")
+    p_cols = cols_of("payments")
+    name_expr = _client_name_expr(c_cols)
+    t = _date.today()
+    d_to = date_to or t.isoformat()
+    d_from = date_from or (t - _td(days=30)).isoformat()
+    P = {"f": d_from, "t": d_to}
+
+    if type == "new" and "created_at" in c_cols:
+        extra = ""
+        if {"client_id", "entry_time"} <= v_cols:
+            extra = ", (SELECT COUNT(*) FROM visits v WHERE v.client_id=c.id) AS visits_cnt"
+        mon = ""
+        if {"client_id", "amount"} <= p_cols:
+            st = " AND p.status='COMPLETED'" if "status" in p_cols else ""
+            mon = ", COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.client_id=c.id%s),0) AS visits_sum" % st
+        return q("SELECT c.id, %s AS name, c.phone, c.created_at::date AS created, "
+                 "COALESCE(c.source,'') AS source%s%s FROM clients c "
+                 "WHERE c.created_at::date BETWEEN :f AND :t ORDER BY c.created_at DESC"
+                 % (name_expr, extra, mon), P)
+
+    if type == "top":
+        if not {"client_id", "created_at", "amount"} <= p_cols:
+            return []
+        st = " AND p.status='COMPLETED'" if "status" in p_cols else ""
+        return q("SELECT c.id, %s AS name, c.phone, COUNT(p.id) AS payments_cnt, "
+                 "COALESCE(SUM(p.amount),0) AS total, "
+                 "COALESCE(AVG(p.amount),0) AS avg_check, "
+                 "(SELECT MAX(v.entry_time) FROM visits v WHERE v.client_id=c.id) AS last_visit "
+                 "FROM payments p JOIN clients c ON c.id = p.client_id "
+                 "WHERE p.created_at::date BETWEEN :f AND :t%s "
+                 "GROUP BY c.id, %s, c.phone ORDER BY total DESC LIMIT 100"
+                 % (name_expr, st, name_expr), P)
+
+    if type == "lost":
+        if not {"client_id", "entry_time"} <= v_cols:
+            return []
+        last_expr = "(SELECT MAX(v.entry_time) FROM visits v WHERE v.client_id=c.id)"
+        return q("SELECT c.id, %s AS name, c.phone, "
+                 "(SELECT COUNT(*) FROM visits v WHERE v.client_id=c.id) AS visits_cnt, "
+                 "%s AS last_visit FROM clients c "
+                 "WHERE %s IS NOT NULL AND %s::date BETWEEN :f AND :t "
+                 "ORDER BY last_visit" % (name_expr, last_expr, last_expr, last_expr), P)
+
+    return []
+
+
+@router.get("/csat/summary")
+def analytics_csat_summary(db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    db.execute(_text(
+        "CREATE TABLE IF NOT EXISTS csat_scores ("
+        "id BIGSERIAL PRIMARY KEY, client_id TEXT, score INT NOT NULL, "
+        "comment TEXT, source TEXT DEFAULT 'max', "
+        "created_at TIMESTAMP DEFAULT NOW())"))
+    db.commit()
+    dist = {r["score"]: r["cnt"] for r in [
+        dict(x._mapping) for x in db.execute(_text(
+            "SELECT score, COUNT(*) AS cnt FROM csat_scores GROUP BY score")).all()]}
+    avg = db.execute(_text(
+        "SELECT AVG(score) AS a, COUNT(*) AS n FROM csat_scores")).first()
+    monthly = [dict(r._mapping) for r in db.execute(_text(
+        "SELECT to_char(created_at,'YYYY-MM') AS m, COUNT(*) AS cnt, "
+        "ROUND(AVG(score),2) AS avg FROM csat_scores GROUP BY 1 ORDER BY 1 DESC LIMIT 12")).all()]
+    total = (avg._mapping["n"] if avg else 0) or 0
+    pos = sum(dist.get(s, 0) for s in (4, 5))
+    return {"avg": round(float(avg._mapping["a"] or 0), 2) if avg else 0,
+            "total": total, "csat_pct": round(pos / total * 100, 1) if total else None,
+            "distribution": {str(k): dist.get(k, 0) for k in range(1, 6)},
+            "monthly": monthly}
+
+
+@router.post("/csat")
+def analytics_csat_submit(payload: dict, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    score = int(payload.get("score") or 0)
+    if score < 1 or score > 5:
+        return {"ok": False, "error": "score 1..5"}
+    db.execute(_text(
+        "CREATE TABLE IF NOT EXISTS csat_scores ("
+        "id BIGSERIAL PRIMARY KEY, client_id TEXT, score INT NOT NULL, "
+        "comment TEXT, source TEXT DEFAULT 'max', "
+        "created_at TIMESTAMP DEFAULT NOW())"))
+    db.execute(_text(
+        "INSERT INTO csat_scores (client_id, score, comment, source) "
+        "VALUES (:cid, :s, :cm, :src)"),
+        {"cid": str(payload.get("client_id") or ""), "s": score,
+         "cm": str(payload.get("comment") or "")[:500],
+         "src": str(payload.get("source") or "max")[:30]})
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/csat/pending")
+def analytics_csat_pending(db: Session = Depends(get_db)):
+    """Клиенты без оценки в текущем месяце — аудитория ежемесячного опроса."""
+    from sqlalchemy import text as _text
+    c_cols = set(db.execute(_text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='clients'")
+    ).scalars().all())
+    name_expr = _client_name_expr(c_cols)
+    try:
+        rows = [dict(r._mapping) for r in db.execute(_text(
+            "SELECT c.id, %s AS name, c.phone FROM clients c "
+            "WHERE NOT EXISTS (SELECT 1 FROM csat_scores s WHERE s.client_id = c.id::text "
+            "AND date_trunc('month', s.created_at) = date_trunc('month', NOW())) "
+            "ORDER BY c.created_at DESC LIMIT 200" % name_expr)).all()]
+        return {"pending": rows, "count": len(rows)}
+    except Exception as e:
+        return {"pending": [], "count": 0, "error": str(e)[:200]}
