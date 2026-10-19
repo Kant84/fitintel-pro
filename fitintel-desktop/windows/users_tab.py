@@ -254,52 +254,56 @@ class UsersTab(QWidget):
         users = list(self._all_users or [])
         show_del = self.chk_show_deleted.isChecked()
         if not show_del:
+            users = [u for u in users if isinstance(u, dict)]
             users = [u for u in users
                      if not (str(u.get("username") or "").startswith("deleted_")
                              and not u.get("is_active"))]
         t = self.edit_filter.text().strip().lower()
         if t:
-            users = [u for u in users if t in "%s %s %s" % (
+            users = [u for u in users if isinstance(u, dict) and t in "%s %s %s" % (
                 (u.get("full_name") or ""), u.get("username", ""), u.get("email", "")).lower()]
-        dept = self._current_department_filter()
-        if dept:
-            users = [u for u in users if (u.get("department") or "") == dept]
+        dept = self.cb_dept.currentText().strip()
+        if dept and dept != "Все":
+            users = [u for u in users if isinstance(u, dict)
+                     and (u.get("department") or "") == dept]
         role = self.cb_role.currentData()
         if role:
-            users = [u for u in users
-                     if any(str(r.get("code", "")).lower() == role
-                            for r in (u.get("roles") or []) if isinstance(r, dict))]
+            users = [u for u in users if isinstance(u, dict)
+                     and any(str(r.get("code", "")).lower() == role
+                             for r in (u.get("roles") or []) if isinstance(r, dict))]
         st = self.cb_status.currentData()
         if st == "active":
-            users = [u for u in users if u.get("is_active")]
+            users = [u for u in users if isinstance(u, dict) and u.get("is_active")]
         elif st == "inactive":
-            users = [u for u in users if not u.get("is_active")]
+            users = [u for u in users if isinstance(u, dict) and not u.get("is_active")]
         print("users_tab: loaded=%d shown=%d" % (len(self._all_users or []), len(users)))
         self.table.setRowCount(len(users))
         for i, u in enumerate(users):
-            if not isinstance(u, dict):
-                print("users_tab: bad item at", i, type(u).__name__)
-                u = {}
-            _fn = (u.get("full_name") or "").strip()
-            self.table.setItem(i, 0, QTableWidgetItem(_fn or "—"))
-            item0 = QTableWidgetItem(str(u.get("username") or "—"))
-            item0.setData(Qt.ItemDataRole.UserRole, str(u.get("id") or ""))
-            self.table.setItem(i, 1, item0)
-            self.table.setItem(i, 2, QTableWidgetItem(str(u.get("email") or "—")))
-            roles = u.get("roles") or []
-            if isinstance(roles, list):
-                rtxt = ", ".join(str(r.get("name", r)) if isinstance(r, dict) else str(r) for r in roles)
-            else:
-                rtxt = str(roles)
-            self.table.setItem(i, 3, QTableWidgetItem(rttxt or "—"))
-            self.table.setItem(i, 4, QTableWidgetItem(str(u.get("department") or "—")))
-            perms = u.get("permissions") or []
-            self.table.setItem(i, 5, QTableWidgetItem(str(len(perms)) if isinstance(perms, list) else "—"))
-            active = u.get("is_active")
-            item = QTableWidgetItem("Активен" if active else "Отключён")
-            item.setForeground(QColor("#059669" if active else "#ef4444"))
-            self.table.setItem(i, 6, item)
-
+            try:
+                if not isinstance(u, dict):
+                    print("users_tab: bad item at", i, type(u).__name__)
+                    continue
+                _fn = (u.get("full_name") or "").strip()
+                self.table.setItem(i, 0, QTableWidgetItem(_fn or "—"))
+                item0 = QTableWidgetItem(str(u.get("username") or "—"))
+                item0.setData(Qt.ItemDataRole.UserRole, str(u.get("id") or ""))
+                self.table.setItem(i, 1, item0)
+                self.table.setItem(i, 2, QTableWidgetItem(str(u.get("email") or "—")))
+                roles = u.get("roles") or []
+                if isinstance(roles, list):
+                    rtxt = ", ".join(str(r.get("name", r)) if isinstance(r, dict) else str(r) for r in roles)
+                else:
+                    rtxt = str(roles)
+                self.table.setItem(i, 3, QTableWidgetItem(rtxt or "—"))
+                self.table.setItem(i, 4, QTableWidgetItem(str(u.get("department") or "—")))
+                perms = u.get("permissions") or []
+                self.table.setItem(i, 5, QTableWidgetItem(str(len(perms)) if isinstance(perms, list) else "—"))
+                active = u.get("is_active")
+                item = QTableWidgetItem("Активен" if active else "Отключён")
+                item.setForeground(QColor("#059669" if active else "#ef4444"))
+                self.table.setItem(i, 6, item)
+            except Exception as _rowe:
+                print("users_tab: row %d error: %s" % (i, str(_rowe)[:120]))
     # ---------- Карточка ----------
     def _open_card(self, _idx=None):
         row = self.table.currentRow()
