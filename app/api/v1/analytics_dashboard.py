@@ -288,3 +288,230 @@ def analytics_full_stats(date_from: str = None, date_to: str = None,
     out["top_products"] = top_products
 
     return out
+
+# ═══════════════ W7-2: временные ряды, сезонный прогноз, отток, востребованность ═══════════════
+@router.get("/timeseries")
+def analytics_timeseries(date_from: str = None, date_to: str = None,
+                         db: Session = Depends(get_db)):
+    """Ежедневные ряды с нулями на пустых датах + MA7 + наклон + тренд %."""
+    from sqlalchemy import text as _text
+    from datetime import date as _date, timedelta as _td
+
+    t = _date.today()
+    d_to = date_to or t.isoformat()
+    d_from = date_from or (t - _td(days=30)).isoformat()
+    P = {"f": d_from, "t": d_to}
+
+    def q(sql):
+        try:
+            rows = db.execute(_text(sql), P).all()
+            return {str(r._mapping["d"]): float(r._mapping["v"]) for r in rows}
+        except Exception:
+            return {}
+
+    visits = q("SELECT entry_time::date AS d, COUNT(*)::float AS v FROM visits "
+               "WHERE entry_time::date BETWEEN :f AND :t GROUP BY 1")
+    revenue = q("SELECT created_at::date AS d, COALESCE(SUM(amount),0)::float AS v "
+                "FROM payments WHERE created_at::date BETWEEN :f AND :t "
+                "AND status='COMPLETED' GROUP BY 1")
+    newc = q("SELECT created_at::date AS d, COUNT(*)::float AS v FROM clients "
+             "WHERE created_at::date BETWEEN :f AND :t GROUP BY 1")
+    lost = q("SELECT updated_at::date AS d, COUNT(*)::float AS v FROM clients "
+             "WHERE updated_at::date BETWEEN :f AND :t "
+             "AND status IN ('INACTIVE','ARCHIVED') GROUP BY 1")
+    subs = q("SELECT created_at::date AS d, COUNT(*)::float AS v FROM subscriptions "
+             "WHERE created_at::date BETWEEN :f AND :t GROUP BY 1")
+
+    f0 = _date.fromisoformat(d_from)
+    t0 = _date.fromisoformat(d_to)
+    days = []
+    cur = f0
+    while cur <= t0:
+        days.append(cur.isoformat())
+        cur += _td(days=1)
+
+    def slope(vals):
+        n = len(vals)
+        if n < 2:
+            return 0.0
+        sx = sum(range(n))
+        sy = sum(vals)
+        den = n * sum(i * i for i in range(n)) - sx * sx
+        return round((n * sum(i * v for i, v in enumerate(vals)) - sx * sy) / den, 4) if den else 0.0
+
+    out = {}
+    for key, m in (("visits", visits), ("revenue", revenue),
+                   ("new_clients", newc), ("lost_clients", lost), ("subscriptions", subs)):
+        vals = [m.get(d, 0.0) for d in days]
+        ma7 = [round(sum(vals[max(0, i - 6):i + 1]) / len(vals[max(0, i - 6):i + 1]), 2)
+               for i in range(len(vals))]
+        half = max(1, len(vals) // 2)
+        first, second = sum(vals[:half]), sum(vals[half:])
+        out[key] = {
+            "dates": days,
+            "values": [round(v, 2) for v in vals],
+            "ma7": ma7,
+            "slope_per_day": slope(vals),
+            "total": round(sum(vals), 2),
+            "trend_pct": round((second - first) / first * 100, 1) if first else None,
+        }
+    return {"period": {"from": d_from, "to": d_to}, "series": out}
+
+
+@router.get("/trend-forecast")
+def analytics_trend_forecast(metric: str = "revenue", date_from: str = None,
+                             date_to: str = None, days_ahead: int = 14,
+                             db: Session = Depends(get_db)):
+    """Сезонный прогноз: линейный тренд × сезонность дня недели × зарплатные дни."""
+    from datetime import date as _date, timedelta as _td
+
+    allowed = {"attendance": "visits", "revenue": "revenue", "new_clients": "new_clients"}
+    skey = allowed.get(metric, "revenue")
+    ts = analytics_timeseries(date_from, date_to, db)
+    s = ts["series"][skey]
+    vals, days = s["values"], s["dates"]
+    n = len(vals)
+    horizon = max(1, min(int(days_ahead or 14), 60))
+
+    wd_mult = {k: 1.0 for k in range(7)}
+    if n >= 8:
+        from collections import defaultdict
+        wd_vals = defaultdict(list)
+        for d, v in zip(days, vals):
+            wd_vals[_date.fromisoformat(d).weekday()].append(v)
+        overall = sum(vals) / n
+        if overall > 0:
+            for k in range(7):
+                if wd_vals.get(k):
+                    wd_mult[k] = (sum(wd_vals[k]) / len(wd_vals[k])) / overall
+
+    a = b = 0.0
+    if n >= 2:
+        sx = sum(range(n))
+        sy = sum(vals)
+        den = n * sum(i * i for i in range(n)) - sx * sx
+        if den:
+            a = (n * sum(i * v for i, v in enumerate(vals)) - sx * sy) / den
+            b = (sy - a * sx) / n
+
+    last_day = _date.fromisoformat(days[-1]) if days else _date.today()
+    forecast = []
+    for i in range(1, horizon + 1):
+        d = last_day + _td(days=i)
+        base = a * (n - 1 + i) + b
+        if base < 0:
+            base = 0.0
+        val = base * wd_mult.get(d.weekday(), 1.0)
+        if d.day in (5, 6, 7, 20, 21, 22):
+            val *= 1.08
+        forecast.append({"d": d.isoformat(), "value": round(val, 2)})
+
+    trend = "UP" if a > 0.05 else ("DOWN" if a < -0.05 else "STABLE")
+    return {
+        "metric": skey,
+        "history": [{"d": d, "value": v} for d, v in zip(days, vals)],
+        "forecast": forecast,
+        "trend": trend,
+        "forecast_total": round(sum(p["value"] for p in forecast), 2),
+        "seasonality": {str(k): round(v, 3) for k, v in wd_mult.items()},
+    }
+
+
+@router.get("/churn-summary")
+def analytics_churn_summary(db: Session = Depends(get_db)):
+    """Сводка рисков оттока по всем активным клиентам (ChurnModel)."""
+    from sqlalchemy import text as _text
+    from app.ml.churn_model import ChurnModel
+
+    rows = db.execute(_text(
+        "SELECT id, COALESCE(NULLIF(full_name,''), phone, email, id::text) AS name "
+        "FROM clients WHERE status = 'ACTIVE'")).all()
+    model = ChurnModel(db)
+    counts = {"low": 0, "medium": 0, "high": 0, "critical": 0}
+    top = []
+    total = 0
+    for r in rows:
+        cid = str(r._mapping["id"])
+        try:
+            res = model.predict(cid)
+        except Exception:
+            continue
+        total += 1
+        lvl = res.get("risk_level", "low")
+        counts[lvl] = counts.get(lvl, 0) + 1
+        top.append({"client_id": cid, "name": r._mapping["name"],
+                    "probability": res.get("probability", 0),
+                    "risk_level": lvl})
+    top.sort(key=lambda x: -x["probability"])
+    return {"total_active": total, "counts": counts, "top_risk": top[:10],
+            "model_type": "xgboost" if getattr(model, "ml_model", None) else "rule_based"}
+
+
+@router.get("/demand-tops")
+def analytics_demand_tops(date_from: str = None, date_to: str = None,
+                          db: Session = Depends(get_db)):
+    """Востребованность услуг/тренеров/товаров — автопоиск таблиц по схеме БД."""
+    from sqlalchemy import text as _text
+    from datetime import date as _date, timedelta as _td
+
+    t = _date.today()
+    d_to = date_to or t.isoformat()
+    d_from = date_from or (t - _td(days=30)).isoformat()
+    P = {"f": d_from, "t": d_to}
+
+    def find_tables(patterns):
+        sql = ("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND ("
+               + " OR ".join("table_name ILIKE '%s'" % p for p in patterns) + ") ORDER BY table_name")
+        try:
+            return [r[0] for r in db.execute(_text(sql)).all()]
+        except Exception:
+            return []
+
+    def cols_of(tbl):
+        try:
+            return set(db.execute(_text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name=:t"),
+                {"t": tbl}).scalars().all())
+        except Exception:
+            return set()
+
+    def q(sql):
+        try:
+            return [dict(r._mapping) for r in db.execute(_text(sql), P).all()]
+        except Exception:
+            return []
+
+    out = {"top_services": [], "top_trainers": [], "top_products": []}
+    for tbl in find_tables(["book", "appoint", "schedul", "session", "class", "lesson", "train"]):
+        cols = cols_of(tbl)
+        if not cols:
+            continue
+        name_col = next((c for c in ("service_name", "service", "title", "name", "activity", "discipline") if c in cols), None)
+        tr_col = next((c for c in ("trainer_name", "trainer", "trainer_id", "coach", "employee_name") if c in cols), None)
+        date_col = next((c for c in ("date", "visit_date", "start_time", "scheduled_at", "starts_at", "created_at", "dt") if c in cols), None)
+        if date_col and name_col and not out["top_services"]:
+            out["top_services"] = q(
+                "SELECT CAST(%s AS TEXT) AS name, COUNT(*) AS cnt FROM %s "
+                "WHERE %s::date BETWEEN :f AND :t GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
+                % (name_col, tbl, date_col))
+        if date_col and tr_col and not out["top_trainers"]:
+            out["top_trainers"] = q(
+                "SELECT CAST(%s AS TEXT) AS name, COUNT(*) AS cnt FROM %s "
+                "WHERE %s::date BETWEEN :f AND :t GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
+                % (tr_col, tbl, date_col))
+        if out["top_services"] и out["top_trainers"]:
+            break
+    for tbl in find_tables(["sale", "product", "warehouse", "store", "shop", "good"]):
+        cols = cols_of(tbl)
+        if not cols:
+            continue
+        name_col = next((c for c in ("product_name", "product", "item", "name", "title", "good") if c in cols), None)
+        date_col = next((c for c in ("created_at", "sold_at", "date", "dt") if c in cols), None)
+        amount_col = next((c for c in ("amount", "total", "price", "sum", "cost") if c in cols), None)
+        if name_col and date_col and amount_col:
+            out["top_products"] = q(
+                "SELECT CAST(%s AS TEXT) AS name, COUNT(*) AS cnt, COALESCE(SUM(%s),0) AS total FROM %s "
+                "WHERE %s::date BETWEEN :f AND :t GROUP BY 1 ORDER BY 3 DESC LIMIT 10"
+                % (name_col, amount_col, tbl, date_col))
+            break
+    return out
