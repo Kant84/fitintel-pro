@@ -92,10 +92,15 @@ services:
 
 volumes:
   static_trainers:
+    external: true
   static_products:
+    external: true
   static_scan:
+    external: true
   static_brand:
+    external: true
   accounting_data:
+    external: true
   postgres_prod:
   face_photos:
 
