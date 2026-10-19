@@ -835,7 +835,7 @@ def analytics_clients_rfm(db: Session = Depends(get_db)):
         "FROM clients c%s" % (name_expr, pay_st, where))
 
     from datetime import datetime as _dt
-    now = _dt.now()
+    now = _dt.now(_dt.timezone.utc)
     for r in rows:
         r["recency_days"] = (now - r["last_v"]).days if r.get("last_v") else 9999
         r["frequency"] = int(r.get("freq") or 0)
@@ -938,7 +938,7 @@ def analytics_client_attendance(limit: int = 50, db: Session = Depends(get_db)):
         % (name_expr, reg, name_expr),
         {"lim": min(max(int(limit or 50), 1), 500)})
     from datetime import datetime as _dt
-    now = _dt.now()
+    now = _dt.now(_dt.timezone.utc)
     out = []
     for r in rows:
         if "error" in r:
