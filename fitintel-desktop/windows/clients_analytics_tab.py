@@ -62,7 +62,7 @@ class ClientsAnalyticsTab(QWidget):
         self._w_csat = QWidget(); self._build_csat(self._w_csat)
         self.tabs.addTab(self._w_rfm, " RFM")
         self.tabs.addTab(self._w_att, " Шкала посещений")
-        self.tabs.addTab(self._w_rep, " Отчёты")
+        self.tabs.addTab(self._w_rep, " Отчёты по клиентам")
         self.tabs.addTab(self._w_csat, " CSAT")
 
         QTimer.singleShot(50, self._load_all)
