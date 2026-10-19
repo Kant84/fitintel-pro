@@ -1199,3 +1199,60 @@ def analytics_inactive_clients(days: int = 14, db: Session = Depends(get_db)):
     rows = db.execute(_text(sql), {"d": max(1, min(int(days or 14), 365))}).all()
     return {"clients": [{"client_id": str(r._mapping["id"]), "name": r._mapping["name"],
                          "days": r._mapping["days"]} for r in rows]}
+
+# ═══════════════ W10: отделы сотрудников ═══════════════
+@router.get("/departments")
+def departments_list(db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    db.execute(_text("CREATE TABLE IF NOT EXISTS departments ("
+                     "id SERIAL PRIMARY KEY, name VARCHAR(120) UNIQUE NOT NULL, "
+                     "created_at TIMESTAMP DEFAULT NOW())"))
+    db.commit()
+    out = []
+    try:
+        out.extend(db.execute(_text("SELECT name FROM departments ORDER BY name")).scalars().all())
+    except Exception:
+        pass
+    try:
+        cols = set(db.execute(_text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='users'")
+        ).scalars().all())
+        if "department" in cols:
+            rows = db.execute(_text(
+                "SELECT DISTINCT department FROM users "
+                "WHERE department IS NOT NULL AND department <> '' ORDER BY 1")).scalars().all()
+            for r in rows:
+                if r not in out:
+                    out.append(r)
+    except Exception:
+        pass
+    return {"items": out}
+
+
+@router.post("/departments")
+def departments_add(payload: dict, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    name = str(payload.get("name") or "").strip()
+    if not name:
+        return {"ok": False, "error": "name empty"}
+    db.execute(_text("CREATE TABLE IF NOT EXISTS departments ("
+                     "id SERIAL PRIMARY KEY, name VARCHAR(120) UNIQUE NOT NULL, "
+                     "created_at TIMESTAMP DEFAULT NOW())"))
+    try:
+        db.execute(_text("INSERT INTO departments (name) VALUES (:n) "
+                         "ON CONFLICT (name) DO NOTHING"), {"n": name[:120]})
+        db.commit()
+    except Exception:
+        db.rollback()
+    return {"ok": True}
+
+
+@router.post("/users/{user_id}/department")
+def user_set_department(user_id: str, payload: dict, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    dep = str(payload.get("department") or "").strip()
+    db.execute(_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100)"))
+    db.execute(_text("UPDATE users SET department = :d WHERE id::text = :i"),
+               {"d": dep[:100] or None, "i": str(user_id)})
+    db.commit()
+    return {"ok": True}
