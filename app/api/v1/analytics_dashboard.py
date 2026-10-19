@@ -419,34 +419,83 @@ def analytics_trend_forecast(metric: str = "revenue", date_from: str = None,
 
 @router.get("/churn-summary")
 def analytics_churn_summary(db: Session = Depends(get_db)):
-    """Сводка рисков оттока по всем активным клиентам (ChurnModel)."""
+    """Сводка рисков оттока — самодостаточные SQL-правила (автоподбор колонок)."""
     from sqlalchemy import text as _text
-    from app.ml.churn_model import ChurnModel
 
-    rows = db.execute(_text(
-        "SELECT id, COALESCE(NULLIF(full_name,''), phone, email, id::text) AS name "
-        "FROM clients WHERE status = 'ACTIVE'")).all()
-    model = ChurnModel(db)
+    def cols_of(tbl):
+        try:
+            return set(db.execute(_text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name=:t"),
+                {"t": tbl}).scalars().all())
+        except Exception:
+            return set()
+
+    v_cols = cols_of("visits")
+    p_cols = cols_of("payments")
+    s_cols = cols_of("subscriptions")
+
+    v_lat = "LEFT JOIN LATERAL (SELECT 1 WHERE FALSE) v ON TRUE"
+    if {"client_id", "entry_time"} <= v_cols:
+        v_lat = (
+            "LEFT JOIN LATERAL (SELECT EXTRACT(DAY FROM NOW() - MAX(entry_time))::int "
+            "AS last_visit_days, COUNT(*) FILTER (WHERE entry_time >= NOW() - "
+            "interval '30 days') AS visits_30d FROM visits v WHERE v.client_id = c.id) v ON TRUE")
+    p_lat = "LEFT JOIN LATERAL (SELECT 0 AS payments_90d WHERE FALSE) p ON TRUE"
+    if {"client_id", "created_at"} <= p_cols:
+        st = " AND pay.status = 'COMPLETED'" if "status" in p_cols else ""
+        p_lat = (
+            "LEFT JOIN LATERAL (SELECT COUNT(*) AS payments_90d FROM payments pay "
+            "WHERE pay.client_id = c.id AND pay.created_at >= NOW() - interval '90 days'"
+            + st + ") p ON TRUE")
+    s_lat = "LEFT JOIN LATERAL (SELECT 999 AS days_left WHERE FALSE) s ON TRUE"
+    if {"client_id", "end_date"} <= s_cols and "status" in s_cols:
+        s_lat = (
+            "LEFT JOIN LATERAL (SELECT MIN(GREATEST(EXTRACT(DAY FROM (end_date - NOW()))"
+            "::int, 0)) AS days_left FROM subscriptions s WHERE s.client_id = c.id "
+            "AND s.status = 'ACTIVE') s ON TRUE")
+
+    sql = (
+        "SELECT c.id, COALESCE(NULLIF(c.full_name,''), c.phone, c.email, c.id::text) AS name, "
+        "COALESCE(v.last_visit_days, 999) AS last_visit_days, "
+        "COALESCE(v.visits_30d, 0) AS visits_30d, "
+        "COALESCE(p.payments_90d, 0) AS payments_90d, "
+        "COALESCE(s.days_left, 999) AS subscription_days_left "
+        "FROM clients c " + v_lat + " " + p_lat + " " + s_lat +
+        " WHERE c.status = 'ACTIVE'")
+    try:
+        rows = db.execute(_text(sql)).all()
+    except Exception as e:
+        return {"error": str(e)[:200], "total_active": 0,
+                "counts": {"low": 0, "medium": 0, "high": 0, "critical": 0},
+                "top_risk": [], "model_type": "unavailable"}
+
     counts = {"low": 0, "medium": 0, "high": 0, "critical": 0}
     top = []
-    total = 0
     for r in rows:
-        cid = str(r._mapping["id"])
-        try:
-            res = model.predict(cid)
-        except Exception:
-            continue
-        total += 1
-        lvl = res.get("risk_level", "low")
-        counts[lvl] = counts.get(lvl, 0) + 1
-        top.append({"client_id": cid, "name": r._mapping["name"],
-                    "probability": res.get("probability", 0),
-                    "risk_level": lvl})
+        m = r._mapping
+        last = m["last_visit_days"] or 999
+        v30 = m["visits_30d"] or 0
+        p90 = m["payments_90d"] or 0
+        dl = m["subscription_days_left"]
+        dl = 999 if dl is None else dl
+        score = 0.0
+        if last > 30: score += 0.3
+        elif last > 14: score += 0.2
+        if v30 == 0: score += 0.2
+        if p90 == 0: score += 0.15
+        if dl <= 7: score += 0.25
+        elif dl <= 30: score += 0.15
+        elif dl >= 999: score += 0.1
+        score = min(round(score, 2), 1.0)
+        lvl = ("critical" if score >= 0.8 else
+               "high" if score >= 0.6 else
+               "medium" if score >= 0.4 else "low")
+        counts[lvl] += 1
+        top.append({"client_id": str(m["id"]), "name": m["name"],
+                    "probability": score, "risk_level": lvl})
     top.sort(key=lambda x: -x["probability"])
-    return {"total_active": total, "counts": counts, "top_risk": top[:10],
-            "model_type": "xgboost" if getattr(model, "ml_model", None) else "rule_based"}
-
-
+    return {"total_active": len(rows), "counts": counts,
+            "top_risk": top[:10], "model_type": "sql_rules"}
 @router.get("/demand-tops")
 def analytics_demand_tops(date_from: str = None, date_to: str = None,
                           db: Session = Depends(get_db)):
