@@ -466,19 +466,24 @@ class AnalyticsTab(QWidget):
                c.get("high", 0), c.get("critical", 0)))
         for row, item in enumerate(self._churn.get("top_risk", [])):
             self.churn_table.insertRow(row)
-            self.churn_table.setItem(row, 0, QTableWidgetItem(str(item.get("name") or "—")))
+            name_it = QTableWidgetItem(str(item.get("name") or "—"))
+            name_it.setData(Qt.ItemDataRole.UserRole, str(item.get("client_id") or ""))
+            self.churn_table.setItem(row, 0, name_it)
             self.churn_table.setItem(row, 1, QTableWidgetItem(
                 "%d%%" % round(float(item.get("probability") or 0) * 100)))
             lvl = item.get("risk_level", "low")
             it = QTableWidgetItem(lvl)
             it.setForeground(Qt.GlobalColor.red if lvl in ("high", "critical") else Qt.GlobalColor.darkGray)
             self.churn_table.setItem(row, 2, it)
-            b = QPushButton("Карта")
-            b.setToolTip("Открыть карточку клиента")
-            cid = item.get("client_id")
-            b.clicked.connect(lambda _c=False, _cid=cid: self._open_client(_cid))
-            self.churn_table.setCellWidget(row, 3, b)
+            hint = QTableWidgetItem("двойной клик")
+            hint.setForeground(Qt.GlobalColor.darkGray)
+            self.churn_table.setItem(row, 3, hint)
 
+    def _churn_dbl_w10(self, idx):
+        it = self.churn_table.item(idx.row(), 0)
+        cid = it.data(Qt.ItemDataRole.UserRole) if it else None
+        if cid:
+            self._open_client(cid)
     def _open_client(self, cid):
         try:
             from windows.client_card import ClientCard
@@ -516,3 +521,12 @@ def _init_fonts_w10(self, *a, **k):
 
 _orig_init_fonts_w10 = AnalyticsTab.__init__
 AnalyticsTab.__init__ = _init_fonts_w10
+
+# === W10: карточка по двойному клику в таблице оттока ===
+def _init_churn_w10(self, *a, **k):
+    _orig_init_churn_w10(self, *a, **k)
+    self.churn_table.setHorizontalHeaderLabels(["Клиент", "Вероятность", "Риск", "Карточка"])
+    self.churn_table.doubleClicked.connect(self._churn_dbl_w10)
+
+_orig_init_churn_w10 = AnalyticsTab.__init__
+AnalyticsTab.__init__ = _init_churn_w10
