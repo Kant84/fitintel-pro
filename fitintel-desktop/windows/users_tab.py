@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""FitIntel Pro — Users Tab: CRUD + фильтры + карточка сотрудника (двойной клик)."""
+"""FitIntel Pro — Users Tab: CRUD + фильтры (поиск/отдел/роль/статус) + карточка сотрудника."""
 import requests as _requests
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QComboBox,
     QSplitter, QScrollArea, QTableWidget, QTableWidgetItem, QHeaderView,
-    QLabel, QMessageBox, QAbstractItemView, QToolButton)
+    QLabel, QMessageBox, QAbstractItemView, QToolButton, QInputDialog)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor
 
@@ -15,7 +15,7 @@ from app_logging import log
 
 
 class UsersWorker(QThread):
-    finished = pyqtSignal(list)
+    finished = pyqtSignal(object)
     error = pyqtSignal(str)
 
     def __init__(self, api: ApiClient):
@@ -34,6 +34,7 @@ class UsersTab(QWidget):
         super().__init__()
         self.api = api
         self._all_users = []
+        self._departments = []
         self._build_ui()
         self.refresh()
 
@@ -69,9 +70,19 @@ class UsersTab(QWidget):
         fl.addWidget(self.edit_filter)
 
         fl.addWidget(QLabel("Отдел:"))
+        rowd = QHBoxLayout()
         self.cb_dept = QComboBox()
-        self.cb_dept.addItem("Все (⏳ в разработке)", None)
-        fl.addWidget(self.cb_dept)
+        self.cb_dept.setEditable(True)
+        self.cb_dept.setToolTip("Выберите из списка или введите новый —\nсоздание при сохранении пользователя")
+        self.cb_dept.addItem("Все", None)
+        self.cb_dept.currentTextChanged.connect(self._apply_filters)
+        rowd.addWidget(self.cb_dept, 1)
+        b_newd = QToolButton()
+        b_newd.setText("＋")
+        b_newd.setToolTip("Создать отдел")
+        b_newd.clicked.connect(self._new_department)
+        rowd.addWidget(b_newd)
+        fl.addLayout(rowd)
 
         fl.addWidget(QLabel("Роль:"))
         self.cb_role = QComboBox()
@@ -98,7 +109,7 @@ class UsersTab(QWidget):
         self._btn_filters = QToolButton()
         self._btn_filters.setText(" Фильтры ▾")
         self._btn_filters.setCheckable(True)
-        self._btn_filters.setStyleSheet("QToolButton { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
+        self._btn_filters.setStyleSheet("QToolButton { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 6px; padding:8px 14px; font-weight: 600; }")
         self._btn_filters.toggled.connect(lambda on: (fscroll.setVisible(on), self._btn_filters.setText(" Фильтры ▴" if on else " Фильтры ▾")))
         row.addWidget(self._btn_filters)
         row.addStretch()
@@ -122,8 +133,8 @@ class UsersTab(QWidget):
             row.addWidget(b)
         rl.addLayout(row)
 
-        self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(["ФИО", "Логин", "Email", "Роли", "Прав", "Статус"])
+        self.table = QTableWidget(0, 7)
+        self.table.setHorizontalHeaderLabels(["ФИО", "Логин", "Email", "Роли", "Отдел", "Прав", "Статус"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -149,6 +160,63 @@ class UsersTab(QWidget):
     def _debounced_filter(self, _t):
         self._debounce.start()
 
+    # ---------- Отделы ----------
+    def _load_departments(self):
+        deps = []
+        try:
+            r = self.api.session.get(self.api._url("/analytics/departments"), timeout=15)
+            r.raise_for_status()
+            deps = list(r.json().get("items", []))
+        except Exception:
+            pass
+        for u in self._all_users or []:
+            d = (u.get("department") or "").strip()
+            if d and d not in deps:
+                deps.append(d)
+        self._departments = sorted(deps)
+
+    def _refill_dept_combo(self):
+        cur = self.cb_dept.currentText()
+        self.cb_dept.blockSignals(True)
+        self.cb_dept.clear()
+        self.cb_dept.addItem("Все", None)
+        for d in self._departments:
+            self.cb_dept.addItem(d)
+        if cur and cur != "Все":
+            self.cb_dept.setCurrentText(cur)
+        self.cb_dept.blockSignals(False)
+
+    def _new_department(self):
+        name, ok = QInputDialog.getText(self, "Новый отдел", "Название отдела:")
+        name = (name or "").strip()
+        if not ok or not name:
+            return
+        try:
+            self.api.session.post(self.api._url("/analytics/departments"),
+                                  json={"name": name}, timeout=15)
+        except Exception as e:
+            QMessageBox.warning(self, "Отдел", "Не удалось создать: %s" % str(e)[:150])
+        self._load_departments()
+        self._refill_dept_combo()
+        self.cb_dept.setCurrentText(name)
+        self._apply_filters()
+
+    def _save_department_for(self, uid, name):
+        """Сохранить отдел пользователю; новый отдел создаётся автоматически."""
+        name = (name or "").strip()
+        if not name or not uid:
+            return
+        try:
+            self.api.session.post(self.api._url("/analytics/departments"),
+                                  json={"name": name}, timeout=15)
+        except Exception:
+            pass
+        try:
+            self.api.session.post(self.api._url("/users/%s/department" % uid),
+                                  json={"department": name}, timeout=15)
+        except Exception as e:
+            QMessageBox.warning(self, "Отдел", "Отдел не сохранён: %s" % str(e)[:150])
+
     # ---------- Данные ----------
     def refresh(self):
         self.worker = UsersWorker(self.api)
@@ -157,7 +225,12 @@ class UsersTab(QWidget):
         self.worker.start()
 
     def _on_loaded(self, users):
+        if isinstance(users, dict):
+            users = users.get("items") or users.get("users") or []
         self._all_users = users or []
+        # отделы
+        self._load_departments()
+        self._refill_dept_combo()
         # роли в фильтр
         roles = self._load_roles()
         cur = self.cb_role.currentData()
@@ -172,8 +245,13 @@ class UsersTab(QWidget):
         self.cb_role.blockSignals(False)
         self._apply_filters()
 
+    def _current_department_filter(self):
+        # редактируемый комбо: выбранный текст (кроме «Все»)
+        t = self.cb_dept.currentText().strip()
+        return None if t in ("", "Все") else t
+
     def _apply_filters(self):
-        users = list(self._all_users)
+        users = list(self._all_users or [])
         show_del = self.chk_show_deleted.isChecked()
         if not show_del:
             users = [u for u in users
@@ -183,6 +261,9 @@ class UsersTab(QWidget):
         if t:
             users = [u for u in users if t in "%s %s %s" % (
                 (u.get("full_name") or ""), u.get("username", ""), u.get("email", "")).lower()]
+        dept = self._current_department_filter()
+        if dept:
+            users = [u for u in users if (u.get("department") or "") == dept]
         role = self.cb_role.currentData()
         if role:
             users = [u for u in users
@@ -206,13 +287,14 @@ class UsersTab(QWidget):
                 rtxt = ", ".join(str(r.get("name", r)) if isinstance(r, dict) else str(r) for r in roles)
             else:
                 rtxt = str(roles)
-            self.table.setItem(i, 3, QTableWidgetItem(rtxt or "—"))
+            self.table.setItem(i, 3, QTableWidgetItem(rttxt or "—"))
+            self.table.setItem(i, 4, QTableWidgetItem(str(u.get("department") or "—")))
             perms = u.get("permissions") or []
-            self.table.setItem(i, 4, QTableWidgetItem(str(len(perms)) if isinstance(perms, list) else "—"))
+            self.table.setItem(i, 5, QTableWidgetItem(str(len(perms)) if isinstance(perms, list) else "—"))
             active = u.get("is_active")
             item = QTableWidgetItem("Активен" if active else "Отключён")
             item.setForeground(QColor("#059669" if active else "#ef4444"))
-            self.table.setItem(i, 5, item)
+            self.table.setItem(i, 6, item)
 
     # ---------- Карточка ----------
     def _open_card(self, _idx=None):
@@ -227,7 +309,13 @@ class UsersTab(QWidget):
         dlg = EmployeeCard(self.api, uid, user_data={}, parent=None)
         dlg.show()
 
-    # ---------- CRUD (без изменений логики) ----------
+    def _user_by_id(self, uid):
+        for u in self._all_users or []:
+            if str(u.get("id") or "") == str(uid):
+                return u
+        return {}
+
+    # ---------- CRUD ----------
     def _load_roles(self):
         try:
             resp = self.api.session.get(self.api._url("/rbac/roles-matrix"))
@@ -260,6 +348,7 @@ class UsersTab(QWidget):
             ("email", "Email *"),
             ("password", "Пароль * (мин. 6 символов)"),
             ("role", "Роль *", "combo", self._load_roles()),
+            ("department", "Отдел (новый создастся автоматически)"),
         ], self)
         if dlg.exec() != FormDialog.DialogCode.Accepted:
             return
@@ -278,6 +367,8 @@ class UsersTab(QWidget):
                 r2 = self.api.session.post(self.api._url(f"/users/{uid}/roles/assign"),
                                            json={"role_code": v["role"]})
                 r2.raise_for_status()
+            if uid:
+                self._save_department_for(uid, v.get("department"))
             self.refresh()
         except (RuntimeError, _requests.HTTPError) as e:
             QMessageBox.critical(self, "Ошибка создания", str(e)[:300])
@@ -293,18 +384,24 @@ class UsersTab(QWidget):
         if not uid:
             QMessageBox.warning(self, "Изменение", "ID не найден — нажмите «Обновить»")
             return
+        cur = self._user_by_id(uid)
         dlg = FormDialog("Пользователь: " + login, [
-            ("full_name", "ФИО (имя для клиентов)"),
-            ("email", "Email"),
+            ("full_name", "ФИО (имя для клиентов)", "text", cur.get("full_name") or ""),
+            ("email", "Email", "text", cur.get("email") or ""),
+            ("department", "Отдел (новый создастся автоматически)", "text", cur.get("department") or ""),
         ], self)
         if dlg.exec() != FormDialog.DialogCode.Accepted:
             return
-        v = {k: val for k, val in dlg.values().items() if val}
+        v = {k: val for k, val in dlg.values().items() if val not in (None, "")}
         if not v:
             return
         try:
-            r = self.api.session.patch(self.api._url(f"/users/{uid}"), json=v)
-            r.raise_for_status()
+            base = {k: v[k] for k in ("full_name", "email") if k in v}
+            if base:
+                r = self.api.session.patch(self.api._url(f"/users/{uid}"), json=base)
+                r.raise_for_status()
+            if "department" in v:
+                self._save_department_for(uid, v["department"])
             self.refresh()
         except (RuntimeError, _requests.HTTPError) as e:
             QMessageBox.critical(self, "Ошибка", str(e)[:300])
@@ -389,23 +486,3 @@ try:
     print("PDF cleanup OK: users_tab")
 except Exception as _e:
     print("PDF cleanup FAIL:", _e)
-
-# === W10: скрыть фильтр «Отдел (в разработке)» до появления данных ===
-try:
-    _orig_init_ut_w10 = UsersTab.__init__
-    def _init_ut_w10(self, *a, **k):
-        _orig_init_ut_w10(self, *a, **k)
-        from PyQt6.QtWidgets import QComboBox as _CB, QLabel as _LB
-        for cb in self.findChildren(_CB):
-            for i in range(cb.count()):
-                if "разработке" in cb.itemText(i):
-                    for l in self.findChildren(_LB):
-                        if l.text().strip().startswith("Отдел"):
-                            l.setVisible(False)
-                            break
-                    cb.setVisible(False)
-                    break
-    UsersTab.__init__ = _init_ut_w10
-    print("users: dept filter hidden")
-except Exception as _e10u:
-    print("users dept patch FAIL:", _e10u)
