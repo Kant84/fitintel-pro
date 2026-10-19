@@ -1256,3 +1256,53 @@ def user_set_department(user_id: str, payload: dict, db: Session = Depends(get_d
                {"d": dep[:100] or None, "i": str(user_id)})
     db.commit()
     return {"ok": True}
+
+# ═══════════════ W10: файлы клиентов (Clients/ID/Photos|Documents) ═══════════════
+import os as _os
+import re as _re
+from fastapi import UploadFile, File, Form
+
+CLIENTS_ROOT = "/app/static/clients"
+
+
+@router.get("/clients/{cid}/files")
+def client_files_list(cid: str):
+    base = _os.path.join(CLIENTS_ROOT, str(cid))
+    out = {"photos": [], "documents": []}
+    for kind, key in (("Photos", "photos"), ("Documents", "documents")):
+        d = _os.path.join(base, kind)
+        if _os.path.isdir(d):
+            for fn in sorted(_os.listdir(d))[:200]:
+                out[key].append({"name": fn,
+                                 "url": "/static/clients/%s/%s/%s" % (cid, kind, fn)})
+    return out
+
+
+@router.post("/clients/{cid}/files")
+async def client_files_upload(cid: str, kind: str = Form("Photos"),
+                              file: UploadFile = File(...)):
+    safe = _re.sub(r'[^0-9A-Za-zА-Яа-яЁё_.\- ]', '_',
+                   _os.path.basename(file.filename or "file"))
+    kd = "Documents" if str(kind).lower().startswith("doc") else "Photos"
+    d = _os.path.join(CLIENTS_ROOT, str(cid), kd)
+    _os.makedirs(d, exist_ok=True)
+    data = await file.read()
+    if len(data) > 20 * 1024 * 1024:
+        return {"ok": False, "error": "file > 20MB"}
+    with open(_os.path.join(d, safe), "wb") as _f:
+        _f.write(data)
+    return {"ok": True, "name": safe,
+            "url": "/static/clients/%s/%s/%s" % (cid, kd, safe)}
+
+
+@router.delete("/clients/{cid}/files/{kind}/{name}")
+def client_files_delete(cid: str, kind: str, name: str):
+    safe = _re.sub(r'[^0-9A-Za-zА-Яа-яЁё_.\- ]', '_', _os.path.basename(name))
+    kd = "Documents" if str(kind).lower().startswith("doc") else "Photos"
+    p = _os.path.join(CLIENTS_ROOT, str(cid), kd, safe)
+    try:
+        if _os.path.isfile(p):
+            _os.remove(p)
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:150]}

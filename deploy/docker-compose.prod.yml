@@ -49,6 +49,7 @@ services:
       - static_products:/app/static/products
       - static_scan:/app/static/scan
       - static_brand:/app/static/brand
+      - clients_data:/app/static/clients
       - accounting_data:/app/data_accounting
       - face_photos:/app/data/face_photos   # опциональное хранение фото лиц (если клуб включил)
     depends_on:
@@ -101,6 +102,7 @@ volumes:
     external: true
     name: deploy_static_scan
   static_brand:
+  clients_data:
     external: true
     name: deploy_static_brand
   accounting_data:
