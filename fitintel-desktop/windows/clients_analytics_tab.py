@@ -363,8 +363,8 @@ class ClientsAnalyticsTab(QWidget):
             QMessageBox.warning(self, "CSAT", str(e)[:150])
 
 # === W10: диаграмма топ клиентов по визитам (рядом с таблицей) ===
-def _build_att_w10(self):
-    _orig_build_att_w10(self)
+def _build_att_w10(self, w):
+    _orig_build_att_w10(self, w)
     from PyQt6.QtWidgets import QGridLayout as _g, QFrame as _fr, QLabel as _lb, QSizePolicy as _sp
     self.att_chart_holder = _g()
     holder = _fr()
