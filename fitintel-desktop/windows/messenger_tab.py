@@ -440,3 +440,64 @@ class MessengerTab(QWidget):
 
 
 from PyQt6.QtWidgets import QPlainTextEdit, QMessageBox  # W6-fix
+
+# === W10: «Возврат клиентов» — авто-сообщение давно не бывшим ===
+def _reactivate_build(self):
+    w = QWidget()
+    v = QVBoxLayout(w)
+    note = QLabel("Автоматическое сообщение клиентам, которые давно не были в клубе. "
+                  "Период простоя и текст хранятся в «Параметры клуба» "
+                  "(INACTIVE_REMIND_DAYS / INACTIVE_REMIND_TEXT) и подхватываются сервером.")
+    note.setWordWrap(True)
+    v.addWidget(note)
+    row = QHBoxLayout()
+    row.addWidget(QLabel("Не был дней (>=") )
+    from PyQt6.QtWidgets import QSpinBox
+    self.rea_days = QSpinBox(); self.rea_days.setRange(3, 180); self.rea_days.setValue(14)
+    row.addWidget(self.rea_days)
+    row.addWidget(QLabel(")"))
+    bsave = QPushButton(" Сохранить параметры")
+    row.addWidget(bsave)
+    row.addStretch(1)
+    v.addLayout(row)
+    self.rea_text = QPlainTextEdit()
+    self.rea_text.setPlaceholderText(
+        "Текст сообщения… Переменные: {name} — имя клиента, {days} — дней простоя.")
+    self.rea_text.setMaximumHeight(120)
+    v.addWidget(self.rea_text)
+    bsend = QPushButton(" Отправить сейчас (по списку простоя)")
+    v.addWidget(bsend)
+    self.rea_lbl = QLabel("")
+    self.rea_lbl.setWordWrap(True)
+    v.addWidget(self.rea_lbl)
+    v.addStretch(1)
+    bsave.clicked.connect(self._reactivate_save)
+    bsend.clicked.connect(self._reactivate_send)
+    self.sub.addTab(w, " Возврат клиентов")
+
+def _reactivate_save(self):
+    days = self.rea_days.value()
+    text = self.rea_text.toPlainText().strip()
+    ok = True
+    try:
+        self.api.session.put(self.api._url("/club-params/INACTIVE_REMIND_DAYS"),
+                             json={"value": str(days)})
+        if text:
+            self.api.session.put(self.api._url("/club-params/INACTIVE_REMIND_TEXT"),
+                                 json={"value": text})
+    except Exception as e:
+        ok = False
+        self.rea_lbl.setText("Ошибка сохранения: %s" % str(e)[:150])
+    if ok:
+        self.rea_lbl.setText("Сохранено: период %d дн., текст — %d симв." % (days, len(text)))
+
+def _reactivate_send(self):
+    self._reactivate_save()
+    def _done(r):
+        if isinstance(r, dict):
+            self.rea_lbl.setText("Создано напоминаний: %s. %s"
+                                 % (r.get("created"), "; ".join(r.get("notes") or [])))
+        self.load_journal()
+    self._run(self.api.run_reminders, _done)
+
+MessengerTab._build_reactivate = _reactivate_build
