@@ -501,3 +501,77 @@ def _reactivate_send(self):
     self._run(self.api.run_reminders, _done)
 
 MessengerTab._build_reactivate = _reactivate_build
+
+# === W10-2: «Возврат клиентов» — через настройки мессенджера (inactive_days/inactive_template) ===
+def _reactivate_build2(self):
+    w = QWidget()
+    v = QVBoxLayout(w)
+    note = QLabel("Автоматическое сообщение клиентам, которые давно не были в клубе. "
+                  "Период и текст — настройки мессенджера (inactive_days / inactive_template); "
+                  "сервер рассылает автоматически каждый день во время send_time.")
+    note.setWordWrap(True)
+    v.addWidget(note)
+    from PyQt6.QtWidgets import QSpinBox
+    row = QHBoxLayout()
+    row.addWidget(QLabel("Не был дней (>=)"))
+    self.rea_days = QSpinBox(); self.rea_days.setRange(3, 180); self.rea_days.setValue(14)
+    row.addWidget(self.rea_days)
+    row.addWidget(QLabel("Время рассылки:"))
+    self.rea_time = QLineEdit(); self.rea_time.setPlaceholderText("10:00"); self.rea_time.setMaximumWidth(70)
+    row.addWidget(self.rea_time)
+    bload = QPushButton(" Загрузить настройки")
+    row.addWidget(bload)
+    bsave = QPushButton(" Сохранить")
+    row.addWidget(bsave)
+    row.addStretch(1)
+    v.addLayout(row)
+    self.rea_text = QPlainTextEdit()
+    self.rea_text.setPlaceholderText("Текст сообщения… Переменные: {days} — дней простоя.")
+    self.rea_text.setMaximumHeight(110)
+    v.addWidget(self.rea_text)
+    bsend = QPushButton(" Отправить сейчас (по списку простоя)")
+    v.addWidget(bsend)
+    self.rea_lbl = QLabel("")
+    self.rea_lbl.setWordWrap(True)
+    v.addWidget(self.rea_lbl)
+    v.addStretch(1)
+    bload.clicked.connect(self._reactivate_load2)
+    bsave.clicked.connect(self._reactivate_save2)
+    bsend.clicked.connect(self._reactivate_send2)
+    self.sub.addTab(w, " Возврат клиентов")
+    self._reactivate_load2()
+
+def _reactivate_load2(self):
+    try:
+        s = self.api.session.get(self.api._url("/messenger/settings"), timeout=15).json()
+        self.rea_days.setValue(int(s.get("inactive_days") or 14))
+        self.rea_time.setText(str(s.get("send_time") or "10:00"))
+        self.rea_text.setPlainText(str(s.get("inactive_template") or ""))
+        self.rea_lbl.setText("Загружено. Авто-рассылка: %s"
+                             % ("вкл" if s.get("enabled") else "выкл (включите в настройках)"))
+    except Exception as e:
+        self.rea_lbl.setText("Ошибка загрузки: %s" % str(e)[:150])
+
+def _reactivate_save2(self):
+    try:
+        self.api.session.put(self.api._url("/messenger/settings"), json={
+            "inactive_days": self.rea_days.value(),
+            "inactive_template": self.rea_text.toPlainText().strip(),
+            "send_time": self.rea_time.text().strip() or "10:00",
+        }, timeout=15)
+        self.rea_lbl.setText("Сохранено: период %d дн., время %s."
+                             % (self.rea_days.value(), self.rea_time.text()))
+    except Exception as e:
+        self.rea_lbl.setText("Ошибка сохранения: %s" % str(e)[:150])
+
+def _reactivate_send2(self):
+    self._reactivate_save2()
+    def _done(r):
+        if isinstance(r, dict):
+            self.rea_lbl.setText("Создано напоминаний: %s (отправлено: %s, ошибок: %s). %s"
+                                 % (r.get("created"), r.get("sent", "-"),
+                                    r.get("failed", "-"), "; ".join(r.get("notes") or [])))
+        self.load_journal()
+    self._run(self.api.run_reminders, _done)
+
+MessengerTab._build_reactivate = _reactivate_build2
