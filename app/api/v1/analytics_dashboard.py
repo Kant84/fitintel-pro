@@ -1500,3 +1500,260 @@ def wallet_op(cid: str, payload: dict, db: Session = Depends(get_db)):
          "u": str(payload.get("created_by") or "admin")[:64]})
     db.commit()
     return {"ok": True, "balance": new_bal}
+    
+
+# ═══════════════ W12: безопасное медиа-хранилище (envelope encryption, tenant-aware) ═══════════════
+import base64 as _b64
+import hashlib as _hl
+import hmac as _hm
+import io as _io
+import os as _os
+import uuid as _uuid
+from fastapi import UploadFile, File, Form, Request, Header, Depends as _Depends
+from fastapi.responses import JSONResponse as _JSON
+
+try:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM as _AESGCM
+except Exception:
+    _AESGCM = None
+
+MEDIA_ROOT = "/srv/media"
+DEFAULT_TENANT = "t-1"
+
+
+def _load_kek() -> bytes:
+    path = _os.environ.get("MEDIA_MASTER_KEY_FILE", "/run/secrets/media_master_key")
+    try:
+        raw = open(path, "rb").read().strip()
+        key = _b64.b64decode(raw)
+        if len(key) == 32:
+            return key
+    except Exception:
+        pass
+    return _hl.sha256(b"fitintel-dev-media-key-change-me").digest()
+
+
+_KEK = _load_kek()
+_SIG_KEY = _hl.sha256(_KEK + b":urlsig").digest()
+
+
+def _tenant() -> str:
+    return DEFAULT_TENANT
+
+
+def _sign(file_id: str, exp: int) -> str:
+    return _hm.new(_SIG_KEY, ("%s:%d" % (file_id, exp)).encode(), _hl.sha256).hexdigest()
+
+
+def _check_sig(file_id: str, sig: str, exp: int) -> bool:
+    try:
+        if int(exp) < int(__import__("time").time()):
+            return False
+        return _hm.compare_digest(_sign(file_id, int(exp)), str(sig or ""))
+    except Exception:
+        return False
+
+
+def _encrypt(data: bytes, aad: bytes):
+    dek = _AESGCM.generate_key(bit_length=256)
+    fn = _os.urandom(12)
+    ct = _AESGCM(dek).encrypt(fn, data, aad)
+    kn = _os.urandom(12)
+    edek = _AESGCM(_KEK).encrypt(kn, dek, None)
+    return (ct, _b64.b64encode(edek).decode(), _b64.b64encode(kn).decode(),
+            _b64.b64encode(fn).decode())
+
+
+def _decrypt(ct: bytes, edek: str, kn: str, fn: str, aad: bytes) -> bytes:
+    dek = _AESGCM(_KEK).decrypt(_b64.b64decode(kn), _b64.b64decode(edek), None)
+    return _AESGCM(dek).decrypt(_b64.b64decode(fn), ct, aad)
+
+
+def _strip_image(data: bytes, mime: str) -> tuple:
+    if not mime.startswith("image/"):
+        return data, mime
+    try:
+        from PIL import Image as _Img
+        im = _Img.open(_io.BytesIO(data))
+        if im.mode not in ("RGB", "L"):
+            im = im.convert("RGB")
+        buf = _io.BytesIO()
+        im.save(buf, format="JPEG", quality=88)
+        return buf.getvalue(), "image/jpeg"
+    except Exception:
+        return data, mime
+
+
+def _ensure_media(db):
+    from sqlalchemy import text as _text
+    db.execute(_text("""CREATE TABLE IF NOT EXISTS media_files (
+        id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL DEFAULT 't-1',
+        owner_type TEXT NOT NULL, owner_id TEXT NOT NULL,
+        photo_type TEXT NOT NULL DEFAULT 'document',
+        orig_name TEXT, mime TEXT, size BIGINT, sha256 TEXT,
+        dek_enc TEXT, dek_nonce TEXT, file_nonce TEXT,
+        key_version INT DEFAULT 1, path TEXT, legacy_path TEXT,
+        created_by TEXT, created_at TIMESTAMP DEFAULT NOW(),
+        archived_at TIMESTAMP)"""))
+    db.execute(_text("CREATE INDEX IF NOT EXISTS idx_media_owner ON media_files (tenant_id, owner_type, owner_id)"))
+    db.execute(_text("""CREATE TABLE IF NOT EXISTS media_access_log (
+        id BIGSERIAL PRIMARY KEY, file_id TEXT, user_id TEXT, user_role TEXT,
+        session_id TEXT, owner_id TEXT, action TEXT, result TEXT,
+        ip TEXT, user_agent TEXT, reason TEXT,
+        created_at TIMESTAMP DEFAULT NOW())"""))
+    db.execute(_text("""CREATE OR REPLACE FUNCTION media_log_immutable() RETURNS TRIGGER AS $$
+        BEGIN RAISE EXCEPTION 'media_access_log is append-only: % not allowed', TG_OP; RETURN NULL; END;
+        $$ LANGUAGE plpgsql"""))
+    db.execute(_text("""DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'media_log_no_update') THEN
+                CREATE TRIGGER media_log_no_update BEFORE UPDATE OR DELETE ON media_access_log
+                FOR EACH ROW EXECUTE FUNCTION media_log_immutable();
+            END IF;
+        END $$"""))
+    db.commit()
+
+
+def _audit(db, file_id, action, result, request, user=None, owner_id="", reason=None):
+    try:
+        from sqlalchemy import text as _text
+        uid, role = "", ""
+        if user is not None:
+            uid = str(user.get("sub", "")) if isinstance(user, dict) else str(getattr(user, "id", ""))
+        db.execute(_text(
+            "INSERT INTO media_access_log (file_id, user_id, user_role, session_id, owner_id, "
+            "action, result, ip, user_agent, reason) VALUES (:f, :u, :r, :s, :o, :a, :res, :ip, :ua, :rs)"),
+            {"f": str(file_id or ""), "u": uid, "r": role, "s": "", "o": str(owner_id or ""),
+             "a": action, "res": result,
+             "ip": (request.client.host if request and request.client else ""),
+             "ua": (request.headers.get("user-agent", "")[:200] if request else ""),
+             "rs": (str(reason)[:255] if reason else None)})
+        db.commit()
+    except Exception:
+        pass
+
+
+def _bearer_user(authorization: str):
+    if not authorization or not authorization.lower().startswith("bearer "):
+        return None
+    try:
+        import jwt as _jwt
+        from app.core.config import settings
+        return _jwt.decode(authorization.split(None, 1)[1], settings.SECRET_KEY, algorithms=["HS256"])
+    except Exception:
+        return None
+
+
+@router.get("/media")
+def media_list(owner_type: str = "client", owner_id: str = "", request: Request = None,
+               db: Session = _Depends(get_db), authorization: str = Header(None)):
+    _ensure_media(db)
+    user = _bearer_user(authorization)
+    if user is None:
+        return {"items": [], "error": "auth required"}
+    from sqlalchemy import text as _text
+    rows = db.execute(_text(
+        "SELECT id, orig_name, mime, size, photo_type, created_at FROM media_files "
+        "WHERE tenant_id = :t AND owner_type = :ot AND owner_id = :oi AND archived_at IS NULL "
+        "ORDER BY created_at DESC LIMIT 300"),
+        {"t": _tenant(), "ot": owner_type, "oi": str(owner_id)}).mappings().all()
+    import time as _time
+    items = []
+    for r in rows:
+        exp = int(_time.time()) + 300
+        items.append({"id": r["id"], "orig_name": r["orig_name"], "mime": r["mime"],
+                      "size": r["size"], "photo_type": r["photo_type"],
+                      "created_at": str(r["created_at"]),
+                      "url": "/api/v1/analytics/media/%s/content?sig=%s&exp=%d" % (r["id"], _sign(r["id"], exp), exp)})
+    _audit(db, "", "list", "ok", request, user, owner_id)
+    return {"items": items}
+
+
+@router.post("/media/upload")
+async def media_upload(request: Request, file: UploadFile = File(...),
+                       owner_type: str = Form("client"), owner_id: str = Form(""),
+                       photo_type: str = Form("document"),
+                       db: Session = _Depends(get_db), authorization: str = Header(None)):
+    _ensure_media(db)
+    user = _bearer_user(authorization)
+    if user is None:
+        return {"ok": False, "error": "auth required"}
+    if _AESGCM is None:
+        return {"ok": False, "error": "cryptography not installed"}
+    raw = await file.read()
+    if len(raw) > 20 * 1024 * 1024:
+        return {"ok": False, "error": "file > 20MB"}
+    mime = str(file.content_type or "application/octet-stream")
+    ext = _os.path.splitext(file.filename or "")[1].lower()
+    if mime.startswith("image/") and ext not in (".jpg", ".jpeg", ".png", ".webp"):
+        return {"ok": False, "error": "bad image ext"}
+    data, mime = _strip_image(raw, mime)
+    fid = _uuid.uuid4().hex
+    aad = ("tenant:%s:%s:%s:%s" % (_tenant(), owner_type, owner_id, fid)).encode()
+    ct, edek, kn, fn = _encrypt(data, aad)
+    sha = _hl.sha256(data).hexdigest()
+    rel = "%s/%s/%s/%s.enc" % (_tenant(), owner_type, str(owner_id), fid)
+    dest = _os.path.join(MEDIA_ROOT, rel)
+    _os.makedirs(_os.path.dirname(dest), exist_ok=True)
+    with open(dest + ".tmp", "wb") as f:
+        f.write(ct)
+    _os.replace(dest + ".tmp", dest)
+    from sqlalchemy import text as _text
+    db.execute(_text(
+        "INSERT INTO media_files (id, tenant_id, owner_type, owner_id, photo_type, orig_name, "
+        "mime, size, sha256, dek_enc, dek_nonce, file_nonce, key_version, path, created_by) "
+        "VALUES (:id, :t, :ot, :oi, :pt, :on, :m, :s, :sh, :de, :kn, :fn, 1, :p, :cb)"),
+        {"id": fid, "t": _tenant(), "ot": owner_type, "oi": str(owner_id),
+         "pt": str(photo_type)[:32], "on": _os.path.basename(file.filename or "")[:200],
+         "m": mime, "s": len(data), "sh": sha, "de": edek, "kn": kn, "fn": fn,
+         "p": rel, "cb": str(user.get("sub", ""))[:64]})
+    db.commit()
+    _audit(db, fid, "upload", "ok", request, user, owner_id)
+    import time as _time
+    exp = int(_time.time()) + 300
+    return {"ok": True, "id": fid,
+            "url": "/api/v1/analytics/media/%s/content?sig=%s&exp=%d" % (fid, _sign(fid, exp), exp)}
+
+
+@router.get("/media/{file_id}/content")
+def media_content(file_id: str, request: Request, sig: str = None, exp: int = None,
+                  reason: str = None, db: Session = _Depends(get_db),
+                  authorization: str = Header(None)):
+    _ensure_media(db)
+    user = _bearer_user(authorization)
+    if user is None and not (sig and _check_sig(file_id, sig, exp)):
+        _audit(db, file_id, "view", "denied_401", request, user)
+        return _JSON({"error": "auth_required"}, status_code=401)
+    from sqlalchemy import text as _text
+    r = db.execute(_text(
+        "SELECT * FROM media_files WHERE id = :i AND tenant_id = :t AND archived_at IS NULL"),
+        {"i": file_id, "t": _tenant()}).mappings().first()
+    if not r:
+        _audit(db, file_id, "view", "not_found_404", request, user)
+        return _JSON({"error": "not_found"}, status_code=404)
+    try:
+        with open(_os.path.join(MEDIA_ROOT, r["path"]), "rb") as f:
+            ct = f.read()
+        aad = ("tenant:%s:%s:%s:%s" % (_tenant(), r["owner_type"], r["owner_id"], file_id)).encode()
+        data = _decrypt(ct, r["dek_enc"], r["dek_nonce"], r["file_nonce"], aad)
+    except Exception:
+        _audit(db, file_id, "view", "error_500", request, user, r.get("owner_id"))
+        return _JSON({"error": "decrypt_failed"}, status_code=500)
+    _audit(db, file_id, "view", "ok", request, user, r.get("owner_id"), reason)
+    from fastapi.responses import Response as _Resp
+    return _Resp(content=data, media_type=r["mime"] or "application/octet-stream")
+
+
+@router.delete("/media/{file_id}")
+def media_delete(file_id: str, request: Request, db: Session = _Depends(get_db),
+                 authorization: str = Header(None)):
+    _ensure_media(db)
+    user = _bearer_user(authorization)
+    if user is None:
+        return {"ok": False, "error": "auth required"}
+    from sqlalchemy import text as _text
+    db.execute(_text("UPDATE media_files SET archived_at = NOW() WHERE id = :i AND tenant_id = :t"),
+               {"i": file_id, "t": _tenant()})
+    db.commit()
+    _audit(db, file_id, "delete", "ok", request, user)
+    return {"ok": True}    

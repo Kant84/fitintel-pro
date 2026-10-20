@@ -117,6 +117,7 @@ class UsersTab(QWidget):
         b_add.clicked.connect(self._add)
         b_edit = self._btn(" Изменить", "#3b82f6", "white")
         b_edit.clicked.connect(self._edit_user)
+        b_edit.setVisible(False)  # редактирование — в карточке сотрудника
         b_del = self._btn("Удалить", "#fef2f2", "#b91c1c")
         b_del.setStyleSheet("QPushButton { background: #fef2f2; border: 1px solid #fca5a5; "
                             "color: #b91c1c; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
