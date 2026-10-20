@@ -36,7 +36,7 @@ ROLE_LABELS = {
     "cashier": "Кассир",
     "accountant": "Бухгалтер",
     "support": "Поддержка",
-    "owner": "Владелец",
+    "owner": "Директор / Владелец", "security": "Охрана / СКУД", "reception": "Ресепшен",
 }
 
 
