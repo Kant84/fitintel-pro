@@ -2131,26 +2131,25 @@ def ensure_ui_screens(db: Session = _Depends(get_db), authorization: str = Heade
                                 {"c": code}).first()
             if exists:
                 continue
-            sets, vals = [], {}
-            for c, v in fills.items():
-                if c in (code_col, name_col):
-                    continue
-                sets.append("%s = :f_%s" % (c, c))
-                vals["f_" + c] = v
-            sets.append("%s = :code" % code_col)
-            vals["code"] = code
+            icols, marks, vals = [], [], {}
+            icols.append(code_col); marks.append(":code"); vals["code"] = code
             if name_col:
-                sets.append("%s = :name" % name_col)
-                vals["name"] = name
-            if "id" in cols and "id" not in fills:
-                sets.append("id = gen_random_uuid()::text")
-            if "is_active" in cols and "is_active" not in fills:
-                sets.append("is_active = TRUE")
-            if "sort_order" in cols and "sort_order" not in fills:
-                sets.append("sort_order = (SELECT COALESCE(MAX(sort_order),0)+10 FROM ui_screens)")
-            if "created_at" in cols and "created_at" not in fills:
-                sets.append("created_at = NOW()")
-            db.execute(_text("INSERT INTO ui_screens SET %s" % ", ".join(sets)), vals)
+                icols.append(name_col); marks.append(":name"); vals["name"] = name
+            for c, v in fills.items():
+                if c in icols:
+                    continue
+                icols.append(c); marks.append(":f_" + c); vals["f_" + c] = v
+            if "id" in cols and "id" not in icols:
+                icols.append("id"); marks.append("gen_random_uuid()::text")
+            if "is_active" in cols and "is_active" not in icols:
+                icols.append("is_active"); marks.append("TRUE")
+            if "sort_order" in cols and "sort_order" not in icols:
+                icols.append("sort_order")
+                marks.append("(SELECT COALESCE(MAX(sort_order),0)+10 FROM ui_screens)")
+            if "created_at" in cols and "created_at" not in icols:
+                icols.append("created_at"); marks.append("NOW()")
+            sql = "INSERT INTO ui_screens (%s) VALUES (%s)" % (", ".join(icols), ", ".join(marks))
+            db.execute(_text(sql), vals)
             added.append(code)
         except Exception as ex:
             db.rollback()
