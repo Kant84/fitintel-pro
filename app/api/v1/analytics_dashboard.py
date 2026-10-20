@@ -1503,6 +1503,9 @@ def wallet_op(cid: str, payload: dict, db: Session = Depends(get_db)):
     
 
 # ═══════════════ W12: безопасное медиа-хранилище (envelope encryption, tenant-aware) ═══════════════
+
+import time as _time
+import secrets as _secrets
 import base64 as _b64
 import hashlib as _hl
 import hmac as _hm
@@ -1757,3 +1760,227 @@ def media_delete(file_id: str, request: Request, db: Session = _Depends(get_db),
     db.commit()
     _audit(db, file_id, "delete", "ok", request, user)
     return {"ok": True}    
+    
+# ═══════════════ W12-Б: permissions-модель, security/director, service_accounts ═══════════════
+
+
+PERM_DEFS = [
+    ("media.read", "Просмотр медиа-файлов"),
+    ("media.upload", "Загрузка медиа-файлов"),
+    ("media.delete", "Удаление медиа-файлов"),
+    ("media.audit.read", "Журнал доступа к медиа"),
+    ("biometrics.enroll", "Регистрация биометрии (Face ID)"),
+    ("biometrics.verify", "Идентификация по биометрии"),
+    ("access.override", "Ручное открытие турникета"),
+    ("access.bracelet.block", "Блокировка/разблокировка браслетов"),
+    ("payments.refund", "Возврат платежей"),
+    ("clients.export", "Экспорт клиентов"),
+    ("staff.photos.read", "Просмотр фото сотрудников"),
+    ("staff.photos.write", "Загрузка фото сотрудников"),
+    ("service.accounts.manage", "Управление service-аккаунтами"),
+    ("roles.manage", "Управление ролями и правами"),
+]
+
+ROLE_PERMS = {
+    "owner": [p for p, _ in PERM_DEFS],
+    "admin": [p for p, _ in PERM_DEFS],
+    "manager": ["media.read", "media.upload", "clients.export"],
+    "trainer": ["media.read"],
+    "reception": ["media.read", "media.upload", "access.bracelet.block", "access.override"],
+    "cashier": ["media.read", "payments.refund"],
+    "accountant": ["media.read", "media.audit.read"],
+    "security": ["access.bracelet.block", "access.override"],
+    "support": ["media.read"],
+}
+
+
+def _seed_rbac(db):
+    from sqlalchemy import text as _text
+    cols = {r[0] for r in db.execute(_text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='permissions'")).fetchall()}
+    for code, name in PERM_DEFS:
+        try:
+            if "id" in cols:
+                db.execute(_text(
+                    "INSERT INTO permissions (id, code, name) VALUES (gen_random_uuid()::text, :c, :n) "
+                    "ON CONFLICT (code) DO NOTHING"), {"c": code, "n": name})
+            else:
+                db.execute(_text(
+                    "INSERT INTO permissions (code, name) VALUES (:c, :n) "
+                    "ON CONFLICT (code) DO NOTHING"), {"c": code, "n": name})
+        except Exception:
+            try:
+                db.execute(_text("INSERT INTO permissions (code, name) VALUES (:c, :n)"), {"c": code, "n": name})
+            except Exception:
+                pass
+    try:
+        db.execute(_text("UPDATE roles SET name = 'Директор / Владелец' WHERE code = 'owner'"))
+    except Exception:
+        pass
+    try:
+        if not db.execute(_text("SELECT 1 FROM roles WHERE code='security'")).first():
+            try:
+                db.execute(_text(
+                    "INSERT INTO roles (id, code, name) VALUES (gen_random_uuid()::text, 'security', 'Охрана / СКУД') "
+                    "ON CONFLICT (code) DO NOTHING"))
+            except Exception:
+                db.execute(_text(
+                    "INSERT INTO roles (code, name) VALUES ('security', 'Охрана / СКУД') "
+                    "ON CONFLICT (code) DO NOTHING"))
+    except Exception:
+        pass
+    try:
+        link_cols = {r[0] for r in db.execute(_text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='role_permissions'")).fetchall()}
+        for role, perms in ROLE_PERMS.items():
+            rid = db.execute(_text("SELECT id FROM roles WHERE code = :c"), {"c": role}).first()
+            if not rid:
+                continue
+            for p in perms:
+                row = db.execute(_text("SELECT id FROM permissions WHERE code = :c"), {"c": p}).first()
+                if not row:
+                    continue
+                if "id" in link_cols:
+                    db.execute(_text(
+                        "INSERT INTO role_permissions (id, role_id, permission_id) "
+                        "VALUES (gen_random_uuid()::text, :r, :p) ON CONFLICT DO NOTHING"),
+                        {"r": rid[0], "p": row[0]})
+                else:
+                    db.execute(_text(
+                        "INSERT INTO role_permissions (role_id, permission_id) VALUES (:r, :p) "
+                        "ON CONFLICT DO NOTHING"), {"r": rid[0], "p": row[0]})
+    except Exception:
+        pass
+    db.commit()
+
+
+_PERM_CACHE = {}
+
+
+def _user_perms(db, user_id: str) -> set:
+    key = str(user_id or "")
+    now = _time.time()
+    if key in _PERM_CACHE and now - _PERM_CACHE[key][1] < 60:
+        return _PERM_CACHE[key][0]
+    perms = set()
+    try:
+        rows = db.execute(_text(
+            "SELECT DISTINCT p.code FROM user_roles ur "
+            "JOIN roles r ON r.id = ur.role_id "
+            "JOIN role_permissions rp ON rp.role_id = r.id "
+            "JOIN permissions p ON p.id = rp.permission_id "
+            "WHERE ur.user_id::text = :u"), {"u": key}).scalars().all()
+        perms = set(rows)
+    except Exception:
+        pass
+    _PERM_CACHE[key] = (perms, now)
+    return perms
+
+
+def _is_super(db, user_id: str) -> bool:
+    try:
+        return bool(db.execute(_text(
+            "SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id "
+            "WHERE ur.user_id::text = :u AND r.code = 'superadmin'"), {"u": str(user_id)}).first())
+    except Exception:
+        return False
+
+
+def _has_perm(db, user, perm: str) -> bool:
+    uid = str(user.get("sub", "")) if isinstance(user, dict) else ""
+    if not uid:
+        return False
+    if _is_super(db, uid):
+        return True
+    return perm in _user_perms(db, uid)
+
+
+def _ensure_sa(db):
+    from sqlalchemy import text as _text
+    db.execute(_text("""CREATE TABLE IF NOT EXISTS service_accounts (
+        id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL DEFAULT 't-1',
+        name TEXT, owner_user_id TEXT, scopes TEXT,
+        allowed_ips TEXT, token_hash TEXT,
+        expires_at TIMESTAMP, last_used_at TIMESTAMP, revoked_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW())"""))
+    db.commit()
+
+
+@router.post("/rbac/seed")
+def rbac_seed(db: Session = _Depends(get_db), authorization: str = Header(None)):
+    user = _bearer_user(authorization)
+    if not user:
+        return {"ok": False, "error": "auth"}
+    if not (_is_super(db, str(user.get("sub", ""))) or _has_perm(db, user, "roles.manage")):
+        return {"ok": False, "error": "forbidden (нужен superadmin)"}
+    _seed_rbac(db)
+    return {"ok": True}
+
+
+@router.get("/service-accounts")
+def sa_list(db: Session = _Depends(get_db), authorization: str = Header(None)):
+    _seed_rbac(db)
+    _ensure_sa(db)
+    user = _bearer_user(authorization)
+    if not user or not _has_perm(db, user, "service.accounts.manage"):
+        return {"items": [], "error": "forbidden"}
+    from sqlalchemy import text as _text
+    rows = db.execute(_text(
+        "SELECT id, name, scopes, allowed_ips, expires_at, last_used_at, revoked_at, created_at "
+        "FROM service_accounts WHERE tenant_id = :t ORDER BY created_at DESC"),
+        {"t": _tenant()}).mappings().all()
+    return {"items": [dict(r) for r in rows]}
+
+
+@router.post("/service-accounts")
+def sa_create(payload: dict, db: Session = _Depends(get_db), authorization: str = Header(None)):
+    _seed_rbac(db)
+    _ensure_sa(db)
+    user = _bearer_user(authorization)
+    if not user or not _has_perm(db, user, "service.accounts.manage"):
+        return {"ok": False, "error": "forbidden"}
+    name = str(payload.get("name") or "").strip()[:64]
+    scopes = ",".join(str(s)[:40] for s in (payload.get("scopes") or [])[:20])
+    ttl = int(payload.get("ttl_days") or 365)
+    if not name:
+        return {"ok": False, "error": "name"}
+    import uuid as _u
+    sid = str(_u.uuid4())
+    token = "sat_" + _secrets.token_urlsafe(32)
+    from sqlalchemy import text as _text
+    db.execute(_text(
+        "INSERT INTO service_accounts (id, tenant_id, name, owner_user_id, scopes, allowed_ips, "
+        "token_hash, expires_at) VALUES (:i, :t, :n, :o, :s, :ip, :th, NOW() + (:ttl || ' days')::interval)"),
+        {"i": sid, "t": _tenant(), "n": name, "o": str(user.get("sub", "")),
+         "s": scopes, "ip": str(payload.get("allowed_ips") or "")[:200],
+         "th": _hl.sha256(token.encode()).hexdigest(), "ttl": ttl})
+    db.commit()
+    return {"ok": True, "id": sid, "token": token,
+            "note": "Токен показывается один раз. scopes: %s" % scopes}
+
+
+@router.post("/service-accounts/{sid}/revoke")
+def sa_revoke(sid: str, db: Session = _Depends(get_db), authorization: str = Header(None)):
+    _ensure_sa(db)
+    user = _bearer_user(authorization)
+    if not user or not _has_perm(db, user, "service.accounts.manage"):
+        return {"ok": False, "error": "forbidden"}
+    from sqlalchemy import text as _text
+    db.execute(_text(
+        "UPDATE service_accounts SET revoked_at = NOW() WHERE id = :i AND tenant_id = :t"),
+        {"i": sid, "t": _tenant()})
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/media/audit")
+def media_audit(limit: int = 200, db: Session = _Depends(get_db), authorization: str = Header(None)):
+    _ensure_media(db)
+    user = _bearer_user(authorization)
+    if not user or not _has_perm(db, user, "media.audit.read"):
+        return {"items": [], "error": "forbidden"}
+    from sqlalchemy import text as _text
+    rows = db.execute(_text(
+        "SELECT id, file_id, user_id, action, result, ip, user_agent, reason, created_at "
+        "FROM media_access_log ORDER BY id DESC LIMIT :l"), {"l": min(limit, 1000)}).mappings().all()
+    return {"items": [dict(r) for r in rows]}    
