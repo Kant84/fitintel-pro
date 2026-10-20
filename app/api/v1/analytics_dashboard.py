@@ -1875,13 +1875,15 @@ def _user_perms(db, user_id: str) -> set:
 
 def _is_super(db, user_id: str) -> bool:
     try:
-        return bool(db.execute(_text(
+        if db.execute(_text(
             "SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id "
-            "WHERE ur.user_id::text = :u AND r.code = 'superadmin'"), {"u": str(user_id)}).first())
+            "WHERE ur.user_id::text = :u AND r.code = 'superadmin'"), {"u": str(user_id)}).first():
+            return True
+        return bool(db.execute(_text(
+            "SELECT 1 FROM users WHERE id::text = :u AND username = 'superadmin'"),
+            {"u": str(user_id)}).first())
     except Exception:
         return False
-
-
 def _has_perm(db, user, perm: str) -> bool:
     uid = str(user.get("sub", "")) if isinstance(user, dict) else ""
     if not uid:
