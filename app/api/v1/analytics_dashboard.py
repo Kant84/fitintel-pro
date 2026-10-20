@@ -2107,7 +2107,7 @@ NEW_UI_SCREENS = [
 
 
 @router.post("/w12/ensure-ui-screens")
-def ensure_ui_screens(db: Session = Depends(get_db), authorization: str = Header(None)):
+def ensure_ui_screens(db: Session = _Depends(get_db), authorization: str = Header(None)):
     from sqlalchemy import text as _text
     user = _bearer_user(authorization)
     if not user or not (_is_super(db, str(user.get("sub", ""))) or _has_perm(db, user, "roles.manage")):
@@ -2120,29 +2120,40 @@ def ensure_ui_screens(db: Session = Depends(get_db), authorization: str = Header
     name_col = next((c for c in ("name", "title", "display_name") if c in cols), None)
     if not code_col:
         return {"ok": False, "error": "no code column"}
-    added = []
+    nn = db.execute(_text(
+        "SELECT column_name, data_type FROM information_schema.columns "
+        "WHERE table_name='ui_screens' AND is_nullable='NO' AND column_default IS NULL")).all()
+    fills = {c: (False if dt == "boolean" else (0 if dt.startswith("int") else "")) for c, dt in nn}
+    added, errors = [], []
     for code, name in NEW_UI_SCREENS:
         try:
             exists = db.execute(_text("SELECT 1 FROM ui_screens WHERE %s = :c" % code_col),
                                 {"c": code}).first()
             if exists:
                 continue
-            sets = ["%s = :code" % code_col]
-            vals = {"code": code}
+            sets, vals = [], {}
+            for c, v in fills.items():
+                if c in (code_col, name_col):
+                    continue
+                sets.append("%s = :f_%s" % (c, c))
+                vals["f_" + c] = v
+            sets.append("%s = :code" % code_col)
+            vals["code"] = code
             if name_col:
                 sets.append("%s = :name" % name_col)
                 vals["name"] = name
-            if "id" in cols:
+            if "id" in cols and "id" not in fills:
                 sets.append("id = gen_random_uuid()::text")
-            if "is_active" in cols:
+            if "is_active" in cols and "is_active" not in fills:
                 sets.append("is_active = TRUE")
-            if "sort_order" in cols:
+            if "sort_order" in cols and "sort_order" not in fills:
                 sets.append("sort_order = (SELECT COALESCE(MAX(sort_order),0)+10 FROM ui_screens)")
-            if "created_at" in cols:
+            if "created_at" in cols and "created_at" not in fills:
                 sets.append("created_at = NOW()")
             db.execute(_text("INSERT INTO ui_screens SET %s" % ", ".join(sets)), vals)
             added.append(code)
-        except Exception:
+        except Exception as ex:
             db.rollback()
+            errors.append("%s: %s" % (code, str(ex)[:120]))
     db.commit()
-    return {"ok": True, "added": added}
+    return {"ok": True, "added": added, "errors": errors}

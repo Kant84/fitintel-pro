@@ -129,7 +129,7 @@ class MainWindow(QMainWindow):
         else:
             self._header_bg = "background: #ffffff; border-bottom: 1px solid #e2e8f0;"
             self.setStyleSheet(
-                "QMainWindow { background-color: #f1f5f9; }" + sidebar +
+                "QMainWindow { background-color: #FFFBE6; }" + sidebar +
                 "QLabel#header-title { font-size: 20px; font-weight: 700; color: #0f172a; }"
                 "QLabel#header-user { font-size: 12px; color: #64748b; }"
                 "QStatusBar { background: #ffffff; color: #64748b; font-size: 12px; border-top: 1px solid #e2e8f0; }"
