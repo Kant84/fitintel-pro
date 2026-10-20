@@ -2320,3 +2320,5 @@ if "См. приложение «152-ФЗ»" not in HELP_TEXTS.get("Соглас
     HELP_TEXTS["Согласия"] = (HELP_TEXTS.get("Согласия", "") +
         "\n\nПравовое основание подробно — F1 → меню «Помощь» → «Приложение: 152-ФЗ» "
         "(или ключ «152-ФЗ»).")
+
+print('HELP_VERSION_MARKER 2026-10-21 | FZ152 appendix:', '152-ФЗ' in HELP_TEXTS, '| menu item:', 'Приложение: 152-ФЗ (Персональные данные)' in open(__file__, encoding='utf-8').read())
