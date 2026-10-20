@@ -1439,3 +1439,64 @@ def client_cars_del(cid: str, cid2: int, db: Session = Depends(get_db)):
                {"n": int(cid2), "i": str(cid)})
     db.commit()
     return {"ok": True}
+
+# ═══════════════ W11: лицевой счёт (пополнение/списание/история) ═══════════════
+import uuid as _uuid
+
+
+def _ensure_wallet(db):
+    from sqlalchemy import text as _text
+    try:
+        db.execute(_text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS wallet_balance NUMERIC(12,2) DEFAULT 0"))
+    except Exception:
+        pass
+    db.execute(_text("CREATE TABLE IF NOT EXISTS wallet_ops ("
+                     "id TEXT PRIMARY KEY, client_id TEXT, delta NUMERIC(12,2), "
+                     "balance_after NUMERIC(12,2), comment TEXT, created_by TEXT, "
+                     "created_at TIMESTAMP DEFAULT NOW())"))
+    db.commit()
+
+
+@router.get("/clients/{cid}/wallet")
+def wallet_get(cid: str, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    _ensure_wallet(db)
+    bal = db.execute(_text(
+        "SELECT wallet_balance FROM clients WHERE id::text = :i"), {"i": str(cid)}).scalar()
+    ops = db.execute(_text(
+        "SELECT id, delta, balance_after, comment, created_by, created_at "
+        "FROM wallet_ops WHERE client_id = :i ORDER BY created_at DESC LIMIT 100"),
+        {"i": str(cid)}).mappings().all()
+    return {"balance": float(bal or 0),
+            "operations": [dict(r) for r in ops]}
+
+
+@router.post("/clients/{cid}/wallet")
+def wallet_op(cid: str, payload: dict, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    _ensure_wallet(db)
+    try:
+        delta = abs(float(payload.get("amount") or 0))
+    except Exception:
+        return {"ok": False, "error": "amount"}
+    if not delta:
+        return {"ok": False, "error": "amount"}
+    if str(payload.get("direction") or "in") == "out":
+        delta = -delta
+    row = db.execute(_text(
+        "SELECT wallet_balance FROM clients WHERE id::text = :i"), {"i": str(cid)}).first()
+    if not row:
+        return {"ok": False, "error": "client not found"}
+    new_bal = float(row[0] or 0) + delta
+    if new_bal < 0:
+        return {"ok": False, "error": "Недостаточно средств (баланс %.2f)" % float(row[0] or 0)}
+    db.execute(_text("UPDATE clients SET wallet_balance = :b WHERE id::text = :i"),
+               {"b": new_bal, "i": str(cid)})
+    db.execute(_text(
+        "INSERT INTO wallet_ops (id, client_id, delta, balance_after, comment, created_by) "
+        "VALUES (:id, :i, :d, :b, :c, :u)"),
+        {"id": str(_uuid.uuid4()), "i": str(cid), "d": delta, "b": new_bal,
+         "c": str(payload.get("comment") or "")[:200],
+         "u": str(payload.get("created_by") or "admin")[:64]})
+    db.commit()
+    return {"ok": True, "balance": new_bal}
