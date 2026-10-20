@@ -2094,3 +2094,55 @@ def user_position_set(uid: str, payload: dict, db: Session = Depends(get_db)):
                {"p": str(payload.get("position") or "")[:128] or None, "u": str(uid)})
     db.commit()
     return {"ok": True}
+
+# ═══════════════ W13: добиваем новые экраны в ui_screens для матрицы ролей ═══════════════
+NEW_UI_SCREENS = [
+    ("service_accounts", "Service-аккаунты"),
+    ("tariffs", "Тарифы"),
+    ("payments_hub", "Платежи"),
+    ("csat", "CSAT / Опросы"),
+    ("clients_analytics", "Клиентская аналитика"),
+    ("music_dj", "Музыка/DJ"),
+]
+
+
+@router.post("/w12/ensure-ui-screens")
+def ensure_ui_screens(db: Session = Depends(get_db), authorization: str = Header(None)):
+    from sqlalchemy import text as _text
+    user = _bearer_user(authorization)
+    if not user or not (_is_super(db, str(user.get("sub", ""))) or _has_perm(db, user, "roles.manage")):
+        return {"ok": False, "error": "forbidden"}
+    cols = {r[0] for r in db.execute(_text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='ui_screens'")).fetchall()}
+    if not cols:
+        return {"ok": False, "error": "ui_screens table not found"}
+    code_col = next((c for c in ("code", "screen_code") if c in cols), None)
+    name_col = next((c for c in ("name", "title", "display_name") if c in cols), None)
+    if not code_col:
+        return {"ok": False, "error": "no code column"}
+    added = []
+    for code, name in NEW_UI_SCREENS:
+        try:
+            exists = db.execute(_text("SELECT 1 FROM ui_screens WHERE %s = :c" % code_col),
+                                {"c": code}).first()
+            if exists:
+                continue
+            sets = ["%s = :code" % code_col]
+            vals = {"code": code}
+            if name_col:
+                sets.append("%s = :name" % name_col)
+                vals["name"] = name
+            if "id" in cols:
+                sets.append("id = gen_random_uuid()::text")
+            if "is_active" in cols:
+                sets.append("is_active = TRUE")
+            if "sort_order" in cols:
+                sets.append("sort_order = (SELECT COALESCE(MAX(sort_order),0)+10 FROM ui_screens)")
+            if "created_at" in cols:
+                sets.append("created_at = NOW()")
+            db.execute(_text("INSERT INTO ui_screens SET %s" % ", ".join(sets)), vals)
+            added.append(code)
+        except Exception:
+            db.rollback()
+    db.commit()
+    return {"ok": True, "added": added}
