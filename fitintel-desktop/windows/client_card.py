@@ -158,7 +158,7 @@ class ClientCard(QDialog):
         except Exception:
             self._subs = []
         try:
-            self._files = {"items": self._get("/analytics/media/list", {"owner_type": "client", "owner_id": self.client_id}).get("items", [])}
+            self._files = {"items": self._get("/analytics/w12/media/list", {"owner_type": "client", "owner_id": self.client_id}).get("items", [])}
         except Exception:
             self._files = {"items": []}
         self._fill_header()
@@ -496,7 +496,7 @@ class ClientCard(QDialog):
             return
         try:
             r = self.api.session.post(
-                self.api._url("/analytics/media/upload"),
+                self.api._url("/analytics/w12/media/upload"),
                 data={"owner_type": "client", "owner_id": self.client_id,
                       "photo_type": "avatar" if kind == "photos" else "document"},
                 files={"file": open(path, "rb")}, timeout=120)
@@ -538,7 +538,7 @@ class ClientCard(QDialog):
         if not r:
             return
         try:
-            resp = self.api.session.delete(self.api._url("/analytics/media/%s" % r["id"]), timeout=20)
+            resp = self.api.session.delete(self.api._url("/analytics/w12/media/%s" % r["id"]), timeout=20)
             resp.raise_for_status()
             self.reload()
         except Exception as e:
