@@ -1,3 +1,4 @@
+from windows.help_dialog import install_f1_dynamic
 # -*- coding: utf-8 -*-
 """W11: Карточка клиента v2 — шапка + левое меню секций (классика F02000)."""
 import datetime
