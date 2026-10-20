@@ -63,7 +63,7 @@ class EmployeeCard(QDialog):
         self.menu = QListWidget()
         self.menu.setFixedWidth(200)
         self.menu.setStyleSheet(
-            "QListWidget{background:#f8fafc;border:1px solid #e2e8f0;outline:none;}"
+            "QListWidget{background:#F4E9C0;border:1px solid #D8C88F;outline:none;}"
             "QListWidget::item{padding:7px 10px;color:#334155;}"
             "QListWidget::item:selected{background:#0ea5e9;color:white;}")
         sp.addWidget(self.menu)
@@ -277,7 +277,7 @@ class EmployeeCard(QDialog):
         self.ava = QLabel("—")
         self.ava.setFixedSize(140, 140)
         self.ava.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.ava.setStyleSheet("background:#e2e8f0;border-radius:70px;color:#64748b;font-weight:700;")
+        self.ava.setStyleSheet("background:#D8C88F;border-radius:70px;color:#64748b;font-weight:700;")
         v.addWidget(self.ava, 0, Qt.AlignmentFlag.AlignHCenter)
         bar = QHBoxLayout()
         b_up = QPushButton(" Загрузить фото")
@@ -575,12 +575,25 @@ class EmployeeCard(QDialog):
         self._nav("Бухгалтерия")
 
     def _nav(self, title):
-        tl = list(QApplication.topLevelWidgets())
-        t = title.lower()
         from PyQt6.QtWidgets import QTabWidget, QListWidget
+        t = title.lower()
+        tl = [w for w in QApplication.topLevelWidgets() if w is not self]
+        mw = None
         for w in tl:
-            if w is self:
-                continue
+            if hasattr(w, "sidebar") and hasattr(w, "_build_tab"):
+                mw = w
+                break
+        if mw is not None:
+            # принудительно строим хаб «Настройки» (ленивая загрузка)
+            try:
+                for lw in mw.findChildren(QListWidget):
+                    for i in range(lw.count()):
+                        if "настройк" in lw.item(i).text().lower():
+                            lw.setCurrentRow(i)
+                            break
+            except Exception:
+                pass
+        for w in tl:
             for lw in w.findChildren(QListWidget):
                 for i in range(lw.count()):
                     if t in lw.item(i).text().lower():
@@ -591,15 +604,9 @@ class EmployeeCard(QDialog):
                             pass
                         return
         for w in tl:
-            if w is self:
-                continue
             for tw in w.findChildren(QTabWidget):
                 for i in range(tw.count()):
                     if t in tw.tabText(i).lower():
-                        for lw in w.findChildren(QListWidget):
-                            for j in range(lw.count()):
-                                if "настройк" in lw.item(j).text().lower():
-                                    lw.setCurrentRow(j)
                         tw.setCurrentIndex(i)
                         try:
                             self.lower(); w.raise_(); w.activateWindow()
