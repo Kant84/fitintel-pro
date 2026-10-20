@@ -583,6 +583,12 @@ class EmployeeCard(QDialog):
                 if title.lower() in lw.item(i).text().lower():
                     lw.setCurrentRow(i)
                     try:
+                        self.lower()
+                        w.raise_()
+                        w.activateWindow()
+                    except Exception:
+                        pass
+                    try:
                         w.raise_(); w.activateWindow()
                     except Exception:
                         pass
