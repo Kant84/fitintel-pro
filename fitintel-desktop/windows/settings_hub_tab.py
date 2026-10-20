@@ -10,6 +10,7 @@ _MOD2CLS = {
     "club_params_tab": "ClubParamsTab",
     "roles_tab": "RolesTab",
     "integrations_tab": "IntegrationsTab",
+    "service_accounts_tab": "ServiceAccountsTab",
     "commerce_tab": "CommerceTab",
 }
 
@@ -31,6 +32,7 @@ def SettingsHubTab(api, main_window=None):
                            ("Параметры клуба", "club_params_tab"),
                            ("Роли и права", "roles_tab"),
                            ("Интеграции", "integrations_tab"),
-                           ("Коммерция", "commerce_tab")]:
+                           ("Коммерция", "commerce_tab"),
+                           ("Service-аккаунты", "service_accounts_tab")]:
         specs.append((_title, _build(_mod)))
     return HubTab(api, specs, main_window)
