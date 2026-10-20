@@ -103,7 +103,7 @@ class ClientCard(QDialog):
         _idx = 0
         for section, items in (
                 ("ДАННЫЕ", ["Анкета", "Телефоны/Контакты", "Документы", "Фото",
-                            "Пакеты/Услуги", "Замечания"]),
+                            "Пакеты/Услуги", "Замечания", "Согласия"]),
                 ("СЧЁТ", ["Чеки", "Баланс", "Бонусы", "Скидки"]),
                 ("ПРОЧЕЕ", ["Сообщения", "История", "Блоки", "Автомобили", "Гость"])):
             sec = QListWidgetItem(section)
@@ -230,6 +230,7 @@ class ClientCard(QDialog):
             {"Анкета": self._p_anketa, "Телефоны/Контакты": self._p_contacts,
              "Документы": self._p_docs, "Фото": self._p_photos,
              "Пакеты/Услуги": self._p_subs, "Замечания": self._p_comments,
+             "Согласия": self._p_consents,
              "Чеки": self._p_payments, "Баланс": self._p_wallet, "Бонусы": self._p_bonuses,
              "Скидки": self._p_discount, "Сообщения": self._p_messages,
              "История": self._p_history, "Блоки": self._p_blocks,
@@ -253,6 +254,67 @@ class ClientCard(QDialog):
         b.clicked.connect(fn)
         return b
 
+    # ── Согласия (152-ФЗ) ──
+    def _p_consents(self):
+        v = self._page_layout("Согласия")
+        v.addWidget(self._refresh_btn(lambda: self._load_page("Согласия")))
+        try:
+            d = self._get("/analytics/w12/clients/%s/consents" % self.client_id)
+            cons = d.get("consents", {})
+        except Exception as e:
+            cons = {}
+            v.addWidget(QLabel("Ошибка: %s" % str(e)[:150]))
+        self.chk_consents = {}
+        info = {
+            "photo_processing": "Обработка фото — хранение и показ фотографий клиента (152-ФЗ)",
+            "biometric_processing": "Биометрия — регистрация и распознавание Face ID (152-ФЗ)",
+        }
+        for ct, text in info.items():
+            c = cons.get(ct) or {}
+            status = c.get("status")
+            cb = QCheckBox(text)
+            cb.setChecked(status == "granted")
+            self.chk_consents[ct] = cb
+            v.addWidget(cb)
+            if status == "granted":
+                lbl = QLabel("Выдано: %s" % (c.get("granted_at") or "—"))
+                lbl.setStyleSheet("color:#059669;font-size:11px;")
+            elif status == "revoked":
+                lbl = QLabel("Отозвано: %s" % (c.get("revoked_at") or "—"))
+                lbl.setStyleSheet("color:#ef4444;font-size:11px;")
+            else:
+                lbl = QLabel("Не выдано")
+                lbl.setStyleSheet("color:#94a3b8;font-size:11px;")
+            v.addWidget(lbl)
+        note = QLabel("Отзыв биометрии удаляет ВСЕ шаблоны Face ID клиента. Без активного "
+                      "согласия регистрация Face ID на сервере отклоняется (403 biometric_consent_required).")
+        note.setWordWrap(True)
+        note.setStyleSheet("color:#b45309;font-size:11px;")
+        v.addWidget(note)
+        bs = QPushButton(" Сохранить согласия")
+        bs.clicked.connect(self._save_consents)
+        v.addWidget(bs)
+        v.addStretch(1)
+
+    def _save_consents(self):
+        for ct, cb in (self.chk_consents or {}).items():
+            try:
+                d = self._post("/analytics/w12/clients/%s/consents" % self.client_id,
+                               {"consent_type": ct, "granted": bool(cb.isChecked())})
+                if not d.get("ok"):
+                    QMessageBox.warning(self, "Согласия", "%s: %s" % (ct, d.get("error")))
+                    return
+                if ct == "biometric_processing" and not cb.isChecked():
+                    removed = d.get("face_templates_removed") or []
+                    if removed:
+                        QMessageBox.information(
+                            self, "Согласия",
+                            "Согласие отозвано. Удалены шаблоны Face ID: " + ", ".join(removed))
+            except Exception as e:
+                QMessageBox.warning(self, "Согласия", str(e)[:200])
+                return
+        QMessageBox.information(self, "Согласия", "Сохранено")
+        self._load_page("Согласия")
     # ── Анкета ──
     def _p_anketa(self):
         v = self._page_layout("Анкета")

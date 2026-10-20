@@ -135,12 +135,35 @@ def extract_face_encoding(photo_b64: str):
     return encodings[0].tolist(), None, quality
 
 
+def _require_biometric_consent(db, client_id):
+    """Этап В (152-ФЗ): шаблон Face ID — только при активном согласии на обработку биометрии."""
+    try:
+        db.execute(_sql_text(
+            "CREATE TABLE IF NOT EXISTS client_consents ("
+            "id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
+            "client_id TEXT NOT NULL, consent_type VARCHAR(64) NOT NULL,"
+            "status VARCHAR(16) NOT NULL DEFAULT 'granted',"
+            "granted_at TIMESTAMPTZ, revoked_at TIMESTAMPTZ, granted_by TEXT,"
+            "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+            "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+            "UNIQUE(client_id, consent_type))"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    row = db.execute(_sql_text(
+        "SELECT 1 FROM client_consents WHERE client_id = :c "
+        "AND consent_type = 'biometric_processing' AND status = 'granted'"),
+        {"c": str(client_id)}).first()
+    if not row:
+        raise HTTPException(status_code=403, detail="biometric_consent_required")
+
 @router.post("/register", status_code=201)
 def register_face(data: FaceRegisterRequest, db: Session = Depends(get_db),
                   current_user: User = Depends(get_current_user)):
     client = db.query(Client).filter(Client.id == data.client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Клиент не найден")
+    _require_biometric_consent(db, data.client_id)
     settings = _face_settings(db)
     encoding, error, quality = extract_face_encoding(data.photo)
     if error:
@@ -228,6 +251,7 @@ def update_template(template_id: int, data: FaceUpdateRequest, db: Session = Dep
     template = db.query(FaceTemplate).filter(FaceTemplate.id == template_id).first()
     if not template:
         raise HTTPException(status_code=404, detail="Шаблон не найден")
+    _require_biometric_consent(db, template.client_id)
     settings = _face_settings(db)
     encoding, error, quality = extract_face_encoding(data.photo)
     if error:
