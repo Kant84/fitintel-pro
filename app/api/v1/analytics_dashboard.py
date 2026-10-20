@@ -1983,4 +1983,114 @@ def media_audit(limit: int = 200, db: Session = _Depends(get_db), authorization:
     rows = db.execute(_text(
         "SELECT id, file_id, user_id, action, result, ip, user_agent, reason, created_at "
         "FROM media_access_log ORDER BY id DESC LIMIT :l"), {"l": min(limit, 1000)}).mappings().all()
-    return {"items": [dict(r) for r in rows]}    
+    return {"items": [dict(r) for r in rows]}
+
+# ═══════════════ W13: график работы + расписание + должность ═══════════════
+import json as _json
+
+
+def _ensure_schedule_col(db):
+    from sqlalchemy import text as _text
+    try:
+        db.execute(_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS schedule_json TEXT"))
+        db.commit()
+    except Exception:
+        pass
+
+
+@router.get("/users/{uid}/schedule")
+def user_schedule_get(uid: str, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    _ensure_schedule_col(db)
+    row = db.execute(_text("SELECT schedule_json FROM users WHERE id::text = :u"),
+                    {"u": str(uid)}).first()
+    if row and row[0]:
+        try:
+            return {"schedule": _json.loads(row[0])}
+        except Exception:
+            pass
+    return {"schedule": {}}
+
+
+@router.post("/users/{uid}/schedule")
+def user_schedule_set(uid: str, payload: dict, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    _ensure_schedule_col(db)
+    db.execute(_text("UPDATE users SET schedule_json = :j WHERE id::text = :u"),
+               {"j": _json.dumps(payload.get("schedule") or {}, ensure_ascii=False)[:4000],
+                "u": str(uid)})
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/users/{uid}/timetable")
+def user_timetable(uid: str, date_from: str = None, date_to: str = None,
+                   db: Session = Depends(get_db)):
+    """Ближайшие занятия сотрудника из таблиц записей (автопоиск по схеме)."""
+    from sqlalchemy import text as _text
+    from datetime import date as _date, timedelta as _td
+
+    def cols_of(tbl):
+        try:
+            return set(db.execute(_text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name=:t"),
+                {"t": tbl}).scalars().all())
+        except Exception:
+            return set()
+
+    t = _date.today()
+    d_from = date_from or t.isoformat()
+    d_to = date_to or (t + _td(days=14)).isoformat()
+    P = {"f": d_from, "t": d_to, "u": str(uid), "ulike": "%" + str(uid)[:8] + "%"}
+
+    for tbl in ("bookings", "service_bookings", "appointments", "schedules", "training_sessions"):
+        cols = cols_of(tbl)
+        if not cols:
+            continue
+        tr_col = next((c for c in ("trainer_id", "trainer", "trainer_name", "coach", "employee_id") if c in cols), None)
+        dt_col = next((c for c in ("date", "start_time", "scheduled_at", "starts_at", "created_at", "dt") if c in cols), None)
+        if not tr_col or not dt_col:
+            continue
+        svc_col = next((c for c in ("service_name", "service", "title", "name") if c in cols), None)
+        cli_col = next((c for c in ("client_name", "client", "client_id") if c in cols), None)
+        st_col = "status" if "status" in cols else None
+        sel = ["%s AS dt" % dt_col,
+               ("CAST(%s AS TEXT) AS service" % svc_col) if svc_col else "NULL AS service",
+               ("CAST(%s AS TEXT) AS client" % cli_col) if cli_col else "NULL AS client",
+               ("%s AS status" % st_col) if st_col else "NULL AS status"]
+        where = "(%s::text = :u OR CAST(%s AS TEXT) LIKE :ulike)" % (tr_col, tr_col)
+        try:
+            rows = db.execute(_text(
+                "SELECT %s FROM %s WHERE %s AND %s::date BETWEEN :f AND :t "
+                "ORDER BY %s LIMIT 100" % (", ".join(sel), tbl, where, dt_col, dt_col)), P).mappings().all()
+            items = [dict(r) for r in rows]
+            if items:
+                return {"items": items}
+        except Exception:
+            continue
+    return {"items": []}
+
+
+@router.get("/users/{uid}/position")
+def user_position_get(uid: str, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    try:
+        db.execute(_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS position VARCHAR(128)"))
+        db.commit()
+    except Exception:
+        pass
+    row = db.execute(_text("SELECT position FROM users WHERE id::text = :u"), {"u": str(uid)}).first()
+    return {"position": (row[0] if row else None) or ""}
+
+
+@router.post("/users/{uid}/position")
+def user_position_set(uid: str, payload: dict, db: Session = Depends(get_db)):
+    from sqlalchemy import text as _text
+    try:
+        db.execute(_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS position VARCHAR(128)"))
+    except Exception:
+        pass
+    db.execute(_text("UPDATE users SET position = :p WHERE id::text = :u"),
+               {"p": str(payload.get("position") or "")[:128] or None, "u": str(uid)})
+    db.commit()
+    return {"ok": True}
