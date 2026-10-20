@@ -2102,7 +2102,6 @@ NEW_UI_SCREENS = [
     ("payments_hub", "Платежи"),
     ("csat", "CSAT / Опросы"),
     ("clients_analytics", "Клиентская аналитика"),
-    ("music_dj", "Музыка/DJ"),
 ]
 
 
@@ -2154,5 +2153,36 @@ def ensure_ui_screens(db: Session = _Depends(get_db), authorization: str = Heade
         except Exception as ex:
             db.rollback()
             errors.append("%s: %s" % (code, str(ex)[:120]))
+    # дефолтная видимость для новых ролей (иначе их нет в матрице)
+    SECURITY_DEFAULT_SCREENS = ["dashboard", "visits", "credentials", "face_id"]
+    try:
+        rtbl = None
+        for cand in ("role_screens", "ui_role_screens", "roles_screens"):
+            if db.execute(_text(
+                    "SELECT 1 FROM information_schema.tables WHERE table_name=:t"), {"t": cand}).first():
+                rtbl = cand
+                break
+        if rtbl:
+            rcols = {r[0] for r in db.execute(_text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name=:t"),
+                {"t": rtbl}).fetchall()}
+            rrole = next((c for c in ("role_code", "role") if c in rcols), None)
+            rscr = next((c for c in ("screen_code", "screen") if c in rcols), None)
+            rvis = "is_visible" if "is_visible" in rcols else None
+            if rrole and rscr:
+                for sc in SECURITY_DEFAULT_SCREENS:
+                    sets = ["%s = :r" % rrole, "%s = :s" % rscr]
+                    vals = {"r": "security", "s": sc}
+                    if rvis:
+                        sets.append("is_visible = TRUE")
+                    if "id" in rcols:
+                        sets.append("id = gen_random_uuid()")
+                    db.execute(_text(
+                        "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT DO NOTHING" % (
+                            rtbl, ", ".join(["%s" % rrole, "%s" % rscr] + (["is_visible"] if rvis else []) + (["id"] if "id" in rcols else [])),
+                            ", ".join([":r", ":s"] + (["TRUE"] if rvis else []) + (["gen_random_uuid()"] if "id" in rcols else [])))),
+                        vals)
+    except Exception as _ex:
+        errors.append("security-seed: %s" % str(_ex)[:120])
     db.commit()
     return {"ok": True, "added": added, "errors": errors}
