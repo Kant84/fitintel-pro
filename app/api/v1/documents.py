@@ -308,8 +308,14 @@ def print_document(document_id: str, db: Session = Depends(get_db),
 def download_document(document_id: str, format: str = "pdf",
                       db: Session = Depends(get_db), user=Depends(get_current_user)):
     """E33.13/E33.14 — экспорт документа в PDF / DOCX"""
+    _cols = {row[0] for row in db.execute(text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='documents'")).fetchall()}
+    _c_title = next((c for c in ("title", "name") if c in _cols), None)
+    _c_body = next((c for c in ("content", "body", "text", "html") if c in _cols), None)
+    if not _c_title:
+        raise HTTPException(status_code=500, detail="documents: нет колонки title/name")
     r = db.execute(text(
-        "SELECT title, content FROM documents WHERE id = :id"
+        "SELECT %s, %s FROM documents WHERE id = :id" % (_c_title, _c_body or _c_title)
     ), {"id": document_id}).fetchone()
     if not r:
         raise HTTPException(status_code=404, detail="Документ не найден")
