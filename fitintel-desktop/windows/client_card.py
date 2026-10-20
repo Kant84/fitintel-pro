@@ -90,7 +90,7 @@ class ClientCard(QDialog):
         self.menu = QListWidget()
         self.menu.setFixedWidth(210)
         self.menu.setStyleSheet(
-            "QListWidget{background:#f8fafc;border:1px solid #e2e8f0;outline:none;}"
+            "QListWidget{background:#F4E9C0;border:1px solid #D8C88F;outline:none;}"
             "QListWidget::item{padding:7px 10px;color:#334155;}"
             "QListWidget::item:selected{background:#0ea5e9;color:white;}")
         sp.addWidget(self.menu)
@@ -261,7 +261,7 @@ class ClientCard(QDialog):
         self.ava = QLabel("—")
         self.ava.setFixedSize(120, 120)
         self.ava.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.ava.setStyleSheet("background:#e2e8f0;border-radius:60px;color:#64748b;font-size:28px;font-weight:700;")
+        self.ava.setStyleSheet("background:#D8C88F;border-radius:60px;color:#64748b;font-size:28px;font-weight:700;")
         self._set_avatar(c.get("photo_url") or c.get("avatar_url"))
         top.addWidget(self.ava)
         bp = QPushButton("Сменить фото")
