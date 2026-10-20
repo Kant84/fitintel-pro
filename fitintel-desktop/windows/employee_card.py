@@ -1,3 +1,4 @@
+from windows.help_dialog import install_f1_dynamic
 # -*- coding: utf-8 -*-
 """W13: Карточка сотрудника v3 — шапка, роль/права, график, расписание, фото+Face ID."""
 from PyQt6.QtCore import Qt, QTimer
@@ -94,6 +95,7 @@ class EmployeeCard(QDialog):
         self.menu.currentRowChanged.connect(self._on_menu)
         self.menu.setCurrentRow(1)
         QTimer.singleShot(60, self.reload)
+        install_f1_dynamic(self, lambda: (self.menu.currentItem().text() if (self.menu.currentItem() is not None and bool(self.menu.currentItem().flags() & Qt.ItemFlag.ItemIsEnabled)) else ""))
 
     def _get(self, path, params=None):
         r = self.api.session.get(self.api._url(path), params=params or {}, timeout=30)
