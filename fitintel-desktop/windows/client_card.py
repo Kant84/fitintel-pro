@@ -158,9 +158,9 @@ class ClientCard(QDialog):
         except Exception:
             self._subs = []
         try:
-            self._files = self._get("/analytics/clients/%s/files" % self.client_id)
+            self._files = {"items": self._get("/analytics/media", {"owner_type": "client", "owner_id": self.client_id}).get("items", [])}
         except Exception:
-            self._files = {"photos": [], "documents": []}
+            self._files = {"items": []}
         self._fill_header()
         name = self.menu.currentItem().text() if self.menu.currentItem() else "Анкета"
         self._load_page(name)
@@ -439,47 +439,54 @@ class ClientCard(QDialog):
         except Exception as e:
             QMessageBox.warning(self, "Контакт", str(e)[:200])
 
-    # ── Документы ──
+    # ── Документы / Фото (безопасное хранилище /media, envelope encryption) ──
+    def _media_items(self, kind):
+        items = self._files.get("items", []) if isinstance(self._files, dict) else []
+        if kind == "photos":
+            return [r for r in items if str(r.get("photo_type") or "") != "document"]
+        return [r for r in items if str(r.get("photo_type") or "") == "document"]
+
     def _p_docs(self):
         v = self._page_layout("Документы")
-        self.tbl_docs = self._tbl(["Файл", "Действия"])
+        self.tbl_docs = self._tbl(["Файл", "Тип", "Размер", "Загружен"])
         v.addWidget(self.tbl_docs, 1)
         bar = QHBoxLayout()
-        b_up = QPushButton(" Загрузить файл (договор, справка…)"); b_up.clicked.connect(lambda: self._upload("documents"))
+        b_up = QPushButton(" Загрузить файл (договор, справка…)")
+        b_up.clicked.connect(lambda: self._upload("documents"))
         b_op = QPushButton("Открыть"); b_op.clicked.connect(lambda: self._file_open("documents"))
         b_del = QPushButton("Удалить"); b_del.clicked.connect(lambda: self._file_del("documents"))
         bar.addWidget(b_up); bar.addWidget(b_op); bar.addWidget(b_del)
-        bar.addWidget(self._refresh_btn(self.reload))
-        bar.addStretch(1)
+        bar.addWidget(self._refresh_btn(self.reload)); bar.addStretch(1)
         v.addLayout(bar)
-        rows = self._files.get("documents", [])
+        rows = self._media_items("documents")
         self.tbl_docs.setRowCount(len(rows))
         for i, r in enumerate(rows):
-            it = QTableWidgetItem(r.get("name", ""))
-            it.setData(Qt.ItemDataRole.UserRole, r.get("url"))
+            it = QTableWidgetItem(str(r.get("orig_name") or ""))
+            it.setData(Qt.ItemDataRole.UserRole, r.get("id"))
             self.tbl_docs.setItem(i, 0, it)
-            self.tbl_docs.setItem(i, 1, QTableWidgetItem("«Открыть» выше"))
+            self.tbl_docs.setItem(i, 1, QTableWidgetItem(str(r.get("mime") or "")))
+            self.tbl_docs.setItem(i, 2, QTableWidgetItem(str(r.get("size") or 0)))
+            self.tbl_docs.setItem(i, 3, QTableWidgetItem(str(r.get("created_at") or "")[:19]))
 
-    # ── Фото ──
     def _p_photos(self):
         v = self._page_layout("Фото")
-        self.tbl_photos = self._tbl(["Файл", "Действия"])
+        self.tbl_photos = self._tbl(["Файл", "Размер", "Загружен"])
         v.addWidget(self.tbl_photos, 1)
         bar = QHBoxLayout()
         b_up = QPushButton(" Загрузить фото"); b_up.clicked.connect(lambda: self._upload("photos"))
         b_op = QPushButton("Открыть"); b_op.clicked.connect(lambda: self._file_open("photos"))
         b_del = QPushButton("Удалить"); b_del.clicked.connect(lambda: self._file_del("photos"))
         bar.addWidget(b_up); bar.addWidget(b_op); bar.addWidget(b_del)
-        bar.addWidget(self._refresh_btn(self.reload))
-        bar.addStretch(1)
+        bar.addWidget(self._refresh_btn(self.reload)); bar.addStretch(1)
         v.addLayout(bar)
-        rows = self._files.get("photos", [])
+        rows = self._media_items("photos")
         self.tbl_photos.setRowCount(len(rows))
         for i, r in enumerate(rows):
-            it = QTableWidgetItem(r.get("name", ""))
-            it.setData(Qt.ItemDataRole.UserRole, r.get("url"))
+            it = QTableWidgetItem(str(r.get("orig_name") or ""))
+            it.setData(Qt.ItemDataRole.UserRole, r.get("id"))
             self.tbl_photos.setItem(i, 0, it)
-            self.tbl_photos.setItem(i, 1, QTableWidgetItem("«Открыть» выше"))
+            self.tbl_photos.setItem(i, 1, QTableWidgetItem(str(r.get("size") or 0)))
+            self.tbl_photos.setItem(i, 2, QTableWidgetItem(str(r.get("created_at") or "")[:19]))
 
     def _upload(self, kind):
         path, _ = QFileDialog.getOpenFileName(
@@ -489,45 +496,53 @@ class ClientCard(QDialog):
             return
         try:
             r = self.api.session.post(
-                self.api._url("/analytics/clients/%s/files" % self.client_id),
-                data={"kind": "Documents" if kind == "documents" else "Photos"},
+                self.api._url("/analytics/media/upload"),
+                data={"owner_type": "client", "owner_id": self.client_id,
+                      "photo_type": "avatar" if kind == "photos" else "document"},
                 files={"file": open(path, "rb")}, timeout=120)
             r.raise_for_status()
-            QMessageBox.information(self, "Загрузка", "Файл сохранён в папку клиента (Clients/%s/%s/)" % (self.client_id, "Documents" if kind == "documents" else "Photos"))
+            d = r.json()
+            if not d.get("ok"):
+                QMessageBox.warning(self, "Загрузка", str(d.get("error", "ошибка")))
+                return
+            QMessageBox.information(self, "Загрузка",
+                "Файл зашифрован (AES-256-GCM), имя заменено UUID, доступ — только по авторизованным ссылкам.")
             self.reload()
         except Exception as e:
             QMessageBox.warning(self, "Загрузка", str(e)[:250])
 
-    def _file_open(self, kind):
+    def _media_row(self, kind):
         tbl = self.tbl_docs if kind == "documents" else self.tbl_photos
         row = tbl.currentRow()
         if row < 0:
-            return
+            return None
         it = tbl.item(row, 0)
-        url = it.data(Qt.ItemDataRole.UserRole) if it else None
+        mid = it.data(Qt.ItemDataRole.UserRole) if it else None
+        for r in self._media_items(kind):
+            if str(r.get("id")) == str(mid):
+                return r
+        return None
+
+    def _file_open(self, kind):
+        r = self._media_row(kind)
+        if not r:
+            return
+        url = str(r.get("url") or "")
         if url:
             import os
-            full = url if str(url).startswith("http") else ("http://192.168.101.182" + str(url))
+            full = url if url.startswith("http") else ("http://192.168.101.182" + url)
             os.startfile(full)
 
     def _file_del(self, kind):
-        tbl = self.tbl_docs if kind == "documents" else self.tbl_photos
-        row = tbl.currentRow()
-        if row < 0:
-            return
-        it = tbl.item(row, 0)
-        url = it.data(Qt.ItemDataRole.UserRole) if it else None
-        name = str(url).rsplit("/", 1)[-1] if url else ""
-        if not name:
+        r = self._media_row(kind)
+        if not r:
             return
         try:
-            r = self.api.session.delete(self.api._url(
-                "/analytics/clients/%s/files/%s/%s" % (self.client_id, "Documents" if kind == "documents" else "Photos", name)), timeout=20)
-            r.raise_for_status()
+            resp = self.api.session.delete(self.api._url("/analytics/media/%s" % r["id"]), timeout=20)
+            resp.raise_for_status()
             self.reload()
         except Exception as e:
             QMessageBox.warning(self, "Удаление", str(e)[:200])
-
     # ── Пакеты/Услуги ──
     def _p_subs(self):
         v = self._page_layout("Пакеты/Услуги")

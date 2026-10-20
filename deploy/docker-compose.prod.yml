@@ -27,6 +27,8 @@ services:
 
   api:
     image: fitintel:prod            # загружается из fitintel-prod.tar (docker load)
+    secrets:
+      - media_master_key
     env_file: .env
     environment:
       APP_ENV: prod
@@ -50,6 +52,7 @@ services:
       - static_scan:/app/static/scan
       - static_brand:/app/static/brand
       - clients_data:/app/static/clients
+      - media_data:/srv/media
       - accounting_data:/app/data_accounting
       - face_photos:/app/data/face_photos   # опциональное хранение фото лиц (если клуб включил)
     depends_on:
@@ -103,6 +106,7 @@ volumes:
     name: deploy_static_scan
   static_brand:
   clients_data:
+  media_data:
     external: true
     name: deploy_clients_data
   accounting_data:
@@ -112,3 +116,7 @@ volumes:
   face_photos:
 
 # networks не задаём — дефолтная сеть compose достаточна (все сервисы в одной)
+
+secrets:
+  media_master_key:
+    file: /etc/fitintel/secrets/media_master_key

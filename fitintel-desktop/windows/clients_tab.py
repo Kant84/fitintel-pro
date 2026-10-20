@@ -245,6 +245,7 @@ class ClientsTab(QWidget):
         row.addStretch()
         b_add = self._btn(" Добавить", "#10b981", "white"); b_add.clicked.connect(self._add)
         b_edit = self._btn(" Изменить", "#3b82f6", "white"); b_edit.clicked.connect(self._edit)
+        b_edit.setVisible(False)  # редактирование — в карточке клиента
         b_deact = self._btn(" Деактивировать", "#fee2e2", "#b91c1c"); b_deact.clicked.connect(self._deactivate)
         b_del = self._btn(" Удалить", "#dc2626", "white"); b_del.clicked.connect(self._delete)
         b_ref = self._btn("Обновить"); b_ref.clicked.connect(self.refresh)
