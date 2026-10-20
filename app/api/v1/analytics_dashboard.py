@@ -1644,7 +1644,7 @@ def _bearer_user(authorization: str):
         return decode_token(authorization.split(None, 1)[1])
     except Exception:
         return None
-@router.get("/media/list")
+@router.get("/w12/media/list")
 def media_list(owner_type: str = "client", owner_id: str = "", request: Request = None,
                db: Session = _Depends(get_db), authorization: str = Header(None)):
     _ensure_media(db)
@@ -1664,12 +1664,12 @@ def media_list(owner_type: str = "client", owner_id: str = "", request: Request 
         items.append({"id": r["id"], "orig_name": r["orig_name"], "mime": r["mime"],
                       "size": r["size"], "photo_type": r["photo_type"],
                       "created_at": str(r["created_at"]),
-                      "url": "/api/v1/analytics/media/%s/content?sig=%s&exp=%d" % (r["id"], _sign(r["id"], exp), exp)})
+                      "url": "/api/v1/analytics/w12/media/%s/content?sig=%s&exp=%d" % (r["id"], _sign(r["id"], exp), exp)})
     _audit(db, "", "list", "ok", request, user, owner_id)
     return {"items": items}
 
 
-@router.post("/media/upload")
+@router.post("/w12/media/upload")
 async def media_upload(request: Request, file: UploadFile = File(...),
                        owner_type: str = Form("client"), owner_id: str = Form(""),
                        photo_type: str = Form("document"),
@@ -1712,10 +1712,10 @@ async def media_upload(request: Request, file: UploadFile = File(...),
     import time as _time
     exp = int(_time.time()) + 300
     return {"ok": True, "id": fid,
-            "url": "/api/v1/analytics/media/%s/content?sig=%s&exp=%d" % (fid, _sign(fid, exp), exp)}
+            "url": "/api/v1/analytics/w12/media/%s/content?sig=%s&exp=%d" % (fid, _sign(fid, exp), exp)}
 
 
-@router.get("/media/{file_id}/content")
+@router.get("/w12/media/{file_id}/content")
 def media_content(file_id: str, request: Request, sig: str = None, exp: int = None,
                   reason: str = None, db: Session = _Depends(get_db),
                   authorization: str = Header(None)):
@@ -1744,7 +1744,7 @@ def media_content(file_id: str, request: Request, sig: str = None, exp: int = No
     return _Resp(content=data, media_type=r["mime"] or "application/octet-stream")
 
 
-@router.delete("/media/{file_id}")
+@router.delete("/w12/media/{file_id}")
 def media_delete(file_id: str, request: Request, db: Session = _Depends(get_db),
                  authorization: str = Header(None)):
     _ensure_media(db)
@@ -1906,7 +1906,7 @@ def _ensure_sa(db):
     db.commit()
 
 
-@router.post("/rbac/seed")
+@router.post("/w12/rbac/seed")
 def rbac_seed(db: Session = _Depends(get_db), authorization: str = Header(None)):
     user = _bearer_user(authorization)
     if not user:
@@ -1917,7 +1917,7 @@ def rbac_seed(db: Session = _Depends(get_db), authorization: str = Header(None))
     return {"ok": True}
 
 
-@router.get("/service-accounts")
+@router.get("/w12/service-accounts")
 def sa_list(db: Session = _Depends(get_db), authorization: str = Header(None)):
     _seed_rbac(db)
     _ensure_sa(db)
@@ -1932,7 +1932,7 @@ def sa_list(db: Session = _Depends(get_db), authorization: str = Header(None)):
     return {"items": [dict(r) for r in rows]}
 
 
-@router.post("/service-accounts")
+@router.post("/w12/service-accounts")
 def sa_create(payload: dict, db: Session = _Depends(get_db), authorization: str = Header(None)):
     _seed_rbac(db)
     _ensure_sa(db)
@@ -1959,7 +1959,7 @@ def sa_create(payload: dict, db: Session = _Depends(get_db), authorization: str 
             "note": "Токен показывается один раз. scopes: %s" % scopes}
 
 
-@router.post("/service-accounts/{sid}/revoke")
+@router.post("/w12/service-accounts/{sid}/revoke")
 def sa_revoke(sid: str, db: Session = _Depends(get_db), authorization: str = Header(None)):
     _ensure_sa(db)
     user = _bearer_user(authorization)
@@ -1973,7 +1973,7 @@ def sa_revoke(sid: str, db: Session = _Depends(get_db), authorization: str = Hea
     return {"ok": True}
 
 
-@router.get("/media/audit")
+@router.get("/w12/media/audit")
 def media_audit(limit: int = 200, db: Session = _Depends(get_db), authorization: str = Header(None)):
     _ensure_media(db)
     user = _bearer_user(authorization)
