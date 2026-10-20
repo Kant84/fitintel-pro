@@ -1875,6 +1875,7 @@ def _user_perms(db, user_id: str) -> set:
 
 
 def _is_super(db, user_id: str) -> bool:
+    from sqlalchemy import text as _text
     try:
         if db.execute(_text(
             "SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id "
