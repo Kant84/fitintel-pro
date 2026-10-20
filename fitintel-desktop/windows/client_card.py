@@ -49,7 +49,7 @@ class ClientCard(QDialog):
                            ("card", "Карта"), ("dogovor", "Договор"), ("wallet", "Лиц. счёт"),
                            ("state", "Состояние")):
             box = QFrame()
-            box.setStyleSheet("QFrame{background:#ffffff;border:1px solid #dfe3e8;border-radius:8px;}"
+            box.setStyleSheet("QFrame{background:#F6EEC9;border:1px solid #D8C88F;border-radius:8px;}"
                               "QLabel{background:transparent;border:none;}")
             v = QVBoxLayout(box)
             v.setContentsMargins(8, 4, 8, 4)

@@ -36,7 +36,7 @@ class EmployeeCard(QDialog):
         for key, title in (("fio", "Сотрудник"), ("role", "Роль"), ("dept", "Отдел"),
                            ("pos", "Должность"), ("status", "Статус"), ("perms", "Прав")):
             box = QFrame()
-            box.setStyleSheet("QFrame{background:#ffffff;border:1px solid #dfe3e8;border-radius:8px;}"
+            box.setStyleSheet("QFrame{background:#F6EEC9;border:1px solid #D8C88F;border-radius:8px;}"
                               "QLabel{background:transparent;border:none;}")
             v = QVBoxLayout(box)
             t = QLabel(title); t.setStyleSheet("color:#637381;font-size:10px;")
@@ -581,8 +581,7 @@ class EmployeeCard(QDialog):
         for w in tl:
             if w is self:
                 continue
-            lw = w.findChild(QListWidget)
-            if lw is not None:
+            for lw in w.findChildren(QListWidget):
                 for i in range(lw.count()):
                     if t in lw.item(i).text().lower():
                         lw.setCurrentRow(i)
@@ -597,16 +596,14 @@ class EmployeeCard(QDialog):
             for tw in w.findChildren(QTabWidget):
                 for i in range(tw.count()):
                     if t in tw.tabText(i).lower():
-                        lw = w.findChild(QListWidget)
-                        if lw is not None:
+                        for lw in w.findChildren(QListWidget):
                             for j in range(lw.count()):
                                 if "настройк" in lw.item(j).text().lower():
                                     lw.setCurrentRow(j)
-                                    break
                         tw.setCurrentIndex(i)
                         try:
                             self.lower(); w.raise_(); w.activateWindow()
                         except Exception:
                             pass
                         return
-        QMessageBox.information(self, "Навигация", "Экран «%s» не найден в меню." % title)
+        QMessageBox.information(self, "Навигация", "Экран «%s» не найден." % title)
