@@ -76,7 +76,8 @@ class ClientCard(QDialog):
                 (" Продать услугу", self._sell_service, "#10b981"),
                 (" Выдать карту", self._assign_card, "#3b82f6"),
                 (" Заморозить", self._freeze, "#f59e0b"),
-                (" К сообщениям MAX", self._open_max, "#8b5cf6")):
+                (" К сообщениям MAX", self._open_max, "#8b5cf6"),
+                (" Face ID", self._open_face, "#0ea5e9")):
             b = QPushButton(text)
             b.setStyleSheet("QPushButton{background:%s;color:white;border:none;border-radius:6px;padding:8px 14px;font-weight:600;}" % color)
             b.clicked.connect(slot)
@@ -578,8 +579,12 @@ class ClientCard(QDialog):
         if not txt:
             return
         try:
-            self._post("/comments", {"client_id": self.client_id, "text": txt,
-                                     "type": self.cb_ntype.currentData()})
+            try:
+                self._post("/comments", {"client_id": self.client_id, "text": txt,
+                                         "type": self.cb_ntype.currentData()})
+            except Exception:
+                self._post("/comments/", {"client_id": self.client_id, "text": txt,
+                                          "type": self.cb_ntype.currentData()})
             self.ed_note.clear()
             self._load_page("Замечания")
         except Exception as e:
@@ -722,7 +727,8 @@ class ClientCard(QDialog):
             self.tbl_cars.item(i, 0).setData(Qt.ItemDataRole.UserRole, r.get("id"))
 
     def _car_add(self):
-        if not self.ed_car_n.text().strip():
+        if not (self.ed_car_m.text().strip() or self.ed_car_n.text().strip()):
+            QMessageBox.warning(self, "Авто", "Укажите марку или гос. номер")
             return
         try:
             self._post("/analytics/clients/%s/cars" % self.client_id,
@@ -772,6 +778,9 @@ class ClientCard(QDialog):
     def _toggle_confidential(self, on):
         try:
             self._post("/analytics/clients/%s/profile" % self.client_id, {"confidential": bool(on)})
+            self.eye.setToolTip("Конфиденциально: " + ("ДА" if on else "нет"))
+            QMessageBox.information(self, "Конфиденциально",
+                                    "Флаг сохранён: %s" % ("ДА — данные скрыты от ролей без права" if on else "нет"))
         except Exception as e:
             QMessageBox.warning(self, "Конфиденциально", str(e)[:200])
 
@@ -830,6 +839,9 @@ class ClientCard(QDialog):
             self.reload()
         except Exception as e:
             QMessageBox.warning(self, "Заморозка", str(e)[:250])
+
+    def _open_face(self):
+        self._open_max_screen("Face ID")
 
     def _open_max(self):
         self._open_max_screen("MAX")
