@@ -11,6 +11,7 @@ _MOD2CLS = {
     "roles_tab": "RolesTab",
     "integrations_tab": "IntegrationsTab",
     "service_accounts_tab": "ServiceAccountsTab",
+    "access_audit_tab": "AccessAuditTab",
     "commerce_tab": "CommerceTab",
 }
 
@@ -33,6 +34,7 @@ def SettingsHubTab(api, main_window=None):
                            ("Роли и права", "roles_tab"),
                            ("Интеграции", "integrations_tab"),
                            ("Коммерция", "commerce_tab"),
-                           ("Service-аккаунты", "service_accounts_tab")]:
+                           ("Service-аккаунты", "service_accounts_tab"),
+                           ("Аудит доступа (152-ФЗ)", "access_audit_tab")]:
         specs.append((_title, _build(_mod)))
     return HubTab(api, specs, main_window)
