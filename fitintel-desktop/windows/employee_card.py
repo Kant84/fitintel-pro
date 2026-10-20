@@ -575,21 +575,40 @@ class EmployeeCard(QDialog):
         self._nav("Бухгалтерия")
 
     def _nav(self, title):
-        for w in QApplication.topLevelWidgets():
-            lw = w.findChild(QListWidget)
-            if lw is None:
+        tl = list(QApplication.topLevelWidgets())
+        t = title.lower()
+        from PyQt6.QtWidgets import QTabWidget, QListWidget
+        for w in tl:
+            if w is self:
                 continue
-            for i in range(lw.count()):
-                if title.lower() in lw.item(i).text().lower():
-                    lw.setCurrentRow(i)
-                    try:
-                        self.lower()
-                        w.raise_()
-                        w.activateWindow()
-                    except Exception:
-                        pass
-                    try:
-                        w.raise_(); w.activateWindow()
-                    except Exception:
-                        pass
-                    return
+            lw = w.findChild(QListWidget)
+            if lw is not None:
+                for i in range(lw.count()):
+                    if t in lw.item(i).text().lower():
+                        lw.setCurrentRow(i)
+                        try:
+                            self.lower(); w.raise_(); w.activateWindow()
+                        except Exception:
+                            pass
+                        return
+        for w in tl:
+            if w is self:
+                continue
+            for tw in w.findChildren(QTabWidget):
+                if not tw.isVisible():
+                    continue
+                for i in range(tw.count()):
+                    if t in tw.tabText(i).lower():
+                        lw = w.findChild(QListWidget)
+                        if lw is not None:
+                            for j in range(lw.count()):
+                                if "настройк" in lw.item(j).text().lower():
+                                    lw.setCurrentRow(j)
+                                    break
+                        tw.setCurrentIndex(i)
+                        try:
+                            self.lower(); w.raise_(); w.activateWindow()
+                        except Exception:
+                            pass
+                        return
+        QMessageBox.information(self, "Навигация", "Экран «%s» не найден в меню." % title)
