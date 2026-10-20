@@ -2340,3 +2340,192 @@ def client_access_audit(cid: str, limit: int = 200, db: Session = _Depends(get_d
         " ORDER BY a.created_at DESC LIMIT :l"),
         {"c": str(cid), "l": lim}).mappings().all()
     return {"items": [dict(r) for r in rows]}
+
+# ═══════════════ W15_GLOBAL_AUDIT: глобальный аудит + шлюз доступа ═══════════════
+import hashlib as _hl
+
+
+def _ensure_gateway_log(db):
+    from sqlalchemy import text as _text
+    db.execute(_text(
+        "CREATE TABLE IF NOT EXISTS access_gateway_log ("
+        "id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
+        "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+        "ctype TEXT, value TEXT, client_id TEXT,"
+        "decision TEXT, reason TEXT)"))
+    db.commit()
+
+
+def _gw_log(db, payload, client_id, decision, reason):
+    from sqlalchemy import text as _text
+    try:
+        db.execute(_text(
+            "INSERT INTO access_gateway_log (ctype, value, client_id, decision, reason)"
+            " VALUES (:t, :v, :c, :d, :r)"),
+            {"t": str(payload.get("type") or ""), "v": str(payload.get("value") or "")[:128],
+             "c": str(client_id or ""), "d": decision, "r": reason})
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def _service_account_from_token(db, token):
+    """Проверка service-токена sat_... (динамический поиск service_accounts)."""
+    from sqlalchemy import text as _text
+    if not token or not str(token).startswith("sat_"):
+        return None
+    tables = [r[0] for r in db.execute(_text(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
+        " AND table_name ILIKE '%service%account%'")).fetchall()]
+    for tbl in tables:
+        cols = {r[0] for r in db.execute(_text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name=:t"),
+            {"t": tbl}).fetchall()}
+        tok_col = next((c for c in cols if "token" in c or "hash" in c), None)
+        if not tok_col:
+            continue
+        sha = _hl.sha256(str(token).encode()).hexdigest()
+        for val in (sha, str(token), str(token)[:16]):
+            try:
+                row = db.execute(_text(
+                    "SELECT * FROM %s WHERE %s = :v LIMIT 1" % (tbl, tok_col)),
+                    {"v": val}).mappings().first()
+            except Exception:
+                db.rollback()
+                continue
+            if not row:
+                continue
+            d = dict(row)
+            if d.get("revoked_at") or d.get("status") == "revoked":
+                return None
+            scopes = d.get("scopes") or []
+            if isinstance(scopes, str):
+                scopes = [s.strip() for s in scopes.replace("{", "").replace("}", "").split(",") if s.strip()]
+            return {"scopes": scopes}
+    return None
+
+
+def _find_client_by_credential(db, ctype, value):
+    from sqlalchemy import text as _text
+    v = str(value or "").strip()
+    if not v:
+        return None
+    if ctype == "qr":
+        try:
+            import json as _j
+            d = _j.loads(v)
+            v = str(d.get("client_id") or d.get("uid") or v)
+        except Exception:
+            pass
+        try:
+            row = db.execute(_text(
+                "SELECT id::text FROM clients WHERE id::text = :v OR id::text LIKE :p LIMIT 1"),
+                {"v": v, "p": v + "%"}).first()
+            if row:
+                return row[0]
+        except Exception:
+            db.rollback()
+    for tbl, cols in (("credentials", ("uid", "card_uid", "value", "code")),
+                      ("client_cards", ("uid", "card_uid")),
+                      ("clients", ("card_uid", "rfid_uid", "card", "qr_code"))):
+        if not db.execute(_text(
+                "SELECT 1 FROM information_schema.tables WHERE table_name=:t"), {"t": tbl}).first():
+            continue
+        tcols = {r[0] for r in db.execute(_text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name=:t"),
+            {"t": tbl}).fetchall()}
+        idcol = "client_id" if "client_id" in tcols else ("id" if tbl == "clients" else None)
+        if not idcol:
+            continue
+        for c in cols:
+            if c in tcols:
+                try:
+                    row = db.execute(_text(
+                        "SELECT %s::text FROM %s WHERE %s = :v LIMIT 1" % (idcol, tbl, c)),
+                        {"v": v}).first()
+                    if row:
+                        return row[0]
+                except Exception:
+                    db.rollback()
+    return None
+
+
+def _client_has_access(db, client_id):
+    from sqlalchemy import text as _text
+    for tbl in ("subscriptions", "memberships", "client_subscriptions"):
+        if not db.execute(_text(
+                "SELECT 1 FROM information_schema.tables WHERE table_name=:t"), {"t": tbl}).first():
+            continue
+        cols = {r[0] for r in db.execute(_text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name=:t"),
+            {"t": tbl}).fetchall()}
+        if "client_id" not in cols or "status" not in cols:
+            continue
+        try:
+            if db.execute(_text(
+                    "SELECT 1 FROM %s WHERE client_id::text = :c AND status = 'ACTIVE' LIMIT 1" % tbl),
+                    {"c": str(client_id)}).first():
+                return True
+        except Exception:
+            db.rollback()
+    return False
+
+
+@router.post("/w12/access/verify")
+def access_verify(payload: dict, db: Session = _Depends(get_db),
+                  authorization: str = Header(None)):
+    """Шлюз турникета: service-токен (scope access:verify) → пропуск/отказ + лог."""
+    _ensure_gateway_log(db)
+    token = str(authorization or "").replace("Bearer", "").strip()
+    sa = _service_account_from_token(db, token)
+    user = _bearer_user(authorization)
+    if not sa and not (user and (_is_super(db, str(user.get("sub", "")))
+                                 or _has_perm(db, user, "access.verify"))):
+        _gw_log(db, payload, None, "deny", "auth")
+        return {"allow": False, "error": "auth"}
+    if sa and "access:verify" not in sa["scopes"]:
+        _gw_log(db, payload, None, "deny", "scope")
+        return {"allow": False, "error": "forbidden (need access:verify)"}
+    cid = _find_client_by_credential(db, str(payload.get("type") or "rfid"),
+                                     payload.get("value"))
+    if not cid:
+        _gw_log(db, payload, None, "deny", "unknown_credential")
+        return {"allow": False, "error": "client not found"}
+    if not _client_has_access(db, cid):
+        _gw_log(db, payload, cid, "deny", "no_active_subscription")
+        return {"allow": False, "client_id": cid, "error": "no active subscription"}
+    _gw_log(db, payload, cid, "allow", "ok")
+    return {"allow": True, "client_id": cid}
+
+
+@router.get("/w12/access-audit")
+def access_audit_global(limit: int = 300, client_id: str = None, action: str = None,
+                        db: Session = _Depends(get_db), authorization: str = Header(None)):
+    from sqlalchemy import text as _text
+    user = _bearer_user(authorization)
+    if not user:
+        return {"error": "auth required"}
+    uid = str(user.get("sub", ""))
+    if not (_is_super(db, uid) or _has_perm(db, user, "audit.view")
+            or _has_perm(db, user, "roles.manage")):
+        return {"error": "forbidden"}
+    lim = max(1, min(int(limit or 300), 2000))
+    where, params = [], {"l": lim}
+    if client_id:
+        where.append("(mf.owner_id = :cid OR a.reason LIKE :cr)")
+        params["cid"] = str(client_id)
+        params["cr"] = "%:" + str(client_id)
+    if action:
+        where.append("a.action = :act")
+        params["act"] = str(action)
+    wsql = (" WHERE " + " AND ".join(where)) if where else ""
+    rows = db.execute(_text(
+        "SELECT a.created_at, a.action, a.result, a.ip, a.reason,"
+        " COALESCE(u.full_name, u.username, '') AS who,"
+        " COALESCE(mf.orig_name, '') AS fname,"
+        " COALESCE(mf.owner_id, '') AS client_id"
+        " FROM media_access_log a"
+        " LEFT JOIN users u ON u.id::text = a.user_id"
+        " LEFT JOIN media_files mf ON mf.id::text = a.file_id" + wsql +
+        " ORDER BY a.created_at DESC LIMIT :l"), params).mappings().all()
+    return {"items": [dict(r) for r in rows]}
