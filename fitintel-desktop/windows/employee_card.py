@@ -595,8 +595,6 @@ class EmployeeCard(QDialog):
             if w is self:
                 continue
             for tw in w.findChildren(QTabWidget):
-                if not tw.isVisible():
-                    continue
                 for i in range(tw.count()):
                     if t in tw.tabText(i).lower():
                         lw = w.findChild(QListWidget)
