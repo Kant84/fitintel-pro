@@ -2140,7 +2140,7 @@ def ensure_ui_screens(db: Session = _Depends(get_db), authorization: str = Heade
                     continue
                 icols.append(c); marks.append(":f_" + c); vals["f_" + c] = v
             if "id" in cols and "id" not in icols:
-                icols.append("id"); marks.append("gen_random_uuid()::text")
+                icols.append("id"); marks.append("gen_random_uuid()")
             if "is_active" in cols and "is_active" not in icols:
                 icols.append("is_active"); marks.append("TRUE")
             if "sort_order" in cols and "sort_order" not in icols:
