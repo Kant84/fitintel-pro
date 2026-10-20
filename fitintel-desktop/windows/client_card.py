@@ -158,7 +158,7 @@ class ClientCard(QDialog):
         except Exception:
             self._subs = []
         try:
-            self._files = {"items": self._get("/analytics/media", {"owner_type": "client", "owner_id": self.client_id}).get("items", [])}
+            self._files = {"items": self._get("/analytics/media/list", {"owner_type": "client", "owner_id": self.client_id}).get("items", [])}
         except Exception:
             self._files = {"items": []}
         self._fill_header()
