@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QWidget, QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton,
     QLineEdit, QComboBox, QCheckBox, QSpinBox, QDateEdit, QListWidget, QListWidgetItem,
     QStackedWidget, QSplitter, QScrollArea, QTableWidget, QTableWidgetItem,
-    QHeaderView, QMessageBox, QFileDialog, QToolButton, QAbstractItemView, QFrame,
+    QHeaderView, QMessageBox, QFileDialog, QToolButton, QAbstractItemView, QFrame, QDoubleSpinBox,
     QSizePolicy)
 
 STATUS_LABELS = {"ACTIVE": "Активен", "FROZEN": "Заморожен", "DEBTOR": "Должник",
@@ -611,13 +611,62 @@ class ClientCard(QDialog):
 
     def _p_wallet(self):
         v = self._page_layout("Баланс")
-        wb = self._client.get("wallet_balance")
-        big = QLabel(("%s ₽" % wb) if wb is not None else "—")
-        big.setStyleSheet("font-size:34px;font-weight:700;color:#059669;")
-        v.addWidget(big)
-        v.addWidget(QLabel("Лицевой счёт клиента (кошелёк приложения). Пополнение — через приложение/бота или администратором."))
-        v.addStretch(1)
+        self.lbl_bal = QLabel("—")
+        self.lbl_bal.setStyleSheet("font-size:34px;font-weight:700;color:#059669;")
+        v.addWidget(self.lbl_bal)
+        v.addWidget(QLabel("Лицевой счёт (кошелёк клиента). Не путать с кассой: здесь — внутренние деньги "
+                           "приложения; в кассу деньги попадают только при оплате «С баланса» на ресепшене."))
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Сумма:"))
+        self.sp_wamt = QDoubleSpinBox(); self.sp_wamt.setRange(0.01, 1000000); self.sp_wamt.setDecimals(2)
+        row.addWidget(self.sp_wamt)
+        self.cb_wdir = QComboBox()
+        self.cb_wdir.addItem("Пополнить", "in")
+        self.cb_wdir.addItem("Списать", "out")
+        row.addWidget(self.cb_wdir)
+        self.ed_wcom = QLineEdit(); self.ed_wcom.setPlaceholderText("Комментарий (откуда/зачем)")
+        row.addWidget(self.ed_wcom, 1)
+        b = QPushButton(" Применить"); b.clicked.connect(self._wallet_op)
+        row.addWidget(b)
+        v.addLayout(row)
+        v.addWidget(QLabel("История операций:"))
+        self.tbl_wops = self._tbl(["Дата", "Изменение", "Баланс после", "Комментарий", "Кто"])
+        v.addWidget(self.tbl_wops, 1)
+        v.addWidget(self._refresh_btn(self.reload))
+        try:
+            d = self._get("/analytics/clients/%s/wallet" % self.client_id)
+            bal = d.get("balance")
+            self.lbl_bal.setText("%.2f ₽" % float(bal or 0))
+            ops = d.get("operations", [])
+        except Exception as e:
+            self.lbl_bal.setText("—")
+            ops = []
+            v.addWidget(QLabel("Не удалось загрузить счёт: %s" % str(e)[:150]))
+        self.tbl_wops.setRowCount(len(ops))
+        for i, r in enumerate(ops):
+            self.tbl_wops.setItem(i, 0, QTableWidgetItem(str(r.get("created_at") or "")[:19]))
+            dlt = float(r.get("delta") or 0)
+            it = QTableWidgetItem("%+.2f ₽" % dlt)
+            it.setForeground(QColor("#059669" if dlt >= 0 else "#ef4444"))
+            self.tbl_wops.setItem(i, 1, it)
+            self.tbl_wops.setItem(i, 2, QTableWidgetItem("%.2f ₽" % float(r.get("balance_after") or 0)))
+            self.tbl_wops.setItem(i, 3, QTableWidgetItem(str(r.get("comment") or "")))
+            self.tbl_wops.setItem(i, 4, QTableWidgetItem(str(r.get("created_by") or "—")))
 
+    def _wallet_op(self):
+        try:
+            r = self._post("/analytics/clients/%s/wallet" % self.client_id,
+                           {"amount": self.sp_wamt.value(),
+                            "direction": self.cb_wdir.currentData(),
+                            "comment": self.ed_wcom.text().strip()})
+            if not r.get("ok"):
+                QMessageBox.warning(self, "Лицевой счёт", str(r.get("error", "ошибка")))
+                return
+            QMessageBox.information(self, "Лицевой счёт", "Готово. Баланс: %.2f ₽" % float(r.get("balance")))
+            self.ed_wcom.clear()
+            self.reload()
+        except Exception as e:
+            QMessageBox.warning(self, "Лицевой счёт", str(e)[:250])
     def _p_bonuses(self):
         v = self._page_layout("Бонусы")
         bn = self._client.get("bonuses")
