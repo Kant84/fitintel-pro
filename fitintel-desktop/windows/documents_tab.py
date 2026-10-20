@@ -309,3 +309,140 @@ try:
     print("PDF cleanup OK: documents_tab")
 except Exception as _e:
     print("PDF cleanup FAIL:", _e)
+
+# === W16_WORD_DOCS: двойной клик + Word (.doc) + fallback PDF ===
+def _doc_text(self, doc_id):
+    r = self.api.session.get(self.api._url("/documents/%s" % doc_id), timeout=20)
+    r.raise_for_status()
+    try:
+        d = r.json()
+        return str(d.get("content") or d.get("body") or d.get("text") or d.get("document", {}).get("content") or "")
+    except Exception:
+        return r.text
+
+
+def _open_word(self, text, prefix="doc"):
+    import os, html, tempfile
+    path = os.path.join(tempfile.gettempdir(), "%s_%d.doc" % (prefix, abs(hash(str(text))) % 99999))
+    h = ('<html><head><meta charset="utf-8"></head><body '
+         'style="font-family:Times New Roman;font-size:12pt">'
+         '<pre style="white-space:pre-wrap">%s</pre></body></html>') % html.escape(str(text) or "(пусто)")
+    open(path, "w", encoding="utf-8").write(h)
+    os.startfile(path)
+
+
+def _tpl_dbl(self, item):
+    row = self.tbl_tpl.currentRow()
+    if row < 0:
+        return
+    tpls = getattr(self, "_tpls", []) or []
+    if row >= len(tpls):
+        return
+    t = tpls[row]
+    from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPlainTextEdit, QPushButton
+    d = QDialog(self)
+    d.setWindowTitle("Шаблон: " + str(t.get("name") or ""))
+    lay = QVBoxLayout(d)
+    lay.addWidget(QLabel("Код: %s   |   Тип: %s" % (t.get("code") or "—", t.get("doc_type") or "—")))
+    te = QPlainTextEdit()
+    te.setReadOnly(True)
+    te.setPlainText(str(t.get("content") or "(список шаблонов не отдаёт текст — текст подставится при генерации документа)"))
+    lay.addWidget(te, 1)
+    b = QPushButton("Закрыть")
+    b.clicked.connect(d.accept)
+    lay.addWidget(b)
+    d.resize(620, 480)
+    d.exec()
+
+
+def _doc_dbl(self, item):
+    row = self.table.currentRow()
+    if row < 0:
+        return
+    doc_id = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+    if not doc_id:
+        return
+    try:
+        self._open_word(self._doc_text(doc_id), "doc_%s" % str(doc_id)[:8])
+    except Exception as e:
+        QMessageBox.critical(self, "Документ", str(e)[:200])
+
+
+def _generate_w16(self):
+    tpls = getattr(self, "_tpls", [])
+    cmap = getattr(self, "_cmap", {})
+    if not tpls:
+        QMessageBox.warning(self, "Нет шаблонов", "Шаблоны документов не загружены. Нажмите Обновить.")
+        return
+    if not cmap:
+        QMessageBox.warning(self, "Нет клиентов", "В базе нет клиентов. Добавьте клиента в разделе Клиенты.")
+        return
+    dlg = FormDialog("Новый документ", [
+        ("template", "Шаблон *", "combo",
+         [(t.get("name", t.get("code")), (t.get("template_id"), t.get("code"))) for t in tpls]),
+        ("client_id", "Клиент *", "combo",
+         [(v, k) for k, v in list(cmap.items())[:200]]),
+    ], self)
+    if dlg.exec() != FormDialog.DialogCode.Accepted:
+        return
+    v = dlg.values()
+    tpl_id, tpl_code = v["template"]
+    payload = {"type": tpl_code, "client_id": v["client_id"], "template_id": tpl_id}
+    try:
+        r = self.api.session.post(self.api._url("/documents"), json=payload)
+        r.raise_for_status()
+        d = r.json() or {}
+        doc_id = d.get("document_id") or d.get("id") or d.get("doc_id") or (d.get("document") or {}).get("id")
+        self.refresh()
+        if doc_id:
+            try:
+                self._open_word(self._doc_text(doc_id), "doc_%s" % str(doc_id)[:8])
+                return
+            except Exception:
+                pass
+        QMessageBox.information(self, "Готово", "Документ создан. Откройте его двойным кликом.")
+    except Exception as e:
+        QMessageBox.critical(self, "Ошибка", str(e))
+
+
+def _download_pdf_w16(self):
+    row = self.table.currentRow()
+    if row < 0:
+        return
+    doc_id = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+    if not doc_id:
+        QMessageBox.warning(self, "PDF", "ID документа не найден")
+        return
+    try:
+        r = self.api.session.get(self.api._url("/documents/%s/download?format=pdf" % doc_id))
+        r.raise_for_status()
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getSaveFileName(self, "Сохранить PDF", "doc_%s.pdf" % doc_id[:8], "PDF (*.pdf)")
+        if path:
+            with open(path, "wb") as fh:
+                fh.write(r.content)
+            QMessageBox.information(self, "PDF", "Сохранено: %s" % path)
+    except Exception as e:
+        try:
+            self._open_word(self._doc_text(doc_id), "doc_%s" % str(doc_id)[:8])
+            QMessageBox.information(
+                self, "PDF недоступен",
+                "Сервер не отдал PDF (%s).\nДокумент открыт в Word — сохраните как PDF из Word." % str(e)[:90])
+        except Exception as e2:
+            QMessageBox.critical(self, "Ошибка", str(e2)[:200])
+
+
+DocumentsTab._doc_text = _doc_text
+DocumentsTab._open_word = _open_word
+DocumentsTab._generate = _generate_w16
+DocumentsTab._download_pdf = _download_pdf_w16
+
+_w16_orig_init = DocumentsTab.__init__
+def _w16_init(self, *a, **kw):
+    _w16_orig_init(self, *a, **kw)
+    try:
+        self.tbl_tpl.itemDoubleClicked.connect(self._tpl_dbl)
+        self.table.itemDoubleClicked.connect(self._doc_dbl)
+    except Exception as e:
+        print("W16 dbl:", e)
+DocumentsTab.__init__ = _w16_init
