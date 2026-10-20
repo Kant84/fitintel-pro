@@ -75,7 +75,7 @@ class EmployeeCard(QDialog):
         self._pages = {}
         _idx = 0
         for section, items in (
-                ("ДАННЫЕ", ["Анкета", "Роль и права", "Фото"]),
+                ("ДАННЫЕ", ["Анкета", "Роль и права", "Фото", "Документы"]),
                 ("РАБОТА", ["График", "Расписание"]),
                 ("ПРОЧЕЕ", ["Зарплата", "Доступы и браслеты"])):
             sec = QListWidgetItem(section)
@@ -198,7 +198,7 @@ class EmployeeCard(QDialog):
     def _load_page(self, name):
         try:
             {"Анкета": self._p_profile, "Роль и права": self._p_roles,
-             "Фото": self._p_photo, "График": self._p_schedule,
+             "Фото": self._p_photo, "Документы": self._p_docs, "График": self._p_schedule,
              "Расписание": self._p_timetable, "Зарплата": self._p_payroll,
              "Доступы и браслеты": self._p_access}.get(name, lambda: None)()
         except Exception as e:
@@ -400,6 +400,91 @@ class EmployeeCard(QDialog):
         v.addWidget(QLabel("Ближайшие 14 дней. Занятия берутся из таблиц записей (bookings/appointments/schedules)."))
         v.addStretch(1)
 
+    def _p_docs(self):
+        v = self._layout("Документы")
+        bar = QHBoxLayout()
+        b_up = QPushButton(" Загрузить документ (трудовой договор, сертификат, …)")
+        b_up.clicked.connect(self._upload_doc)
+        b_op = QPushButton("Открыть")
+        b_op.clicked.connect(self._open_doc)
+        b_del = QPushButton("Удалить")
+        b_del.clicked.connect(self._del_doc)
+        b_rf = QPushButton("Обновить")
+        b_rf.clicked.connect(lambda: self._load_page("Документы"))
+        bar.addWidget(b_up); bar.addWidget(b_op); bar.addWidget(b_del); bar.addWidget(b_rf)
+        bar.addStretch(1)
+        v.addLayout(bar)
+        try:
+            d = self._get("/analytics/w12/media/list",
+                          {"owner_type": "staff", "owner_id": self.user_id})
+            self._doc_items = [r for r in d.get("items", [])
+                               if str(r.get("photo_type") or "") == "document"]
+        except Exception:
+            self._doc_items = []
+        t = self._tbl(["Файл", "Размер", "Загружен"])
+        t.setRowCount(len(self._doc_items))
+        for i, r in enumerate(self._doc_items):
+            it = QTableWidgetItem(str(r.get("orig_name") or ""))
+            it.setData(Qt.ItemDataRole.UserRole, r.get("id"))
+            t.setItem(i, 0, it)
+            t.setItem(i, 1, QTableWidgetItem(str(r.get("size") or 0)))
+            t.setItem(i, 2, QTableWidgetItem(str(r.get("created_at") or "")[:19]))
+        self.tbl_docs = t
+        v.addWidget(t, 1)
+        v.addWidget(QLabel("Кадровые документы хранятся в защищённом медиа-хранилище "
+                           "(шифрование AES-256-GCM, UUID-имена, аудит доступа, доступ по правам)."))
+        v.addStretch(1)
+
+    def _doc_row(self):
+        row = self.tbl_docs.currentRow()
+        if row < 0:
+            return None
+        it = self.tbl_docs.item(row, 0)
+        did = it.data(Qt.ItemDataRole.UserRole) if it else None
+        for r in self._doc_items or []:
+            if str(r.get("id")) == str(did):
+                return r
+        return None
+
+    def _upload_doc(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Документ сотрудника", "", "All (*.*)")
+        if not path:
+            return
+        try:
+            r = self.api.session.post(
+                self.api._url("/analytics/w12/media/upload"),
+                data={"owner_type": "staff", "owner_id": self.user_id, "photo_type": "document"},
+                files={"file": open(path, "rb")}, timeout=120)
+            r.raise_for_status()
+            d = r.json()
+            if not d.get("ok"):
+                QMessageBox.warning(self, "Документ", str(d.get("error", "ошибка")))
+                return
+            QMessageBox.information(self, "Документ", "Файл зашифрован и сохранён")
+            self._load_page("Документы")
+        except Exception as e:
+            QMessageBox.warning(self, "Документ", str(e)[:200])
+
+    def _open_doc(self):
+        r = self._doc_row()
+        if not r:
+            return
+        url = str(r.get("url") or "")
+        if url:
+            import os
+            full = url if url.startswith("http") else ("http://192.168.101.182" + url)
+            os.startfile(full)
+
+    def _del_doc(self):
+        r = self._doc_row()
+        if not r:
+            return
+        try:
+            resp = self.api.session.delete(self.api._url("/analytics/w12/media/%s" % r["id"]), timeout=20)
+            resp.raise_for_status()
+            self._load_page("Документы")
+        except Exception as e:
+            QMessageBox.warning(self, "Удаление", str(e)[:200])
     def _p_payroll(self):
         v = self._layout("Зарплата")
         v.addWidget(QLabel("Расчёт зарплаты — в «Бухгалтерия → Зарплата»:"))
