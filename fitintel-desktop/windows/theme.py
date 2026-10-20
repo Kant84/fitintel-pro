@@ -22,15 +22,15 @@ N_TTIP_FG = "#e2e8f0"   # текст тултипа
 
 # --- light palette ---
 L_BG      = "#F9F3D7"
-L_PANEL   = "#FFFDF2"
-L_ROW     = "#FFFDF2"
+L_PANEL   = "#F6EEC9"
+L_ROW     = "#F6EEC9"
 L_ROW_ALT = "#F1E8C4"
 L_ACCENT  = "#4338ca"
 L_GREEN   = "#15803d"
 L_RED     = "#dc2626"
 L_TEXT    = "#1a1a2e"
 L_SUB     = "#55556e"
-L_TTIP_BG = "#FFFDF2"
+L_TTIP_BG = "#F6EEC9"
 L_TTIP_FG = "#1a1a2e"
 
 

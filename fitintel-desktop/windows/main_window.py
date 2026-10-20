@@ -59,7 +59,7 @@ DEFAULT_TABS = ["dashboard", "clients", "subscriptions", "tariffs", "visits", "s
                 "devices", "face_id", "license", "ui_config", "setup", "settings", "credentials", "connections"]
 
 SIDEBAR_LIGHT = """
-    QListWidget { background: #FFFDF2; border: none; border-right: 1px solid #4338ca; outline: none; }
+    QListWidget { background: #F6EEC9; border: none; border-right: 1px solid #4338ca; outline: none; }
     QListWidget::item { padding: 10px 14px; color: #475569; font-weight: 600; border-left: 3px solid transparent; }
     QListWidget::item:selected { background: #E4D7A8; color: #1a1a2e; border-left: 3px solid #4338ca; }
     QListWidget::item:hover:!selected { background: #F1E8C4; }
@@ -127,7 +127,7 @@ class MainWindow(QMainWindow):
                 "QPushButton#logout { background: transparent; color: #f87171; border: 1px solid #f87171; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; }"
                 "QPushButton#logout:hover { background: #f87171; color: #0f172a; }")
         else:
-            self._header_bg = "background: #FFFDF2; border-bottom: 1px solid #4338ca;"
+            self._header_bg = "background: #F6EEC9; border-bottom: 1px solid #4338ca;"
             self.setStyleSheet(
                 "QMainWindow { background-color: #F9F3D7; }" + sidebar +
                 "QLabel#header-title { font-size: 20px; font-weight: 700; color: #0f172a; }"
