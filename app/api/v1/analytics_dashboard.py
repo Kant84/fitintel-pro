@@ -2186,3 +2186,131 @@ def ensure_ui_screens(db: Session = _Depends(get_db), authorization: str = Heade
         errors.append("security-seed: %s" % str(_ex)[:120])
     db.commit()
     return {"ok": True, "added": added, "errors": errors}
+
+# ═══════════════ Этап В: согласия (фото/биометрия) ═══════════════
+CONSENT_TYPES = ("photo_processing", "biometric_processing")
+
+
+def _ensure_consents_table(db):
+    from sqlalchemy import text as _text
+    db.execute(_text(
+        "CREATE TABLE IF NOT EXISTS client_consents ("
+        "id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
+        "client_id TEXT NOT NULL,"
+        "consent_type VARCHAR(64) NOT NULL,"
+        "status VARCHAR(16) NOT NULL DEFAULT 'granted',"
+        "granted_at TIMESTAMPTZ,"
+        "revoked_at TIMESTAMPTZ,"
+        "granted_by TEXT,"
+        "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+        "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+        "UNIQUE(client_id, consent_type))"))
+    db.commit()
+
+
+def _consent_audit(db, user_id, action, reason):
+    try:
+        from sqlalchemy import text as _text
+        db.execute(_text(
+            "INSERT INTO media_access_log (file_id, user_id, action, result, ip, user_agent, reason)"
+            " VALUES ('', :u, :a, 'ok', '', 'api', :r)"),
+            {"u": str(user_id or ""), "a": action, "r": reason or ""})
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def _delete_face_templates(db, client_id):
+    """Отзыв biometric_processing -> удаление шаблонов Face ID (таблицы ищем сами)."""
+    from sqlalchemy import text as _text
+    tables = db.execute(_text(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema='public' AND table_name ILIKE '%face%'")).scalars().all()
+    removed = []
+    for tbl in tables:
+        cols = {r[0] for r in db.execute(_text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name=:t"),
+            {"t": tbl}).fetchall()}
+        for idcol in ("client_id", "user_id", "person_id", "owner_id"):
+            if idcol in cols:
+                try:
+                    r = db.execute(_text(
+                        "DELETE FROM %s WHERE %s::text = :c" % (tbl, idcol)),
+                        {"c": str(client_id)})
+                    db.commit()
+                    removed.append("%s:%s=%d" % (tbl, idcol, r.rowcount))
+                except Exception:
+                    db.rollback()
+                break
+    return removed
+
+
+@router.get("/w12/clients/{cid}/consents")
+def consents_get(cid: str, db: Session = _Depends(get_db),
+                 authorization: str = Header(None)):
+    from sqlalchemy import text as _text
+    user = _bearer_user(authorization)
+    if not user:
+        return {"error": "auth required"}
+    _ensure_consents_table(db)
+    rows = db.execute(_text(
+        "SELECT consent_type, status, granted_at, revoked_at, granted_by "
+        "FROM client_consents WHERE client_id = :c ORDER BY consent_type"),
+        {"c": str(cid)}).mappings().all()
+    out = {}
+    for r in rows:
+        out[r["consent_type"]] = {
+            "status": r["status"],
+            "granted_at": str(r["granted_at"] or "")[:19],
+            "revoked_at": str(r["revoked_at"] or "")[:19] or None,
+            "granted_by": r["granted_by"]}
+    for ct in CONSENT_TYPES:
+        out.setdefault(ct, {"status": "none", "granted_at": "", "revoked_at": None, "granted_by": None})
+    return {"consents": out}
+
+
+@router.post("/w12/clients/{cid}/consents")
+def consents_set(cid: str, payload: dict, db: Session = _Depends(get_db),
+                 authorization: str = Header(None)):
+    from sqlalchemy import text as _text
+    user = _bearer_user(authorization)
+    if not user:
+        return {"ok": False, "error": "auth required"}
+    _ensure_consents_table(db)
+    ctype = str(payload.get("consent_type") or "")
+    granted = bool(payload.get("granted"))
+    if ctype not in CONSENT_TYPES:
+        return {"ok": False, "error": "unknown consent_type"}
+    uid = str(user.get("sub", ""))
+    now_row = db.execute(_text("SELECT NOW()")).first()
+    now = now_row[0] if now_row else None
+    exists = db.execute(_text(
+        "SELECT 1 FROM client_consents WHERE client_id=:c AND consent_type=:t"),
+        {"c": str(cid), "t": ctype}).first()
+    if granted:
+        if exists:
+            db.execute(_text(
+                "UPDATE client_consents SET status='granted', granted_at=:n, revoked_at=NULL,"
+                " granted_by=:u, updated_at=NOW() WHERE client_id=:c AND consent_type=:t"),
+                {"n": now, "u": uid, "c": str(cid), "t": ctype})
+        else:
+            db.execute(_text(
+                "INSERT INTO client_consents (client_id, consent_type, status, granted_at, granted_by)"
+                " VALUES (:c, :t, 'granted', :n, :u)"),
+                {"c": str(cid), "t": ctype, "n": now, "u": uid})
+        db.commit()
+        _consent_audit(db, uid, "consent_grant", ctype)
+        return {"ok": True, "consent_type": ctype, "status": "granted"}
+    # отзыв
+    if exists:
+        db.execute(_text(
+            "UPDATE client_consents SET status='revoked', revoked_at=:n, updated_at=NOW()"
+            " WHERE client_id=:c AND consent_type=:t"),
+            {"n": now, "c": str(cid), "t": ctype})
+        db.commit()
+    removed = []
+    if ctype == "biometric_processing":
+        removed = _delete_face_templates(db, cid)
+    _consent_audit(db, uid, "consent_revoke", ctype)
+    return {"ok": True, "consent_type": ctype, "status": "revoked",
+            "face_templates_removed": removed}
