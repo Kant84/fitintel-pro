@@ -106,9 +106,11 @@ volumes:
     name: deploy_static_scan
   static_brand:
   clients_data:
-  media_data:
     external: true
     name: deploy_clients_data
+  media_data:
+    external: true
+    name: deploy_media_data
   accounting_data:
     external: true
     name: deploy_accounting_data
