@@ -1640,14 +1640,10 @@ def _bearer_user(authorization: str):
     if not authorization or not authorization.lower().startswith("bearer "):
         return None
     try:
-        import jwt as _jwt
-        from app.core.config import settings
-        return _jwt.decode(authorization.split(None, 1)[1], settings.SECRET_KEY, algorithms=["HS256"])
+        from app.core.security import decode_token
+        return decode_token(authorization.split(None, 1)[1])
     except Exception:
         return None
-
-
-@router.get("/media")
 def media_list(owner_type: str = "client", owner_id: str = "", request: Request = None,
                db: Session = _Depends(get_db), authorization: str = Header(None)):
     _ensure_media(db)
