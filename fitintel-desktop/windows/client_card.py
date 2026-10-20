@@ -127,6 +127,7 @@ class ClientCard(QDialog):
         root.addWidget(hint)
 
         QTimer.singleShot(60, self.reload)
+        install_f1_dynamic(self, lambda: (self.menu.currentItem().text() if (self.menu.currentItem() is not None and bool(self.menu.currentItem().flags() & Qt.ItemFlag.ItemIsEnabled)) else ""))
 
     # ================= data =================
     def _get(self, path, params=None):
@@ -360,7 +361,7 @@ class ClientCard(QDialog):
         self.ava.setFixedSize(120, 120)
         self.ava.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.ava.setStyleSheet("background:#D8C88F;border-radius:60px;color:#64748b;font-size:28px;font-weight:700;")
-        self._set_avatar(c.get("photo_url") or c.get("avatar_url"))
+        self._set_avatar(self._photo_resolve(c))
         top.addWidget(self.ava)
         bp = QPushButton("Сменить фото")
         bp.clicked.connect(self._change_photo)
@@ -405,6 +406,18 @@ class ClientCard(QDialog):
         v.addLayout(br)
         v.addStretch(1)
 
+    def _photo_resolve(self, c):
+        url = c.get("photo_url") or c.get("avatar_url") or ""
+        if url and "/static/" in url:
+            try:
+                d = self._get("/analytics/w12/media/list",
+                              {"owner_type": "client", "owner_id": self.client_id})
+                for r in d.get("items", []):
+                    if str(r.get("photo_type") or "") != "document":
+                        return str(r.get("url") or "") or url
+            except Exception:
+                pass
+        return url
     def _set_avatar(self, url):
         if not url:
             return
