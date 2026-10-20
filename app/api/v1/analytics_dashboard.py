@@ -2299,7 +2299,7 @@ def consents_set(cid: str, payload: dict, db: Session = _Depends(get_db),
                 " VALUES (:c, :t, 'granted', :n, :u)"),
                 {"c": str(cid), "t": ctype, "n": now, "u": uid})
         db.commit()
-        _consent_audit(db, uid, "consent_grant", ctype)
+        _consent_audit(db, uid, "consent_grant", ctype + ":" + str(cid))
         return {"ok": True, "consent_type": ctype, "status": "granted"}
     # отзыв
     if exists:
@@ -2311,6 +2311,32 @@ def consents_set(cid: str, payload: dict, db: Session = _Depends(get_db),
     removed = []
     if ctype == "biometric_processing":
         removed = _delete_face_templates(db, cid)
-    _consent_audit(db, uid, "consent_revoke", ctype)
+    _consent_audit(db, uid, "consent_revoke", ctype + ":" + str(cid))
     return {"ok": True, "consent_type": ctype, "status": "revoked",
             "face_templates_removed": removed}
+
+# ═══════════════ Этап Г: аудит доступа к данным клиента ═══════════════
+@router.get("/w12/clients/{cid}/access-audit")
+def client_access_audit(cid: str, limit: int = 200, db: Session = _Depends(get_db),
+                        authorization: str = Header(None)):
+    from sqlalchemy import text as _text
+    user = _bearer_user(authorization)
+    if not user:
+        return {"error": "auth required"}
+    uid = str(user.get("sub", ""))
+    if not (_is_super(db, uid) or _has_perm(db, user, "audit.view")
+            or _has_perm(db, user, "roles.manage")):
+        return {"error": "forbidden"}
+    lim = max(1, min(int(limit or 200), 1000))
+    rows = db.execute(_text(
+        "SELECT a.created_at, a.action, a.result, a.ip, a.reason,"
+        " COALESCE(u.full_name, u.username, '') AS who,"
+        " COALESCE(mf.orig_name, '') AS fname"
+        " FROM media_access_log a"
+        " LEFT JOIN users u ON u.id::text = a.user_id"
+        " LEFT JOIN media_files mf ON mf.id::text = a.file_id"
+        " WHERE (mf.owner_type = 'client' AND mf.owner_id = :c)"
+        "    OR a.reason IN ('photo_processing:' || :c, 'biometric_processing:' || :c)"
+        " ORDER BY a.created_at DESC LIMIT :l"),
+        {"c": str(cid), "l": lim}).mappings().all()
+    return {"items": [dict(r) for r in rows]}
