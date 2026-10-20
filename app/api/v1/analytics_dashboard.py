@@ -1644,7 +1644,7 @@ def _bearer_user(authorization: str):
         return decode_token(authorization.split(None, 1)[1])
     except Exception:
         return None
-@router.get("/media")
+@router.get("/media/list")
 def media_list(owner_type: str = "client", owner_id: str = "", request: Request = None,
                db: Session = _Depends(get_db), authorization: str = Header(None)):
     _ensure_media(db)
