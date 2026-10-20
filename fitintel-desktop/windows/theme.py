@@ -21,16 +21,16 @@ N_TTIP_BG = "#1e293b"   # фон тултипа
 N_TTIP_FG = "#e2e8f0"   # текст тултипа
 
 # --- light palette ---
-L_BG      = "#FFFF77"
-L_PANEL   = "#FFFDE7"
-L_ROW     = "#FFFDE7"
-L_ROW_ALT = "#FFF3C4"
+L_BG      = "#F9F3D7"
+L_PANEL   = "#FFFDF2"
+L_ROW     = "#FFFDF2"
+L_ROW_ALT = "#F1E8C4"
 L_ACCENT  = "#4338ca"
 L_GREEN   = "#15803d"
 L_RED     = "#dc2626"
 L_TEXT    = "#1a1a2e"
 L_SUB     = "#55556e"
-L_TTIP_BG = "#FFFDE7"
+L_TTIP_BG = "#FFFDF2"
 L_TTIP_FG = "#1a1a2e"
 
 
