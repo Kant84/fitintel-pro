@@ -103,7 +103,7 @@ class ClientCard(QDialog):
         _idx = 0
         for section, items in (
                 ("ДАННЫЕ", ["Анкета", "Телефоны/Контакты", "Документы", "Фото",
-                            "Пакеты/Услуги", "Замечания", "Согласия"]),
+                            "Пакеты/Услуги", "Замечания", "Согласия", "Аудит доступа"]),
                 ("СЧЁТ", ["Чеки", "Баланс", "Бонусы", "Скидки"]),
                 ("ПРОЧЕЕ", ["Сообщения", "История", "Блоки", "Автомобили", "Гость"])):
             sec = QListWidgetItem(section)
@@ -231,6 +231,7 @@ class ClientCard(QDialog):
              "Документы": self._p_docs, "Фото": self._p_photos,
              "Пакеты/Услуги": self._p_subs, "Замечания": self._p_comments,
              "Согласия": self._p_consents,
+             "Аудит доступа": self._p_access_audit,
              "Чеки": self._p_payments, "Баланс": self._p_wallet, "Бонусы": self._p_bonuses,
              "Скидки": self._p_discount, "Сообщения": self._p_messages,
              "История": self._p_history, "Блоки": self._p_blocks,
@@ -315,6 +316,40 @@ class ClientCard(QDialog):
                 return
         QMessageBox.information(self, "Согласия", "Сохранено")
         self._load_page("Согласия")
+    # ── Аудит доступа к данным клиента (media_access_log) ──
+    def _p_access_audit(self):
+        v = self._page_layout("Аудит доступа")
+        v.addWidget(self._refresh_btn(lambda: self._load_page("Аудит доступа")))
+        ACT = {"view": "Просмотр", "upload": "Загрузка", "delete": "Удаление",
+               "list": "Список", "download": "Скачивание",
+               "consent_grant": "Согласие выдано", "consent_revoke": "Согласие отозвано"}
+        try:
+            d = self._get("/analytics/w12/clients/%s/access-audit" % self.client_id)
+            items = d.get("items", [])
+            if d.get("error"):
+                v.addWidget(QLabel("Нет доступа: %s" % d["error"]))
+                v.addStretch(1)
+                return
+        except Exception as e:
+            items = []
+            v.addWidget(QLabel("Ошибка: %s" % str(e)[:150]))
+        t = QTableWidget(0, 6)
+        t.setHorizontalHeaderLabels(["Когда", "Кто", "Действие", "Файл", "Результат", "IP"])
+        t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        t.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        t.setRowCount(len(items))
+        for i, r in enumerate(items):
+            act = str(r.get("action") or "")
+            t.setItem(i, 0, QTableWidgetItem(str(r.get("created_at") or "")[:19]))
+            t.setItem(i, 1, QTableWidgetItem(str(r.get("who") or "—")))
+            t.setItem(i, 2, QTableWidgetItem(ACT.get(act, act)))
+            t.setItem(i, 3, QTableWidgetItem(str(r.get("fname") or "—")))
+            t.setItem(i, 4, QTableWidgetItem(str(r.get("result") or "")))
+            t.setItem(i, 5, QTableWidgetItem(str(r.get("ip") or "")))
+        v.addWidget(t, 1)
+        v.addWidget(QLabel("Кто и когда обращался к фото/документам клиента и менял согласия. "
+                           "Записи неизменяемы (append-only, защита триггером на сервере)."))
+        v.addStretch(1)
     # ── Анкета ──
     def _p_anketa(self):
         v = self._page_layout("Анкета")
