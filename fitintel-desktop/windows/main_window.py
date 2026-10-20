@@ -650,3 +650,31 @@ try:
 except Exception as _w10e:
     print("W10 FAIL:", _w10e)
 # ========================== W10 END ==========================
+
+# === W13: колесо мыши скроллит QScrollArea под курсором (вкладки/окна) ===
+try:
+    from PyQt6.QtCore import QObject as _QO, QEvent as _QE
+    from PyQt6.QtWidgets import QApplication as _QA, QScrollArea as _QSA
+
+    class _WheelToScrollArea(_QO):
+        def eventFilter(self, obj, ev):
+            try:
+                if ev.type() == _QE.Type.Wheel:
+                    w = _QA.widgetAt(ev.globalPosition().toPoint())
+                    sa = w
+                    while sa is not None and not isinstance(sa, _QSA):
+                        sa = sa.parentWidget()
+                    if sa is not None:
+                        sb = sa.verticalScrollBar()
+                        if sb is not None and sb.maximum() > 0:
+                            sb.setValue(sb.value() - int(ev.angleDelta().y() / 30))
+                            return True
+            except Exception:
+                pass
+            return False
+
+    _WHEEL_FILTER = _WheelToScrollArea()
+    _QA.instance().installEventFilter(_WHEEL_FILTER)
+    print("W13 wheel-scroll OK")
+except Exception as _e13w:
+    print("W13 wheel-scroll FAIL:", _e13w)
