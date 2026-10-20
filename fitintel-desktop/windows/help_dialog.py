@@ -1803,6 +1803,7 @@ def install_help(mw):
     menu.addAction("Инструкция по экрану (F1)", lambda: show_help(mw))
     menu.addAction("Чат с клиентами (MAX)", lambda: open_client_chat(mw))
     menu.addAction("Поддержка разработчика (MAX)", lambda: open_support(mw))
+    menu.addAction("Приложение: 152-ФЗ (Персональные данные)", lambda: show_help_text(mw, "152-ФЗ"))
     sc = QShortcut(QKeySequence("F1"), mw)
     sc.activated.connect(lambda: show_help(mw))
     btn = QPushButton(" Инструкция")
