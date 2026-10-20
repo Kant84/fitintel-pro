@@ -2175,21 +2175,30 @@ HELP_TEXTS["client_card"] = HELP_TEXTS.get("client_card", "") + _CLIENT_CARD_W12
 
 # === W14: динамический F1 для карточек (инструкция активной вкладки) ===
 def install_f1_dynamic(widget, title_getter):
-    """F1 показывает инструкцию активной вкладки карточки; нет текста — общую."""
+    """F1 (QShortcut — срабатывает при любом фокусе) показывает инструкцию активной вкладки."""
     from PyQt6.QtWidgets import QWidget as _QW
+    from PyQt6.QtGui import QShortcut as _QS, QKeySequence as _QKS
     from PyQt6.QtCore import Qt as _Qt
+    def _show():
+        title = ""
+        try:
+            title = (title_getter() or "").strip()
+        except Exception:
+            title = ""
+        title = _ALIASES.get(title, title)
+        show_help_text(widget, title if title in HELP_TEXTS else "")
     def _kp(event):
         if event.key() == _Qt.Key.Key_F1:
-            title = ""
-            try:
-                title = (title_getter() or "").strip()
-            except Exception:
-                title = ""
-            title = _ALIASES.get(title, title)
-            show_help_text(widget, title if title in HELP_TEXTS else "")
+            _show()
         else:
             _QW.keyPressEvent(widget, event)
     widget.keyPressEvent = _kp
+    try:
+        _sc = _QS(_QKS("F1"), widget)
+        _sc.setContext(_Qt.ShortcutContext.WindowShortcut)
+        _sc.activated.connect(_show)
+    except Exception:
+        pass
 
 # ═══════════════ FZ152_APPENDIX: приложение к F1 — ФЗ-152 (чистовое издание) ═══════════════
 HELP_TEXTS.update({
