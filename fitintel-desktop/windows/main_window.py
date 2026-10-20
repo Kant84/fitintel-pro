@@ -678,3 +678,38 @@ try:
     print("W13 wheel-scroll OK")
 except Exception as _e13w:
     print("W13 wheel-scroll FAIL:", _e13w)
+
+# === W13-v2: колесо скроллит QScrollArea под курсором (гарантированная установка) ===
+try:
+    from PyQt6.QtCore import QObject as _QO2, QEvent as _QE2
+    from PyQt6.QtWidgets import QApplication as _QA2, QScrollArea as _QSA2
+
+    class _WheelToScrollAreaV2(_QO2):
+        def eventFilter(self, obj, ev):
+            try:
+                if ev.type() == _QE2.Type.Wheel:
+                    w = _QA2.widgetAt(ev.globalPosition().toPoint())
+                    sa = w
+                    while sa is not None and not isinstance(sa, _QSA2):
+                        sa = sa.parentWidget()
+                    if sa is not None and sa.isVisible():
+                        sb = sa.verticalScrollBar()
+                        if sb is not None and sb.maximum() > 0:
+                            sb.setValue(sb.value() - int(ev.angleDelta().y() / 30))
+                            return True
+            except Exception:
+                pass
+            return False
+
+    _WF2 = _WheelToScrollAreaV2()
+    _orig_init_wheel2 = MainWindow.__init__
+    def _init_wheel2(self, *a, **k):
+        _orig_init_wheel2(self, *a, **k)
+        try:
+            _QA2.instance().installEventFilter(_WF2)
+            print("W13 wheel v2 OK")
+        except Exception as _e:
+            print("W13 wheel v2 install:", _e)
+    MainWindow.__init__ = _init_wheel2
+except Exception as _e13w2:
+    print("W13 wheel v2 FAIL:", _e13w2)

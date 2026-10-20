@@ -1691,6 +1691,8 @@ def _active_subtab_title(mw) -> str:
     from PyQt6.QtWidgets import QTabWidget
     tabs = []
     for tw in cur.findChildren(QTabWidget):
+        if not tw.isVisible():
+            continue
         depth, pp = 0, tw.parentWidget()
         while pp is not None:
             depth += 1
