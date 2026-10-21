@@ -247,17 +247,30 @@ def get_document(document_id: str, db: Session = Depends(get_db),
 def sign_document(document_id: str, payload: SignRequest,
                   db: Session = Depends(get_db), user=Depends(get_current_user)):
     """E33.5/E33.6 — простое подписание документа"""
+    _cols = {row[0] for row in db.execute(text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='documents'")).fetchall()}
+    _sel = "id, signed" if "signed" in _cols else "id, status"
     r = db.execute(text(
-        "SELECT id, signed FROM documents WHERE id = :id"
+        "SELECT %s FROM documents WHERE id = :id" % _sel
     ), {"id": document_id}).fetchone()
     if not r:
         raise HTTPException(status_code=404, detail="Документ не найден")
-    if r[1]:
+    if r[1] and (r[1] is True or r[1] == "signed"):
         raise HTTPException(status_code=400, detail="Документ уже подписан")
     now = datetime.now(timezone.utc)
+    _sets = []
+    if "status" in _cols:
+        _sets.append("status = 'signed'")
+    if "signed" in _cols:
+        _sets.append("signed = TRUE")
+    if "signed_at" in _cols:
+        _sets.append("signed_at = :t")
+    if "updated_at" in _cols:
+        _sets.append("updated_at = :t")
+    if not _sets:
+        raise HTTPException(status_code=500, detail="documents: нет колонок для подписания")
     db.execute(text(
-        "UPDATE documents SET status = 'signed', signed_at = :t, "
-        "updated_at = :t WHERE id = :id"
+        "UPDATE documents SET %s WHERE id = :id" % ", ".join(_sets)
     ), {"t": now, "id": document_id})
     db.commit()
     return {"document_id": document_id, "signed": True, "signed_at": str(now),
@@ -343,9 +356,25 @@ def sign_document_ep(document_id: str, payload: SignEPRequest,
     if not payload.certificate:
         raise HTTPException(status_code=400, detail="Сертификат обязателен")
     now = datetime.now(timezone.utc)
+    _cols2 = {row[0] for row in db.execute(text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='documents'")).fetchall()}
+    _sets2 = []
+    if "signed" in _cols2:
+        _sets2.append("signed = TRUE")
+    if "status" in _cols2:
+        _sets2.append("status = 'signed'")
+    if "signed_at" in _cols2:
+        _sets2.append("signed_at = :t")
+    if "updated_at" in _cols2:
+        _sets2.append("updated_at = :t")
+    if "signature" in _cols2:
+        _sets2.append("signature = :s")
+    if "ep_format" in _cols2:
+        _sets2.append("ep_format = 'CAdES'")
+    if not _sets2:
+        raise HTTPException(status_code=500, detail="documents: нет колонок для подписания")
     db.execute(text(
-        "UPDATE documents SET signed = TRUE, signed_at = :t, signature = :s, "
-        "ep_format = 'CAdES', status = 'signed', updated_at = :t WHERE id = :id"
+        "UPDATE documents SET %s WHERE id = :id" % ", ".join(_sets2)
     ), {"t": now, "s": payload.certificate, "id": document_id})
     db.commit()
     return {"document_id": document_id, "signed": True, "signed_at": str(now),
