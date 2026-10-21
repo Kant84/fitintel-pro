@@ -709,3 +709,34 @@ try:
     print("W22 badge toggle OK")
 except Exception as _e22:
     print("W22 FAIL:", _e22)
+
+# === W23_COPY_ANYWHERE: Ctrl+C копирует выделенное из любой таблицы/списка ===
+try:
+    from PyQt6.QtWidgets import QApplication, QLineEdit, QTextEdit, QPlainTextEdit
+    from PyQt6.QtCore import QEvent, QObject
+    from PyQt6.QtGui import QKeySequence
+
+    class _W23CopyFilter(QObject):
+        def eventFilter(self, obj, ev):
+            if ev.type() == QEvent.Type.KeyPress and ev.matches(QKeySequence.StandardKey.Copy):
+                w = QApplication.focusWidget()
+                if isinstance(w, (QLineEdit, QTextEdit, QPlainTextEdit)):
+                    return False
+                if hasattr(w, "selectedItems"):
+                    items = w.selectedItems()
+                    if items:
+                        rows = {}
+                        for it in items:
+                            rows.setdefault(it.row(), []).append((it.column(), it.text()))
+                        lines = []
+                        for r in sorted(rows):
+                            lines.append(" | ".join(t for c, t in sorted(rows[r])))
+                        QApplication.clipboard().setText("\n".join(lines))
+                        return True
+            return False
+
+    _W23_FILTER = _W23CopyFilter()
+    QApplication.instance().installEventFilter(_W23_FILTER)
+    print("W23 copy-anywhere OK")
+except Exception as _e23:
+    print("W23 FAIL:", _e23)
