@@ -517,3 +517,48 @@ def _w17_init(self, *a, **kw):
     except Exception as e:
         print("W17:", e)
 DocumentsTab.__init__ = _w17_init
+
+# === W18_UPLOAD_TPL: загрузка шаблона из файла ===
+def _upload_template(self):
+    from PyQt6.QtWidgets import QFileDialog
+    path, _ = QFileDialog.getOpenFileName(self, "Загрузить шаблон", "", "Шаблоны (*.docx *.txt)")
+    if not path:
+        return
+    base_name = path.replace("\\", "/").split("/")[-1]
+    try:
+        with open(path, "rb") as fh:
+            r = self.api.session.post(
+                self.api._url("/document-templates/upload"),
+                files={"file": (base_name, fh, "application/octet-stream")},
+                data={"name": base_name.rsplit(".", 1)[0], "doc_type": "other"},
+                timeout=30)
+        if r.status_code in (200, 201):
+            QMessageBox.information(self, "Шаблон",
+                "Загружено: %s (код %s)" % (base_name, r.json().get("code", "?")))
+            self.refresh()
+        else:
+            QMessageBox.critical(self, "Шаблон", str(r.text)[:200])
+    except Exception as e:
+        QMessageBox.critical(self, "Шаблон", str(e)[:200])
+
+DocumentsTab._upload_template = _upload_template
+
+_w18_orig_init = DocumentsTab.__init__
+def _w18_init(self, *a, **kw):
+    _w18_orig_init(self, *a, **kw)
+    try:
+        b = QPushButton(" Загрузить шаблон")
+        b.clicked.connect(self._upload_template)
+        placed = False
+        for bb in self.findChildren(QPushButton):
+            if "создать шаблон" in bb.text().lower():
+                lay = bb.parentWidget().layout()
+                if lay is not None:
+                    lay.addWidget(b)
+                    placed = True
+                    break
+        if not placed:
+            self.layout().addWidget(b)
+    except Exception as e:
+        print("W18:", e)
+DocumentsTab.__init__ = _w18_init
