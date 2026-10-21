@@ -370,3 +370,32 @@ def _w21_on_card(self, info: dict):
         self.lbl_access.setStyleSheet("color:#ef4444; font-weight:700; font-size:15px;")
     self.setMinimumSize(400, 330)
 RFIDMonitorWidget._on_card = _w21_on_card
+
+# === W22_PASS_BADGE: мини-индикатор прохода при сканировании ===
+_BADGE = None
+def _w22_badge():
+    global _BADGE
+    if _BADGE is None:
+        try:
+            from windows.pass_badge import PassBadge
+            _BADGE = PassBadge()
+        except Exception:
+            _BADGE = False
+    return _BADGE or None
+
+_w22_prev = RFIDMonitorWidget._on_card
+def _w22_on_card(self, info: dict):
+    _w22_prev(self, info)
+    if not info:
+        return
+    try:
+        b = _w22_badge()
+        if b is None:
+            return
+        vd = info.get("verdict")
+        allow = vd.get("allow") if isinstance(vd, dict) else None
+        note = str(vd.get("error", ""))[:40] if isinstance(vd, dict) and not allow else ""
+        b.show_result(info.get("client") or "", allow, note)
+    except Exception:
+        pass
+RFIDMonitorWidget._on_card = _w22_on_card
