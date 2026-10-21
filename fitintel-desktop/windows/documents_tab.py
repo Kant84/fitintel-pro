@@ -617,3 +617,40 @@ def _w19_init(self, *a, **kw):
     except Exception as e:
         print("W19:", e)
 DocumentsTab.__init__ = _w19_init
+
+# === W20_FIX_LAYOUT: скроллы на списках, нижние кнопки — компактный ряд ===
+def _w20_apply(self):
+    from PyQt6.QtWidgets import QHBoxLayout
+    from PyQt6.QtCore import Qt
+    # 1. фиксированные высоты + скролл всегда
+    self.tbl_tpl.setFixedHeight(140)
+    self.tbl_tpl.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+    self.table.setFixedHeight(190)
+    self.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+    # 2. собрать нижние кнопки в один компактный горизонтальный ряд
+    btns = []
+    for b in self.findChildren(QPushButton):
+        lt = b.text().strip().lower()
+        if ("создать шаблон" in lt) or ("загрузить шаблон" in lt) or lt == "печать":
+            btns.append(b)
+    if btns and not getattr(self, "_w20_done", False):
+        self._w20_done = True
+        row = QHBoxLayout()
+        row.addStretch(1)
+        for b in btns:
+            b.setFixedHeight(26)
+            b.setMinimumWidth(140)
+            b.setMaximumWidth(200)
+            b.setStyleSheet("QPushButton{padding:2px 10px;font-size:12px;border-radius:4px;}")
+            row.addWidget(b)
+        row.addStretch(1)
+        self.layout().addLayout(row)
+
+_w20_orig_init = DocumentsTab.__init__
+def _w20_init(self, *a, **kw):
+    _w20_orig_init(self, *a, **kw)
+    try:
+        _w20_apply(self)
+    except Exception as e:
+        print("W20:", e)
+DocumentsTab.__init__ = _w20_init
