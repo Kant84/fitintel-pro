@@ -405,3 +405,46 @@ def _w22_on_card(self, info: dict):
     except Exception:
         pass
 RFIDMonitorWidget._on_card = _w22_on_card
+
+# === W24_SCAN_VISIT: режим «стойка входа» — скан с ACTIVE = визит ===
+def _w24_scan_visit_on():
+    try:
+        here = os.path.dirname(os.path.abspath(__file__))
+        cfg = json.load(open(os.path.join(here, "client_settings.json"), encoding="utf-8"))
+        return bool(cfg.get("scan_makes_visit", False))
+    except Exception:
+        return False
+
+
+def _w24_checkin(cid):
+    import datetime as _dt
+    payload = {"client_id": str(cid),
+               "entry_time": _dt.datetime.now().isoformat(),
+               "access_method": "RFID", "zone": "main"}
+    res = api_post("/visits/manual", payload, timeout=6)
+    if res.get("_err"):
+        return False
+    b = _w22_badge()
+    if b is not None:
+        try:
+            b.sub.setText("\u0432\u043e\u0448\u0451\u043b")
+            b.sub.setStyleSheet("color:#22c55e;")
+        except Exception:
+            pass
+    return True
+
+
+_w24_prev = RFIDMonitorWidget._on_card
+def _w24_on_card(self, info: dict):
+    _w24_prev(self, info)
+    if not info:
+        return
+    try:
+        vd = info.get("verdict")
+        if isinstance(vd, dict) and vd.get("allow") and _w24_scan_visit_on():
+            cid = vd.get("client_id")
+            if cid:
+                _w24_checkin(cid)
+    except Exception:
+        pass
+RFIDMonitorWidget._on_card = _w24_on_card

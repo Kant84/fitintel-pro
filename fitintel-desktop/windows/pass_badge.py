@@ -92,3 +92,18 @@ class PassBadge(QWidget):
         anim.finished.connect(self.hide)
         anim.start()
         self._anim = anim
+
+def load_scan_visit():
+    try:
+        return bool(json.load(open(SETTINGS, encoding="utf-8")).get("scan_makes_visit", False))
+    except Exception:
+        return False
+
+
+def save_scan_visit(v):
+    try:
+        cfg = json.load(open(SETTINGS, encoding="utf-8"))
+        cfg["scan_makes_visit"] = bool(v)
+        json.dump(cfg, open(SETTINGS, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    except Exception:
+        pass
