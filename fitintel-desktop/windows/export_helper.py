@@ -296,23 +296,38 @@ def upload_to_server(parent, path, title):
             return False, "нет api-клиента"
         with open(path, "rb") as fh:
             content = fh.read()
-        last = ""
-        for field in ("file", "upload_file", "f", "upload", "data"):
+        sess = api.session
+        hdrs = sess.headers
+        old_ct = hdrs.get("Content-Type") if hasattr(hdrs, "get") else None
+        if old_ct:
             try:
-                r = api.session.post(
-                    api._url("/analytics/w12/media/upload"),
-                    data={"owner_type": "export",
-                          "owner_id": _safe_name(title)[:64],
-                          "photo_type": "document"},
-                    files={field: (_os.path.basename(str(path)), content)},
-                    timeout=60)
-                if r.status_code in (200, 201):
-                    return True, ""
-                last = str(r.text)[:120]
-                if "Field required" not in str(r.text) and "missing" not in str(r.text):
-                    break
-            except Exception as e:
-                last = str(e)[:120]
+                del hdrs["Content-Type"]
+            except Exception:
+                pass
+        last = ""
+        try:
+            for field in ("file", "upload_file", "f", "upload", "data"):
+                try:
+                    r = sess.post(
+                        api._url("/analytics/w12/media/upload"),
+                        data={"owner_type": "export",
+                              "owner_id": _safe_name(title)[:64],
+                              "photo_type": "document"},
+                        files={field: (_os.path.basename(str(path)), content)},
+                        timeout=60)
+                    if r.status_code in (200, 201):
+                        return True, ""
+                    last = "%s:%s %s" % (field, r.status_code, str(r.text)[:100])
+                    if "missing" not in str(r.text) and "Field required" not in str(r.text):
+                        break
+                except Exception as e:
+                    last = "%s:EXC %s" % (field, str(e)[:90])
+        finally:
+            if old_ct:
+                try:
+                    hdrs["Content-Type"] = old_ct
+                except Exception:
+                    pass
         return False, last
     except Exception as e:
         return False, str(e)[:120]
