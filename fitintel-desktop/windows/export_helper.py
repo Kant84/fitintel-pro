@@ -295,18 +295,28 @@ def upload_to_server(parent, path, title):
         if api is None:
             return False, "нет api-клиента"
         with open(path, "rb") as fh:
-            r = api.session.post(
-                api._url("/analytics/w12/media/upload"),
-                data={"owner_type": "export",
-                      "owner_id": _safe_name(title)[:64],
-                      "photo_type": "document"},
-                files={"file": (_os.path.basename(str(path)), fh)},
-                timeout=60)
-        if r.status_code in (200, 201):
-            return True, ""
-        return False, str(r.text)[:120]
+            content = fh.read()
+        last = ""
+        for field in ("file", "upload_file", "f", "upload", "data"):
+            try:
+                r = api.session.post(
+                    api._url("/analytics/w12/media/upload"),
+                    data={"owner_type": "export",
+                          "owner_id": _safe_name(title)[:64],
+                          "photo_type": "document"},
+                    files={field: (_os.path.basename(str(path)), content)},
+                    timeout=60)
+                if r.status_code in (200, 201):
+                    return True, ""
+                last = str(r.text)[:120]
+                if "Field required" not in str(r.text) and "missing" not in str(r.text):
+                    break
+            except Exception as e:
+                last = str(e)[:120]
+        return False, last
     except Exception as e:
         return False, str(e)[:120]
+
 
 def _save_one(parent, fmt, headers, rows, title, upload_server=True):
     """Сохранить в выбранный формат: диалог выбора места + копия на сервере."""

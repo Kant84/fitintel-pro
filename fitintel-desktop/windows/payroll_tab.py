@@ -432,3 +432,16 @@ class PayrollTab(QWidget):
         QMessageBox.information(
             self, "1С (Зарплата XML)",
             "Сохранено: %s%sСотрудников: %d%s" % (path, chr(10), len(rows), note))
+
+
+# === SAFE_LOAD_CALC: «Рассчитать» показывает ошибку, а не молчит ===
+_orig_load_calc_safe = PayrollTab._load_calc
+def _load_calc_safe(self):
+    try:
+        _orig_load_calc_safe(self)
+    except Exception as e:
+        import traceback
+        QMessageBox.warning(self, "Расчёт ЗП",
+                            "Ошибка расчёта: %s" % str(e)[:250])
+        log.error("payroll _load_calc: %s", traceback.format_exc())
+PayrollTab._load_calc = _load_calc_safe
