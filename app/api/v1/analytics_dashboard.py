@@ -2529,3 +2529,40 @@ def access_audit_global(limit: int = 300, client_id: str = None, action: str = N
         " LEFT JOIN media_files mf ON mf.id::text = a.file_id" + wsql +
         " ORDER BY a.created_at DESC LIMIT :l"), params).mappings().all()
     return {"items": [dict(r) for r in rows]}
+
+# === W22: замена карты клиента (старая -> REPLACED автоматически) ===
+@router.post("/w12/cards/replace")
+def card_replace(payload: dict, db: Session = _Depends(get_db),
+                 authorization: str = Header(None)):
+    from sqlalchemy import text as _text
+    user = _bearer_user(authorization)
+    if not user:
+        return {"ok": False, "error": "auth required"}
+    cid = str(payload.get("client_id") or "")
+    uid = str(payload.get("uid") or "").strip().upper()
+    if not cid or not uid:
+        return {"ok": False, "error": "client_id and uid required"}
+    rep = db.execute(_text(
+        "UPDATE credentials SET status = 'REPLACED', updated_at = NOW() "
+        "WHERE client_id = :c AND credential_type = 'CARD' AND status = 'ACTIVE' "
+        "AND upper(credential_value) <> :u"), {"c": cid, "u": uid}).rowcount
+    exists = db.execute(_text(
+        "SELECT 1 FROM credentials WHERE client_id = :c AND upper(credential_value) = :u"),
+        {"c": cid, "u": uid}).first()
+    inserted = False
+    if not exists:
+        try:
+            db.execute(_text(
+                "INSERT INTO credentials (id, client_id, credential_type, credential_value, status, created_at, updated_at)"
+                " VALUES (gen_random_uuid(), :c, 'CARD', :u, 'ACTIVE', NOW(), NOW())"),
+                {"c": cid, "u": uid})
+            inserted = True
+        except Exception:
+            db.rollback()
+            db.execute(_text(
+                "INSERT INTO credentials (client_id, credential_type, credential_value, status, created_at, updated_at)"
+                " VALUES (:c, 'CARD', :u, 'ACTIVE', NOW(), NOW())"),
+                {"c": cid, "u": uid})
+            inserted = True
+    db.commit()
+    return {"ok": True, "replaced": rep, "inserted": inserted, "uid": uid}
