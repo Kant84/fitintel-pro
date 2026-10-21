@@ -315,3 +315,58 @@ class RFIDMonitorWidget(QWidget):
                 except Exception:
                     pass
         return "Неизвестный формат", None
+
+# === W21_ACCESS_VERDICT: вердикт доступа (шлюз) прямо в мониторе ===
+import urllib.request as _ureq
+
+
+def _w21_verdict(uid):
+    try:
+        cfg = json.load(open("client_settings.json", encoding="utf-8"))
+        gt = cfg.get("gate_token")
+    except Exception:
+        gt = None
+    headers = {"Content-Type": "application/json"}
+    if gt:
+        headers["Authorization"] = "Bearer " + gt
+    elif _GLOBAL_TOKEN:
+        headers["Authorization"] = "Bearer " + _GLOBAL_TOKEN
+    try:
+        req = _ureq.Request(_api_base() + "/analytics/w12/access/verify",
+                            data=json.dumps({"type": "rfid", "value": uid}).encode(),
+                            headers=headers, method="POST")
+        with _ureq.urlopen(req, timeout=3) as resp:
+            return json.loads(resp.read().decode())
+    except Exception:
+        return None
+
+
+_orig_build_ui = RFIDMonitorWidget._build_ui
+def _w21_build_ui(self):
+    _orig_build_ui(self)
+    self.lbl_access = QLabel("Доступ: —")
+    self.lbl_access.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+    self.lbl_access.setStyleSheet("color: #94a3b8;")
+    self.layout().insertWidget(self.layout().count() - 1, self.lbl_access)
+RFIDMonitorWidget._build_ui = _w21_build_ui
+
+
+_orig_on_card = RFIDMonitorWidget._on_card
+def _w21_on_card(self, info: dict):
+    if info:
+        info["verdict"] = _w21_verdict(info.get("uid", ""))
+    _orig_on_card(self, info)
+    if not info:
+        return
+    vd = info.get("verdict")
+    if vd is None:
+        self.lbl_access.setText("Доступ: нет связи с сервером")
+        self.lbl_access.setStyleSheet("color:#94a3b8;")
+    elif vd.get("allow"):
+        self.lbl_access.setText("✅ Абонемент действует — ПУСКАТЬ")
+        self.lbl_access.setStyleSheet("color:#10b981; font-weight:700; font-size:15px;")
+    else:
+        self.lbl_access.setText("⛔ ОТКАЗ: " + str(vd.get("error", "отказ")))
+        self.lbl_access.setStyleSheet("color:#ef4444; font-weight:700; font-size:15px;")
+    self.setMinimumSize(400, 330)
+RFIDMonitorWidget._on_card = _w21_on_card
