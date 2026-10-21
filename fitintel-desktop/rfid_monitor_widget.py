@@ -335,10 +335,10 @@ def _w21_verdict(uid):
         req = _ureq.Request(_api_base() + "/analytics/w12/access/verify",
                             data=json.dumps({"type": "rfid", "value": uid}).encode(),
                             headers=headers, method="POST")
-        with _ureq.urlopen(req, timeout=3) as resp:
+        with _ureq.urlopen(req, timeout=8) as resp:
             return json.loads(resp.read().decode())
-    except Exception:
-        return None
+    except Exception as e:
+        return {"_err": str(e)[:120]}
 
 
 _orig_build_ui = RFIDMonitorWidget._build_ui
@@ -359,7 +359,10 @@ def _w21_on_card(self, info: dict):
     if not info:
         return
     vd = info.get("verdict")
-    if vd is None:
+    if isinstance(vd, dict) and vd.get("_err"):
+        self.lbl_access.setText("Доступ: ошибка " + str(vd.get("_err"))[:70])
+        self.lbl_access.setStyleSheet("color:#f59e0b;")
+    elif vd is None:
         self.lbl_access.setText("Доступ: нет связи с сервером")
         self.lbl_access.setStyleSheet("color:#94a3b8;")
     elif vd.get("allow"):
