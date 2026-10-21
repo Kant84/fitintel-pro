@@ -90,7 +90,12 @@ def create_template(body: TemplateIn, user=AUTH_DEP):
 
 def _create_inner(body):
     _ensure()
-    code = _re.sub(r"[^a-z0-9_]+", "_", (body.name or "tpl").lower())[:60] or "tpl"
+    _slug = _re.sub(r"[^a-z0-9]+", "_", (body.name or "tpl").lower()).strip("_")[:40]
+    code = _slug or "tpl"
+    with _eng().begin() as _chk:
+        if _chk.execute(text("SELECT 1 FROM document_templates WHERE code=:c"), {"c": code}).fetchone():
+            import uuid as _uuid
+            code = (_slug or "tpl") + "_" + _uuid.uuid4().hex[:8]
     with _eng().begin() as c:
         r = c.execute(text("UPDATE document_templates SET name=:n, doc_type=:t, content=:ct WHERE code=:c"),
                       {"c": code, "n": body.name, "t": body.doc_type, "ct": body.content})
