@@ -19,11 +19,14 @@ def set_global_token(tok):
 
 
 def _api_base():
-    try:
-        cfg = json.load(open("client_settings.json", encoding="utf-8"))
-        return (cfg.get("api_base") or "http://localhost:8001/api/v1").rstrip("/")
-    except Exception:
-        return "http://localhost:8001/api/v1"
+    here = os.path.dirname(os.path.abspath(__file__))
+    for cand in (os.path.join(here, "client_settings.json"), "client_settings.json"):
+        try:
+            cfg = json.load(open(cand, encoding="utf-8"))
+            return (cfg.get("api_base") or "http://localhost:8001/api/v1").rstrip("/")
+        except Exception:
+            continue
+    return "http://localhost:8001/api/v1"
 
 
 def api_post(endpoint, payload, timeout=3):
