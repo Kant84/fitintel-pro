@@ -2551,6 +2551,73 @@ def card_replace(payload: dict, db: Session = _Depends(get_db),
         {"c": cid, "u": uid}).first()
     inserted = False
     if not exists:
+        cols = {r[0] for r in db.execute(_text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='credentials'")).fetchall()}
+        nn = db.execute(_text(
+            "SELECT column_name, data_type FROM information_schema.columns "
+            "WHERE table_name='credentials' AND is_nullable='NO' AND column_default IS NULL")).all()
+        vals = {"client_id": cid, "credential_type": "CARD", "credential_value": uid,
+                "status": "ACTIVE"}
+        for c, dt in nn:
+            if c in vals or c in ("id",):
+                continue
+            if c in ("issued_by_user_id", "created_by", "user_id"):
+                vals[c] = str(user.get("sub", "")) or None
+            elif c in ("created_at", "updated_at", "issued_at"):
+                vals[c] = "NOW()"
+            elif c in ("valid_from",):
+                vals[c] = "NOW()"
+            elif c in ("qr_version",):
+                vals[c] = 0
+            elif c in ("qr_format",):
+                vals[c] = "RAW"
+            elif c in ("face_confidence",):
+                vals[c] = 0
+            elif c == "config":
+                vals[c] = ""
+            elif dt == "boolean":
+                vals[c] = False
+            elif dt.startswith("int") or dt == "numeric":
+                vals[c] = 0
+            else:
+                vals[c] = ""
+        vals = {k: v for k, v in vals.items() if k in cols and v is not None}
+        id_sql = "gen_random_uuid()" if "id" in cols else "NULL"
+        sql = ("INSERT INTO credentials (id, %s) VALUES (%s, %s)" %
+               (", ".join(vals), id_sql, ", ".join(":" + k for k in vals)))
+        try:
+            db.execute(_text(sql), vals)
+            inserted = True
+        except Exception:
+            db.rollback()
+            sql2 = ("INSERT INTO credentials (%s) VALUES (%s)" %
+                    (", ".join(vals), ", ".join(":" + k for k in vals)))
+            db.execute(_text(sql2), vals)
+            inserted = True
+    db.commit()
+    return {"ok": True, "replaced": rep, "inserted": inserted, "uid": uid}
+
+
+@router.post("/w12/cards/replace")
+def card_replace(payload: dict, db: Session = _Depends(get_db),
+                 authorization: str = Header(None)):
+    from sqlalchemy import text as _text
+    user = _bearer_user(authorization)
+    if not user:
+        return {"ok": False, "error": "auth required"}
+    cid = str(payload.get("client_id") or "")
+    uid = str(payload.get("uid") or "").strip().upper()
+    if not cid or not uid:
+        return {"ok": False, "error": "client_id and uid required"}
+    rep = db.execute(_text(
+        "UPDATE credentials SET status = 'REPLACED', updated_at = NOW() "
+        "WHERE client_id = :c AND credential_type = 'CARD' AND status = 'ACTIVE' "
+        "AND upper(credential_value) <> :u"), {"c": cid, "u": uid}).rowcount
+    exists = db.execute(_text(
+        "SELECT 1 FROM credentials WHERE client_id = :c AND upper(credential_value) = :u"),
+        {"c": cid, "u": uid}).first()
+    inserted = False
+    if not exists:
         try:
             db.execute(_text(
                 "INSERT INTO credentials (id, client_id, credential_type, credential_value, status, created_at, updated_at)"
