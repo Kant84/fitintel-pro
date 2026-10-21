@@ -439,6 +439,9 @@ _orig_load_calc_safe = PayrollTab._load_calc
 def _load_calc_safe(self):
     try:
         _orig_load_calc_safe(self)
+        n = self._tbl.rowCount() if hasattr(self, "_tbl") else 0
+        QMessageBox.information(self, "Расчёт ЗП",
+                                "Расчёт за %s обновлён: %d строк." % (self._month.currentData(), n))
     except Exception as e:
         import traceback
         QMessageBox.warning(self, "Расчёт ЗП",
