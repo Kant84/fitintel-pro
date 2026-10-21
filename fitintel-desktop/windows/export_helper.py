@@ -321,9 +321,7 @@ def _save_one(parent, fmt, headers, rows, title, upload_server=True):
     if not ext:
         QMessageBox.warning(parent, "Сохранить", "Неизвестный формат: %s" % fmt)
         return None
-    path, _ = QFileDialog.getSaveFileName(
-        parent, "Сохранить (%s)" % ext.upper(),
-        str(d / (name + "." + ext)), "%s (*.%s)" % (ext.upper(), ext))
+    path, _ = QFileDialog.getSaveFileName(parent, "Сохранить (%s)" % ext.upper(), str(d / (name + "." + ext)), "%s (*.%s)" % (ext.upper(), ext))
     if not path:
         return None
     try:
@@ -341,19 +339,14 @@ def _save_one(parent, fmt, headers, rows, title, upload_server=True):
                 wr.writerows(rows)
         elif fmt == "json":
             with open(path, "w", encoding="utf-8") as fh:
-                _json.dump({"title": title,
-                            "exported_at": datetime.now().isoformat(timespec="seconds"),
-                            "headers": headers, "rows": rows}, fh,
-                           ensure_ascii=False, indent=2)
+                _json.dump({"title": title, "exported_at": datetime.now().isoformat(timespec="seconds"), "headers": headers, "rows": rows}, fh, ensure_ascii=False, indent=2)
         note = ""
         if upload_server:
             ok, err = upload_to_server(parent, path, title)
-            note = ("
-
-Копия на сервере: защищённое хранилище (AES-256-GCM, аудит доступа)."
-                    if ok else "
-
-Копия на сервере НЕ сохранена: %s" % err)
+            if ok:
+                note = chr(10) + chr(10) + "Копия на сервере: защищённое хранилище (AES-256-GCM, аудит доступа, бэкап)."
+            else:
+                note = chr(10) + chr(10) + "Копия на сервере НЕ сохранена: %s" % err
         QMessageBox.information(parent, "Сохранено", str(path) + note)
         return path
     except Exception as e:
