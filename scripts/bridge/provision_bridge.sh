@@ -12,12 +12,35 @@ RESP=$(curl -s -L -w "\n%{http_code}" -X POST $FIT/users/ -H "Authorization: Bea
   -d "{\"username\":\"bridge\",\"email\":\"bridge@fitintel.ru\",\"password\":\"$PW\",\"role\":\"device\"}")
 CODE=$(echo "$RESP" | tail -1)
 echo "пользователь bridge -> HTTP $CODE"
-case "$CODE" in 200|201|409) ;; *) echo "$RESP"; exit 1 ;; esac
+OLD_PW=""
+[ -f "$ENV" ] && OLD_PW=$(grep '^password=' "$ENV" | head -1 | cut -d= -f2-)
+case "$CODE" in
+  200|201) WRITE_PW=1 ;;
+  409)
+    if [ -n "$OLD_PW" ] && python3 -c "
+import json,urllib.request,sys
+c=dict(l.split('=',1) for l in open('$ENV') if '=' in l)
+req=urllib.request.Request('$FIT/auth/login',data=json.dumps({'login':'bridge','password':c.get('password','')}).encode(),headers={'Content-Type':'application/json'})
+try:
+    sys.exit(0 if urllib.request.urlopen(req,timeout=8).status==200 else 1)
+except Exception:
+    sys.exit(1)"; then
+      echo "bridge уже существует и пароль из env подходит — НЕ перезаписываю"
+      WRITE_PW=0
+    else
+      echo "ПОЛОМАНО: пользователь bridge существует, но пароль неизвестен."
+      echo "Удалите его и перезапустите скрипт:"
+      echo "  TOK=...; curl -X DELETE $FIT/users/<id> -H "Authorization: Bearer \$TOK""
+      exit 1
+    fi ;;
+  *) echo "$RESP"; exit 1 ;;
+esac
 echo "Режим источника событий: fb | http | file | none"
 read -p "MODE [none]: " MODE; MODE=${MODE:-none}
 sudo mkdir -p /etc/fitintel
 {
-  echo "login=bridge"; echo "password=$PW"; echo "fit=$FIT"; echo "mode=$MODE"
+  [ "$WRITE_PW" = "1" ] && echo "password=$PW" || echo "password=$OLD_PW"
+  echo "login=bridge"; echo "fit=$FIT"; echo "mode=$MODE"
   if [ "$MODE" = "fb" ]; then
     read -p "Хост Firebird: " FBH
     read -p "Путь к базе: " FBP
