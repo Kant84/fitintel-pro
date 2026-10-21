@@ -740,3 +740,53 @@ try:
     print("W23 copy-anywhere OK")
 except Exception as _e23:
     print("W23 FAIL:", _e23)
+
+
+# === W24_SCAN_TOGGLE + W25_DBLCOPY: Вид -> Скан=вход; dblclick копирует ячейку ===
+try:
+    from windows.pass_badge import load_scan_visit as _w24_lsv, save_scan_visit as _w24_ssv
+    _w24_orig_init = MainWindow.__init__
+    def _w24_init(self, *a, **k):
+        _w24_orig_init(self, *a, **k)
+        try:
+            vm = None
+            for act in self.menuBar().actions():
+                if act.text().replace("&", "") == "Вид":
+                    vm = act.menu()
+            if vm is None:
+                vm = self.menuBar().addMenu("Вид")
+            self._w24_act = vm.addAction("Скан = фиксировать вход")
+            self._w24_act.setCheckable(True)
+            self._w24_act.setChecked(_w24_lsv())
+            self._w24_act.toggled.connect(lambda c: _w24_ssv(c))
+        except Exception as e:
+            print("W24 menu:", e)
+    MainWindow.__init__ = _w24_init
+    print("W24 scan toggle OK")
+except Exception as _e24:
+    print("W24 FAIL:", _e24)
+
+try:
+    from PyQt6.QtWidgets import QApplication as _W25App
+    from PyQt6.QtCore import QEvent as _W25Ev, QObject as _W25QO
+
+    class _W25DblCopy(_W25QO):
+        def eventFilter(self, obj, ev):
+            if ev.type() == _W25Ev.Type.MouseButtonDblClick and hasattr(obj, "currentItem"):
+                try:
+                    it = obj.currentItem()
+                    if it is not None and it.text():
+                        _W25App.clipboard().setText(it.text())
+                        return True
+                except Exception:
+                    pass
+            return False
+
+    _W25_APP = _W25App.instance()
+    if _W25_APP is not None:
+        _f25 = _W25DblCopy()
+        _f25._w25 = True
+        _W25_APP.installEventFilter(_f25)
+    print("W25 dblclick-copy OK")
+except Exception as _e25:
+    print("W25 FAIL:", _e25)
