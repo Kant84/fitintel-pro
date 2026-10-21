@@ -446,3 +446,74 @@ def _w16_init(self, *a, **kw):
     except Exception as e:
         print("W16 dbl:", e)
 DocumentsTab.__init__ = _w16_init
+
+# === W17_EDIT_TPL: редактирование шаблона по двойному клику ===
+def _tpl_dbl_edit(self, item):
+    row = self.tbl_tpl.currentRow()
+    if row < 0:
+        return
+    tpls = getattr(self, "_tpls", []) or []
+    if row >= len(tpls):
+        return
+    t = dict(tpls[row])
+    tid = t.get("template_id") or t.get("id")
+    from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton
+    d = QDialog(self)
+    d.setWindowTitle("Шаблон: " + str(t.get("name") or ""))
+    lay = QVBoxLayout(d)
+    lay.addWidget(QLabel("Название:"))
+    ed_name = QLineEdit(str(t.get("name") or ""))
+    lay.addWidget(ed_name)
+    lay.addWidget(QLabel("Текст (переменные: {{client_name}} {{phone}} {{email}} {{tariff}} {{date}} {{club_name}}):"))
+    te = QPlainTextEdit()
+    te.setPlainText(str(t.get("content") or ""))
+    lay.addWidget(te, 1)
+    bar = QHBoxLayout()
+    b_save = QPushButton(" Сохранить")
+    b_close = QPushButton("Закрыть")
+    bar.addWidget(b_save)
+    bar.addWidget(b_close)
+    lay.addLayout(bar)
+    b_close.clicked.connect(d.reject)
+
+    def _save():
+        if not ed_name.text().strip():
+            QMessageBox.warning(d, "Шаблон", "Введите название")
+            return
+        payload = {"name": ed_name.text().strip(), "content": te.toPlainText()}
+        url = self.api._url("/document-templates/%s" % tid)
+        ok = False
+        for meth in ("put", "patch"):
+            try:
+                r = getattr(self.api.session, meth)(url, json=payload, timeout=20)
+                if r.status_code in (200, 204):
+                    ok = True
+                    break
+            except Exception:
+                pass
+        if ok:
+            QMessageBox.information(d, "Шаблон", "Сохранено")
+            d.accept()
+            self.refresh()
+        else:
+            QMessageBox.critical(d, "Шаблон",
+                "Сервер не принял изменения (нет метода PUT/PATCH для шаблонов).\n"
+                "Удалите шаблон и создайте заново с тем же текстом.")
+    b_save.clicked.connect(_save)
+    d.resize(680, 560)
+    d.exec()
+
+DocumentsTab._tpl_dbl_edit = _tpl_dbl_edit
+
+_w17_orig_init = DocumentsTab.__init__
+def _w17_init(self, *a, **kw):
+    _w17_orig_init(self, *a, **kw)
+    try:
+        self.tbl_tpl.itemDoubleClicked.disconnect()
+    except Exception:
+        pass
+    try:
+        self.tbl_tpl.itemDoubleClicked.connect(self._tpl_dbl_edit)
+    except Exception as e:
+        print("W17:", e)
+DocumentsTab.__init__ = _w17_init
