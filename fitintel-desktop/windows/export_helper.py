@@ -286,36 +286,79 @@ def _write_xlsx_path(path, headers, rows, title):
     wb.save(str(path))
 
 
-def _save_one(parent, fmt, headers, rows, title):
-    """Сохранить таблицу в ОДНО выбранный формат (export/ без диалога)."""
-    from PyQt6.QtWidgets import QMessageBox
+
+def upload_to_server(parent, path, title):
+    """Копия файла на сервер: защищённое медиа-хранилище (шифрование, аудит)."""
+    try:
+        import os as _os
+        api = getattr(parent, "api", None)
+        if api is None:
+            return False, "нет api-клиента"
+        with open(path, "rb") as fh:
+            r = api.session.post(
+                api._url("/analytics/w12/media/upload"),
+                data={"owner_type": "export",
+                      "owner_id": _safe_name(title)[:64],
+                      "photo_type": "document"},
+                files={"file": (_os.path.basename(str(path)), fh)},
+                timeout=60)
+        if r.status_code in (200, 201):
+            return True, ""
+        return False, str(r.text)[:120]
+    except Exception as e:
+        return False, str(e)[:120]
+
+def _save_one(parent, fmt, headers, rows, title, upload_server=True):
+    """Сохранить в выбранный формат: диалог выбора места + копия на сервере."""
+    from PyQt6.QtWidgets import QMessageBox, QFileDialog
     from paths import APP_DIR
     from datetime import datetime
     import json as _json, csv as _csv
     d = APP_DIR / "export"
     d.mkdir(parents=True, exist_ok=True)
     name = _safe_name(title)
+    ext = {"xlsx": "xlsx", "pdf": "pdf", "csv": "csv", "json": "json"}.get(fmt)
+    if not ext:
+        QMessageBox.warning(parent, "Сохранить", "Неизвестный формат: %s" % fmt)
+        return None
+    path, _ = QFileDialog.getSaveFileName(
+        parent, "Сохранить (%s)" % ext.upper(),
+        str(d / (name + "." + ext)), "%s (*.%s)" % (ext.upper(), ext))
+    if not path:
+        return None
     try:
         if fmt == "xlsx":
-            p = d / (name + ".xlsx"); _write_xlsx_path(p, headers, rows, title)
+            _write_xlsx_path(path, headers, rows, title)
         elif fmt == "pdf":
             if not (ASSETS / "DejaVuSans.ttf").exists():
-                QMessageBox.warning(parent, "PDF", "Не найден assets/DejaVuSans.ttf"); return
-            p = d / (name + ".pdf"); _write_pdf_file(p, headers, rows, title)
+                QMessageBox.warning(parent, "PDF", "Не найден assets/DejaVuSans.ttf")
+                return None
+            _write_pdf_file(path, headers, rows, title)
         elif fmt == "csv":
-            p = d / (name + ".csv")
-            with open(p, "w", newline="", encoding="utf-8-sig") as fh:
-                wr = _csv.writer(fh, delimiter=";"); wr.writerow(headers); wr.writerows(rows)
+            with open(path, "w", newline="", encoding="utf-8-sig") as fh:
+                wr = _csv.writer(fh, delimiter=";")
+                wr.writerow(headers)
+                wr.writerows(rows)
         elif fmt == "json":
-            p = d / (name + ".json")
-            with open(p, "w", encoding="utf-8") as fh:
-                _json.dump({"title": title, "exported_at": datetime.now().isoformat(timespec="seconds"),
-                            "headers": headers, "rows": rows}, fh, ensure_ascii=False, indent=2)
-        else:
-            QMessageBox.warning(parent, "Сохранить", "Неизвестный формат: %s" % fmt); return
-        QMessageBox.information(parent, "Сохранено", str(p))
+            with open(path, "w", encoding="utf-8") as fh:
+                _json.dump({"title": title,
+                            "exported_at": datetime.now().isoformat(timespec="seconds"),
+                            "headers": headers, "rows": rows}, fh,
+                           ensure_ascii=False, indent=2)
+        note = ""
+        if upload_server:
+            ok, err = upload_to_server(parent, path, title)
+            note = ("
+
+Копия на сервере: защищённое хранилище (AES-256-GCM, аудит доступа)."
+                    if ok else "
+
+Копия на сервере НЕ сохранена: %s" % err)
+        QMessageBox.information(parent, "Сохранено", str(path) + note)
+        return path
     except Exception as e:
         QMessageBox.warning(parent, "Сохранить", str(e)[:200])
+        return None
 
 
 def make_save_menu_button(parent, on_format, label=" Сохранить в формате", with_1c=True):
