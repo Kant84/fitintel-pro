@@ -994,8 +994,8 @@ class ClientCard(QDialog):
         if not ok:
             return
         try:
-            r = self.api.session.post(self.api._url("/credentials/rfid/client/%s" % self.client_id),
-                                      json={"uid": uid.strip() or None}, timeout=30)
+            r = self.api.session.post(self.api._url("/analytics/w12/cards/replace"),
+                                      json={"client_id": self.client_id, "uid": (uid.strip() or None)}, timeout=30)
             r.raise_for_status()
             QMessageBox.information(self, "Карта", "Карта привязана")
         except Exception:

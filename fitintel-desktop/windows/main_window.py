@@ -685,3 +685,27 @@ try:
     MainWindow.__init__ = _init_wheel2
 except Exception as _e13w2:
     print("W13 wheel v2 FAIL:", _e13w2)
+
+# === W22_BADGE_TOGGLE: Вид -> Индикатор прохода ===
+try:
+    from windows.pass_badge import load_enabled as _w22_load, save_enabled as _w22_save
+    _w22_orig_init = MainWindow.__init__
+    def _w22_init(self, *a, **k):
+        _w22_orig_init(self, *a, **k)
+        try:
+            vm = None
+            for act in self.menuBar().actions():
+                if act.text().replace("&", "") == "Вид":
+                    vm = act.menu()
+            if vm is None:
+                vm = self.menuBar().addMenu("Вид")
+            self._w22_act = vm.addAction("Индикатор прохода (ФИО + кружок)")
+            self._w22_act.setCheckable(True)
+            self._w22_act.setChecked(_w22_load())
+            self._w22_act.toggled.connect(lambda c: _w22_save(c))
+        except Exception as e:
+            print("W22 menu:", e)
+    MainWindow.__init__ = _w22_init
+    print("W22 badge toggle OK")
+except Exception as _e22:
+    print("W22 FAIL:", _e22)
