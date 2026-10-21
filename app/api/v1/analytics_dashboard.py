@@ -2425,7 +2425,7 @@ def _find_client_by_credential(db, ctype, value):
                 return row[0]
         except Exception:
             db.rollback()
-    for tbl, cols in (("credentials", ("uid", "card_uid", "value", "code", "card_number", "number")),
+    for tbl, cols in (("credentials", ("uid", "card_uid", "value", "code", "card_number", "number", "credential_value")),
                       ("client_cards", ("uid", "card_uid", "card_number", "number")),
                       ("clients", ("card_uid", "rfid_uid", "card", "qr_code"))):
         if not db.execute(_text(
