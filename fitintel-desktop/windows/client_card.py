@@ -989,17 +989,71 @@ class ClientCard(QDialog):
             QMessageBox.warning(self, "Продажа", str(e)[:250])
 
     def _assign_card(self):
-        from PyQt6.QtWidgets import QInputDialog
-        uid, ok = QInputDialog.getText(self, "Выдать карту", "UID карты (пусто = сгенерировать):")
-        if not ok:
+        from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QLineEdit,
+                                     QHBoxLayout, QPushButton)
+        from PyQt6.QtCore import QThread, pyqtSignal, QTimer
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Выдать карту")
+        dlg.resize(380, 180)
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel("Поднесите карту к считывателю — UID подставится сам.\n"
+                             "(или введите номер с корпуса карты вручную)"))
+        ed = QLineEdit()
+        lay.addWidget(ed)
+        st = QLabel("Ожидание карты… (20 сек)")
+        st.setStyleSheet("color:#f59e0b;")
+        lay.addWidget(st)
+        bar = QHBoxLayout()
+        b_ok = QPushButton("OK"); b_cancel = QPushButton("Отмена")
+        bar.addWidget(b_ok); bar.addWidget(b_cancel)
+        lay.addLayout(bar)
+
+        class _Poll(QThread):
+            got = pyqtSignal(str)
+            def run(self):
+                try:
+                    from rfid.direct_reader import DirectReader
+                    rd = DirectReader()
+                    for _ in range(40):
+                        if self.isInterruptionRequested():
+                            return
+                        uid = rd.detect_uid()
+                        if uid:
+                            self.got.emit(uid)
+                            return
+                        self.msleep(500)
+                except Exception:
+                    pass
+
+        poll = _Poll(dlg)
+        def _on_uid(u):
+            ed.setText(u)
+            st.setText("Карта считана: " + u)
+            st.setStyleSheet("color:#10b981;")
+        poll.got.connect(_on_uid)
+        poll.start()
+        tm = QTimer(dlg); tm.setSingleShot(True)
+        tm.timeout.connect(poll.requestInterruption)
+        tm.start(20000)
+        b_ok.clicked.connect(dlg.accept)
+        b_cancel.clicked.connect(dlg.reject)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        uid = ed.text().strip()
+        if not uid:
+            QMessageBox.information(self, "Карта",
+                "UID не получен — поднесите карту или введите номер")
             return
         try:
             r = self.api.session.post(self.api._url("/analytics/w12/cards/replace"),
-                                      json={"client_id": self.client_id, "uid": (uid.strip() or None)}, timeout=30)
+                                      json={"client_id": self.client_id, "uid": uid}, timeout=30)
             r.raise_for_status()
-            QMessageBox.information(self, "Карта", "Карта привязана")
-        except Exception:
-            self._open_max_screen("Браслеты")
+            d = r.json()
+            QMessageBox.information(self, "Карта",
+                "Карта привязана. Аннулировано старых: %s" % d.get("replaced", 0))
+            self.reload()
+        except Exception as e:
+            QMessageBox.warning(self, "Карта", str(e)[:200])
 
     def _freeze(self):
         act = [s for s in self._subs if str(s.get("status", "")).upper() == "ACTIVE"]
