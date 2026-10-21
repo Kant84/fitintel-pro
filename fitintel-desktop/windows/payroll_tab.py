@@ -122,7 +122,13 @@ class PayrollTab(QWidget):
 
         hb = QHBoxLayout()
         hb.addStretch()
-        hb.addWidget(make_save_menu_button(self, self._export))
+        _btn = make_save_menu_button(self, self._export)
+        _m = _btn.menu()
+        _a1 = _m.addAction("1\u0421 (\u0417\u0430\u0440\u043f\u043b\u0430\u0442\u0430 XML)")
+        _a1.triggered.connect(lambda _: self._export("zp1c"))
+        _a2 = _m.addAction("1\u0421 (CommerceML)")
+        _a2.triggered.connect(lambda _: self._export("1cml"))
+        hb.addWidget(_btn)
         lay.addLayout(hb)
 
         self._load_positions()
@@ -352,6 +358,9 @@ class PayrollTab(QWidget):
         headers = [self._tbl.horizontalHeaderItem(i).text() for i in range(self._tbl.columnCount())]
         rows = [[self._tbl.item(r, c).text() if self._tbl.item(r, c) else ""
                  for c in range(self._tbl.columnCount())] for r in range(self._tbl.rowCount())]
+        if fmt == "zp1c":
+            self._export_zp_1c(headers, rows)
+            return
         if fmt == "1c":
             from windows.export_helper import export_1c_xml
             export_1c_xml(self)
@@ -360,3 +369,50 @@ class PayrollTab(QWidget):
             export_1c_commerceml(self)
         else:
             _save_one(self, fmt, headers, rows, "Расчёт ЗП %s" % self._month.currentData())
+    def _export_zp_1c(self, headers, rows):
+        from PyQt6.QtWidgets import QMessageBox
+        from paths import APP_DIR
+        from xml.sax.saxutils import escape
+        import datetime as _dt
+        period = self._month.currentData() or _dt.date.today().strftime("%Y-%m")
+        d = APP_DIR / "export"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / ("zp_%s.xml" % period)
+
+        def num(v):
+            try:
+                return float(str(v).replace("\u00a0", "").replace(" ", "").replace(",", "."))
+            except Exception:
+                return 0.0
+
+        L = ['<?xml version="1.0" encoding="UTF-8"?>', '<Export>',
+             '  <Payroll Month="%s" Club="\u041e\u0441\u043d\u043e\u0432\u043d\u043e\u0439 \u043a\u043b\u0443\u0431" Generated="%s">'
+             % (escape(period), _dt.datetime.now().isoformat(timespec="seconds"))]
+        for row in rows:
+            name = str(row[0] or "")
+            position = str(row[1] or "")
+            base = num(row[2]); earnings = num(row[3]); comm = num(row[5])
+            bonus = num(row[6]); advance = num(row[7])
+            try:
+                dd, ff = [num(x) for x in str(row[8] or "0 / 0").split("/")]
+            except Exception:
+                dd, ff = 0.0, 0.0
+            total = num(row[9])
+            L.append('    <Employee name="%s" position="%s">' % (escape(name), escape(position)))
+            if base: L.append('      <Accrual kind="\u041e\u043a\u043b\u0430\u0434" amount="%.2f"/>' % base)
+            if earnings: L.append('      <Accrual kind="\u0421\u0434\u0435\u043b\u044c\u043d\u044b\u0435" amount="%.2f"/>' % earnings)
+            if comm: L.append('      <Accrual kind="\u041a\u043e\u043c\u0438\u0441\u0441\u0438\u044f" amount="%.2f"/>' % comm)
+            if bonus: L.append('      <Accrual kind="\u041f\u0440\u0435\u043c\u0438\u044f" amount="%.2f"/>' % bonus)
+            if advance: L.append('      <Deduction kind="\u0410\u0432\u0430\u043d\u0441" amount="%.2f"/>' % advance)
+            if dd: L.append('      <Deduction kind="\u0423\u0434\u0435\u0440\u0436\u0430\u043d\u0438\u044f" amount="%.2f"/>' % dd)
+            if ff: L.append('      <Deduction kind="\u0428\u0442\u0440\u0430\u0444\u044b" amount="%.2f"/>' % ff)
+            L.append('      <Total>%.2f</Total>' % total)
+            L.append('      <Posting doc="\u041d\u0430\u0447\u0438\u0441\u043b\u0435\u043d\u0438\u0435 \u0437\u0430\u0440\u043f\u043b\u0430\u0442\u044b" dt="44" kt="70" amount="%.2f"/>' % total)
+            L.append('      <Posting doc="\u0412\u044b\u043f\u043b\u0430\u0442\u0430 \u0437\u0430\u0440\u043f\u043b\u0430\u0442\u044b" dt="70" kt="50" amount="%.2f" note="\u0430\u0432\u0430\u043d\u0441 %.2f"/>' % (total, advance))
+            L.append('    </Employee>')
+        L.append('  </Payroll>')
+        L.append('</Export>')
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(L))
+        QMessageBox.information(self, "1\u0421 (\u0417\u0430\u0440\u043f\u043b\u0430\u0442\u0430 XML)",
+                                "\u0421\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u043e: %s\n\u0421\u043e\u0442\u0440\u0443\u0434\u043d\u0438\u043a\u043e\u0432: %d" % (path, len(rows)))
