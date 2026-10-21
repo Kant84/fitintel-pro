@@ -562,3 +562,58 @@ def _w18_init(self, *a, **kw):
     except Exception as e:
         print("W18:", e)
 DocumentsTab.__init__ = _w18_init
+
+# === W19_COMPACT_UI: без тумблеров, поиск, компактные кнопки, скроллы ===
+def _w19_filter_rows(tbl, text):
+    text = (text or "").lower().strip()
+    for r in range(tbl.rowCount()):
+        show = not text
+        if not show:
+            for c in range(tbl.columnCount()):
+                it = tbl.item(r, c)
+                if it is not None and text in it.text().lower():
+                    show = True
+                    break
+        tbl.setRowHidden(r, not show)
+
+
+def _w19_apply(self):
+    from PyQt6.QtWidgets import QLineEdit
+    from PyQt6.QtCore import Qt
+    # 1. убрать тумблеры «Шаблоны/Документы», показать оба блока
+    for b in self.findChildren(QPushButton):
+        if b.text().strip() in ("Шаблоны", "Документы"):
+            b.setVisible(False)
+    for gb in self.findChildren(QGroupBox):
+        gb.setVisible(True)
+    # 2. поиск по обоим спискам
+    if not hasattr(self, "_w19_s_tpl"):
+        self._w19_s_tpl = QLineEdit()
+        self._w19_s_tpl.setPlaceholderText("Поиск по шаблонам...")
+        self._w19_s_tpl.setMaximumHeight(26)
+        self.tbl_tpl.parentWidget().layout().insertWidget(0, self._w19_s_tpl)
+        self._w19_s_tpl.textChanged.connect(lambda s: _w19_filter_rows(self.tbl_tpl, s))
+        self._w19_s_doc = QLineEdit()
+        self._w19_s_doc.setPlaceholderText("Поиск по документам (название/клиент/статус)...")
+        self._w19_s_doc.setMaximumHeight(26)
+        self.table.parentWidget().layout().insertWidget(0, self._w19_s_doc)
+        self._w19_s_doc.textChanged.connect(lambda s: _w19_filter_rows(self.table, s))
+    # 3. компактные кнопки снизу + ограниченные высоты списков со скроллами
+    for b in self.findChildren(QPushButton):
+        lt = b.text().lower()
+        if "создать шаблон" in lt or "загрузить шаблон" in lt or b.text().strip() == "Печать":
+            b.setMaximumHeight(28)
+            b.setStyleSheet("QPushButton{padding:3px 10px;font-size:12px;border-radius:4px;}")
+    self.tbl_tpl.setMaximumHeight(150)
+    self.tbl_tpl.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+    self.table.setMinimumHeight(170)
+    self.table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+
+_w19_orig_init = DocumentsTab.__init__
+def _w19_init(self, *a, **kw):
+    _w19_orig_init(self, *a, **kw)
+    try:
+        _w19_apply(self)
+    except Exception as e:
+        print("W19:", e)
+DocumentsTab.__init__ = _w19_init
