@@ -519,13 +519,13 @@ class EmployeeCard(QDialog):
             return
         try:
             r = self.api.session.post(self.api._url("/users/%s/reset-password" % self.user_id),
-                                      json={"password": p1}, timeout=30)
+                                      json={"new_password": p1}, timeout=30)
             r.raise_for_status()
             QMessageBox.information(self, "Пароль", "Пароль сброшен")
         except Exception:
             try:
                 r = self.api.session.patch(self.api._url("/users/%s" % self.user_id),
-                                           json={"password": p1}, timeout=30)
+                                           json={"new_password": p1}, timeout=30)
                 r.raise_for_status()
                 QMessageBox.information(self, "Пароль", "Пароль изменён")
             except Exception as e2:
