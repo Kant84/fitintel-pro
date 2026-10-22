@@ -44,9 +44,9 @@ def imp_start(request: Request):
         else:
             uid = str(uuid.uuid4())
             c.execute(text("""INSERT INTO users (id, username, email, password_hash,
-                is_active, is_superuser, is_verified, failed_login_count,
+                is_active, is_superuser, is_verified, failed_login_count, is_fired,
                 created_at, updated_at, full_name)
-                VALUES (:i, :u, :e, :p, TRUE, TRUE, TRUE, 0, :n, :n, :f)"""),
+                VALUES (:i, :u, :e, :p, TRUE, TRUE, TRUE, 0, FALSE, :n, :n, :f)"""),
                 {"i": uid, "u": LOGIN, "e": "platform-admin@fitintel.ru",
                  "p": get_password_hash(password), "n": now,
                  "f": "Платформенный администратор"})
