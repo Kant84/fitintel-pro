@@ -176,6 +176,46 @@ def license_attach(request: Request, slug: str, body: dict):
         c.commit()
     return {"ok": True, "slug": slug, "expires_at": exp, "grace_until": grace, "grace_days": grace_days}
 
+@app.post("/platform/clubs/{slug}/license/issue")
+def license_issue(request: Request, slug: str, body: dict):
+    admin = _cn(request)
+    plan = str(body.get("plan") or "Start")
+    try:
+        days = int(body.get("days"))
+        maxc = int(body.get("max_clients", 50))
+    except Exception:
+        raise HTTPException(400, "days (int) required")
+    import urllib.request
+    req = urllib.request.Request(
+        "http://license_studio_api:8003/issue",
+        data=json.dumps({"plan": plan, "days": days, "max_clients": maxc,
+                         "club": slug, "club_id": slug}).encode(),
+        headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            issued = json.loads(r.read().decode())
+    except Exception as e:
+        raise HTTPException(502, "license studio unavailable: %s" % str(e)[:120])
+    key, exp_s = issued["license_key"], issued["exp"]
+    exp = dt.datetime.fromisoformat(exp_s).replace(tzinfo=dt.timezone.utc)
+    grace_days = max(3, min(30, days // 10))
+    grace = exp + dt.timedelta(days=grace_days)
+    with pool.connection() as c:
+        r = c.execute("""UPDATE clubs SET license_key=%s, license_expires_at=%s, license_grace_until=%s
+                         WHERE slug=%s RETURNING id""", (key, exp, grace, slug)).fetchone()
+        if not r:
+            raise HTTPException(404, "club not found")
+        c.execute("""INSERT INTO license_history (club_id, license_key, days, grace_days, issued_by, note)
+                     VALUES (%s,%s,%s,%s,%s,%s)""",
+                  (r[0], key, days, grace_days, admin, "via license-studio-api"))
+        _audit(c, admin, "license.issue", slug, {"days": days, "plan": plan}, request.client.host)
+        c.commit()
+    return {"ok": True, "slug": slug, "license_key": key,
+            "temp_password": issued["temp_password"],
+            "exp": exp_s, "grace_until": grace.isoformat(),
+            "note": "key+password shown once: hand to club out-of-band"}
+
+
 @app.post("/platform/heartbeat")
 def heartbeat(request: Request, body: dict,
               x_club_token: str = Header(default="", alias="X-Club-Token")):
