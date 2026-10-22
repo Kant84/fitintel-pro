@@ -1032,6 +1032,8 @@ class ClientCard(QDialog):
             st.setStyleSheet("color:#10b981;")
         poll.got.connect(_on_uid)
         poll.start()
+        poll.finished.connect(poll.deleteLater)
+        dlg.finished.connect(lambda _r: (poll.requestInterruption(), poll.wait(2000)))
         tm = QTimer(dlg); tm.setSingleShot(True)
         tm.timeout.connect(poll.requestInterruption)
         tm.start(20000)
