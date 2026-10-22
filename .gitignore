@@ -127,3 +127,8 @@ deploy/platform/secrets/*
 deploy/platform/nginx/certs/*.key
 deploy/platform/nginx/certs/*.p12
 deploy/platform/nginx/certs/ca.key
+
+# License Studio code (ключи запрещены выше)
+!tools/license_studio/
+!tools/license_studio/*.py
+
