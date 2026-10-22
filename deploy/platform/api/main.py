@@ -1,5 +1,5 @@
 import os, json, secrets, datetime as dt
-from fastapi import FastAPI, Request, HTTPException, Header, Response, Response
+from fastapi import FastAPI, Request, HTTPException, Header, Response
 from psycopg_pool import ConnectionPool
 
 DATABASE_URL = os.environ.get(
@@ -445,7 +445,6 @@ def impersonate(request: Request, slug: str, body: dict):
         c.commit()
     return {"ok": True, "slug": slug,
             "credentials": {"login": data["login"], "password": data["password"]},
-            "console_token": data.get("console_token", ""),
             "console_token": data.get("console_token", ""),
             "expires_in_min": data.get("expires_in_min", 5),
             "note": "enter credentials in club desktop login; session audited"}
