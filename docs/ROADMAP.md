@@ -151,3 +151,11 @@
 
 ### Техдолг установки (в мастер установки, см. «Установка и эксплуатация»)
 - [ ] auto-bэкап cron + chown томов + самотест медиа-хранилища — сейчас сделано вручную на nfs (21.10).
+
+## Платформа (веб-панель платформенного админа, deploy/platform/)
+- [x] **Этап А** (22.10): WireGuard + Nginx mTLS (8443, X-Client-CN auth) + platform_db. Сертификаты: CA 10 лет, серверный/клиентские 825 дн. (SAN: белый IP + 127.0.0.1). Проверено: позитив/негатив mTLS.
+- [x] **Этап Б** (22.10): platform_api за nginx: клубы (create/list/token rotate), heartbeat (X-Club-Token), статус лицензии (active/grace/expired, формула grace = max(3, min(30, days/10))), platform_audit + license_history (append-only). Проверено: клуб demo создан, heartbeat/лента работают.
+- [x] **Этап Г** (22.10, инфраструктура): license_studio_api (Ed25519, приватный ключ — Docker secret, НЕ в git; club_id в payload ключа, GUI-студия пропатчена) + эндпоинт /platform/clubs/{slug}/license/issue (выпуск в один вызов: подпись Studio -> прикрепление -> история -> аудит). Проверено: ключ FIPRO выпущен, статус active. КОНТРОЛЬНАЯ ТОЧКА: активация ключа в десктопе клуба (подпись проверяется app/core/license_public.pem).
+- [ ] **Этап В**: веб-панель (статический фронт за mTLS): таблица клубов (статусы лицензий, last_seen), heartbeat-лента, журнал аудита, фильтры.
+- [ ] **Этап Д/Е**: impersonation (временные креды для десктоп-поддержки), SoD с 2-го админа, алерты истечения (90/60/30/14/7/3/1) в Alertmanager.
+- [ ] Эксплуатация: файрвол хоста (DOCKER-USER) + fail2ban по docs/platform/MTLS_PLATFORM_ACCESS.md (разд. 8-9); автонастройка при установке клуба (провижининг peer-конфига WG + токена heartbeat в ent_bridge env).
