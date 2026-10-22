@@ -315,7 +315,9 @@ class UsersTab(QWidget):
         if not uid:
             return
         from windows.employee_card import EmployeeCard
-        dlg = EmployeeCard(self.api, uid, user_data={}, parent=None)
+        dlg = EmployeeCard(self.api, uid, user_data={}, parent=self)
+        self._open_cards = getattr(self, "_open_cards", [])
+        self._open_cards.append(dlg)
         dlg.show()
 
     def _user_by_id(self, uid):

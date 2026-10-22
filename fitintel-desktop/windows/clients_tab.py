@@ -444,7 +444,9 @@ class ClientsTab(QWidget):
         if not c:
             return
         from windows.client_card import ClientCard
-        dlg = ClientCard(self.api, str(c.get("id")), user_data={}, parent=None)
+        dlg = ClientCard(self.api, str(c.get("id")), user_data={}, parent=self)
+        self._open_cards = getattr(self, "_open_cards", [])
+        self._open_cards.append(dlg)
         dlg.show()
 
     def _add(self):
