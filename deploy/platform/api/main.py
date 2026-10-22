@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS license_history (
   note TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_heartbeats_club ON club_heartbeats(club_id, received_at DESC);
+ALTER TABLE clubs ADD COLUMN IF NOT EXISTS license_paid_until TIMESTAMPTZ;
 """
 
 @app.on_event("startup")
@@ -59,6 +60,28 @@ def _init():
     with pool.connection() as c:
         c.execute(BOOTSTRAP)
         c.commit()
+
+
+def _apply_renewals(c):
+    """Оплачено дальше, чем истекает -> продлеваем expires_at до paid_until."""
+    rows = c.execute("""SELECT id, license_paid_until FROM clubs
+        WHERE license_paid_until IS NOT NULL AND license_expires_at IS NOT NULL
+          AND license_paid_until > license_expires_at""").fetchall()
+    for r in rows:
+        c.execute("""UPDATE clubs SET license_expires_at=%s, license_grace_until=NULL
+                     WHERE id=%s""", (r[1], r[0]))
+    return len(rows)
+
+
+def _lic_status(exp, grace, now):
+    if not exp:
+        return "no_license", None
+    if now < exp:
+        return "active", (exp - now).days
+    if grace and now < grace:
+        return "grace", (grace - now).days
+    return "blocked", None
+
 
 def _cn(request: Request) -> str:
     raw = request.headers.get("x-client-cn", "")
@@ -88,15 +111,30 @@ def health():
 @app.get("/platform/clubs")
 def clubs_list(request: Request):
     admin = _cn(request)
+    now = dt.datetime.now(dt.timezone.utc)
     with pool.connection() as c:
-        rows = c.execute("""SELECT slug, name, is_active, wireguard_ip, license_key,
-            license_expires_at, license_grace_until, last_seen_at, created_at
-            FROM clubs ORDER BY created_at""").fetchall()
-    return {"ok": True, "admin": admin, "clubs": [
-        {"slug": r[0], "name": r[1], "active": r[2], "wireguard_ip": r[3],
-         "license_key": (r[4][:12] + "...") if r[4] else None,
-         "license_expires_at": r[5], "license_grace_until": r[6],
-         "last_seen_at": r[7], "created_at": r[8]} for r in rows]}
+        _apply_renewals(c)
+        rows = c.execute("""SELECT cl.slug, cl.name, cl.is_active, cl.wireguard_ip,
+            cl.license_key, cl.license_expires_at, cl.license_grace_until,
+            cl.license_paid_until, cl.last_seen_at, cl.created_at, h.payload
+            FROM clubs cl
+            LEFT JOIN LATERAL (SELECT payload FROM club_heartbeats
+                WHERE club_id = cl.id ORDER BY received_at DESC LIMIT 1) h ON TRUE
+            ORDER BY cl.created_at""").fetchall()
+        c.commit()
+    out = []
+    for r in rows:
+        st, days = _lic_status(r[5], r[6], now)
+        online = bool(r[8] and (now - r[8]).total_seconds() < 180)
+        payload = r[10] or {}
+        out.append({"slug": r[0], "name": r[1], "active": r[2], "wireguard_ip": r[3],
+            "license_key": (r[4][:12] + "...") if r[4] else None,
+            "license_expires_at": r[5], "license_grace_until": r[6],
+            "license_paid_until": r[7], "last_seen_at": r[8], "created_at": r[9],
+            "online": online, "license_status": st, "license_days_left": days,
+            "version": payload.get("version"), "clients": payload.get("clients")})
+    return {"ok": True, "admin": admin, "clubs": out}
+
 
 @app.post("/platform/clubs", status_code=201)
 def club_create(request: Request, body: dict):
@@ -131,24 +169,19 @@ def club_rotate_token(request: Request, slug: str):
 @app.get("/platform/clubs/{slug}/license")
 def license_status(request: Request, slug: str):
     _cn(request)
+    now = dt.datetime.now(dt.timezone.utc)
     with pool.connection() as c:
-        r = c.execute("""SELECT license_key, license_expires_at, license_grace_until
-                         FROM clubs WHERE slug=%s""", (slug,)).fetchone()
+        _apply_renewals(c)
+        r = c.execute("""SELECT license_key, license_expires_at, license_grace_until,
+            license_paid_until FROM clubs WHERE slug=%s""", (slug,)).fetchone()
+        c.commit()
     if not r:
         raise HTTPException(404, "club not found")
-    key, exp, grace = r
-    now = dt.datetime.now(dt.timezone.utc)
-    if not key:
-        status, days_left = "no_license", None
-    elif exp and now < exp:
-        status, days_left = "active", (exp - now).days
-    elif grace and now < grace:
-        status, days_left = "grace", (grace - now).days
-    else:
-        status, days_left = "expired", None
-    return {"ok": True, "slug": slug, "status": status, "days_left": days_left,
-            "license_expires_at": exp, "grace_until": grace,
-            "license_key": (key[:12] + "...") if key else None}
+    st, days = _lic_status(r[1], r[2], now)
+    return {"ok": True, "slug": slug, "status": st, "days_left": days,
+            "license_expires_at": r[1], "grace_until": r[2], "paid_until": r[3],
+            "license_key": (r[0][:12] + "...") if r[0] else None}
+
 
 @app.post("/platform/clubs/{slug}/license")
 def license_attach(request: Request, slug: str, body: dict):
@@ -231,6 +264,95 @@ def audit_list(request: Request, actor: str = "", action: str = "", limit: int =
     return {"ok": True, "audit": [
         {"actor": r[0], "action": r[1], "object": r[2], "detail": r[3], "ip": r[4], "at": r[5]}
         for r in rows]}
+
+
+@app.post("/platform/clubs/{slug}/license/renew")
+def license_renew(request: Request, slug: str, body: dict):
+    admin = _cn(request)
+    note = str(body.get("note") or "manual")
+    now = dt.datetime.now(dt.timezone.utc)
+    if body.get("days"):
+        exp = now + dt.timedelta(days=int(body["days"]))
+    elif body.get("paid_until"):
+        exp = dt.datetime.fromisoformat(str(body["paid_until"])).replace(tzinfo=dt.timezone.utc)
+    else:
+        raise HTTPException(400, "days или paid_until (YYYY-MM-DD) required")
+    period = (exp - now).days
+    grace_days = max(3, min(30, period // 10))
+    grace = exp + dt.timedelta(days=grace_days)
+    with pool.connection() as c:
+        r = c.execute("""UPDATE clubs SET license_paid_until=%s, license_expires_at=%s,
+                         license_grace_until=%s WHERE slug=%s RETURNING id""",
+                      (exp, exp, grace, slug)).fetchone()
+        if not r:
+            raise HTTPException(404, "club not found")
+        c.execute("""INSERT INTO license_history (club_id, license_key, days, grace_days, issued_by, note)
+                     VALUES (%s,%s,%s,%s,%s,%s)""",
+                  (r[0], "manual-renew", period, grace_days, admin, note))
+        _audit(c, admin, "license.renew", slug,
+               {"paid_until": exp.isoformat(), "grace_days": grace_days, "note": note},
+               request.client.host)
+        c.commit()
+    return {"ok": True, "slug": slug, "license_paid_until": exp,
+            "expires_at": exp, "grace_until": grace}
+
+
+@app.post("/platform/clubs/{slug}/suspend")
+def club_suspend(request: Request, slug: str, body: dict):
+    admin = _cn(request)
+    reason = str(body.get("reason") or "").strip()
+    if not reason:
+        raise HTTPException(400, "reason required")
+    with pool.connection() as c:
+        n = c.execute("UPDATE clubs SET is_active=FALSE WHERE slug=%s RETURNING id", (slug,)).fetchone()
+        if not n:
+            raise HTTPException(404, "club not found")
+        _audit(c, admin, "club.suspend", slug, {"reason": reason}, request.client.host)
+        c.commit()
+    return {"ok": True, "slug": slug, "suspended": True}
+
+
+@app.post("/platform/clubs/{slug}/resume")
+def club_resume(request: Request, slug: str):
+    admin = _cn(request)
+    with pool.connection() as c:
+        n = c.execute("UPDATE clubs SET is_active=TRUE WHERE slug=%s RETURNING id", (slug,)).fetchone()
+        if not n:
+            raise HTTPException(404, "club not found")
+        _audit(c, admin, "club.resume", slug, None, request.client.host)
+        c.commit()
+    return {"ok": True, "slug": slug, "suspended": False}
+
+
+@app.get("/platform/dashboard")
+def dashboard(request: Request):
+    _cn(request)
+    now = dt.datetime.now(dt.timezone.utc)
+    with pool.connection() as c:
+        renewed = _apply_renewals(c)
+        clubs = c.execute("""SELECT slug, name, is_active, license_expires_at,
+            license_grace_until, license_paid_until, last_seen_at FROM clubs""").fetchall()
+        clients = c.execute("""SELECT COALESCE(SUM((h.payload->>'clients')::int),0)
+            FROM clubs cl LEFT JOIN LATERAL (SELECT payload FROM club_heartbeats
+                WHERE club_id=cl.id ORDER BY received_at DESC LIMIT 1) h ON TRUE""").fetchone()[0]
+        audit = c.execute("""SELECT actor, action, object, created_at FROM platform_audit
+            ORDER BY created_at DESC LIMIT 20""").fetchall()
+        c.commit()
+    lic = {"active": 0, "grace": 0, "blocked": 0, "no_license": 0}
+    expiring, online, suspended = [], 0, 0
+    for r in clubs:
+        st, _ = _lic_status(r[3], r[4], now)
+        lic[st] = lic.get(st, 0) + 1
+        if r[3] and r[3] > now and (r[3] - now).days <= 14:
+            expiring.append({"slug": r[0], "name": r[1], "days": (r[3] - now).days})
+        if not r[2]:
+            suspended += 1
+        elif r[6] and (now - r[6]).total_seconds() < 180:
+            online += 1
+    return {"ok": True, "kpis": {"clubs_total": len(clubs), "online": online,
+            "suspended": suspended, "clients_total": clients, "licenses": lic,
+            "expiring_14d": expiring, "renewals_applied": renewed},
+            "events": [{"at": a[3], "actor": a[0], "action": a[1], "object": a[2]} for a in audit]}
 
 
 @app.post("/platform/heartbeat")
