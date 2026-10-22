@@ -249,3 +249,14 @@ def my_screens(
         ORDER BY s.sort_order, s.code
     """), {"role": role}).mappings().all()
     return {"role": role, "screens": [dict(r) for r in rows]}
+
+
+# === W27_SUPERUSER_SCREENS: суперпользователь видит все экраны через роль superadmin ===
+_orig_user_role_w27 = _user_role
+def _user_role(user):
+    try:
+        if bool(getattr(user, 'is_superuser', False)):
+            return 'superadmin'
+    except Exception:
+        pass
+    return _orig_user_role_w27(user)
