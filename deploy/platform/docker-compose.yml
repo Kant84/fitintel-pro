@@ -21,6 +21,7 @@ services:
 
   platform_api:
     build: ./api
+    network_mode: service:wireguard   # api разделяет netns с wireguard -> доступ к 10.0.0.x
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://platform_user:${PLATFORM_DB_PASSWORD}@platform_db:5432/platform
