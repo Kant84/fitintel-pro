@@ -16,7 +16,7 @@ openssl genrsa -out server.key 2048
 openssl req -new -key server.key -out server.csr -subj "/CN=fitintel-platform"
 openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
   -out server.crt -days 825 -sha256 \
-  -addext "subjectAltName=IP:79.174.46.68,IP:127.0.0.1"
+  -addext "subjectAltName=IP:79.174.46.68,IP:127.0.0.1,IP:192.168.101.125"
 
 # 3) Клиентский сертификат админа (первый)
 ADMIN_EMAIL="${1:-admin@fitintel.local}"
