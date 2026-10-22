@@ -216,6 +216,23 @@ def license_issue(request: Request, slug: str, body: dict):
             "note": "key+password shown once: hand to club out-of-band"}
 
 
+@app.get("/platform/audit")
+def audit_list(request: Request, actor: str = "", action: str = "", limit: int = 100):
+    _cn(request)
+    limit = max(1, min(limit, 500))
+    q, args = "SELECT actor, action, object, detail, ip, created_at FROM platform_audit WHERE 1=1", []
+    if actor:
+        q += " AND actor=%s"; args.append(actor)
+    if action:
+        q += " AND action=%s"; args.append(action)
+    q += " ORDER BY created_at DESC LIMIT %s"; args.append(limit)
+    with pool.connection() as c:
+        rows = c.execute(q, args).fetchall()
+    return {"ok": True, "audit": [
+        {"actor": r[0], "action": r[1], "object": r[2], "detail": r[3], "ip": r[4], "at": r[5]}
+        for r in rows]}
+
+
 @app.post("/platform/heartbeat")
 def heartbeat(request: Request, body: dict,
               x_club_token: str = Header(default="", alias="X-Club-Token")):
