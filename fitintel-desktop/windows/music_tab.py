@@ -380,8 +380,7 @@ class MusicTab(QWidget):
     # ---------- плеер на этом ПК ----------
     def _agent_running(self):
         t = getattr(self, "_agent_thread", None)
-        ag = getattr(self, "_agent_obj", None)
-        return bool(t and t.is_alive() and ag is not None)
+        return bool(t and t.is_alive())
 
     def _upd_agent_btn(self):
         running = self._agent_running()
@@ -494,13 +493,6 @@ class MusicTab(QWidget):
                                capture_output=True, timeout=5)
         except Exception:
             pass
-        t = getattr(self, "_agent_thread", None)
-        if t is not None:
-            try:
-                t.join(timeout=4)
-            except Exception:
-                pass
-            self._agent_thread = None
 
     def toggle_agent(self):
         if self._agent_running():
