@@ -23,18 +23,31 @@ PALETTE = [
 ]
 
 
+def _cfg():
+    import os
+    for cand in ("client_settings.json",
+                 os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                              "client_settings.json")):
+        try:
+            return json.load(open(cand, encoding="utf-8"))
+        except Exception:
+            continue
+    return {}
+
+
 def _base():
-    try:
-        cfg = json.load(open("client_settings.json", encoding="utf-8"))
-        return cfg.get("api_base") or cfg.get("base_url") or "http://localhost:8001/api/v1"
-    except Exception:
-        return "http://localhost:8001/api/v1"
+    cfg = _cfg()
+    return cfg.get("api_base") or cfg.get("base_url") or "http://localhost:8001/api/v1"
 
 
 def _req(method, path, data=None):
+    tok = (_cfg() or {}).get("token") or ""
+    headers = {"Content-Type": "application/json"}
+    if tok:
+        headers["Authorization"] = "Bearer " + tok
     r = urllib.request.Request(_base() + path,
                                data=json.dumps(data).encode() if data is not None else None,
-                               headers={"Content-Type": "application/json"}, method=method)
+                               headers=headers, method=method)
     return json.load(urllib.request.urlopen(r, timeout=10))
 
 
