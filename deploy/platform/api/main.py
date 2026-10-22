@@ -484,6 +484,23 @@ async def console_proxy(request: Request, slug: str, path: str):
     return Response(content=content, status_code=status, media_type=mt.split(";")[0])
 
 
+@app.get("/platform/clubs/{slug}/brand")
+def club_brand(request: Request, slug: str):
+    _cn(request)
+    with pool.connection() as c:
+        r = c.execute("SELECT wireguard_ip FROM clubs WHERE slug=%s", (slug,)).fetchone()
+    if not r or not r[0]:
+        return {"ok": False, "club_name": None}
+    import urllib.request, json as _j
+    try:
+        with urllib.request.urlopen("http://%s/api/v1/brand/settings" % r[0], timeout=4) as resp:
+            d = _j.loads(resp.read().decode())
+            row = d.get("settings") if isinstance(d.get("settings"), dict) else d
+            return {"ok": True, "club_name": row.get("club_name") or None}
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:80]}
+
+
 @app.post("/platform/heartbeat")
 def heartbeat(request: Request, body: dict,
               x_club_token: str = Header(default="", alias="X-Club-Token")):
