@@ -1,6 +1,5 @@
 version: "3.8"
-# FitIntel Platform — этап A: WireGuard + Nginx(mTLS) + platform_db
-# API платформы и веб-панель подключаются на этапах Б/В (сервисы ниже в заготовке).
+# FitIntel Platform — этап Б: + platform_api (клубы, heartbeat, лицензии, аудит)
 services:
   platform_db:
     image: postgres:16-alpine
@@ -13,12 +12,22 @@ services:
     volumes:
       - platform_db_data:/var/lib/postgresql/data
     ports:
-      - "127.0.0.1:5433:5432"   # только localhost (отладка), наружу не нужен
+      - "127.0.0.1:5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U platform_user -d platform"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  platform_api:
+    build: ./api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://platform_user:${PLATFORM_DB_PASSWORD}@platform_db:5432/platform
+      ADMIN_CNS: ${ADMIN_CNS:-andrei@fitintel.local}
+    depends_on:
+      platform_db:
+        condition: service_healthy
 
   wireguard:
     image: linuxserver/wireguard:latest
@@ -34,7 +43,7 @@ services:
     environment:
       SERVERURL: ${PUBLIC_IP:?79.174.46.68 — задайте в .env}
       SERVERPORT: "51820"
-      PEERS: "10"            # число клубов (конфиги появятся в volume)
+      PEERS: "10"
       PEERDNS: "auto"
       INTERNAL_SUBNET: "10.0.0.0/24"
       ALLOWEDIPS: "10.0.0.0/24"
@@ -43,13 +52,14 @@ services:
     image: nginx:alpine
     restart: unless-stopped
     ports:
-      - "8080:8080"     # HTTP -> редирект на 8443
-      - "8443:8443"     # HTTPS + mTLS (панель)
+      - "8080:8080"
+      - "8443:8443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro
+      - ./logs:/var/log/nginx
     depends_on:
-      - platform_db
+      - platform_api
 
 volumes:
   platform_db_data:
