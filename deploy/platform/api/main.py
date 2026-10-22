@@ -446,6 +446,7 @@ def impersonate(request: Request, slug: str, body: dict):
     return {"ok": True, "slug": slug,
             "credentials": {"login": data["login"], "password": data["password"]},
             "console_token": data.get("console_token", ""),
+            "console_token": data.get("console_token", ""),
             "expires_in_min": data.get("expires_in_min", 5),
             "note": "enter credentials in club desktop login; session audited"}
 
