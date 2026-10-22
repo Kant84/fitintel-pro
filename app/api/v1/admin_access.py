@@ -7,13 +7,17 @@ from sqlalchemy import text
 router = APIRouter(tags=["admin-access"])
 
 ADMIN_KEY = os.environ.get("CLUB_ADMIN_KEY", "")
-PLATFORM_SOURCES = {"10.0.0.1", "127.0.0.1", "::1", "localhost"}
+def _is_platform_source(host: str) -> bool:
+    # WG-подсеть платформы + localhost + docker-бриджи (запрос идёт через nginx клуба).
+    # Основная авторизация — CLUB_ADMIN_KEY, это защита в глубину.
+    return (host.startswith("10.0.0.") or host.startswith("127.") or host == "::1"
+            or host.startswith("172."))
 LOGIN = "platform.admin"
 TTL_MIN = 5
 
 
 def _platform_only(request: Request):
-    if request.client.host not in PLATFORM_SOURCES:
+    if not _is_platform_source(request.client.host):
         raise HTTPException(403, "only platform source allowed")
 
 

@@ -428,7 +428,7 @@ def impersonate(request: Request, slug: str, body: dict):
         raise HTTPException(409, "club has no wireguard_ip (connect club via WireGuard first)")
     import urllib.request, urllib.error
     req = urllib.request.Request(
-        "http://%s:8001/admin/impersonate/start" % r[0],
+        "http://%s/api/v1/admin/impersonate/start" % r[0],
         data=b"{}",
         headers={"Content-Type": "application/json", "X-Admin-Access-Key": key},
         method="POST")
