@@ -414,6 +414,41 @@ def clubs_csv(request: Request):
                     headers={"Content-Disposition": "attachment; filename=clubs.csv"})
 
 
+@app.post("/platform/clubs/{slug}/impersonate")
+def impersonate(request: Request, slug: str, body: dict):
+    admin = _cn(request)
+    key = str(body.get("key") or "")
+    if len(key) < 16:
+        raise HTTPException(400, "key required (CLUB_ADMIN_KEY)")
+    with pool.connection() as c:
+        r = c.execute("SELECT wireguard_ip FROM clubs WHERE slug=%s", (slug,)).fetchone()
+    if not r:
+        raise HTTPException(404, "club not found")
+    if not r[0]:
+        raise HTTPException(409, "club has no wireguard_ip (connect club via WireGuard first)")
+    import urllib.request, urllib.error
+    req = urllib.request.Request(
+        "http://%s:8001/admin/impersonate/start" % r[0],
+        data=b"{}",
+        headers={"Content-Type": "application/json", "X-Admin-Access-Key": key},
+        method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        raise HTTPException(502, "club refused: %s %s" % (e.code, e.read().decode()[:120]))
+    except Exception as e:
+        raise HTTPException(502, "club unreachable: %s" % str(e)[:120])
+    with pool.connection() as c:
+        _audit(c, admin, "impersonate.start", slug,
+               {"session": data.get("session_id")}, request.client.host)
+        c.commit()
+    return {"ok": True, "slug": slug,
+            "credentials": {"login": data["login"], "password": data["password"]},
+            "expires_in_min": data.get("expires_in_min", 5),
+            "note": "enter credentials in club desktop login; session audited"}
+
+
 @app.post("/platform/heartbeat")
 def heartbeat(request: Request, body: dict,
               x_club_token: str = Header(default="", alias="X-Club-Token")):

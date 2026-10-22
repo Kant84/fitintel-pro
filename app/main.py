@@ -240,6 +240,15 @@ except Exception as e:
     print("document_templates router FAIL:", e)
 
 
+# === PLATFORM_ADMIN_ACCESS: impersonation по CLUB_ADMIN_KEY ===
+try:
+    from app.api.v1.admin_access import router as admin_access_router
+    app.include_router(admin_access_router, prefix="/api/v1", tags=["admin-access"])
+    print("admin_access router OK")
+except Exception as e:
+    print("admin_access router FAIL:", e)
+
+
 # === E22-lite: self-learning AI router ===
 try:
     from app.api.v1.ai_engine import router as ai_router
