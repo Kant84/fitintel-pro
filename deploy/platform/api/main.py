@@ -1,5 +1,5 @@
 import os, json, secrets, datetime as dt
-from fastapi import FastAPI, Request, HTTPException, Header, Response
+from fastapi import FastAPI, Request, HTTPException, Header, Response, Response
 from psycopg_pool import ConnectionPool
 
 DATABASE_URL = os.environ.get(
@@ -445,8 +445,43 @@ def impersonate(request: Request, slug: str, body: dict):
         c.commit()
     return {"ok": True, "slug": slug,
             "credentials": {"login": data["login"], "password": data["password"]},
+            "console_token": data.get("console_token", ""),
             "expires_in_min": data.get("expires_in_min", 5),
             "note": "enter credentials in club desktop login; session audited"}
+
+
+@app.api_route("/platform/clubs/{slug}/console/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def console_proxy(request: Request, slug: str, path: str):
+    _cn(request)
+    with pool.connection() as c:
+        r = c.execute("SELECT wireguard_ip FROM clubs WHERE slug=%s", (slug,)).fetchone()
+    if not r:
+        raise HTTPException(404, "club not found")
+    if not r[0]:
+        raise HTTPException(409, "club has no wireguard_ip")
+    import urllib.request, urllib.error
+    url = "http://%s/api/v1/admin/console" % r[0]
+    if path:
+        url += "/" + path
+    if request.url.query:
+        url += "?" + request.url.query
+    hdrs = {}
+    tok = request.headers.get("x-token")
+    if tok:
+        hdrs["X-Token"] = tok
+    ct = request.headers.get("content-type")
+    if ct:
+        hdrs["Content-Type"] = ct
+    body = await request.body() if request.method in ("POST", "PUT") else None
+    req = urllib.request.Request(url, data=body or None, headers=hdrs, method=request.method)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            content, status = resp.read(), resp.status
+            mt = resp.headers.get("Content-Type", "text/html; charset=utf-8")
+    except urllib.error.HTTPError as e:
+        content, status = e.read(), e.code
+        mt = "application/json"
+    return Response(content=content, status_code=status, media_type=mt.split(";")[0])
 
 
 @app.post("/platform/heartbeat")
