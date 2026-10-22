@@ -98,7 +98,8 @@ function renderClubs(){
    if(ev.target.dataset.s){const r=prompt("Причина приостановки клуба "+ev.target.dataset.s+":");if(r){await api("POST","/platform/clubs/"+ev.target.dataset.s+"/suspend",{reason:r});loadAll()}return}
    if(ev.target.dataset.r){await api("POST","/platform/clubs/"+ev.target.dataset.r+"/resume");loadAll();return}
    showDetail(c.slug)};
-  tb.appendChild(tr)}}
+  tb.appendChild(tr);
+  j('/platform/clubs/'+c.slug+'/brand').then(b=>{if(b.ok&&b.club_name)tr.cells[0].textContent=b.club_name}).catch(()=>{})}}
 async function showDetail(slug){
  const d=await j("/platform/clubs/"+slug+"/detail");const c=d.club;
  $("mcontent").innerHTML=`<h3>${esc(c.name)} <span class="muted">(${esc(c.slug)})</span> ${onBadge(c)} ${licBadge(c)}</h3>
