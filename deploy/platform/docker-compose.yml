@@ -29,6 +29,14 @@ services:
       platform_db:
         condition: service_healthy
 
+  license_studio_api:
+    build: ./license_studio_api
+    restart: unless-stopped
+    environment:
+      LICENSE_PRIVATE_KEY_PATH: /run/secrets/license_private_key
+    secrets:
+      - license_private_key
+
   wireguard:
     image: linuxserver/wireguard:latest
     restart: unless-stopped
@@ -64,3 +72,7 @@ services:
 volumes:
   platform_db_data:
   wireguard_config:
+
+secrets:
+  license_private_key:
+    file: ./secrets/license_private.key
