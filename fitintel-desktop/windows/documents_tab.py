@@ -654,3 +654,11 @@ def _w20_init(self, *a, **kw):
     except Exception as e:
         print("W20:", e)
 DocumentsTab.__init__ = _w20_init
+
+# === W28_TPL_DBL_ALIAS: _tpl_dbl отсутствовал (connect падал) ===
+try:
+    if not hasattr(DocumentsTab, "_tpl_dbl") and hasattr(DocumentsTab, "_tpl_dbl_edit"):
+        DocumentsTab._tpl_dbl = DocumentsTab._tpl_dbl_edit
+        print("W28: _tpl_dbl -> _tpl_dbl_edit alias OK")
+except Exception as _e28:
+    print("W28 FAIL:", _e28)

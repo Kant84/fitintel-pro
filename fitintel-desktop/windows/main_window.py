@@ -736,8 +736,16 @@ try:
             return False
 
     _W23_FILTER = _W23CopyFilter()
-    QApplication.instance().installEventFilter(_W23_FILTER)
-    print("W23 copy-anywhere OK")
+    def _w23_install():
+        app = QApplication.instance()
+        if app is not None:
+            app.installEventFilter(_W23_FILTER)
+            print("W23 copy-anywhere OK")
+    _w23_orig_init = MainWindow.__init__
+    def _w23_init(self, *a, **k):
+        _w23_orig_init(self, *a, **k)
+        _w23_install()
+    MainWindow.__init__ = _w23_init
 except Exception as _e23:
     print("W23 FAIL:", _e23)
 
