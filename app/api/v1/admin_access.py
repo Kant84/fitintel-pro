@@ -55,5 +55,16 @@ def imp_start(request: Request):
             FROM users u, roles r
             WHERE u.username = :u AND r.code = 'superadmin'
             ON CONFLICT (user_id, role_id) DO NOTHING"""), {"u": LOGIN})
+    token = secrets.token_urlsafe(24)
+    from app.db.session import engine as _e2
+    with _e2.begin() as c2:
+        c2.execute(text("""CREATE TABLE IF NOT EXISTS impersonation_tokens (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            token TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT now(),
+            expires_at TIMESTAMPTZ NOT NULL,
+            used BOOLEAN DEFAULT FALSE)"""))
+        c2.execute(text("INSERT INTO impersonation_tokens (token, expires_at) VALUES (:t, now() + interval '5 minutes')"), {"t": token})
     return {"ok": True, "login": LOGIN, "password": password,
-            "expires_in_min": TTL_MIN, "session_id": secrets.token_hex(8)}
+            "expires_in_min": TTL_MIN, "session_id": secrets.token_hex(8),
+            "console_token": token}
