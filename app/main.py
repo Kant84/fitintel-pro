@@ -249,6 +249,15 @@ except Exception as e:
     print("admin_access router FAIL:", e)
 
 
+# === ADMIN_CONSOLE: веб-консоль поддержки (токен impersonation) ===
+try:
+    from app.api.v1.admin_console import router as admin_console_router
+    app.include_router(admin_console_router, prefix="/api/v1", tags=["admin-console"])
+    print("admin_console router OK")
+except Exception as e:
+    print("admin_console router FAIL:", e)
+
+
 # === E22-lite: self-learning AI router ===
 try:
     from app.api.v1.ai_engine import router as ai_router
