@@ -73,7 +73,7 @@ input,select{background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5
 </main>
 <script>
 const T=new URLSearchParams(location.search).get('token');
-async function api(m,p,b){const r=await fetch('/admin/console/api/'+p,{method:m,headers:{'Content-Type':'application/json','X-Token':T},body:b?JSON.stringify(b):undefined});
+async function api(m,p,b){const r=await fetch('api/'+p,{method:m,headers:{'Content-Type':'application/json','X-Token':T},body:b?JSON.stringify(b):undefined});
  if(!r.ok)throw new Error(p+' '+r.status+' '+(await r.text()).slice(0,120));return r.json()}
 function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
 async function loadUsers(){const d=await api('GET','users');
