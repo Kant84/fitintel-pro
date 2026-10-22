@@ -149,6 +149,7 @@ async function showImp(slug){
    </div>
    <p class="muted">Введите логин и пароль в окне входа десктоп-клиента клуба. Сессия записана в аудит платформы.</p>
    <button class="act prime" id="copyBtn">Скопировать логин + пароль</button>
+   <button class="act prime" onclick="window.open('/platform/clubs/'+slug+'/console/?token='+d.console_token,'_blank')">Веб-консоль клуба</button>
    <button class="act prime" onclick="window.open('/platform/clubs/'+slug+'/console/?token='+d.console_token,'_blank')">Веб-консоль клуба</button>`;
   modal(1);
   $("copyBtn").onclick=()=>navigator.clipboard.writeText(d.credentials.login+" / "+d.credentials.password);
