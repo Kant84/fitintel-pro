@@ -1,5 +1,5 @@
 import os, json, secrets, datetime as dt
-from fastapi import FastAPI, Request, HTTPException, Header
+from fastapi import FastAPI, Request, HTTPException, Header, Response
 from psycopg_pool import ConnectionPool
 
 DATABASE_URL = os.environ.get(
@@ -353,6 +353,65 @@ def dashboard(request: Request):
             "suspended": suspended, "clients_total": clients, "licenses": lic,
             "expiring_14d": expiring, "renewals_applied": renewed},
             "events": [{"at": a[3], "actor": a[0], "action": a[1], "object": a[2]} for a in audit]}
+
+
+@app.get("/platform/clubs/{slug}/detail")
+def club_detail(request: Request, slug: str):
+    _cn(request)
+    now = dt.datetime.now(dt.timezone.utc)
+    with pool.connection() as c:
+        _apply_renewals(c)
+        r = c.execute("""SELECT cl.id, cl.name, cl.slug, cl.is_active, cl.wireguard_ip,
+            cl.license_key, cl.license_expires_at, cl.license_grace_until,
+            cl.license_paid_until, cl.last_seen_at, cl.created_at
+            FROM clubs cl WHERE cl.slug=%s""", (slug,)).fetchone()
+        if not r:
+            raise HTTPException(404, "club not found")
+        hb = c.execute("""SELECT received_at, payload, ip FROM club_heartbeats
+            WHERE club_id=%s ORDER BY received_at DESC LIMIT 1""", (r[0],)).fetchone()
+        hist = c.execute("""SELECT days, grace_days, issued_by, issued_at, note
+            FROM license_history WHERE club_id=%s ORDER BY issued_at DESC LIMIT 5""",
+            (r[0],)).fetchall()
+        aud = c.execute("""SELECT actor, action, created_at FROM platform_audit
+            WHERE object=%s ORDER BY created_at DESC LIMIT 10""", (slug,)).fetchall()
+        c.commit()
+    st, days = _lic_status(r[6], r[7], now)
+    online = bool(r[9] and (now - r[9]).total_seconds() < 180)
+    return {"ok": True, "club": {
+        "name": r[1], "slug": r[2], "active": r[3], "wireguard_ip": r[4],
+        "license_key": (r[5][:12] + "...") if r[5] else None,
+        "license_status": st, "license_days_left": days,
+        "license_expires_at": r[6], "grace_until": r[7], "paid_until": r[8],
+        "online": online, "last_seen_at": r[9], "created_at": r[10],
+        "heartbeat": {"at": hb[0], "payload": hb[1], "ip": hb[2]} if hb else None,
+        "license_history": [{"days": h[0], "grace": h[1], "by": h[2], "at": h[3], "note": h[4]} for h in hist],
+        "recent_audit": [{"actor": a[0], "action": a[1], "at": a[2]} for a in aud]}}
+
+
+@app.get("/platform/clubs/export.csv")
+def clubs_csv(request: Request):
+    admin = _cn(request)
+    now = dt.datetime.now(dt.timezone.utc)
+    import csv as _csv, io as _io
+    with pool.connection() as c:
+        _apply_renewals(c)
+        rows = c.execute("""SELECT name, slug, is_active, license_expires_at,
+            license_grace_until, license_paid_until, last_seen_at FROM clubs
+            ORDER BY created_at""").fetchall()
+        c.commit()
+    buf = _io.StringIO()
+    w = _csv.writer(buf, delimiter=";")
+    w.writerow(["name", "slug", "active", "online", "license_status", "days_left",
+                "expires_at", "paid_until", "last_seen"])
+    for r in rows:
+        st, days = _lic_status(r[3], r[4], now)
+        online = bool(r[6] and (now - r[6]).total_seconds() < 180)
+        w.writerow([r[0], r[1], "yes" if r[2] else "no", "yes" if online else "no",
+                    st, days if days is not None else "",
+                    r[3], r[5], r[6]])
+    _audit_conn = None
+    return Response(buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": "attachment; filename=clubs.csv"})
 
 
 @app.post("/platform/heartbeat")
