@@ -5,7 +5,7 @@
 <title>FitIntel Platform</title>
 <style>
  body{font:14px/1.5 "Segoe UI",system-ui,sans-serif;background:#0f172a;color:#e2e8f0;margin:0}
- header{padding:12px 22px;background:#1e293b;display:flex;gap:18px;align-items:center;position:sticky;top:0}
+ header{padding:12px 22px;background:#1e293b;display:flex;gap:18px;align-items:center;position:sticky;top:0;z-index:5}
  h1{font-size:17px;margin:0;color:#38bdf8}
  nav button{background:#0f172a;border:1px solid #334155;color:#94a3b8;padding:6px 14px;border-radius:6px;cursor:pointer}
  nav button.on{color:#38bdf8;border-color:#38bdf8}
@@ -14,21 +14,26 @@
  .view{display:none}.view.on{display:block}
  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px}
  .kpi{background:#1e293b;border-radius:10px;padding:14px}
- .kpi b{font-size:22px;color:#38bdf8}
- .kpi span{display:block;color:#94a3b8;font-size:12px;margin-top:4px}
+ .kpi b{font-size:22px;color:#38bdf8}.kpi span{display:block;color:#94a3b8;font-size:12px;margin-top:4px}
  table{width:100%;border-collapse:collapse;background:#1e293b;border-radius:10px}
  th,td{padding:8px 10px;border-bottom:1px solid #334155;text-align:left;font-size:13px}
  th{color:#94a3b8;font-weight:600}
- tr.club{cursor:pointer} tr.club:hover{background:#273449}
+ tr.club{cursor:pointer}tr.club:hover{background:#273449}
  .badge{padding:2px 10px;border-radius:10px;font-size:12px;white-space:nowrap}
  .ok{background:#064e3b;color:#34d399}.grace{background:#713f12;color:#fbbf24}
- .expired,.blocked,.no{background:#7f1d1d;color:#fca5a5}
- .off{background:#7f1d1d;color:#fca5a5}.onl{background:#064e3b;color:#34d399}
- .sus{background:#713f12;color:#fbbf24}
+ .blocked,.no,.off{background:#7f1d1d;color:#fca5a5}.onl{background:#064e3b;color:#34d399}.sus{background:#713f12;color:#fbbf24}
  button.act{background:#0f172a;border:1px solid #475569;color:#cbd5e1;padding:3px 10px;border-radius:6px;cursor:pointer;font-size:12px}
  button.act:hover{border-color:#38bdf8;color:#38bdf8}
+ button.act.prime{border-color:#38bdf8;color:#38bdf8}
  pre{white-space:pre-wrap;font-size:12px;color:#cbd5e1;max-height:300px;overflow:auto;background:#1e293b;border-radius:10px;padding:12px}
  h2{font-size:14px;color:#94a3b8;margin:18px 0 10px}
+ .bar{display:flex;gap:10px;margin-bottom:12px;align-items:center}
+ .bar select,.bar input{background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:6px 10px;border-radius:6px;font-size:13px}
+ #modal{display:none;position:fixed;inset:0;background:rgba(2,6,23,.75);z-index:10;padding:40px 8vw;overflow:auto}
+ #mbox{background:#1e293b;border-radius:12px;padding:22px;max-width:860px;margin:0 auto}
+ #mbox h3{margin:0 0 14px;color:#38bdf8}
+ .kv{display:grid;grid-template-columns:200px 1fr;gap:4px 14px;font-size:13px;margin-bottom:14px}
+ .kv b{color:#94a3b8;font-weight:600}
 </style>
 </head>
 <body>
@@ -46,73 +51,105 @@
   <h2>События (последние 20)</h2><pre id="events">—</pre>
  </div>
  <div class="view" id="v-clubs">
+  <div class="bar">
+   <select id="fStatus"><option value="">Все статусы</option><option value="online">online</option><option value="offline">offline</option><option value="suspended">suspended</option></select>
+   <input id="fSearch" placeholder="Поиск: название / slug…" size="24">
+   <button class="act prime" id="btnCsv">Экспорт CSV</button>
+  </div>
   <table id="clubs"><tr><th>Клуб</th><th>Slug</th><th>Статус</th><th>Лицензия</th><th>Дней</th><th>Версия</th><th>Клиентов</th><th>Last seen</th><th></th></tr></table>
-  <h2>Heartbeat выбранного клуба</h2><pre id="hb">—</pre>
  </div>
  <div class="view" id="v-lic">
   <table id="lic"><tr><th>Клуб</th><th>Статус</th><th>Истекает</th><th>Оплачено до</th><th>Grace до</th><th></th></tr></table>
  </div>
  <div class="view" id="v-audit"><pre id="audit">—</pre></div>
 </main>
+<div id="modal"><div id="mbox"><button class="act" style="float:right" onclick="modal(0)">Закрыть</button><div id="mcontent">—</div></div></div>
 <script>
 const $=id=>document.getElementById(id);
+let CLUBS=[];
 async function j(u,opt){const r=await fetch(u,opt);if(!r.ok)throw new Error(u+" "+r.status);return r.json()}
 function esc(s){return String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}
 function dstr(s){return s?esc(String(s).replace("T"," ").slice(0,16)):"—"}
-async function api(method,url,body){
-  return j(url,{method,headers:{"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined})}
+async function api(m,u,b){return j(u,{method:m,headers:{"Content-Type":"application/json"},body:b?JSON.stringify(b):undefined})}
 function licBadge(c){const m={active:"ok",grace:"grace",blocked:"blocked",no_license:"no"};return `<span class="badge ${m[c.license_status]||"no"}">${c.license_status}</span>`}
 function onBadge(c){return c.active?(c.online?'<span class="badge onl">online</span>':'<span class="badge off">offline</span>'):'<span class="badge sus">suspended</span>'}
-
+function modal(on){$("modal").style.display=on?"block":"none"}
+function passFilter(c){
+ const st=$("fStatus").value;
+ if(st==="online"&&!(c.active&&c.online))return false;
+ if(st==="offline"&&!(c.active&&!c.online))return false;
+ if(st==="suspended"&&c.active)return false;
+ const q=$("fSearch").value.toLowerCase();
+ return !q||c.name.toLowerCase().includes(q)||c.slug.toLowerCase().includes(q)}
 async function loadDash(){
-  const d=await j("/platform/dashboard");const k=d.kpis;
-  $("kpis").innerHTML=[
-    ["Клубов",k.clubs_total],["Онлайн",k.online],["Приостановлено",k.suspended],
-    ["Клиентов в сети",k.clients_total],
-    ["Проблемных лицензий",k.licenses.grace+k.licenses.blocked]
-  ].map(x=>`<div class="kpi"><b>${x[1]}</b><span>${x[0]}</span></div>`).join("");
-  $("events").textContent=d.events.map(e=>`${dstr(e.at)}  ${e.actor}  ${e.action}  ${e.object??""}`).join("\n")||"пусто";
-  if(k.renewals_applied)$("events").textContent=`[авто-продлений применено: ${k.renewals_applied}]\n`+$("events").textContent;
-}
-async function loadClubs(){
-  const d=await j("/platform/clubs");const tb=$("clubs");
-  tb.querySelectorAll("tr.club").forEach(e=>e.remove());
-  for(const c of d.clubs){
-   const tr=document.createElement("tr");tr.className="club";
-   tr.innerHTML=`<td>${esc(c.name)}</td><td>${esc(c.slug)}</td><td>${onBadge(c)}</td><td>${licBadge(c)}</td>
-     <td>${c.license_days_left??"—"}</td><td>${esc(c.version||"—")}</td><td>${c.clients??"—"}</td><td>${dstr(c.last_seen_at)}</td>
-     <td>${c.active?`<button class="act" data-s="${c.slug}">Приостановить</button>`:`<button class="act" data-r="${c.slug}">Возобновить</button>`}</td>`;
-   tr.onclick=async ev=>{ if(ev.target.dataset.s||ev.target.dataset.r)return;
-     const h=await j("/platform/clubs/"+c.slug+"/heartbeat");
-     $("hb").textContent=h.heartbeat?JSON.stringify(h.heartbeat,null,1):"нет heartbeat"};
-   tb.appendChild(tr)}
-  tb.querySelectorAll("[data-s]").forEach(b=>b.onclick=async()=>{
-    const r=prompt("Причина приостановки клуба "+b.dataset.s+":");if(!r)return;
-    await api("POST","/platform/clubs/"+b.dataset.s+"/suspend",{reason:r});loadAll()});
-  tb.querySelectorAll("[data-r]").forEach(b=>b.onclick=async()=>{
-    await api("POST","/platform/clubs/"+b.dataset.s+"/resume");loadAll()});
-  const lb=$("lic");lb.querySelectorAll("tr.club").forEach(e=>e.remove());
-  for(const c of d.clubs){
-   const tr=document.createElement("tr");tr.className="club";
-   tr.innerHTML=`<td>${esc(c.name)}</td><td>${licBadge(c)}</td><td>${dstr(c.license_expires_at)}</td>
-     <td>${dstr(c.license_paid_until)}</td><td>${dstr(c.license_grace_until)}</td>
-     <td>${[30,90,365].map(n=>`<button class="act" data-n="${n}" data-sl="${c.slug}">+${n}</button>`).join(" ")}</td>`;
-   lb.appendChild(tr)}
-  lb.querySelectorAll("[data-n]").forEach(b=>b.onclick=async()=>{
-    if(!confirm("Продлить лицензию клуба "+b.dataset.sl+" на "+b.dataset.n+" дней?"))return;
-    await api("POST","/platform/clubs/"+b.dataset.sl+"/license/renew",{days:+b.dataset.n,note:"panel"});loadAll()});
-}
+ const d=await j("/platform/dashboard");const k=d.kpis;
+ $("kpis").innerHTML=[["Клубов",k.clubs_total],["Онлайн",k.online],["Приостановлено",k.suspended],
+  ["Клиентов в сети",k.clients_total],["Проблемных лицензий",k.licenses.grace+k.licenses.blocked]]
+  .map(x=>`<div class="kpi"><b>${x[1]}</b><span>${x[0]}</span></div>`).join("");
+ $("events").textContent=d.events.map(e=>`${dstr(e.at)}  ${e.actor}  ${e.action}  ${e.object??""}`).join("\n")||"пусто";}
+function renderClubs(){
+ const tb=$("clubs");tb.querySelectorAll("tr.club").forEach(e=>e.remove());
+ for(const c of CLUBS.filter(passFilter)){
+  const tr=document.createElement("tr");tr.className="club";
+  tr.innerHTML=`<td>${esc(c.name)}</td><td>${esc(c.slug)}</td><td>${onBadge(c)}</td><td>${licBadge(c)}</td>
+   <td>${c.license_days_left??"—"}</td><td>${esc(c.version||"—")}</td><td>${c.clients??"—"}</td><td>${dstr(c.last_seen_at)}</td>
+   <td>${c.active?`<button class="act" data-s="${c.slug}">Приостановить</button>`:`<button class="act" data-r="${c.slug}">Возобновить</button>`}</td>`;
+  tr.onclick=async ev=>{if(ev.target.dataset.s){const r=prompt("Причина приостановки клуба "+ev.target.dataset.s+":");if(r){await api("POST","/platform/clubs/"+ev.target.dataset.s+"/suspend",{reason:r});loadAll()}return}
+   if(ev.target.dataset.r){await api("POST","/platform/clubs/"+ev.target.dataset.r+"/resume");loadAll();return}
+   showDetail(c.slug)};
+  tb.appendChild(tr)}}
+async function showDetail(slug){
+ const d=await j("/platform/clubs/"+slug+"/detail");const c=d.club;
+ $("mcontent").innerHTML=`<h3>${esc(c.name)} <span class="muted">(${esc(c.slug)})</span> ${onBadge(c)} ${licBadge(c)}</h3>
+ <div class="kv">
+  <b>Создан</b><span>${dstr(c.created_at)}</span>
+  <b>WireGuard IP</b><span>${esc(c.wireguard_ip||"—")}</span>
+  <b>Лицензия</b><span>${c.license_status}, осталось дней: ${c.license_days_left??"—"}</span>
+  <b>Истекает</b><span>${dstr(c.license_expires_at)}</span>
+  <b>Оплачено до</b><span>${dstr(c.paid_until)}</span>
+  <b>Grace до</b><span>${dstr(c.grace_until)}</span>
+  <b>Ключ</b><span>${esc(c.license_key||"—")}</span>
+  <b>Last seen</b><span>${dstr(c.last_seen_at)}</span>
+  <b>Heartbeat</b><span>${c.heartbeat?esc(JSON.stringify(c.heartbeat.payload))+" с "+esc(c.heartbeat.ip):"нет"}</span>
+ </div>
+ <h2>История лицензий</h2>
+ <table><tr><th>Дней</th><th>Grace</th><th>Кем</th><th>Когда</th><th>Примечание</th></tr>
+ ${c.license_history.map(h=>`<tr><td>${h.days}</td><td>${h.grace}</td><td>${esc(h.by)}</td><td>${dstr(h.at)}</td><td>${esc(h.note||"")}</td></tr>`).join("")||"<tr><td colspan=5>пусто</td></tr>"}</table>
+ <h2>Последние действия (аудит)</h2>
+ <table><tr><th>Когда</th><th>Админ</th><th>Действие</th></tr>
+ ${c.recent_audit.map(a=>`<tr><td>${dstr(a.at)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td></tr>`).join("")||"<tr><td colspan=3>пусто</td></tr>"}</table>`;
+ modal(1)}
+async function loadLic(){
+ const d=await j("/platform/clubs");const lb=$("lic");
+ lb.querySelectorAll("tr.club").forEach(e=>e.remove());
+ for(const c of d.clubs){
+  const tr=document.createElement("tr");tr.className="club";
+  tr.innerHTML=`<td>${esc(c.name)}</td><td>${licBadge(c)}</td><td>${dstr(c.license_expires_at)}</td>
+   <td>${dstr(c.license_paid_until)}</td><td>${dstr(c.license_grace_until)}</td>
+   <td>${[30,90,365].map(n=>`<button class="act" data-n="${n}" data-sl="${c.slug}">+${n}</button>`).join(" ")}</td>`;
+  lb.appendChild(tr)}
+ lb.querySelectorAll("[data-n]").forEach(b=>b.onclick=async()=>{
+  if(!confirm("Продлить лицензию клуба "+b.dataset.sl+" на "+b.dataset.n+" дней?"))return;
+  await api("POST","/platform/clubs/"+b.dataset.sl+"/license/renew",{days:+b.dataset.n,note:"panel"});loadAll()})}
 async function loadAudit(){
-  const a=await j("/platform/audit?limit=100");
-  $("audit").textContent=a.audit.map(x=>`${dstr(x.at)}  ${x.actor}  ${x.action}  ${x.object??""}  ${x.detail??""}`).join("\n")||"пусто";
-}
-async function loadAll(){try{await loadDash();await loadClubs();await loadAudit();
-  const d=await j("/platform/clubs");$("who").textContent="админ: "+d.admin;
-  $("ts").textContent="обновлено: "+new Date().toLocaleTimeString()}catch(e){$("ts").textContent="ОШИБКА: "+e.message}}
+ const a=await j("/platform/audit?limit=100");
+ $("audit").textContent=a.audit.map(x=>`${dstr(x.at)}  ${x.actor}  ${x.action}  ${x.object??""}  ${x.detail??""}`).join("\n")||"пусто";}
+async function loadAll(){try{
+ const d=await j("/platform/clubs");CLUBS=d.clubs;
+ await loadDash();renderClubs();await loadLic();await loadAudit();
+ $("who").textContent="админ: "+d.admin;
+ $("ts").textContent="обновлено: "+new Date().toLocaleTimeString()}catch(e){$("ts").textContent="ОШИБКА: "+e.message}}
+$("fStatus").onchange=renderClubs;
+$("fSearch").oninput=renderClubs;
+$("btnCsv").onclick=async()=>{
+ const r=await fetch("/platform/clubs/export.csv");
+ const b=await r.blob();const a=document.createElement("a");
+ a.href=URL.createObjectURL(b);a.download="clubs.csv";a.click()};
+$("modal").onclick=e=>{if(e.target.id==="modal")modal(0)};
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
-  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("on"));
-  document.querySelectorAll(".view").forEach(x=>x.classList.remove("on"));
-  b.classList.add("on");$("v-"+b.dataset.v).classList.add("on")});
+ document.querySelectorAll("nav button").forEach(x=>x.classList.remove("on"));
+ document.querySelectorAll(".view").forEach(x=>x.classList.remove("on"));
+ b.classList.add("on");$("v-"+b.dataset.v).classList.add("on")});
 loadAll();setInterval(loadAll,30000);
 </script>
 </body>
