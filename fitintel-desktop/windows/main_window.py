@@ -790,3 +790,38 @@ try:
     print("W25 dblclick-copy OK")
 except Exception as _e25:
     print("W25 FAIL:", _e25)
+
+# === W26_PLATFORM_BANNER: красный баннер для platform.admin (сессия поддержки) ===
+try:
+    from PyQt6.QtWidgets import QLabel as _W26Lbl
+    from PyQt6.QtCore import QTimer as _W26Timer
+
+    def _w26_maybe_add(mw):
+        if getattr(mw, "_w26_done", False):
+            return True
+        for lbl in mw.findChildren(_W26Lbl):
+            t = (lbl.text() or "").strip()
+            if t.startswith("platform.admin"):
+                cw = mw.centralWidget()
+                lay = cw.layout() if cw is not None else None
+                if lay is not None:
+                    b = _W26Lbl("ВЫ ВОШЛИ КАК ПЛАТФОРМЕННЫЙ АДМИНИСТРАТОР — сессия поддержки, действия в аудите")
+                    b.setStyleSheet("background:#7f1d1d;color:#fecaca;font-weight:700;padding:7px;font-size:13px;")
+                    lay.insertWidget(0, b)
+                mw._w26_done = True
+                return True
+        return False
+
+    _w26_orig_init = MainWindow.__init__
+    def _w26_init(self, *a, **k):
+        _w26_orig_init(self, *a, **k)
+        try:
+            t = _W26Timer(self)
+            t.timeout.connect(lambda: _w26_maybe_add(self) and t.stop())
+            t.start(2000)
+        except Exception as _e26:
+            print("W26:", _e26)
+    MainWindow.__init__ = _w26_init
+    print("W26 platform banner OK")
+except Exception as _e26x:
+    print("W26 FAIL:", _e26x)
