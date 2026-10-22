@@ -777,7 +777,7 @@ try:
                     it = obj.currentItem()
                     if it is not None and it.text():
                         _W25App.clipboard().setText(it.text())
-                        return True
+                        return False  # копия в буфер + событие таблице (карточка откроется)
                 except Exception:
                     pass
             return False
