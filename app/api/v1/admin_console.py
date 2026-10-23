@@ -152,8 +152,9 @@ def clients_list(request: Request, q: str = "", limit: int = 200,
         sel = [('id::text AS id' if k == 'id' else k)
                for k in ('id', 'last_name', 'first_name', 'middle_name',
                          'phone', 'email', 'status', 'created_at') if k in cols]
-        sql = "SELECT %s FROM clients WHERE %s%s ORDER BY created_at DESC LIMIT :lim" % (
-            ", ".join(sel), where, search)
+        order = "created_at" if "created_at" in cols else "id"
+        sql = "SELECT %s FROM clients WHERE %s%s ORDER BY %s DESC LIMIT :lim" % (
+            ", ".join(sel), where, search, order)
         rows = c.execute(text(sql), params).mappings().all()
     return JSONResponse({"clients": [dict(r) for r in rows]})
 
