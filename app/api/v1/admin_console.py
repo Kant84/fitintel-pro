@@ -156,7 +156,9 @@ def clients_list(request: Request, q: str = "", limit: int = 200,
         sql = "SELECT %s FROM clients WHERE %s%s ORDER BY %s DESC LIMIT :lim" % (
             ", ".join(sel), where, search, order)
         rows = c.execute(text(sql), params).mappings().all()
-    return JSONResponse({"clients": [dict(r) for r in rows]})
+    def _ser(v):
+        return v.isoformat() if hasattr(v, "isoformat") else v
+    return JSONResponse({"clients": [{k: _ser(v) for k, v in dict(r).items()} for r in rows]})
 
 
 @router.get("/api/roles")
