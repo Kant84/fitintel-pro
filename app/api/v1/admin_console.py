@@ -43,8 +43,11 @@ _log_setup()
 
 def _ser(v):
     import uuid as _uuid
+    from decimal import Decimal as _Dec
     if isinstance(v, _uuid.UUID):
         return str(v)
+    if isinstance(v, _Dec):
+        return float(v)
     return v.isoformat() if hasattr(v, "isoformat") else v
 
 PAGE = """<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
