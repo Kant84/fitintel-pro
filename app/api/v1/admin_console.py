@@ -149,8 +149,9 @@ def clients_list(request: Request, q: str = "", limit: int = 200,
                     parts.append("%s ILIKE '%%' || :q || '%%'" % col)
             if parts:
                 search = " AND (" + " OR ".join(parts) + ")"
-        sel = [k for k in ("id", "last_name", "first_name", "middle_name",
-                           "phone", "email", "status", "created_at") if k in cols]
+        sel = [('id::text AS id' if k == 'id' else k)
+               for k in ('id', 'last_name', 'first_name', 'middle_name',
+                         'phone', 'email', 'status', 'created_at') if k in cols]
         sql = "SELECT %s FROM clients WHERE %s%s ORDER BY created_at DESC LIMIT :lim" % (
             ", ".join(sel), where, search)
         rows = c.execute(text(sql), params).mappings().all()
