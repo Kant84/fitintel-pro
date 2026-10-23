@@ -40,6 +40,10 @@ def _log_setup():
         logging.getLogger().addHandler(h)
 _log_setup()
 
+
+def _ser(v):
+    return v.isoformat() if hasattr(v, "isoformat") else v
+
 PAGE = """<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
 <title>FitIntel — консоль поддержки</title>
 <style>
@@ -50,7 +54,7 @@ nav button.on{color:#38bdf8;border-color:#38bdf8}
 main{padding:18px}.view{display:none}.view.on{display:block}
 table{width:100%;border-collapse:collapse;background:#1e293b}
 th,td{padding:7px 10px;border-bottom:1px solid #334155;font-size:13px;text-align:left}
-th{color:#94a3b8}button.act{background:#0f172a;border:1px solid #475569;color:#cbd5e1;padding:3px 10px;border-radius:6px;cursor:pointer;font-size:12px}
+th{color:#94a3b8}tr.d{cursor:pointer}button.act{background:#0f172a;border:1px solid #475569;color:#cbd5e1;padding:3px 10px;border-radius:6px;cursor:pointer;font-size:12px}
 pre{background:#1e293b;padding:12px;border-radius:8px;font-size:12px;max-height:420px;overflow:auto}
 input,select{background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5px 8px;border-radius:6px}
 .badge{padding:1px 8px;border-radius:8px;font-size:11px}.on{background:#064e3b;color:#34d399}.off{background:#7f1d1d;color:#fca5a5}
@@ -71,7 +75,7 @@ input,select{background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5
 <div class="view" id="v-c">
 <div style="margin-bottom:10px"><input id="cq" placeholder="Поиск: фамилия / телефон / email…" size="34">
 <button class="act" onclick="loadClients()">Найти</button></div>
-<table id="clients"><tr><th>ФИО</th><th>Телефон</th><th>Email</th><th>Статус</th><th>Создан</th></tr></table>
+<table id="clients"><tr><th>ФИО</th><th>Телефон</th><th>Email</th><th>Статус</th><th>Создан</th></tr></table><div id="cdetail" style="margin-top:14px"></div>
 </div>
 <div class="view" id="v-h"><div class="kpis" id="hp"></div></div>
 <div class="view" id="v-l"><div style="margin-bottom:8px"><input id="ll" value="200" size="5"> строк <button class="act" onclick="loadLogs()">Обновить</button></div><pre id="log">—</pre></div>
@@ -100,11 +104,35 @@ async function loadHealth(){const d=await api('GET','health');
 async function loadLogs(){try{const d=await api('GET','logs?lines='+ll.value);log.textContent=d.lines.join('\n')}catch(e){log.textContent=e.message}}
 async function loadClients(){const d=await api('GET','clients?q='+encodeURIComponent(cq.value));
  const tb=document.getElementById('clients');tb.querySelectorAll('tr.d').forEach(e=>e.remove());
- for(const c of d.clients){const tr=document.createElement('tr');tr.className='d';
+ for(const c of d.clients){const tr=document.createElement('tr');tr.className='d';tr.onclick=()=>loadClientCard(c.id);
   const fio=[c.last_name,c.first_name,c.middle_name].filter(Boolean).join(' ');
   tr.innerHTML=`<td>${esc(fio)}</td><td>${esc(c.phone)}</td><td>${esc(c.email)}</td>
    <td>${esc(c.status||'')}</td><td>${esc((c.created_at||'').replace('T',' ').slice(0,16))}</td>`;
   tb.appendChild(tr)}}
+async function loadClientCard(id){
+ cdetail.innerHTML='<h2>Загрузка…</h2>';
+ try{
+  const d=await api('GET','clients/'+id+'/card');
+  if(!d.client){cdetail.innerHTML='<p>Клиент не найден</p>';return}
+  const c=d.client;
+  const fio=[c.last_name,c.first_name,c.middle_name].filter(Boolean).join(' ');
+  let h=`<h2>${esc(fio)} <span style="color:#94a3b8;font-size:13px">${esc(c.phone||'')} · ${esc(c.email||'')}</span></h2><div class="kv">`;
+  const skip=new Set(['id','last_name','first_name','middle_name','photo_url','user_id','parent_id']);
+  for(const k in c){if(skip.has(k)||c[k]===null||c[k]==='')continue;
+   h+=`<b>${esc(k)}</b><span>${esc(String(c[k]))}</span>`}
+  h+='</div>';
+  h+=`<h2>Абонементы (${d.subscriptions.length})</h2><table><tr><th>Статус</th><th>С</th><th>По</th><th>Цена</th><th>Визиты</th></tr>`;
+  for(const s of d.subscriptions){h+=`<tr><td>${esc(s.status||'')}</td><td>${esc(String(s.start_date||''))}</td><td>${esc(String(s.end_date||''))}</td><td>${esc(String(s.price))} ${esc(s.currency||'')}</td><td>${s.visits_used==null?'':s.visits_used}/${s.visit_limit==null?'∞':s.visit_limit}</td></tr>`}
+  h+='</table>';
+  h+=`<h2>Платежи (последние ${d.payments.length})</h2><table><tr><th>Сумма</th><th>Метод</th><th>Направление</th><th>Статус</th><th>Дата</th></tr>`;
+  for(const p of d.payments){h+=`<tr><td>${esc(String(p.amount))} ${esc(p.currency||'')}</td><td>${esc(p.payment_method||'')}</td><td>${esc(p.payment_direction||'')}</td><td>${esc(p.status||'')}</td><td>${esc(String(p.paid_at||p.created_at||'').replace('T',' ').slice(0,16))}</td></tr>`}
+  h+='</table>';
+  h+=`<h2>Визиты: всего ${d.visits_total}</h2><table><tr><th>Вход</th><th>Зона</th><th>Способ</th><th>Статус</th></tr>`;
+  for(const v of d.visits_last){h+=`<tr><td>${esc(String(v.entry_time||'').replace('T',' ').slice(0,16))}</td><td>${esc(v.zone||'')}</td><td>${esc(v.access_method||'')}</td><td>${esc(v.status||'')}</td></tr>`}
+  h+='</table>';
+  cdetail.innerHTML=h;
+ }catch(e){cdetail.innerHTML='<p>Ошибка: '+esc(e.message)+'</p>'}
+}
 document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.getElementById('v-'+b.dataset.v).classList.add('on')});
 loadUsers();loadHealth();loadClients();
 </script></body></html>"""
@@ -156,9 +184,38 @@ def clients_list(request: Request, q: str = "", limit: int = 200,
         sql = "SELECT %s FROM clients WHERE %s%s ORDER BY %s DESC LIMIT :lim" % (
             ", ".join(sel), where, search, order)
         rows = c.execute(text(sql), params).mappings().all()
-    def _ser(v):
-        return v.isoformat() if hasattr(v, "isoformat") else v
     return JSONResponse({"clients": [{k: _ser(v) for k, v in dict(r).items()} for r in rows]})
+
+
+@router.get("/api/clients/{cid}/card")
+def client_card(request: Request, cid: str, x_token: str = Header(default="", alias="X-Token")):
+    _check(request, x_token)
+    from app.db.session import engine
+    with engine.begin() as c:
+        row = c.execute(text(
+            "SELECT * FROM clients WHERE id::text=:i"), {"i": cid}).mappings().first()
+        client = {k: _ser(v) for k, v in dict(row).items()} if row else None
+        subs = c.execute(text("""
+            SELECT id::text, status, start_date, end_date, price, currency,
+                   visit_limit, visits_used, is_unlimited, frozen_until, auto_renew
+            FROM subscriptions WHERE client_id::text=:i
+            ORDER BY created_at DESC LIMIT 10"""), {"i": cid}).mappings().all()
+        pays = c.execute(text("""
+            SELECT id::text, amount, currency, payment_method, payment_direction,
+                   status, paid_at, created_at
+            FROM payments WHERE client_id::text=:i
+            ORDER BY created_at DESC LIMIT 10"""), {"i": cid}).mappings().all()
+        vtot = c.execute(text(
+            "SELECT count(*) FROM visits WHERE client_id::text=:i"), {"i": cid}).fetchone()
+        vlast = c.execute(text("""
+            SELECT entry_time, zone, access_method, status
+            FROM visits WHERE client_id::text=:i
+            ORDER BY entry_time DESC LIMIT 5"""), {"i": cid}).mappings().all()
+    cl = lambda rows: [{k: _ser(v) for k, v in dict(r).items()} for r in rows]
+    return JSONResponse({"client": client,
+                         "subscriptions": cl(subs), "payments": cl(pays),
+                         "visits_total": vtot[0] if vtot else 0,
+                         "visits_last": cl(vlast)})
 
 
 @router.get("/api/roles")
