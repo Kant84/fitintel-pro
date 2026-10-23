@@ -107,7 +107,7 @@ async function toggle(id,act){await api('POST','users/'+id+'/toggle-active',{act
 async function loadHealth(){const d=await api('GET','health');
  hp.innerHTML=[['БД',d.db],['Диск занято %',d.disk_pct],['Аптайм, ч',d.uptime_h],['Версия',d.version]]
  .map(x=>`<div class="kpi"><b>${esc(x[1])}</b><br><span style="color:#94a3b8;font-size:12px">${x[0]}</span></div>`).join('')}
-async function loadLogs(){try{const d=await api('GET','logs?lines='+ll.value);log.textContent=d.lines.join('\n')}catch(e){log.textContent=e.message}}
+async function loadLogs(){try{const d=await api('GET','logs?lines='+ll.value);log.textContent=d.lines.join('\\n')}catch(e){log.textContent=e.message}}
 async function loadClients(){const d=await api('GET','clients?q='+encodeURIComponent(cq.value));
  const tb=document.getElementById('clients');tb.querySelectorAll('tr.d').forEach(e=>e.remove());
  for(const c of d.clients){const tr=document.createElement('tr');tr.className='d';tr.onclick=()=>loadClientCard(c.id);
