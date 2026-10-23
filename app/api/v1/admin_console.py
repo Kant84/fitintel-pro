@@ -76,11 +76,15 @@ input,select{background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5
 <input id="nu" placeholder="логин" size="12"><input id="ne" placeholder="email" size="18">
 <input id="np" placeholder="пароль (пусто=авто)" size="16"><select id="nr"></select>
 <button class="act" onclick="createUser()">Создать</button></div>
-<table id="users"><tr><th>Логин</th><th>Email</th><th>ФИО</th><th>Роли</th><th>Активен</th><th></th></tr></table>
+<table id="users"><tr><th>Логин</th><th>Email</th><th>ФИО</th><th>Роли</th><th>Активен</th><th></th></tr></table><div id="udetail" style="margin-top:14px"></div>
 </div>
 <div class="view" id="v-c">
 <div style="margin-bottom:10px"><input id="cq" placeholder="Поиск: фамилия / телефон / email…" size="34">
 <button class="act" onclick="loadClients()">Найти</button></div>
+<div style="margin:10px 0"><b>Новый клиент:</b>
+<input id="cfl" placeholder="Фамилия" size="12"><input id="cff" placeholder="Имя" size="12">
+<input id="cfm" placeholder="Отчество" size="12"><input id="cfp" placeholder="Телефон" size="14">
+<input id="cfe" placeholder="Email" size="20"><button class="act" onclick="createClient()">Создать</button></div>
 <table id="clients"><tr><th>ФИО</th><th>Телефон</th><th>Email</th><th>Статус</th><th>Создан</th></tr></table><div id="cdetail" style="margin-top:14px"></div>
 </div>
 <div class="view" id="v-h"><div class="kpis" id="hp"></div></div>
@@ -93,7 +97,7 @@ async function api(m,p,b){const r=await fetch('api/'+p,{method:m,headers:{'Conte
 function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
 async function loadUsers(){const d=await api('GET','users');
  document.getElementById('users').querySelectorAll('tr.d').forEach(e=>e.remove());
- for(const u of d.users){const tr=document.createElement('tr');tr.className='d';
+ for(const u of d.users){const tr=document.createElement('tr');tr.className='d';tr.onclick=()=>loadUserCard(u.id);
   tr.innerHTML=`<td>${esc(u.username)}</td><td>${esc(u.email)}</td><td>${esc(u.full_name)}</td><td>${esc(u.roles)}</td>
    <td><span class="badge ${u.is_active?'on':'off'}">${u.is_active?'да':'нет'}</span></td>
    <td><button class="act" onclick="resetPw('${u.id}')">Сброс пароля</button>
@@ -116,13 +120,13 @@ async function loadClients(){const d=await api('GET','clients?q='+encodeURICompo
    <td>${esc(c.status||'')}</td><td>${esc((c.created_at||'').replace('T',' ').slice(0,16))}</td>`;
   tb.appendChild(tr)}}
 async function loadClientCard(id){
- cdetail.innerHTML='<h2>Загрузка…</h2>';
+ cdetail.innerHTML='<h2>Загрузка…</h2>';cdetail.scrollIntoView({behavior:'smooth'});
  try{
   const d=await api('GET','clients/'+id+'/card');
   if(!d.client){cdetail.innerHTML='<p>Клиент не найден</p>';return}
   const c=d.client;
   const fio=[c.last_name,c.first_name,c.middle_name].filter(Boolean).join(' ');
-  let h=`<h2>${esc(fio)} <span style="color:#94a3b8;font-size:13px">${esc(c.phone||'')} · ${esc(c.email||'')}</span></h2><div class="kv">`;
+let h='<h2>'+esc(fio)+'</h2><div class="kv">'+'<b>Фамилия</b><span><input id="ce_l" value="'+esc(c.last_name||'')+'" size="16"></span>'+'<b>Имя</b><span><input id="ce_f" value="'+esc(c.first_name||'')+'" size="16"></span>'+'<b>Отчество</b><span><input id="ce_m" value="'+esc(c.middle_name||'')+'" size="16"></span>'+'<b>Телефон</b><span><input id="ce_p" value="'+esc(c.phone||'')+'" size="16"></span>'+'<b>Email</b><span><input id="ce_e" value="'+esc(c.email||'')+'" size="24"></span>'+'<b>Статус</b><span><select id="ce_s">'+['ACTIVE','FROZEN','PAUSED','ARCHIVED'].map(st=>'<option '+(c.status===st?'selected':'')+'>'+st+'</option>').join('')+'</select></span></div>'+'<button class="act prime" onclick="saveClient(\''+c.id+'\')">Сохранить</button>'+'<h2>Все поля</h2><div class="kv">';
   const skip=new Set(['id','last_name','first_name','middle_name','photo_url','user_id','parent_id']);
   for(const k in c){if(skip.has(k)||c[k]===null||c[k]==='')continue;
    h+=`<b>${esc(k)}</b><span>${esc(String(c[k]))}</span>`}
@@ -138,6 +142,36 @@ async function loadClientCard(id){
   h+='</table>';
   cdetail.innerHTML=h;
  }catch(e){cdetail.innerHTML='<p>Ошибка: '+esc(e.message)+'</p>'}
+}
+async function loadUserCard(id){
+ udetail.innerHTML='<h2>Загрузка…</h2>';udetail.scrollIntoView({behavior:'smooth'});
+ try{
+  const d=await api('GET','users/'+id+'/card');const u=d.user;
+  let h='<h2>'+esc(u.username)+' <span style="color:#94a3b8;font-size:13px">'+esc(u.full_name||'')+'</span></h2><div class="kv">'
+   +'<b>ФИО</b><span><input id="eu_f" value="'+esc(u.full_name||'')+'" size="34"></span>'
+   +'<b>Email</b><span><input id="eu_e" value="'+esc(u.email||'')+'" size="30"></span>'
+   +'<b>Должность</b><span><input id="eu_p" value="'+esc(u.position||'')+'" size="24"></span>'
+   +'<b>Телефон</b><span><input id="eu_ph" value="'+esc(u.phone||'')+'" size="18"></span>'
+   +'<b>Активен</b><span><input type="checkbox" id="eu_a" '+(u.is_active?'checked':'')+'></span>'
+   +'<b>Роли</b><span>'+d.all_roles.map(r=>'<label style="margin-right:10px"><input type="checkbox" class="eu_r" value="'+esc(r)+'" '+(d.roles.includes(r)?'checked':'')+'>'+esc(r)+'</label>').join('')+'</span>'
+   +'</div><button class="act prime" onclick="saveUser(\''+u.id+'\')">Сохранить</button>';
+  udetail.innerHTML=h;
+ }catch(e){udetail.innerHTML='<p>Ошибка: '+esc(e.message)+'</p>'}
+}
+async function saveUser(id){
+ const roles=[...document.querySelectorAll('.eu_r:checked')].map(x=>x.value);
+ try{await api('POST','users/'+id+'/update',{full_name:eu_f.value,email:eu_e.value,position:eu_p.value,phone:eu_ph.value,is_active:eu_a.checked,roles:roles});alert('Сохранено');loadUsers()}
+ catch(e){alert(e.message)}
+}
+async function createClient(){
+ const b={last_name:cfl.value,first_name:cff.value,middle_name:cfm.value,phone:cfp.value,email:cfe.value};
+ try{const r=await api('POST','clients',b);alert('Создан: '+r.id);loadClients();cfl.value=cff.value=cfm.value=cfp.value=cfe.value=''}
+ catch(e){alert(e.message)}
+}
+async function saveClient(id){
+ const b={last_name:ce_l.value,first_name:ce_f.value,middle_name:ce_m.value,phone:ce_p.value,email:ce_e.value,status:ce_s.value};
+ try{await api('POST','clients/'+id+'/update',b);alert('Сохранено');loadClientCard(id);loadClients()}
+ catch(e){alert(e.message)}
 }
 document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.getElementById('v-'+b.dataset.v).classList.add('on')});
 loadUsers();loadHealth();loadClients();
@@ -222,6 +256,78 @@ def client_card(request: Request, cid: str, x_token: str = Header(default="", al
                          "subscriptions": cl(subs), "payments": cl(pays),
                          "visits_total": vtot[0] if vtot else 0,
                          "visits_last": cl(vlast)})
+
+
+@router.get("/api/users/{uid}/card")
+def user_card(request: Request, uid: str, x_token: str = Header(default="", alias="X-Token")):
+    _check(request, x_token)
+    from app.db.session import engine
+    with engine.begin() as c:
+        row = c.execute(text(
+            "SELECT * FROM users WHERE id::text=:i"), {"i": uid}).mappings().first()
+        roles = [r[0] for r in c.execute(text(
+            """SELECT r.code FROM user_roles ur JOIN roles r ON r.id=ur.role_id
+               WHERE ur.user_id::text=:i ORDER BY r.code"""), {"i": uid}).fetchall()]
+        allr = [r[0] for r in c.execute(text(
+            "SELECT code FROM roles ORDER BY code")).fetchall()]
+    return JSONResponse({"user": ({k: _ser(v) for k, v in dict(row).items()} if row else None),
+                         "roles": roles, "all_roles": allr})
+
+
+@router.post("/api/users/{uid}/update")
+def user_update(request: Request, uid: str, body: dict,
+                x_token: str = Header(default="", alias="X-Token")):
+    _check(request, x_token)
+    from app.db.session import engine
+    with engine.begin() as c:
+        c.execute(text("""UPDATE users SET full_name=:f, email=:e, position=:p, phone=:ph,
+                          is_active=:a, updated_at=now() WHERE id::text=:i"""),
+                  {"f": body.get("full_name"), "e": body.get("email"),
+                   "p": body.get("position"), "ph": body.get("phone"),
+                   "a": bool(body.get("is_active", True)), "i": uid})
+        c.execute(text("DELETE FROM user_roles WHERE user_id::text=:i"), {"i": uid})
+        for rc in (body.get("roles") or []):
+            c.execute(text("""INSERT INTO user_roles (id, user_id, role_id, assigned_at, created_at, updated_at)
+                SELECT gen_random_uuid(), u.id, r.id, now(), now(), now()
+                FROM users u, roles r
+                WHERE u.id::text=:i AND r.code=:rc
+                ON CONFLICT (user_id, role_id) DO NOTHING"""), {"i": uid, "rc": rc})
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/clients")
+def client_create(request: Request, body: dict,
+                  x_token: str = Header(default="", alias="X-Token")):
+    _check(request, x_token)
+    import uuid as _u
+    from app.db.session import engine
+    fn, ln = body.get("first_name"), body.get("last_name")
+    if not fn or not ln:
+        raise HTTPException(400, "first_name and last_name required")
+    cid = str(_u.uuid4())
+    with engine.begin() as c:
+        c.execute(text("""INSERT INTO clients (id, first_name, last_name, middle_name,
+                          phone, email, gender, status, is_active, created_at, updated_at)
+            VALUES (:i, :fn, :ln, :mn, :ph, :em, :g, 'ACTIVE', TRUE, now(), now())"""),
+            {"i": cid, "fn": fn, "ln": ln, "mn": body.get("middle_name"),
+             "ph": body.get("phone"), "em": body.get("email"),
+             "g": body.get("gender") or "НЕ_УКАЗАН"})
+    return JSONResponse({"ok": True, "id": cid})
+
+
+@router.post("/api/clients/{cid}/update")
+def client_update(request: Request, cid: str, body: dict,
+                  x_token: str = Header(default="", alias="X-Token")):
+    _check(request, x_token)
+    from app.db.session import engine
+    with engine.begin() as c:
+        c.execute(text("""UPDATE clients SET first_name=:fn, last_name=:ln, middle_name=:mn,
+                          phone=:ph, email=:em, status=:st, updated_at=now()
+                          WHERE id::text=:i"""),
+            {"fn": body.get("first_name"), "ln": body.get("last_name"),
+             "mn": body.get("middle_name"), "ph": body.get("phone"),
+             "em": body.get("email"), "st": body.get("status") or "ACTIVE", "i": cid})
+    return JSONResponse({"ok": True})
 
 
 @router.get("/api/roles")
