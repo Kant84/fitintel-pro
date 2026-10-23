@@ -58,7 +58,7 @@ input,select{background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5
 </style></head><body>
 <header>КОНСОЛЬ ПОДДЕРЖКИ — сессия платформенного администратора · действия в аудите · токен 5 мин</header>
 <nav style="padding:10px 18px">
-<button data-v="u" class="on">Пользователи</button><button data-v="h">Health</button><button data-v="l">Логи</button>
+<button data-v="u" class="on">Пользователи</button><button data-v="h">Health</button><button data-v="l">Логи</button><button data-v="c">Клиенты</button>
 <button style="float:right" onclick="if(confirm('Перезапустить API клуба? Сессия прервётся.'))api('POST','restart',{})">Перезапуск API</button>
 </nav><main>
 <div class="view on" id="v-u">
@@ -67,6 +67,11 @@ input,select{background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5
 <input id="np" placeholder="пароль (пусто=авто)" size="16"><select id="nr"></select>
 <button class="act" onclick="createUser()">Создать</button></div>
 <table id="users"><tr><th>Логин</th><th>Email</th><th>ФИО</th><th>Роли</th><th>Активен</th><th></th></tr></table>
+</div>
+<div class="view" id="v-c">
+<div style="margin-bottom:10px"><input id="cq" placeholder="Поиск: фамилия / телефон / email…" size="34">
+<button class="act" onclick="loadClients()">Найти</button></div>
+<table id="clients"><tr><th>ФИО</th><th>Телефон</th><th>Email</th><th>Статус</th><th>Создан</th></tr></table>
 </div>
 <div class="view" id="v-h"><div class="kpis" id="hp"></div></div>
 <div class="view" id="v-l"><div style="margin-bottom:8px"><input id="ll" value="200" size="5"> строк <button class="act" onclick="loadLogs()">Обновить</button></div><pre id="log">—</pre></div>
@@ -93,8 +98,15 @@ async function loadHealth(){const d=await api('GET','health');
  hp.innerHTML=[['БД',d.db],['Диск занято %',d.disk_pct],['Аптайм, ч',d.uptime_h],['Версия',d.version]]
  .map(x=>`<div class="kpi"><b>${esc(x[1])}</b><br><span style="color:#94a3b8;font-size:12px">${x[0]}</span></div>`).join('')}
 async function loadLogs(){try{const d=await api('GET','logs?lines='+ll.value);log.textContent=d.lines.join('\n')}catch(e){log.textContent=e.message}}
+async function loadClients(){const d=await api('GET','clients?q='+encodeURIComponent(cq.value));
+ const tb=document.getElementById('clients');tb.querySelectorAll('tr.d').forEach(e=>e.remove());
+ for(const c of d.clients){const tr=document.createElement('tr');tr.className='d';
+  const fio=[c.last_name,c.first_name,c.middle_name].filter(Boolean).join(' ');
+  tr.innerHTML=`<td>${esc(fio)}</td><td>${esc(c.phone)}</td><td>${esc(c.email)}</td>
+   <td>${esc(c.status||'')}</td><td>${esc((c.created_at||'').replace('T',' ').slice(0,16))}</td>`;
+  tb.appendChild(tr)}}
 document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.getElementById('v-'+b.dataset.v).classList.add('on')});
-loadUsers();loadHealth();
+loadUsers();loadHealth();loadClients();
 </script></body></html>"""
 
 @router.get("", response_class=HTMLResponse)
@@ -115,6 +127,35 @@ def users(request: Request, x_token: str = Header(default="", alias="X-Token")):
                 JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=u.id) AS roles
             FROM users u WHERE u.deleted_at IS NULL ORDER BY u.created_at""")).mappings().all()
     return JSONResponse({"users": [dict(r) for r in rows]})
+
+@router.get("/api/clients")
+def clients_list(request: Request, q: str = "", limit: int = 200,
+                 x_token: str = Header(default="", alias="X-Token")):
+    _check(request, x_token)
+    from app.db.session import engine
+    limit = max(1, min(limit, 500))
+    with engine.begin() as c:
+        cols = {r[0] for r in c.execute(text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='clients'"
+        )).fetchall()}
+        has_deleted = "deleted_at" in cols
+        where = "deleted_at IS NULL" if has_deleted else "TRUE"
+        params = {"q": q.strip(), "lim": limit}
+        search = ""
+        if q.strip():
+            parts = []
+            for col in ("last_name", "first_name", "phone", "email"):
+                if col in cols:
+                    parts.append("%s ILIKE '%%' || :q || '%%'" % col)
+            if parts:
+                search = " AND (" + " OR ".join(parts) + ")"
+        sel = [k for k in ("id", "last_name", "first_name", "middle_name",
+                           "phone", "email", "status", "created_at") if k in cols]
+        sql = "SELECT %s FROM clients WHERE %s%s ORDER BY created_at DESC LIMIT :lim" % (
+            ", ".join(sel), where, search)
+        rows = c.execute(text(sql), params).mappings().all()
+    return JSONResponse({"clients": [dict(r) for r in rows]})
+
 
 @router.get("/api/roles")
 def roles(request: Request, x_token: str = Header(default="", alias="X-Token")):
