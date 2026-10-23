@@ -13,7 +13,7 @@ def _is_platform_source(host: str) -> bool:
     return (host.startswith("10.0.0.") or host.startswith("127.") or host == "::1"
             or host.startswith("172."))
 LOGIN = "platform.admin"
-TTL_MIN = 5
+TTL_MIN = 20
 
 
 def _platform_only(request: Request):
@@ -64,7 +64,7 @@ def imp_start(request: Request):
             created_at TIMESTAMPTZ DEFAULT now(),
             expires_at TIMESTAMPTZ NOT NULL,
             used BOOLEAN DEFAULT FALSE)"""))
-        c2.execute(text("INSERT INTO impersonation_tokens (token, expires_at) VALUES (:t, now() + interval '5 minutes')"), {"t": token})
+        c2.execute(text("INSERT INTO impersonation_tokens (token, expires_at) VALUES (:t, now() + interval '20 minutes')"), {"t": token})
     return {"ok": True, "login": LOGIN, "password": password,
             "expires_in_min": TTL_MIN, "session_id": secrets.token_hex(8),
             "console_token": token}
