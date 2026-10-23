@@ -42,6 +42,9 @@ _log_setup()
 
 
 def _ser(v):
+    import uuid as _uuid
+    if isinstance(v, _uuid.UUID):
+        return str(v)
     return v.isoformat() if hasattr(v, "isoformat") else v
 
 PAGE = """<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
