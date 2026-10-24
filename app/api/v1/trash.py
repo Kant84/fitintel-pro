@@ -108,27 +108,51 @@ def trash_restore(sid: str, user=Depends(get_current_user)):
         if entity not in ALLOWED:
             raise HTTPException(status_code=400, detail="entity not restorable")
 
-        # Имена таблиц поступают только из фиксированного ALLOWED.
-        # jsonb_populate_record восстанавливает типы столбцов PostgreSQL.
-        sql = f'''
-            INSERT INTO "{entity}"
-            SELECT * FROM jsonb_populate_record(
-                NULL::"{entity}",
-                CAST(:payload AS jsonb)
-            )
-            ON CONFLICT (id) DO NOTHING
-            RETURNING id
-        '''
+        # === SOFT CLIENT RESTORE ===
+        payload_json = json.dumps(
+            snapshot["payload"] or {},
+            ensure_ascii=False,
+        )
+        restored = None
 
-        restored = connection.execute(
-            text(sql),
-            {
-                "payload": json.dumps(
-                    snapshot["payload"] or {},
-                    ensure_ascii=False,
+        if entity == "clients":
+            # Мягко удалённый клиент ещё существует в таблице.
+            restored = connection.execute(
+                text("""
+                    UPDATE clients
+                    SET is_active = COALESCE(
+                            (CAST(:payload AS jsonb)->>'is_active')::boolean,
+                            TRUE
+                        ),
+                        status = COALESCE(
+                            CAST(:payload AS jsonb)->>'status',
+                            'ACTIVE'
+                        ),
+                        updated_at = now()
+                    WHERE id::text = :entity_id
+                    RETURNING id
+                """),
+                {
+                    "payload": payload_json,
+                    "entity_id": snapshot["entity_id"],
+                },
+            ).first()
+
+        if not restored:
+            # Для физически удалённых клиентов и остальных сущностей.
+            sql = f"""
+                INSERT INTO "{entity}"
+                SELECT * FROM jsonb_populate_record(
+                    NULL::"{entity}",
+                    CAST(:payload AS jsonb)
                 )
-            },
-        ).first()
+                ON CONFLICT (id) DO NOTHING
+                RETURNING id
+            """
+            restored = connection.execute(
+                text(sql),
+                {"payload": payload_json},
+            ).first()
 
         if not restored:
             raise HTTPException(
