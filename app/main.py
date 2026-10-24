@@ -258,6 +258,11 @@ except Exception as e:
     print("admin_console router FAIL:", e)
 
 
+# === TRASH ROUTER ===
+from app.api.v1.trash import router as trash_router
+app.include_router(trash_router, prefix="/api/v1", tags=["trash"])
+
+
 # === E22-lite: self-learning AI router ===
 try:
     from app.api.v1.ai_engine import router as ai_router
