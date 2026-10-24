@@ -457,11 +457,21 @@ class MusicTab(QWidget):
         args = argparse.Namespace(
             server=server, token=token, lib=lib,
             dry_run=False, debug=True,
-            mic=self._mic_on(), interval=0.5,
+            mic=self._mic_on(), interval=3.0,
             duck_threshold=0.08, duck_factor=0.2, duck_hold=2.0,
         )
 
         def _run():
+            import sys as _sys
+            logf = None
+            try:
+                os.makedirs(r"E:\music\logs", exist_ok=True)
+                logf = open(r"E:\music\logs\agent_gui.log", "a",
+                            encoding="utf-8", buffering=1)
+                _sys.stdout = logf
+                _sys.stderr = logf
+            except Exception:
+                logf = None
             try:
                 from agent import Agent as _Agent
                 ag = _Agent(args)
@@ -471,6 +481,14 @@ class MusicTab(QWidget):
                 import traceback
                 print("AGENT THREAD ERR:", e)
                 traceback.print_exc()
+            finally:
+                if logf:
+                    try:
+                        _sys.stdout = _sys.__stdout__
+                        _sys.stderr = _sys.__stderr__
+                        logf.close()
+                    except Exception:
+                        pass
 
         import threading
         self._agent_thread = threading.Thread(target=_run, daemon=True,
