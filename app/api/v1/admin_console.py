@@ -298,7 +298,7 @@ def user_create(request: Request, body: dict, x_token: str = Header(default="", 
     uid = str(__import__("uuid").uuid4())
     now = dt.datetime.now(dt.timezone.utc)
     with engine.begin() as c:
-        dup = c.execute(text("SELECT 1 FROM users WHERE username=:u"), {"u": username}).fetchone()
+        dup = c.execute(text("SELECT 1 FROM users WHERE lower(username)=lower(:u) AND deleted_at IS NULL"), {"u": username}).fetchone()
         if dup:
             raise HTTPException(409, "username exists")
         c.execute(text("""INSERT INTO users (id, username, phone, password_hash, is_active,
