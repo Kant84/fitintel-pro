@@ -73,10 +73,11 @@ input,select{background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5
 </nav><main>
 <div class="view on" id="v-u">
 <div style="margin-bottom:10px">
-<input id="nu" placeholder="логин" size="12"><input id="ne" placeholder="email" size="18">
-<input id="np" placeholder="пароль (пусто=авто)" size="16"><select id="nr"></select>
+<input id="nu" placeholder="логин" size="14"><input id="nph" placeholder="телефон" size="15">
+<select id="nr"></select><input id="np" placeholder="пароль (пусто=авто)" size="18">
 <button class="act" onclick="createUser()">Создать</button></div>
-<table id="users"><tr><th>Логин</th><th>Email</th><th>ФИО</th><th>Роли</th><th>Активен</th><th></th></tr></table>
+<table id="users"><tr><th>Логин</th><th>Телефон</th><th>Роли</th><th>Активен</th><th></th></tr></table>
+<div id="udetail" style="margin-top:14px"></div>
 </div>
 <div class="view" id="v-c">
 <div style="margin-bottom:10px"><input id="cq" placeholder="Поиск: фамилия / телефон / email…" size="34">
@@ -93,14 +94,14 @@ async function api(m,p,b){const r=await fetch('api/'+p,{method:m,headers:{'Conte
 function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
 async function loadUsers(){const d=await api('GET','users');
  document.getElementById('users').querySelectorAll('tr.d').forEach(e=>e.remove());
- for(const u of d.users){const tr=document.createElement('tr');tr.className='d';
-  tr.innerHTML=`<td>${esc(u.username)}</td><td>${esc(u.email)}</td><td>${esc(u.full_name)}</td><td>${esc(u.roles)}</td>
+ for(const u of d.users){const tr=document.createElement('tr');tr.className='d';tr.onclick=()=>loadUserCard(u.id);
+  tr.innerHTML=`<td>${esc(u.username)}</td><td>${esc(u.phone||'')}</td><td>${esc(u.roles)}</td>
    <td><span class="badge ${u.is_active?'on':'off'}">${u.is_active?'да':'нет'}</span></td>
    <td><button class="act" onclick="resetPw('${u.id}')">Сброс пароля</button>
        <button class="act" onclick="toggle('${u.id}',${u.is_active})">${u.is_active?'Блок':'Разблок'}</button></td>`;
   document.getElementById('users').appendChild(tr)}
  const rr=await api('GET','roles');document.getElementById('nr').innerHTML=rr.roles.map(r=>`<option>${esc(r)}</option>`).join('')}
-async function createUser(){const b={username:nu.value,email:ne.value,password:np.value,role:nr.value};
+async function createUser(){const b={username:nu.value,phone:nph.value,password:np.value,role:nr.value};
  try{await api('POST','users',b);loadUsers()}catch(e){alert(e.message)}}
 async function resetPw(id){const p=prompt('Новый пароль (пусто=авто):')||'';try{const r=await api('POST','users/'+id+'/reset-password',{password:p});alert('Новый пароль: '+r.password)}catch(e){alert(e.message)}}
 async function toggle(id,act){await api('POST','users/'+id+'/toggle-active',{active:!act});loadUsers()}
@@ -139,6 +140,23 @@ async function loadClientCard(id){
   cdetail.innerHTML=h;
  }catch(e){cdetail.innerHTML='<p>Ошибка: '+esc(e.message)+'</p>'}
 }
+async function loadUserCard(id){
+ udetail.innerHTML='<h2>Загрузка…</h2>';udetail.scrollIntoView({behavior:'smooth'});
+ try{
+  const d=await api('GET','users/'+id+'/card');const u=d.user;
+  let h='<h2>'+esc(u.username)+'</h2><div class="kv">'
+   +'<b>Телефон</b><span><input id="eu_ph" value="'+esc(u.phone||'')+'" size="18"></span>'
+   +'<b>Активен</b><span><input type="checkbox" id="eu_a" '+(u.is_active?'checked':'')+'></span>'
+   +'<b>Права (роли)</b><span>'+d.all_roles.map(r=>'<label style="margin-right:10px"><input type="checkbox" class="eu_r" value="'+esc(r)+'" '+(d.roles.includes(r)?'checked':'')+'>'+esc(r)+'</label>').join('')+'</span>'
+   +'</div><button class="act prime" data-uid="'+u.id+'" onclick="saveUser(this.dataset.uid)">Сохранить</button>';
+  udetail.innerHTML=h;
+ }catch(e){udetail.innerHTML='<p>Ошибка: '+esc(e.message)+'</p>'}
+}
+async function saveUser(id){
+ const roles=[...document.querySelectorAll('.eu_r:checked')].map(x=>x.value);
+ try{await api('POST','users/'+id+'/update',{phone:eu_ph.value,is_active:eu_a.checked,roles:roles});alert('Сохранено');loadUsers()}
+ catch(e){alert(e.message)}
+}
 document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.getElementById('v-'+b.dataset.v).classList.add('on')});
 loadUsers();loadHealth();loadClients();
 </script></body></html>"""
@@ -156,7 +174,7 @@ def users(request: Request, x_token: str = Header(default="", alias="X-Token")):
     from app.db.session import engine
     with engine.begin() as c:
         rows = c.execute(text("""
-            SELECT u.id::text, u.username, u.email, u.full_name, u.is_active,
+            SELECT u.id::text, u.username, u.phone, u.is_active,
               (SELECT string_agg(r.code, ', ' ORDER BY r.code) FROM user_roles ur
                 JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=u.id) AS roles
             FROM users u WHERE u.deleted_at IS NULL ORDER BY u.created_at""")).mappings().all()
@@ -248,10 +266,10 @@ def user_create(request: Request, body: dict, x_token: str = Header(default="", 
         dup = c.execute(text("SELECT 1 FROM users WHERE username=:u"), {"u": username}).fetchone()
         if dup:
             raise HTTPException(409, "username exists")
-        c.execute(text("""INSERT INTO users (id, username, email, password_hash, is_active,
+        c.execute(text("""INSERT INTO users (id, username, phone, password_hash, is_active,
             is_superuser, is_verified, is_fired, failed_login_count, created_at, updated_at)
-            VALUES (:i,:u,:e,:p,TRUE,FALSE,TRUE,FALSE,0,:n,:n)"""),
-            {"i": uid, "u": username, "e": body.get("email") or None,
+            VALUES (:i,:u,:ph,:p,TRUE,FALSE,TRUE,FALSE,0,:n,:n)"""),
+            {"i": uid, "u": username, "ph": body.get("phone") or None,
              "p": get_password_hash(password), "n": now})
         rc = body.get("role")
         if rc:
@@ -259,6 +277,45 @@ def user_create(request: Request, body: dict, x_token: str = Header(default="", 
                 SELECT gen_random_uuid(), :u, r.id, now(), now(), now() FROM roles r
                 WHERE r.code=:rc ON CONFLICT (user_id, role_id) DO NOTHING"""), {"u": uid, "rc": rc})
     return JSONResponse({"ok": True, "id": uid, "username": username, "password": password})
+
+@router.get("/api/users/{uid}/card")
+def user_card(request: Request, uid: str, x_token: str = Header(default="", alias="X-Token")):
+    _check(request, x_token)
+    from app.db.session import engine
+    with engine.begin() as c:
+        row = c.execute(text(
+            "SELECT id::text, username, phone, is_active FROM users WHERE id::text=:i"),
+            {"i": uid}).mappings().first()
+        roles = [r[0] for r in c.execute(text(
+            """SELECT r.code FROM user_roles ur JOIN roles r ON r.id=ur.role_id
+               WHERE ur.user_id::text=:i ORDER BY r.code"""), {"i": uid}).fetchall()]
+        allr = [r[0] for r in c.execute(text(
+            "SELECT code FROM roles ORDER BY code")).fetchall()]
+    if not row:
+        raise HTTPException(404, "user not found")
+    return JSONResponse({"user": dict(row), "roles": roles, "all_roles": allr})
+
+
+@router.post("/api/users/{uid}/update")
+def user_update(request: Request, uid: str, body: dict,
+                x_token: str = Header(default="", alias="X-Token")):
+    _check(request, x_token)
+    from app.db.session import engine
+    with engine.begin() as c:
+        n = c.execute(text(
+            "UPDATE users SET phone=:ph, is_active=:a, updated_at=now() WHERE id::text=:i"),
+            {"ph": body.get("phone") or None, "a": bool(body.get("is_active", True)), "i": uid}).rowcount
+        if not n:
+            raise HTTPException(404, "user not found")
+        c.execute(text("DELETE FROM user_roles WHERE user_id::text=:i"), {"i": uid})
+        for rc in (body.get("roles") or []):
+            c.execute(text("""INSERT INTO user_roles (id, user_id, role_id, assigned_at, created_at, updated_at)
+                SELECT gen_random_uuid(), u.id, r.id, now(), now(), now()
+                FROM users u, roles r
+                WHERE u.id::text=:i AND r.code=:rc
+                ON CONFLICT (user_id, role_id) DO NOTHING"""), {"i": uid, "rc": rc})
+    return JSONResponse({"ok": True})
+
 
 @router.post("/api/users/{uid}/reset-password")
 def user_reset(request: Request, uid: str, body: dict, x_token: str = Header(default="", alias="X-Token")):
