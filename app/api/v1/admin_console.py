@@ -28,8 +28,10 @@ def _check(request: Request, token: str):
                 token TEXT UNIQUE NOT NULL, created_at TIMESTAMPTZ DEFAULT now(),
                 expires_at TIMESTAMPTZ NOT NULL, used BOOLEAN DEFAULT FALSE)"""))
             _tokens_ddl_done = True
-        r = c.execute(text("""SELECT 1 FROM impersonation_tokens
-            WHERE token=:t AND used=FALSE AND expires_at > now()"""), {"t": token}).fetchone()
+        r = c.execute(text("""UPDATE impersonation_tokens
+            SET expires_at = now() + interval '20 minutes'
+            WHERE token=:t AND used=FALSE AND expires_at > now()
+            RETURNING 1"""), {"t": token}).fetchone()
     if not r:
         raise HTTPException(401, "invalid or expired token")
 
@@ -93,6 +95,7 @@ input,select{background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5
 <div id="cmodal" class="mwrap" onclick="if(event.target.id=='cmodal')cmodal.style.display='none'"><div class="mbox"><button class="act" style="float:right" onclick="cmodal.style.display='none'">Закрыть</button><div id="cbody"></div></div></div>
 <script>
 const T=new URLSearchParams(location.search).get('token');
+const PERM_RU={"users.read":"Чтение пользователей","users.create":"Создание пользователей","users.update":"Изменение пользователей","users.delete":"Удаление пользователей","roles.read":"Чтение ролей","roles.manage":"Управление ролями","permissions.read":"Чтение прав","club_settings.read":"Чтение настроек клуба","club_settings.update":"Изменение настроек клуба","audit.read":"Чтение аудита","system.admin":"Системное администрирование","clients.read":"Чтение клиентов","clients.create":"Создание клиентов","clients.update":"Изменение клиентов","tariffs.read":"Чтение тарифов","tariffs.create":"Создание тарифов","tariffs.update":"Изменение тарифов","subscriptions.read":"Чтение абонементов","subscriptions.create":"Создание абонементов","subscriptions.update":"Изменение абонементов","subscriptions.freeze":"Заморозка абонементов","subscriptions.renew":"Продление абонементов","subscriptions.cancel":"Отмена абонементов","subscriptions.history":"История абонемента","visits.read":"Чтение визитов","visits.create":"Создание визитов","visits.update":"Изменение визитов","visits.delete":"Удаление визитов","access.override":"Переопределение доступа","credentials.read":"Чтение карт/браслетов","credentials.create":"Создание карт/браслетов","credentials.update":"Изменение карт/браслетов","credentials.delete":"Удаление карт/браслетов","access.cache.manage":"Управление кэшем доступа","lockers.read":"Чтение шкафчиков","lockers.assign":"Выдача шкафчиков","lockers.update":"Изменение шкафчиков","lockers.manage":"Управление шкафчиками","wallet.read":"Чтение кошелька","wallet.deposit":"Пополнение кошелька","payments.read":"Чтение платежей","payments.create":"Создание платежей","payments.update":"Изменение платежей","payments.refund":"Возврат платежей","receipts.read":"Чтение чеков","receipts.send":"Отправка чеков","cash_desk.read":"Чтение кассы","cash_desk.open":"Открытие смены","cash_desk.close":"Закрытие смены","cash_desk.manage":"Управление кассой","sales.read":"Чтение продаж","sales.create":"Создание продаж","devices.read":"Чтение устройств","devices.create":"Создание устройств","devices.update":"Изменение устройств","devices.delete":"Удаление устройств","setup.read":"Чтение установки","setup.write":"Настройка установки","services.read":"Чтение услуг","services.create":"Создание услуг","services.update":"Изменение услуг","services.delete":"Удаление услуг","documents.read":"Чтение документов","documents.create":"Создание документов","documents.delete":"Удаление документов","face.read":"Чтение биометрии","face.manage":"Управление биометрией","ui-config.read":"Чтение UI-конфига","ui-config.update":"Изменение UI-конфига","settings.read":"Чтение настроек","settings.update":"Изменение настроек","trainers.read":"Тренеры","warehouse.read":"Склад"};
 async function api(m,p,b){const r=await fetch('api/'+p,{method:m,headers:{'Content-Type':'application/json','X-Token':T},body:b?JSON.stringify(b):undefined});
  if(!r.ok)throw new Error(p+' '+r.status+' '+(await r.text()).slice(0,120));return r.json()}
 function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
@@ -153,7 +156,7 @@ async function loadUserCard(id){
    +'<b>Телефон</b><span><input id="eu_ph" value="'+esc(u.phone||'')+'" size="18"></span>'
    +'<b>Активен</b><span><input type="checkbox" id="eu_a" '+(u.is_active?'checked':'')+'></span>'
    +'<b>Роли</b><span>'+d.all_roles.map(r=>'<label style="margin-right:10px"><input type="checkbox" class="eu_r" value="'+esc(r)+'" '+(d.roles.includes(r)?'checked':'')+'>'+esc(r)+'</label>').join('')+'</span>'
-   +'<b>Права по ролям</b><span style="line-height:2">'+pm.permissions.map(p=>'<code style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:1px 7px;margin-right:5px;color:#38bdf8;font-size:11px">'+esc(p)+'</code>').join('')+'</span>'
+   +'<b>Права по ролям</b><span style="line-height:2">'+pm.permissions.map(p=>'<code style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:1px 7px;margin-right:4px;color:#38bdf8;font-size:11px" title="'+esc(PERM_RU[p]||p)+'">'+esc(p)+'</code>'+(PERM_RU[p]?'<span style="color:#94a3b8;font-size:11px;margin-right:10px">'+esc(PERM_RU[p])+'</span>':'')).join('')+'</span>'
    +'</div><button class="act prime" data-uid="'+u.id+'" onclick="saveUser(this.dataset.uid)">Сохранить</button>'
    +' <button class="act" data-uid="'+u.id+'" onclick="delUser(this.dataset.uid)" style="border-color:#7f1d1d;color:#fca5a5">Удалить</button>';
   ubody.innerHTML=h;
