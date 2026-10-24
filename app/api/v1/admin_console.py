@@ -26,10 +26,14 @@ def _check(request: Request, token: str):
             c.execute(text("""CREATE TABLE IF NOT EXISTS impersonation_tokens (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 token TEXT UNIQUE NOT NULL, created_at TIMESTAMPTZ DEFAULT now(),
-                expires_at TIMESTAMPTZ NOT NULL, used BOOLEAN DEFAULT FALSE)"""))
+                expires_at TIMESTAMPTZ NOT NULL, used BOOLEAN DEFAULT FALSE,
+                ttl_min INT DEFAULT 20)"""))
+            _col_ttl = c.execute(text("SELECT 1 FROM information_schema.columns WHERE table_name='impersonation_tokens' AND column_name='ttl_min'")).fetchone()
+            if not _col_ttl:
+                c.execute(text("ALTER TABLE impersonation_tokens ADD COLUMN ttl_min INT DEFAULT 20"))
             _tokens_ddl_done = True
         r = c.execute(text("""UPDATE impersonation_tokens
-            SET expires_at = now() + interval '20 minutes'
+            SET expires_at = now() + make_interval(mins => COALESCE(ttl_min, 20))
             WHERE token=:t AND used=FALSE AND expires_at > now()
             RETURNING 1"""), {"t": token}).fetchone()
     if not r:
@@ -70,7 +74,7 @@ input,select{background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5
 .mwrap{display:none;position:fixed;inset:0;background:rgba(2,6,23,.78);z-index:20;overflow:auto;padding:30px 8vw}
 .mbox{background:#1e293b;border-radius:12px;padding:18px;max-width:720px;margin:0 auto}
 </style></head><body>
-<header>КОНСОЛЬ ПОДДЕРЖКИ — сессия платформенного администратора · действия в аудите · токен 20 мин</header>
+<header>КОНСОЛЬ ПОДДЕРЖКИ — сессия платформенного администратора · действия в аудите · токен продлевается при активности</header>
 <nav style="padding:10px 18px">
 <button data-v="u" class="on">Пользователи</button><button data-v="h">Health</button><button data-v="l">Логи</button><button data-v="c">Клиенты</button>
 <button style="float:right" onclick="if(confirm('Перезапустить API клуба? Сессия прервётся.'))api('POST','restart',{})">Перезапуск API</button>
