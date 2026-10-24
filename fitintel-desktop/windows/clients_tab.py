@@ -237,10 +237,10 @@ class ClientsTab(QWidget):
 
         row = QHBoxLayout()
         self._btn_filters = QToolButton()
-        self._btn_filters.setText(" Фильтры ▾")
+        self._btn_filters.setText(" Поиск ▾")
         self._btn_filters.setCheckable(True)
         self._btn_filters.setStyleSheet("QToolButton { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 14px; font-weight: 600; }")
-        self._btn_filters.toggled.connect(lambda on: (fscroll.setVisible(on), self._btn_filters.setText(" Фильтры ▴" if on else " Фильтры ▾")))
+        self._btn_filters.toggled.connect(lambda on: (fscroll.setVisible(on), self._btn_filters.setText(" Поиск ▴" if on else " Поиск ▾")))
         row.addWidget(self._btn_filters)
         row.addStretch()
         b_add = self._btn(" Добавить", "#10b981", "white"); b_add.clicked.connect(self._add)
