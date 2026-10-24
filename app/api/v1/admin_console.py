@@ -150,21 +150,37 @@ async function loadClientCard(id){
 async function loadUserCard(id){
  ubody.innerHTML='<h2>Загрузка…</h2>';umodal.style.display='block';
  try{
-  const d=await api('GET','users/'+id+'/card');const u=d.user;
-  const pm=await api('GET','users/'+id+'/perms');
-  let h='<h2>'+esc(u.username)+'</h2><div class="kv">'
-   +'<b>Телефон</b><span><input id="eu_ph" value="'+esc(u.phone||'')+'" size="18"></span>'
-   +'<b>Активен</b><span><input type="checkbox" id="eu_a" '+(u.is_active?'checked':'')+'></span>'
-   +'<b>Роли</b><span>'+d.all_roles.map(r=>'<label style="margin-right:10px"><input type="checkbox" class="eu_r" value="'+esc(r)+'" '+(d.roles.includes(r)?'checked':'')+'>'+esc(r)+'</label>').join('')+'</span>'
-   +'<b>Права по ролям</b><span style="line-height:2">'+pm.permissions.map(p=>'<code style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:1px 7px;margin-right:4px;color:#38bdf8;font-size:11px" title="'+esc(PERM_RU[p]||p)+'">'+esc(p)+'</code>'+(PERM_RU[p]?'<span style="color:#94a3b8;font-size:11px;margin-right:10px">'+esc(PERM_RU[p])+'</span>':'')).join('')+'</span>'
-   +'</div><button class="act prime" data-uid="'+u.id+'" onclick="saveUser(this.dataset.uid)">Сохранить</button>'
-   +' <button class="act" data-uid="'+u.id+'" onclick="delUser(this.dataset.uid)" style="border-color:#7f1d1d;color:#fca5a5">Удалить</button>';
+  const d=await api('GET','users/'+id+'/profile');const u=d.user;
+  let h='<h2>'+esc(u.username)+(d.personal?' <span style="color:#38bdf8;font-size:12px">персональный профиль</span>':'')+'</h2>';
+  h+='<table><tr><th style="width:120px">Логин</th><td>'+esc(u.username)+'</td></tr>'
+   +'<tr><th>ФИО</th><td><input id="pu_fn" value="'+esc(u.full_name||'')+'" size="32"></td></tr>'
+   +'<tr><th>Телефон</th><td><input id="pu_ph" value="'+esc(u.phone||'')+'" size="18"></td></tr>'
+   +'<tr><th>Email</th><td><input id="pu_em" value="'+esc(u.email||'')+'" size="28"></td></tr>'
+   +'<tr><th>Роль</th><td>'+esc(d.roles.join(', ')||'—')+'</td></tr>'
+   +'<tr><th>Активен</th><td><input type="checkbox" id="pu_a" '+(u.is_active?'checked':'')+'></td></tr></table>';
+  h+='<h2>Права (итоговые)</h2><table><tr><th style="width:30px"></th><th>Код</th><th>Описание</th></tr>'
+   +d.all_permissions.map(p=>'<tr><td><input type="checkbox" class="pu_p" value="'+esc(p)+'" '+(d.permissions.includes(p)?'checked':'')+'></td><td><code>'+esc(p)+'</code></td><td style="color:#94a3b8">'+esc(PERM_RU[p]||'')+'</td></tr>').join('')+'</table>';
+  h+='<h2>Экраны десктопа</h2><table><tr><th style="width:30px"></th><th>Экран</th><th>Название</th></tr>'
+   +d.all_screens.map(sc=>'<tr><td><input type="checkbox" class="pu_s" value="'+esc(sc.code)+'" '+(d.screens.includes(sc.code)?'checked':'')+'></td><td><code>'+esc(sc.code)+'</code></td><td style="color:#94a3b8">'+esc(sc.name||'')+'</td></tr>').join('')+'</table>';
+  h+='<div style="margin-top:12px">'
+   +'<button class="act prime" data-uid="'+u.id+'" onclick="saveProfile(this.dataset.uid)">Сохранить (персональный профиль)</button> '
+   +'<select id="pu_reset">'+d.all_roles.map(r=>'<option>'+esc(r)+'</option>').join('')+'</select>'
+   +'<button class="act" data-uid="'+u.id+'" onclick="resetToRole(this.dataset.uid)">Сбросить к роли</button> '
+   +'<button class="act" data-uid="'+u.id+'" onclick="delUser(this.dataset.uid)" style="border-color:#7f1d1d;color:#fca5a5">Удалить</button></div>';
   ubody.innerHTML=h;
  }catch(e){ubody.innerHTML='<p>Ошибка: '+esc(e.message)+'</p>'}
 }
-async function saveUser(id){
- const roles=[...document.querySelectorAll('.eu_r:checked')].map(x=>x.value);
- try{await api('POST','users/'+id+'/update',{phone:eu_ph.value,is_active:eu_a.checked,roles:roles});alert('Сохранено');loadUsers()}
+async function saveProfile(id){
+ const b={full_name:pu_fn.value,phone:pu_ph.value,email:pu_em.value,is_active:pu_a.checked,
+  permissions:[...document.querySelectorAll('.pu_p:checked')].map(x=>x.value),
+  screens:[...document.querySelectorAll('.pu_s:checked')].map(x=>x.value)};
+ try{await api('POST','users/'+id+'/profile',b);alert('Сохранено: создан персональный профиль');loadUsers()}
+ catch(e){alert(e.message)}
+}
+async function resetToRole(id){
+ const role=document.getElementById('pu_reset').value;
+ if(!confirm('Сбросить персональный профиль и вернуть роль «'+role+'»?'))return;
+ try{await api('POST','users/'+id+'/reset-role',{role:role});alert('Сброшено');loadUserCard(id);loadUsers()}
  catch(e){alert(e.message)}
 }
 async function delUser(id){
@@ -359,6 +375,106 @@ def user_perms(request: Request, uid: str, x_token: str = Header(default="", ali
             JOIN permissions p ON p.id = rp.permission_id
             WHERE ur.user_id::text=:i ORDER BY p.code"""), {"i": uid}).fetchall()]
     return JSONResponse({"permissions": perms})
+
+
+@router.get("/api/users/{uid}/profile")
+def user_profile(request: Request, uid: str, x_token: str = Header(default="", alias="X-Token")):
+    _check(request, x_token)
+    from app.db.session import engine
+    with engine.begin() as c:
+        u = c.execute(text(
+            "SELECT id::text, username, full_name, phone, email, is_active FROM users WHERE id::text=:i"),
+            {"i": uid}).mappings().first()
+        if not u:
+            raise HTTPException(404, "user not found")
+        roles = [r[0] for r in c.execute(text(
+            """SELECT r.code FROM user_roles ur JOIN roles r ON r.id=ur.role_id
+               WHERE ur.user_id::text=:i ORDER BY r.code"""), {"i": uid}).fetchall()]
+        personal = any(r.startswith("user_") for r in roles)
+        role_list = ",".join("'%s'" % r for r in roles) or "''"
+        perms = [r[0] for r in c.execute(text(
+            """SELECT DISTINCT p.code FROM user_roles ur
+               JOIN role_permissions rp ON rp.role_id=ur.role_id
+               JOIN permissions p ON p.id=rp.permission_id
+               WHERE ur.user_id::text=:i ORDER BY p.code"""), {"i": uid}).fetchall()]
+        screens = [r[0] for r in c.execute(text(
+            """SELECT DISTINCT rs.screen_code FROM user_roles ur
+               JOIN ui_role_screens rs ON rs.role IN (SELECT code FROM roles WHERE id=ur.role_id)
+               WHERE ur.user_id::text=:i AND rs.is_visible ORDER BY rs.screen_code"""),
+            {"i": uid}).fetchall()]
+        allp = [r[0] for r in c.execute(text(
+            "SELECT code FROM permissions ORDER BY code")).fetchall()]
+        alls = [dict(r) for r in c.execute(text(
+            "SELECT code, name FROM ui_screens WHERE is_active ORDER BY sort_order, code")).mappings().all()]
+        allr = [r[0] for r in c.execute(text(
+            "SELECT code FROM roles WHERE code NOT LIKE 'user\\_%' ORDER BY code")).fetchall()]
+    return JSONResponse({"user": dict(u), "roles": roles, "personal": personal,
+                         "permissions": perms, "all_permissions": allp,
+                         "screens": screens, "all_screens": alls, "all_roles": allr})
+
+
+@router.post("/api/users/{uid}/profile")
+def user_profile_save(request: Request, uid: str, body: dict,
+                      x_token: str = Header(default="", alias="X-Token")):
+    _check(request, x_token)
+    from app.db.session import engine
+    with engine.begin() as c:
+        u = c.execute(text(
+            "SELECT id, username FROM users WHERE id::text=:i"), {"i": uid}).fetchone()
+        if not u:
+            raise HTTPException(404, "user not found")
+        uid_uuid, username = str(u[0]), str(u[1])
+        c.execute(text("""UPDATE users SET full_name=:f, phone=:ph, email=:e,
+                          is_active=:a, updated_at=now() WHERE id::text=:i"""),
+                  {"f": body.get("full_name"), "ph": body.get("phone"),
+                   "e": body.get("email"), "a": bool(body.get("is_active", True)), "i": uid})
+        pr = "user_" + username[:40]
+        r = c.execute(text("SELECT id FROM roles WHERE code=:c"), {"c": pr}).fetchone()
+        if r:
+            pr_id = str(r[0])
+        else:
+            pr_id = str(__import__("uuid").uuid4())
+            c.execute(text("""INSERT INTO roles (id, code, name, description, is_system, created_at, updated_at)
+                VALUES (:i, :c, :n, 'персональный профиль (консоль поддержки)', TRUE, now(), now())"""),
+                {"i": pr_id, "c": pr, "n": "Персональный: " + username})
+        c.execute(text("DELETE FROM role_permissions WHERE role_id=:r"), {"r": pr_id})
+        c.execute(text("DELETE FROM ui_role_screens WHERE role=:r"), {"r": pr})
+        for pcd in (body.get("permissions") or []):
+            c.execute(text("""INSERT INTO role_permissions (id, role_id, permission_id, created_at, updated_at)
+                SELECT gen_random_uuid(), :r, p.id, now(), now() FROM permissions p
+                WHERE p.code=:pc ON CONFLICT DO NOTHING"""), {"r": pr_id, "pc": pcd})
+        for scd in (body.get("screens") or []):
+            c.execute(text("""INSERT INTO ui_role_screens (id, role, screen_code, is_visible)
+                VALUES (gen_random_uuid(), :r, :sc, TRUE) ON CONFLICT (role, screen_code)
+                DO UPDATE SET is_visible=TRUE"""), {"r": pr, "sc": scd})
+        c.execute(text("DELETE FROM user_roles WHERE user_id::text=:i"), {"i": uid})
+        c.execute(text("""INSERT INTO user_roles (id, user_id, role_id, assigned_at, created_at, updated_at)
+            VALUES (gen_random_uuid(), :u, :r, now(), now(), now())
+            ON CONFLICT (user_id, role_id) DO NOTHING"""), {"u": uid_uuid, "r": pr_id})
+    return JSONResponse({"ok": True, "personal_role": pr})
+
+
+@router.post("/api/users/{uid}/reset-role")
+def user_reset_role(request: Request, uid: str, body: dict,
+                    x_token: str = Header(default="", alias="X-Token")):
+    _check(request, x_token)
+    from app.db.session import engine
+    role = str(body.get("role") or "")
+    if not role or role.startswith("user_"):
+        raise HTTPException(400, "base role required")
+    with engine.begin() as c:
+        u = c.execute(text("SELECT id, username FROM users WHERE id::text=:i"), {"i": uid}).fetchone()
+        if not u:
+            raise HTTPException(404, "user not found")
+        rid = c.execute(text("SELECT id FROM roles WHERE code=:c"), {"c": role}).fetchone()
+        if not rid:
+            raise HTTPException(404, "role not found")
+        c.execute(text("DELETE FROM user_roles WHERE user_id=:u"), {"u": u[0]})
+        c.execute(text("""INSERT INTO user_roles (id, user_id, role_id, assigned_at, created_at, updated_at)
+            VALUES (gen_random_uuid(), :u, :r, now(), now(), now())
+            ON CONFLICT (user_id, role_id) DO NOTHING"""), {"u": u[0], "r": rid[0]})
+        c.execute(text("DELETE FROM roles WHERE code=:c"), {"c": "user_" + str(u[1])[:40]})
+    return JSONResponse({"ok": True, "role": role})
 
 
 @router.post("/api/users/{uid}/reset-password")
