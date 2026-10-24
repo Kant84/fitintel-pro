@@ -128,9 +128,17 @@ class UsersTab(QWidget):
                                             "border: 1px solid #cbd5e1; border-radius: 6px; "
                                             "padding: 8px 14px; font-weight: 600; }")
         self.chk_show_deleted.toggled.connect(lambda _c: self._apply_filters())
+        # === USER TRASH BUTTON ===
+        b_trash = self._btn("Корзина")
+        b_trash.clicked.connect(
+            lambda _c: __import__(
+                "windows.trash_dialog",
+                fromlist=["TrashDialog"],
+            ).TrashDialog(self.api, self).exec()
+        )
         b_ref = self._btn("Обновить")
         b_ref.clicked.connect(self.refresh)
-        for b in (b_add, b_edit, b_del, self.chk_show_deleted, b_ref):
+        for b in (b_add, b_edit, b_del, self.chk_show_deleted, b_trash, b_ref):
             row.addWidget(b)
         rl.addLayout(row)
 
@@ -504,23 +512,3 @@ try:
     print("PDF cleanup OK: users_tab")
 except Exception as _e:
     print("PDF cleanup FAIL:", _e)
-
-# === W29_TRASH_BTN: кнопка «Корзина» в тулбаре вкладки Пользователи ===
-try:
-    from PyQt6.QtWidgets import QPushButton as _QPB
-    _w29_orig = UsersTab._build_ui
-    def _w29_build(self):
-        _w29_orig(self)
-        try:
-            for b in self.findChildren(_QPB):
-                if b.text() == 'Обновить':
-                    tb = _QPB('🗑 Корзина')
-                    tb.clicked.connect(lambda _c: __import__('windows.trash_dialog', fromlist=['TrashDialog']).TrashDialog(self.api, self).exec())
-                    b.parentWidget().layout().insertWidget(b.parentWidget().layout().indexOf(b) + 1, tb)
-                    break
-        except Exception as e:
-            print('W29:', e)
-    UsersTab._build_ui = _w29_build
-    print('W29 trash button OK')
-except Exception as _e29:
-    print('W29 FAIL:', _e29)

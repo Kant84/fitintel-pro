@@ -248,8 +248,16 @@ class ClientsTab(QWidget):
         b_edit.setVisible(False)  # редактирование — в карточке клиента
         b_deact = self._btn(" Деактивировать", "#fee2e2", "#b91c1c"); b_deact.clicked.connect(self._deactivate)
         b_del = self._btn(" Удалить", "#dc2626", "white"); b_del.clicked.connect(self._delete)
+        # === CLIENT TRASH BUTTON ===
+        b_trash = self._btn("Корзина")
+        b_trash.clicked.connect(
+            lambda _c: __import__(
+                "windows.trash_dialog",
+                fromlist=["TrashDialog"],
+            ).TrashDialog(self.api, self).exec()
+        )
         b_ref = self._btn("Обновить"); b_ref.clicked.connect(self.refresh)
-        for b in (b_add, b_edit, b_deact, b_del, b_ref):
+        for b in (b_add, b_edit, b_deact, b_del, b_trash, b_ref):
             row.addWidget(b)
         rl.addLayout(row)
 
@@ -514,7 +522,7 @@ class ClientsTab(QWidget):
             return
         if QMessageBox.warning(
                 self, "Удаление клиента",
-                f"УДАЛИТЬ клиента {self._fio(c)} безвозвратно?",
+                f"Переместить клиента {self._fio(c)} в корзину?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
         try:
