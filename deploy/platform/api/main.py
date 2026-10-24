@@ -53,6 +53,12 @@ CREATE TABLE IF NOT EXISTS license_history (
 );
 CREATE INDEX IF NOT EXISTS idx_heartbeats_club ON club_heartbeats(club_id, received_at DESC);
 ALTER TABLE clubs ADD COLUMN IF NOT EXISTS license_paid_until TIMESTAMPTZ;
+CREATE TABLE IF NOT EXISTS platform_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  updated_by TEXT
+);
 """
 
 @app.on_event("startup")
@@ -71,6 +77,18 @@ def _apply_renewals(c):
         c.execute("""UPDATE clubs SET license_expires_at=%s, license_grace_until=NULL
                      WHERE id=%s""", (r[1], r[0]))
     return len(rows)
+
+
+SETTINGS_META = {
+    "console_token_ttl_min": "TTL токена консоли поддержки, минут (5-120). Применяется к новым сессиям; продление при активности использует то же значение.",
+    "offline_threshold_sec": "Порог offline клуба на дашборде, секунды без heartbeat (60-1800).",
+    "license_alert_days": "За сколько дней до истечения лицензии клуб попадает в 'Истекает' (планово, для алертов).",
+}
+
+
+def _get_setting(c, key, default):
+    r = c.execute("SELECT value FROM platform_settings WHERE key=%s", (key,)).fetchone()
+    return (r[0] if r else default)
 
 
 def _lic_status(exp, grace, now):
@@ -330,6 +348,7 @@ def dashboard(request: Request):
     now = dt.datetime.now(dt.timezone.utc)
     with pool.connection() as c:
         renewed = _apply_renewals(c)
+        off_thr = int(_get_setting(c, "offline_threshold_sec", 180) or 180)
         clubs = c.execute("""SELECT slug, name, is_active, license_expires_at,
             license_grace_until, license_paid_until, last_seen_at FROM clubs""").fetchall()
         clients = c.execute("""SELECT COALESCE(SUM((h.payload->>'clients')::int),0)
@@ -347,7 +366,7 @@ def dashboard(request: Request):
             expiring.append({"slug": r[0], "name": r[1], "days": (r[3] - now).days})
         if not r[2]:
             suspended += 1
-        elif r[6] and (now - r[6]).total_seconds() < 180:
+        elif r[6] and (now - r[6]).total_seconds() < off_thr:
             online += 1
     return {"ok": True, "kpis": {"clubs_total": len(clubs), "online": online,
             "suspended": suspended, "clients_total": clients, "licenses": lic,
@@ -427,9 +446,11 @@ def impersonate(request: Request, slug: str, body: dict):
     if not r[0]:
         raise HTTPException(409, "club has no wireguard_ip (connect club via WireGuard first)")
     import urllib.request, urllib.error
+    with pool.connection() as c:
+        ttl = int(_get_setting(c, "console_token_ttl_min", 20) or 20)
     req = urllib.request.Request(
         "http://%s/api/v1/admin/impersonate/start" % r[0],
-        data=b"{}",
+        data=json.dumps({"ttl_min": ttl}).encode(),
         headers={"Content-Type": "application/json", "X-Admin-Access-Key": key},
         method="POST")
     try:
@@ -499,6 +520,34 @@ def club_brand(request: Request, slug: str):
             return {"ok": True, "club_name": row.get("club_name") or None}
     except Exception as e:
         return {"ok": False, "error": str(e)[:80]}
+
+
+@app.get("/platform/settings")
+def settings_get(request: Request):
+    admin = _cn(request)
+    with pool.connection() as c:
+        rows = c.execute("SELECT key, value FROM platform_settings").fetchall()
+        vals = {r[0]: r[1] for r in rows}
+    return {"ok": True, "admin": admin, "settings": vals, "meta": SETTINGS_META}
+
+
+@app.post("/platform/settings")
+def settings_set(request: Request, body: dict):
+    admin = _cn(request)
+    key = str(body.get("key") or "").strip()
+    value = str(body.get("value") or "").strip()
+    if key not in SETTINGS_META:
+        raise HTTPException(400, "unknown setting key")
+    if not value:
+        raise HTTPException(400, "value required")
+    with pool.connection() as c:
+        c.execute("""INSERT INTO platform_settings (key, value, updated_at, updated_by)
+                     VALUES (%s, %s, now(), %s)
+                     ON CONFLICT (key) DO UPDATE SET value=%s, updated_at=now(), updated_by=%s""",
+                  (key, value, admin, value, admin))
+        _audit(c, admin, "settings.set", key, {"value": value}, request.client.host)
+        c.commit()
+    return {"ok": True, "key": key, "value": value}
 
 
 @app.post("/platform/heartbeat")

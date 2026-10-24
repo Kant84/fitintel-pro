@@ -43,6 +43,7 @@
  <button data-v="clubs">Клубы</button>
  <button data-v="lic">Лицензии</button>
  <button data-v="audit">Аудит</button>
+ <button data-v="set">Настройки</button>
 </nav>
 <span class="muted" id="ts"></span><span class="muted" id="who"></span></header>
 <main>
@@ -62,6 +63,7 @@
   <table id="lic"><tr><th>Клуб</th><th>Статус</th><th>Истекает</th><th>Оплачено до</th><th>Grace до</th><th></th></tr></table>
  </div>
  <div class="view" id="v-audit"><pre id="audit">—</pre></div>
+ <div class="view" id="v-set"><table id="set"><tr><th>Ключ</th><th>Значение</th><th>Описание</th><th></th></tr></table></div>
 </main>
 <div id="modal"><div id="mbox"><button class="act" style="float:right" onclick="modal(0)">Закрыть</button><div id="mcontent">—</div></div></div>
 <script>
@@ -172,7 +174,19 @@ document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("on"));
  document.querySelectorAll(".view").forEach(x=>x.classList.remove("on"));
  b.classList.add("on");$("v-"+b.dataset.v).classList.add("on")});
+async function loadSettings(){
+ const d=await j("/platform/settings");const tb=document.getElementById("set");
+ tb.querySelectorAll("tr.d").forEach(e=>e.remove());
+ for(const k in d.meta){const tr=document.createElement("tr");tr.className="d";
+  tr.innerHTML=`<td><code>${esc(k)}</code></td><td><input id="sv_${esc(k)}" value="${esc(d.settings[k]||"")}" size="10"></td>
+   <td class="muted" style="font-size:12px">${esc(d.meta[k])}</td>
+   <td><button class="act" data-k="${esc(k)}" onclick="saveSetting(this.dataset.k)">Сохранить</button></td>`;
+  tb.appendChild(tr)}}
+async function saveSetting(k){
+ await api("POST","/platform/settings",{key:k,value:document.getElementById("sv_"+k).value});
+ alert("Сохранено: "+k);}
 loadAll();setInterval(loadAll,30000);
+loadSettings();setInterval(loadSettings,60000);
 </script>
 </body>
 </html>
