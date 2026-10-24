@@ -506,58 +506,26 @@ class MusicTab(QWidget):
 
     # ---------- диалоги ----------
     def create_zone(self):
-        import socket as _sock
-        default_name = "Зал %s" % _sock.gethostname()
-        dlg = FormDialog("Новая зона", [
-            ("ptype", "Плеер", "combo",
-             ["local_agent — плеер на этом ПК (агент сам зарегистрируется)",
-              "external — коробка провайдера"]),
-            ("name", "Имя зоны", "text", default_name),
-            ("lib", "Папка музыки для local_agent (флешка/диск)", "text",
-             self._agent_cfg().get("lib") or r"E:\music\club"),
-            ("base_url", "Адрес коробки http://IP:порт (для external)", "text", ""),
-            ("cmd_path", "Путь команд (обычно /cmd)", "text", "/cmd"),
-        ], self)
-        if not dlg.exec():
-            return
-        v = dlg.values()
-        ptype_label = v.get("ptype") or ""
-        ptype = "local_agent" if ptype_label.startswith("local_agent") else "external"
-        name = (v.get("name") or default_name).strip()
-        lib = (v.get("lib") or "").strip()
-
-        if ptype == "local_agent":
-            # Сохраняем lib — зону агент сам создаст при «Плеер: ВКЛ»
-            if lib:
-                lib = os.path.normpath(lib)
-
-            def _mut(cfg):
-                dj = cfg.get("dj_agent") or {}
-                dj["lib"] = lib or r"E:\music\club"
-                cfg["dj_agent"] = dj
-                return cfg
-
-            self._settings_rw(mutate=_mut)
-            self._show("Папка музыки сохранена: %s. Запустите «Плеер: ВКЛ» — "
-                       "агент сам зарегистрирует зону." % (lib or r"E:\music\club"))
-            return
-
-        # external — через API
-        body = {"name": name, "provider_type": "external",
-                "provider_config": {
-                    "base_url": (v.get("base_url") or "").strip(),
-                    "cmd_path": (v.get("cmd_path") or "/cmd").strip()}}
-
+        """Идемпотентная регистрация: /agent/register находит зону по machine_id
+        и возвращает существующий токен — дубли невозможны."""
+        import socket as _sock, uuid as _uuid
+        mid = ("%s-%s" % (_sock.gethostname(), "%012x" % _uuid.getnode()))[:64]
+        body = {"machine_id": mid, "name": "Зал %s" % _sock.gethostname(), "lib": ""}
         def _do():
-            r = self.api.session.post(self._url("/zones"), json=body, timeout=15)
+            r = self.api.session.post(self._url("/agent/register"), json=body, timeout=15)
             r.raise_for_status()
             return r.json()
-
         def _done(z):
-            self._show("Зона «%s» создана (провайдер: %s)."
-                       % (name, body["provider_config"].get("base_url")))
+            def _mut(cfg):
+                dj = cfg.get("dj_agent") or {}
+                dj["token"] = z.get("agent_token")
+                dj.setdefault("lib", r"E:\music\club")
+                cfg["dj_agent"] = dj
+                return cfg
+            self._settings_rw(mutate=_mut)
+            self._show("Зона плеера: %s | токен %s..." % (z.get("name"),
+                                                           str(z.get("agent_token"))[:12]))
             self.reload_all()
-
         self._run(_do, _done)
 
     def agent_settings(self):
