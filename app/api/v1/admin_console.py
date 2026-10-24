@@ -65,6 +65,8 @@ pre{background:#1e293b;padding:12px;border-radius:8px;font-size:12px;max-height:
 input,select{background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5px 8px;border-radius:6px}
 .badge{padding:1px 8px;border-radius:8px;font-size:11px}.on{background:#064e3b;color:#34d399}.off{background:#7f1d1d;color:#fca5a5}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.kpi{background:#1e293b;border-radius:8px;padding:12px}.kpi b{font-size:18px;color:#38bdf8}
+.mwrap{display:none;position:fixed;inset:0;background:rgba(2,6,23,.78);z-index:20;overflow:auto;padding:30px 8vw}
+.mbox{background:#1e293b;border-radius:12px;padding:18px;max-width:720px;margin:0 auto}
 </style></head><body>
 <header>КОНСОЛЬ ПОДДЕРЖКИ — сессия платформенного администратора · действия в аудите · токен 20 мин</header>
 <nav style="padding:10px 18px">
@@ -87,6 +89,8 @@ input,select{background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:5
 <div class="view" id="v-h"><div class="kpis" id="hp"></div></div>
 <div class="view" id="v-l"><div style="margin-bottom:8px"><input id="ll" value="200" size="5"> строк <button class="act" onclick="loadLogs()">Обновить</button></div><pre id="log">—</pre></div>
 </main>
+<div id="umodal" class="mwrap" onclick="if(event.target.id=='umodal')umodal.style.display='none'"><div class="mbox"><button class="act" style="float:right" onclick="umodal.style.display='none'">Закрыть</button><div id="ubody"></div></div></div>
+<div id="cmodal" class="mwrap" onclick="if(event.target.id=='cmodal')cmodal.style.display='none'"><div class="mbox"><button class="act" style="float:right" onclick="cmodal.style.display='none'">Закрыть</button><div id="cbody"></div></div></div>
 <script>
 const T=new URLSearchParams(location.search).get('token');
 async function api(m,p,b){const r=await fetch('api/'+p,{method:m,headers:{'Content-Type':'application/json','X-Token':T},body:b?JSON.stringify(b):undefined});
@@ -117,10 +121,10 @@ async function loadClients(){const d=await api('GET','clients?q='+encodeURICompo
    <td>${esc(c.status||'')}</td><td>${esc((c.created_at||'').replace('T',' ').slice(0,16))}</td>`;
   tb.appendChild(tr)}}
 async function loadClientCard(id){
- cdetail.innerHTML='<h2>Загрузка…</h2>';
+ cbody.innerHTML='<h2>Загрузка…</h2>';cmodal.style.display='block';
  try{
   const d=await api('GET','clients/'+id+'/card');
-  if(!d.client){cdetail.innerHTML='<p>Клиент не найден</p>';return}
+  if(!d.client){cbody.innerHTML='<p>Клиент не найден</p>';return}
   const c=d.client;
   const fio=[c.last_name,c.first_name,c.middle_name].filter(Boolean).join(' ');
   let h=`<h2>${esc(fio)} <span style="color:#94a3b8;font-size:13px">${esc(c.phone||'')} · ${esc(c.email||'')}</span></h2><div class="kv">`;
@@ -137,21 +141,23 @@ async function loadClientCard(id){
   h+=`<h2>Визиты: всего ${d.visits_total}</h2><table><tr><th>Вход</th><th>Зона</th><th>Способ</th><th>Статус</th></tr>`;
   for(const v of d.visits_last){h+=`<tr><td>${esc(String(v.entry_time||'').replace('T',' ').slice(0,16))}</td><td>${esc(v.zone||'')}</td><td>${esc(v.access_method||'')}</td><td>${esc(v.status||'')}</td></tr>`}
   h+='</table>';
-  cdetail.innerHTML=h;
- }catch(e){cdetail.innerHTML='<p>Ошибка: '+esc(e.message)+'</p>'}
+  cbody.innerHTML=h;
+ }catch(e){cbody.innerHTML='<p>Ошибка: '+esc(e.message)+'</p>'}
 }
 async function loadUserCard(id){
- udetail.innerHTML='<h2>Загрузка…</h2>';udetail.scrollIntoView({behavior:'smooth'});
+ ubody.innerHTML='<h2>Загрузка…</h2>';umodal.style.display='block';
  try{
   const d=await api('GET','users/'+id+'/card');const u=d.user;
+  const pm=await api('GET','users/'+id+'/perms');
   let h='<h2>'+esc(u.username)+'</h2><div class="kv">'
    +'<b>Телефон</b><span><input id="eu_ph" value="'+esc(u.phone||'')+'" size="18"></span>'
    +'<b>Активен</b><span><input type="checkbox" id="eu_a" '+(u.is_active?'checked':'')+'></span>'
-   +'<b>Права (роли)</b><span>'+d.all_roles.map(r=>'<label style="margin-right:10px"><input type="checkbox" class="eu_r" value="'+esc(r)+'" '+(d.roles.includes(r)?'checked':'')+'>'+esc(r)+'</label>').join('')+'</span>'
+   +'<b>Роли</b><span>'+d.all_roles.map(r=>'<label style="margin-right:10px"><input type="checkbox" class="eu_r" value="'+esc(r)+'" '+(d.roles.includes(r)?'checked':'')+'>'+esc(r)+'</label>').join('')+'</span>'
+   +'<b>Права по ролям</b><span style="line-height:2">'+pm.permissions.map(p=>'<code style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:1px 7px;margin-right:5px;color:#38bdf8;font-size:11px">'+esc(p)+'</code>').join('')+'</span>'
    +'</div><button class="act prime" data-uid="'+u.id+'" onclick="saveUser(this.dataset.uid)">Сохранить</button>'
    +' <button class="act" data-uid="'+u.id+'" onclick="delUser(this.dataset.uid)" style="border-color:#7f1d1d;color:#fca5a5">Удалить</button>';
-  udetail.innerHTML=h;
- }catch(e){udetail.innerHTML='<p>Ошибка: '+esc(e.message)+'</p>'}
+  ubody.innerHTML=h;
+ }catch(e){ubody.innerHTML='<p>Ошибка: '+esc(e.message)+'</p>'}
 }
 async function saveUser(id){
  const roles=[...document.querySelectorAll('.eu_r:checked')].map(x=>x.value);
@@ -160,7 +166,7 @@ async function saveUser(id){
 }
 async function delUser(id){
  if(!confirm('Удалить пользователя? Выполняется мягкое удаление (обезличивание).'))return;
- try{await api('POST','users/'+id+'/delete',{});alert('Удалён');udetail.innerHTML='';loadUsers()}
+ try{await api('POST','users/'+id+'/delete',{});alert('Удалён');umodal.style.display='none';loadUsers()}
  catch(e){alert(e.message)}
 }
 document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.getElementById('v-'+b.dataset.v).classList.add('on')});
@@ -337,6 +343,19 @@ def user_delete(request: Request, uid: str, body: dict,
     if not r:
         raise HTTPException(404, "user not found")
     return JSONResponse({"ok": True, "note": "мягкое удаление (обезличен)"})
+
+
+@router.get("/api/users/{uid}/perms")
+def user_perms(request: Request, uid: str, x_token: str = Header(default="", alias="X-Token")):
+    _check(request, x_token)
+    from app.db.session import engine
+    with engine.begin() as c:
+        perms = [r[0] for r in c.execute(text("""
+            SELECT DISTINCT p.code FROM user_roles ur
+            JOIN role_permissions rp ON rp.role_id = ur.role_id
+            JOIN permissions p ON p.id = rp.permission_id
+            WHERE ur.user_id::text=:i ORDER BY p.code"""), {"i": uid}).fetchall()]
+    return JSONResponse({"permissions": perms})
 
 
 @router.post("/api/users/{uid}/reset-password")
