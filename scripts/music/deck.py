@@ -17,6 +17,11 @@ AUDIO_EXTS = (".mp3", ".flac", ".ogg", ".wav", ".m4a")
 def _mpv_path():
     import sys as _sys
 
+    # 0) явный рабочий путь (WinError 5 при резолве через шимы/PATH в GUI-процессе)
+    for cand in (r"C:\mpv\mpv.exe", r"C:\Program Files\MPV Player\mpv.exe"):
+        if os.path.exists(cand):
+            return cand
+
     # 1) PyInstaller bundle (--onefile или --onedir)
     if getattr(_sys, "frozen", False) or hasattr(_sys, "_MEIPASS"):
         bundle = getattr(_sys, "_MEIPASS", None) or os.path.dirname(_sys.executable)
