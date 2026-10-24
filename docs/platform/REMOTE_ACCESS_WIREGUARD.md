@@ -229,3 +229,23 @@ sudo rm /etc/wireguard/wg0.conf
 ## Дополнение от 22.10 (после боевой установки)
 - **Отзыв сертификата**: вместо openssl ca -revoke (падает с Error creating serial number index на сертификатах, выпущенных через openssl x509) писать в index.txt напрямую строку со статусом R: printf \"R\\t<expiry>\\t<дата_отзыва_yyMMddHHmmssZ>\\t<serial>\\tunknown\\t/CN=<email>\" >> index.txt, затем openssl ca -gencrl и restart nginx. В index.txt не должно быть дублей серийника.
 - **Порт WireGuard платформы**: если на сервере уже есть WG (наш кейс: контейнер wireguard-hub на 51820), платформе назначаем другой внешний порт (51829): sed замены в docker-compose.yml (порт публикации + SERVERPORT) + проброс UDP 51829 на роутере. Все peer-конфиги платформы автоматически получат Endpoint <IP>:51829.
+
+## 8. Проверка «удалённый клуб» с телефона (мобильная сеть)
+
+Эмуляция удалённого клуба: телефон на LTE играет роль сервера клуба за NAT. Проверяет внешний путь: интернет -> роутер (UDP 51829) -> WG платформы -> клуб в туннеле.
+
+1) Клуб в платформе (debianNOUT), токен сохранить:
+   curl $CAC $CRT -X POST https://127.0.0.1:8443/platform/clubs -H 'Content-Type: application/json' -d '{"name":"Клуб NFC","slug":"nfc"}'
+2) Пир для клуба: sed -i 's/PEERS: "12"/PEERS: "13"/' docker-compose.yml && docker compose up -d
+   docker compose exec wireguard cat /config/peer13/peer13.conf
+3) Перед передачей на телефон удалить строку "DNS = 10.0.0.1" (10.0.0.1 не DNS-сервер; доступ по IP).
+   Доставка: мессенджер (LTE) или, если телефон в домашней сети (Wi-Fi), временная раздача
+   (USER_GUIDE §1.3, порт 8898): открыть на телефоне http://192.168.101.125:8898/peer13.conf — WireGuard импортирует.
+4) Телефон (только LTE, Wi-Fi выкл): WireGuard -> активировать -> Safari http://10.0.0.2/api/v1/health (JSON клуба)
+   и https://79.174.46.68:8443/ (панель с сертификатом iOS).
+5) Контроль на платформе (handshake свежий, endpoint = адрес мобильного оператора):
+   docker compose exec wireguard wg show | grep -A4 "10.0.0.14"
+   docker compose exec platform_db psql -U platform_user -d platform -c "UPDATE clubs SET wireguard_ip='10.0.0.14' WHERE slug='nfc';"
+
+В реальной установке клуба peer-конфиг ставится на СЕРВЕР клуба (сервис fitintel-wg, без DNS-строки),
+heartbeat — cron каждые 5 мин с api_token клуба, CLUB_ADMIN_KEY — по USER_GUIDE §3.5.
