@@ -148,13 +148,19 @@ async function loadUserCard(id){
    +'<b>Телефон</b><span><input id="eu_ph" value="'+esc(u.phone||'')+'" size="18"></span>'
    +'<b>Активен</b><span><input type="checkbox" id="eu_a" '+(u.is_active?'checked':'')+'></span>'
    +'<b>Права (роли)</b><span>'+d.all_roles.map(r=>'<label style="margin-right:10px"><input type="checkbox" class="eu_r" value="'+esc(r)+'" '+(d.roles.includes(r)?'checked':'')+'>'+esc(r)+'</label>').join('')+'</span>'
-   +'</div><button class="act prime" data-uid="'+u.id+'" onclick="saveUser(this.dataset.uid)">Сохранить</button>';
+   +'</div><button class="act prime" data-uid="'+u.id+'" onclick="saveUser(this.dataset.uid)">Сохранить</button>'
+   +' <button class="act" data-uid="'+u.id+'" onclick="delUser(this.dataset.uid)" style="border-color:#7f1d1d;color:#fca5a5">Удалить</button>';
   udetail.innerHTML=h;
  }catch(e){udetail.innerHTML='<p>Ошибка: '+esc(e.message)+'</p>'}
 }
 async function saveUser(id){
  const roles=[...document.querySelectorAll('.eu_r:checked')].map(x=>x.value);
  try{await api('POST','users/'+id+'/update',{phone:eu_ph.value,is_active:eu_a.checked,roles:roles});alert('Сохранено');loadUsers()}
+ catch(e){alert(e.message)}
+}
+async function delUser(id){
+ if(!confirm('Удалить пользователя? Выполняется мягкое удаление (обезличивание).'))return;
+ try{await api('POST','users/'+id+'/delete',{});alert('Удалён');udetail.innerHTML='';loadUsers()}
  catch(e){alert(e.message)}
 }
 document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.getElementById('v-'+b.dataset.v).classList.add('on')});
@@ -315,6 +321,22 @@ def user_update(request: Request, uid: str, body: dict,
                 WHERE u.id::text=:i AND r.code=:rc
                 ON CONFLICT (user_id, role_id) DO NOTHING"""), {"i": uid, "rc": rc})
     return JSONResponse({"ok": True})
+
+
+@router.post("/api/users/{uid}/delete")
+def user_delete(request: Request, uid: str, body: dict,
+                x_token: str = Header(default="", alias="X-Token")):
+    _check(request, x_token)
+    from app.db.session import engine
+    with engine.begin() as c:
+        r = c.execute(text("""UPDATE users SET deleted_at=now(), is_active=FALSE,
+            username='deleted_' || left(id::text, 8),
+            email='deleted_' || left(id::text, 8) || '@deleted.local',
+            phone=NULL, updated_at=now()
+            WHERE id::text=:i RETURNING username"""), {"i": uid}).fetchone()
+    if not r:
+        raise HTTPException(404, "user not found")
+    return JSONResponse({"ok": True, "note": "мягкое удаление (обезличен)"})
 
 
 @router.post("/api/users/{uid}/reset-password")
