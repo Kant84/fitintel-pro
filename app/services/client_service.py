@@ -4,6 +4,7 @@
 from fastapi import HTTPException, status
 
 # импорт Session для работы с SQLAlchemy
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 # импорт модели клиента
@@ -476,9 +477,26 @@ class ClientService:
     
 
     def delete_client(self, client):
-        """Мягкое удаление клиента (деактивация)"""
+        """Soft-delete client and create a restorable snapshot."""
+        # === CLIENT TRASH SNAPSHOT ===
+        client_id = str(client.id)
+
+        self.db.execute(text("""
+            INSERT INTO deletion_snapshots (entity, entity_id, payload)
+            SELECT 'clients', :client_id, row_to_json(c)
+            FROM clients AS c
+            WHERE c.id::text = :client_id
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM deletion_snapshots AS s
+                  WHERE s.entity = 'clients'
+                    AND s.entity_id = :client_id
+                    AND s.deleted_at > now() - interval '30 days'
+              )
+        """), {"client_id": client_id})
+
         client.is_active = False
-        client.status = 'INACTIVE'
+        client.status = "INACTIVE"
         self.db.commit()
 
     def build_client_response(self, client: Client) -> dict:
