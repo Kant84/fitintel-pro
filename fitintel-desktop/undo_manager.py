@@ -391,10 +391,14 @@ class UndoManager:
                 if re.match(pattern, path):
                     value = self._find_value(data, key)
                     if value is not None:
+                        inverse_payload = (
+                            {"reason": "Отмена последнего действия"}
+                            if path == "/visits/manual" else None
+                        )
                         self._push(UndoEntry(
                             self._label("Создание", path),
                             "DELETE" if template.startswith("/miniapp/") or template.startswith("/visits/") else "POST",
-                            template.format(value=value),
+                            template.format(value=value), inverse_payload,
                         ))
                     return
             for pattern, key, template in self.CREATE_RULES:
