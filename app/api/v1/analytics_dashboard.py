@@ -1220,7 +1220,9 @@ def departments_list(db: Session = Depends(get_db)):
         if "department" in cols:
             rows = db.execute(_text(
                 "SELECT DISTINCT department FROM users "
-                "WHERE department IS NOT NULL AND department <> '' ORDER BY 1")).scalars().all()
+                "WHERE department IS NOT NULL AND department <> '' "
+                "AND deleted_at IS NULL "
+                "AND COALESCE(username, '') !~ '^deleted_[0-9a-fA-F]{8}$' ORDER BY 1")).scalars().all()
             for r in rows:
                 if r not in out:
                     out.append(r)

@@ -57,11 +57,26 @@ class UserService:
 
     # метод возвращает список пользователей
     def list_users(self, offset: int = 0, limit: int = 100, role: str = None):
-        # возвращаем список из репозитория
-        return self.user_repository.list_with_roles_permissions(
+        users = self.user_repository.list_with_roles_permissions(
             offset=offset,
             limit=limit,
         )
+
+        # === HIDE SOFT DELETED USERS ===
+        # Deleted accounts remain only as anonymized FK tombstones. They must
+        # not appear in user lists or headcount statistics. The exact legacy
+        # pattern also hides accounts anonymized before deleted_at existed.
+        from sqlalchemy import text as _text
+        hidden_ids = {
+            str(row[0])
+            for row in self.db.execute(_text("""
+                SELECT id
+                FROM users
+                WHERE deleted_at IS NOT NULL
+                   OR COALESCE(username, '') ~ '^deleted_[0-9a-fA-F]{8}$'
+            """))
+        }
+        return [user for user in users if str(user.id) not in hidden_ids]
 
     # ============================================================
     # СОЗДАНИЕ ПОЛЬЗОВАТЕЛЯ
@@ -333,6 +348,12 @@ class UserService:
         user.username = f"deleted_{uid[:8]}"
         user.email = f"deleted_{uid[:8]}@deleted.local"
         user.password_hash = get_password_hash(_uuid.uuid4().hex)
+        self.db.flush()
+        self.db.execute(_text("""
+            UPDATE users
+            SET deleted_at = now(), is_active = FALSE
+            WHERE id::text = :uid
+        """), {"uid": uid})
         self.db.commit()
 
     def build_user_response(self, user) -> dict:
