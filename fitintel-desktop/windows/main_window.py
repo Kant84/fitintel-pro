@@ -48,6 +48,7 @@ TAB_REGISTRY = {
     "users":         ("Пользователи", UsersTab),
     "face_id":       ("Face ID", FaceIDTab),
     "settings":      ("Настройки", SettingsTab),
+    "banks":         ("Банки", QWidget),
     "connections":   ("Подключения", ConnectionsTab),
     # хабы: класс-заглушка, реальное построение — в MainWindow._make_widget
     "accounting":    ("Бухгалтерия", QWidget),
@@ -173,6 +174,9 @@ class MainWindow(QMainWindow):
         return ["dashboard"]
 
     def _make_widget(self, code: str):
+        if code == "banks":
+            from windows.bank_settings_tab import BankSettingsTab
+            return BankSettingsTab(self.api)
         if code == "settings":
             from windows.settings_hub_tab import SettingsHubTab
             return SettingsHubTab(self.api, self)
