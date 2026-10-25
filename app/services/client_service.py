@@ -200,6 +200,16 @@ class ClientService:
             limit=limit,
         )
 
+        # Deleted clients stay in the database only for restorable history.
+        # Ordinary inactive clients have deleted_at=NULL and remain visible.
+        hidden_ids = {
+            str(row[0])
+            for row in self.db.execute(text(
+                "SELECT id FROM clients WHERE deleted_at IS NOT NULL"
+            ))
+        }
+        clients = [client for client in clients if str(client.id) not in hidden_ids]
+
         # пишем audit о чтении списка
         self.audit.log(
             action="crm.client.list",
@@ -497,6 +507,12 @@ class ClientService:
 
         client.is_active = False
         client.status = "INACTIVE"
+        self.db.flush()
+        self.db.execute(text("""
+            UPDATE clients
+            SET deleted_at = now(), is_active = FALSE
+            WHERE id::text = :client_id
+        """), {"client_id": client_id})
         self.db.commit()
 
     def build_client_response(self, client: Client) -> dict:
