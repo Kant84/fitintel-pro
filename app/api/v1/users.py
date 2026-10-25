@@ -482,13 +482,14 @@ def delete_user(
     user = user_service.get_user_by_id(str(user_id))
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
+    deleted_username = user.username
     user_service.delete_user(user)
     from app.services.audit_service import AuditService
     AuditService(db).deleted(
         actor_user_id=current_user.id,
         entity_type="user",
         entity_id=user.id,
-        message=f"Удалён (деактивирован) пользователь {user.username}",
+        message=f"Удалён пользователь {deleted_username}",
     )
     return {"message": "Пользователь удалён"}
 

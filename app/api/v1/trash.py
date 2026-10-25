@@ -184,6 +184,7 @@ def trash_restore(sid: str, user=Depends(get_current_user)):
                             (CAST(:payload AS jsonb)->>'is_active')::boolean,
                             TRUE
                         ),
+                        deleted_at = NULL,
                         password_hash = COALESCE(
                             CAST(:payload AS jsonb)->>'password_hash',
                             password_hash
