@@ -129,8 +129,6 @@ class GenericHttpDriver(BaseDeviceDriver):
                 await asyncio.sleep(30)
 
     async def _ws_listener(self, ws_path: str):
-        import asyncio
-import aiohttp
         while True:
             try:
                 async with aiohttp.ClientSession(headers=self._headers()) as session:
