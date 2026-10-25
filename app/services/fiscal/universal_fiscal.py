@@ -276,7 +276,7 @@ class ShtrihAdapter(BaseFiscalPrinter):
         pt_map = {PaymentTypeEnum.CASH: 0, PaymentTypeEnum.ELECTRONIC: 1, PaymentTypeEnum.PREPAID: 2}
         payload = {
             "type": "sell",
-            "operator": operator_name,
+            "operator": "Администратор",
             "items": [i.to_shtrih() for i in items],
             "payments": [{"type": pt_map.get(payment_type, 1), "sum": total}],
             "postItems": [{"type": "text", "text": slip}] if slip else []
