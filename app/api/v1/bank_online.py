@@ -1,6 +1,6 @@
 """Волна 5: онлайн-эквайринг для пополнения баланса ЛК (без ЮKassa).
 Провайдеры: Сбербанк (register.do -> formUrl), Тинькофф (Init -> страница оплаты).
-Конфиг — server_settings.BANK_CONFIG (JSON), редактируется в десктопе «Настройки → Сервисы»:
+Конфиг — server_settings.BANK_CONFIG (JSON), редактируется в десктопе «Настройки → Банки»:
     {"active":"sber",
      "sber":{"mode":"json","merchant_id":"...","token":"..."},
      "tinkoff":{"terminal_key":"...","password":"..."}}
@@ -114,7 +114,7 @@ def create_payment_api(payload: BankPaymentIn, db: Session = Depends(get_db),
                        user=Depends(get_current_user)):
     res = create_bank_payment(db, payload.client_id, payload.amount, payload.description)
     if not res:
-        raise HTTPException(400, "Банк-эквайринг не настроен (Сервисы → BANK_CONFIG)")
+        raise HTTPException(400, "Банк-эквайринг не настроен (Настройки → Банки)")
     return res
 
 

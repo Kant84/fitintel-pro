@@ -34,10 +34,10 @@ DEFAULT_PROFILES = {
     "superadmin": ["dashboard", "clients", "subscriptions", "visits", "schedule",
                    "payments", "music", "reports", "analytics", "documents", "devices",
                    "users", "roles", "face_id", "license", "settings",
-                   "ui_config", "setup"],
+                   "ui_config", "setup", "banks"],
     "admin": ["dashboard", "clients", "subscriptions", "visits", "schedule",
               "payments", "music", "reports", "analytics", "documents", "devices",
-              "users", "roles", "face_id", "license", "settings"],
+              "users", "roles", "face_id", "license", "settings", "banks"],
     "manager": ["dashboard", "clients", "subscriptions", "visits", "schedule",
                 "payments", "reports", "documents"],
     "trainer": ["dashboard", "schedule", "visits", "clients"],
@@ -87,6 +87,24 @@ def _user_role(user: Any) -> str:
             pass
     return ""   # ← без роли пользователь НЕ ВИДИТ НИ ОДНОГО экрана (строгая модель)
 
+def ensure_bank_screen(db: Session) -> None:
+    """Register Banks once without resetting existing role choices."""
+    if "banks" in _existing_codes(db):
+        return
+    db.execute(text("""
+        INSERT INTO ui_screens (code, name, path, icon, sort_order, is_active)
+        VALUES ('banks', 'Банки', '/banks', 'credit-card', 155, TRUE)
+        ON CONFLICT (code) DO NOTHING
+    """))
+    for role in ROLES:
+        db.execute(text("""
+            INSERT INTO ui_role_screens (role, screen_code, is_visible)
+            VALUES (:role, 'banks', :visible)
+            ON CONFLICT (role, screen_code) DO NOTHING
+        """), {"role": role, "visible": role in {"superadmin", "admin"}})
+    db.commit()
+
+
 def _all_screens(db: Session) -> list[dict]:
     rows = db.execute(text("""
         SELECT code, name, path, icon, sort_order, is_active
@@ -127,6 +145,7 @@ def list_screens(
     user: Any = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Реестр всех экранов тонкого клиента."""
+    ensure_bank_screen(db)
     return {"screens": _all_screens(db)}
 
 
@@ -160,6 +179,7 @@ def roles_matrix(
     user: Any = Depends(require_roles("superadmin", "admin")),
 ) -> dict[str, Any]:
     """Полная матрица «роль → экраны»."""
+    ensure_bank_screen(db)
     rows = db.execute(text("""
         SELECT role, screen_code, is_visible FROM ui_role_screens
     """)).mappings().all()
@@ -238,6 +258,7 @@ def my_screens(
 ) -> dict[str, Any]:
     """Видимые экраны текущего пользователя — строго по ui_role_screens.
     Ничего не отмечено для роли = ничего не видно (никаких профилей по умолчанию)."""
+    ensure_bank_screen(db)
     role = _user_role(user)
     if not role:
         return {"role": "", "screens": []}

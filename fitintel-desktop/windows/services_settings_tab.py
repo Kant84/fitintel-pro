@@ -1,5 +1,5 @@
 """W5: подвкладка «Сервисы» — настройка сторонних сервисов НА СЕРВЕРЕ из десктопа
-(без ssh/.env): MAX, ЮKassa, SMS, Telegram, СКУД ITC, СБП, банк-эквайринг.
+(без ssh/.env): MAX, ЮKassa, SMS, Telegram, СКУД ITC, СБП. Банки вынесены в отдельный экран.
 Хранение: server_settings (талица БД). Секреты показываются маской."""
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox, QLineEdit,
@@ -33,7 +33,6 @@ class ServicesSettingsTab(QWidget):
         "MAX-бот": ["MAX_BOT_TOKEN", "MAX_BOT_WEBHOOK_SECRET"],
         "ЮKassa (онлайн-оплата)": ["YOOKASSA_ACCOUNT_ID", "YOOKASSA_SECRET_KEY",
                                    "YOOKASSA_WEBHOOK_SECRET", "YOOKASSA_TEST_MODE"],
-        "Банк-эквайринг (онлайн)": ["BANK_CONFIG"],
         "SMS (smsc.ru)": ["SMS_USER", "SMS_PASSWORD"],
         "Telegram": ["TELEGRAM_BOT_TOKEN"],
         "СКУД ITC": ["ITC_BASIC_USER", "ITC_BASIC_PASSWORD"],
