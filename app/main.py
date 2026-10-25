@@ -18,6 +18,30 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan, title=settings.APP_NAME, version=settings.APP_VERSION)
 
+# C4: служебные endpoint'ы доступны только при явном APP_DEBUG.
+def _is_restricted_debug_path(path: str) -> bool:
+    normalized = "/" + str(path or "").strip("/")
+    short = normalized[len("/api/v1"):] if normalized.startswith("/api/v1") else normalized
+    for candidate in (normalized, short):
+        if candidate in ("/auth/debug-access", "/fiscal/test/drivers"):
+            return True
+        if candidate == "/test" or candidate.startswith("/test/"):
+            return True
+    return False
+
+
+@app.middleware("http")
+async def debug_endpoints_guard(request, call_next):
+    import os
+    debug_enabled = os.getenv("APP_DEBUG", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+    if not debug_enabled and _is_restricted_debug_path(request.url.path):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+    return await call_next(request)
+
+
 # === ROUTERS ===
 from app.api.v1.connectors import router as connectors_router
 from app.api.v1.reports_ops import router as reports_ops_router
