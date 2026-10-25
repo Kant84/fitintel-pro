@@ -212,7 +212,7 @@
 
 ### P1. Запуск, runtime-дефекты и контроль качества
 
-- [x] **FIX1. Восстановить `.env.example`.** Сейчас файл состоит из NUL-байтов, а `scripts/setup.sh` копирует его в `.env`. Заменить безопасным заполненным примером без реальных секретов и проверить установку с нуля.
+- [x] **FIX1. Восстановить `.env.example`.** Файл восстановлен: NUL-байты отсутствуют, пример содержит безопасные dev-настройки, `docker compose config` проходит.
 **Готово, когда:** чистая установка по документации создаёт читаемый `.env` и проходит начальный запуск.
 
 - [ ] **FIX2. Исправить подтверждённые undefined-name/runtime ошибки.** В первую очередь: `exports.py` (`os`), `reports_ops.py` (`_rows`), `warehouse.py` (`_ensure_warehouse` и повторное имя `create_product`), `payment_service.py` (конфликт `status`), `self_learning.py` (`text`), `tariffs.py` (`HTTPException`), `aa_bridge.py` (`Fitness1CError` и структура `get_club_id`), `analytics_dashboard.py` (`_text`), hardware drivers (`asyncio`), repositories (`timedelta`), `bot_scenarios.py` (`HTTPException`), `universal_fiscal.py` (`operator_name`), tasks (`date`, `Visit`), `adaptive_ui.py` (`screens`), desktop `license_tab.py` (`ed`/`key_ed`), `rfid_monitor_widget.py` (`urllib`), `clients_analytics_tab.py` (`_sp`). Удалить повреждённый `app/schemas/sale_temp.py` после проверки ссылок. Исправить regex SyntaxWarning в `payroll.py` и `phone_verify.py`.
@@ -240,10 +240,10 @@
 
 ### Текущие незавершённые исправления
 
-- [ ] **E3. Полный бэкап клуба — автоматическая установка и restore-test.** Подготовлены полный архив (PostgreSQL, accounting SQLite, медиа/файлы, лицензия, настройки, секреты/сертификаты), автоматический cron с `flock`, ротация 14 дней и isolated tests. Не считать закрытым до Windows commit/push, `git pull` на сервере и проверки реального полного архива. `/ops/backup/run` и Windows `backup.ps1` остаются PostgreSQL-only.
+- [ ] **E3. Полный бэкап клуба — автоматическая установка и restore-test.** Полный архив создан и проверен на nfs: PostgreSQL, accounting SQLite, медиа/файлы, лицензия, настройки, секреты и сертификаты. Systemd timer работает, ротация — 14 дней. Осталось встроить installer в общий сценарий установки и выполнить restore-test на отдельном стенде.
 **Готово, когда:** стандартная установка нового клуба сама включает полный backup без ручных chmod/cron; реальный архив создан на сервере и успешно восстановлен на отдельном стенде.
 
-- [x] **UI1. Убрать дубль «Магазина» — проверить живой desktop.** Подготовлено удаление вложенного магазина из «Услуг» с сохранением общего sidebar и функциональности склада/киоска. Не считать закрытым до commit/push и перезапуска desktop.
+- [x] **UI1. Убрать дубль «Магазина» — проверить живой desktop.** Вложенный магазин удалён из «Услуг», общий sidebar сохранён. Commit `58c128ad` отправлен; живой desktop проверен по скриншотам.
 **Готово, когда:** в сайдбаре и «Услугах» виден только один вход в «Магазин», оба связанных рабочих сценария доступны без ошибок.
 
 ## Подтверждённые результаты аудита — 25.10.2026
