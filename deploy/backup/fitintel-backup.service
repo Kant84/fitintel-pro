@@ -3,7 +3,7 @@ Description=FitIntel Pro full club backup
 Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target
-ConditionPathExists="__FITINTEL_COMPOSE_FILE__"
+ConditionPathExists=__FITINTEL_COMPOSE_FILE__
 
 [Service]
 Type=oneshot
