@@ -133,10 +133,7 @@ class AuthService:
         # получаем все права пользователя
         user_permissions = self.get_user_permissions(user)
 
-        # проверяем наличие нужного права
-                # ХАРДКОД: добавляем devices.create для admin
-        if hasattr(user, 'roles') and any(getattr(r, 'code', '') == 'admin' for r in (getattr(user, 'roles', []) or [])):
-            permissions.add('devices.create')
+        # проверяем наличие нужного права без скрытых исключений для ролей
         return required_permission in user_permissions
 
     # ============================================================
