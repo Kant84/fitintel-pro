@@ -2,6 +2,7 @@
 """RFID Монитор — прямой доступ к считывателю (pyscard), опрос в потоке.
 Появляется при карте, прячется без карты. Drag, позиция запоминается."""
 import json, os
+import urllib.request
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont

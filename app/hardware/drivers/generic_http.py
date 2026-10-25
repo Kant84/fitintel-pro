@@ -1,4 +1,5 @@
 # app/hardware/drivers/generic_http.py — Универсальный HTTP API драйвер
+import asyncio
 import aiohttp
 from datetime import datetime
 from app.hardware.base import BaseDeviceDriver, DeviceType, ConnectionProtocol, DeviceStatus, AccessResult, HWEventType, HardwareEvent
@@ -128,7 +129,8 @@ class GenericHttpDriver(BaseDeviceDriver):
                 await asyncio.sleep(30)
 
     async def _ws_listener(self, ws_path: str):
-        import aiohttp
+        import asyncio
+import aiohttp
         while True:
             try:
                 async with aiohttp.ClientSession(headers=self._headers()) as session:

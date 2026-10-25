@@ -10,7 +10,7 @@
 # - Синхронизация с платёжными системами
 # ==========================================================
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Optional
 from celery import shared_task

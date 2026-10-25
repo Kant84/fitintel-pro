@@ -1,6 +1,6 @@
 # app/repositories/external_sync_repository.py
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.models.external_sync_log import ExternalSyncLog

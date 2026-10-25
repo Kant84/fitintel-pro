@@ -8,6 +8,7 @@ import json
 import re
 from datetime import datetime, timezone, timedelta, date
 
+from fastapi import HTTPException
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 

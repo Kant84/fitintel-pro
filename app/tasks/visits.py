@@ -11,6 +11,7 @@ from typing import Optional
 from celery import shared_task
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
+from app.models.visit import Visit
 from app.services.visit_service import VisitService
 from app.services.audit_service import AuditService
 from app.core.config import settings
