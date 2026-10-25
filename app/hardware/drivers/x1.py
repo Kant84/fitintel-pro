@@ -113,8 +113,6 @@ class X1Driver(BaseDeviceDriver):
 
     async def start_event_listener(self):
         """WebSocket-прослушка событий X1"""
-        import asyncio
-import aiohttp
         while True:
             try:
                 async with aiohttp.ClientSession(headers=self._headers()) as session:
