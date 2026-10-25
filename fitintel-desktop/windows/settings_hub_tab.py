@@ -14,6 +14,7 @@ _MOD2CLS = {
     "access_audit_tab": "AccessAuditTab",
     "commerce_tab": "CommerceTab",
     "bank_settings_tab": "BankSettingsTab",
+    "bank_settings_tab": "BankSettingsTab",
 }
 
 def SettingsHubTab(api, main_window=None):
@@ -35,6 +36,14 @@ def SettingsHubTab(api, main_window=None):
     except Exception:
         bank_specs = []
 
+    bank_specs = []
+    try:
+        visible = {item.get("code") for item in api.get_ui_my().get("screens", [])}
+        if "banks" in visible:
+            bank_specs = [("Банки", _build("bank_settings_tab"))]
+    except Exception:
+        bank_specs = []
+
     for _title, _mod in [("Мастер установки", "setup_tab"),
                            ("Экраны ролей", "ui_config_tab"),
                            ("Лицензия", "license_tab"),
@@ -46,5 +55,6 @@ def SettingsHubTab(api, main_window=None):
                            ("Service-аккаунты", "service_accounts_tab"),
                            ("Аудит доступа (152-ФЗ)", "access_audit_tab")]:
         specs.append((_title, _build(_mod)))
+    specs[1:1] = bank_specs
     specs[1:1] = bank_specs
     return HubTab(api, specs, main_window)
