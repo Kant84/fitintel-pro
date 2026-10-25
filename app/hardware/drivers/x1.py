@@ -1,4 +1,5 @@
 # app/hardware/drivers/x1.py — Драйвер для СКУД X1 (HTTP REST API)
+import asyncio
 import aiohttp
 from datetime import datetime
 from app.hardware.base import BaseDeviceDriver, DeviceType, ConnectionProtocol, DeviceStatus, AccessResult, HWEventType, HardwareEvent
@@ -112,7 +113,8 @@ class X1Driver(BaseDeviceDriver):
 
     async def start_event_listener(self):
         """WebSocket-прослушка событий X1"""
-        import aiohttp
+        import asyncio
+import aiohttp
         while True:
             try:
                 async with aiohttp.ClientSession(headers=self._headers()) as session:

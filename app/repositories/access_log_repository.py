@@ -1,6 +1,6 @@
 # app/repositories/access_log_repository.py
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 from sqlalchemy import and_, between
 from sqlalchemy.orm import Session
