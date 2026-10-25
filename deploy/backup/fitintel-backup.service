@@ -1,0 +1,18 @@
+[Unit]
+Description=FitIntel Pro full club backup
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists="__FITINTEL_COMPOSE_FILE__"
+
+[Service]
+Type=oneshot
+ExecStart="__FITINTEL_BACKUP_SCRIPT__"
+TimeoutStartSec=0
+UMask=0077
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fitintel-backup

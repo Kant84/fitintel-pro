@@ -1,0 +1,12 @@
+[Unit]
+Description=FitIntel Pro full club backup schedule
+
+[Timer]
+OnCalendar=*-*-* 21:30:00
+OnBootSec=60
+Persistent=true
+AccuracySec=1min
+Unit=fitintel-backup.service
+
+[Install]
+WantedBy=timers.target
