@@ -4,7 +4,7 @@
 from uuid import UUID
 
 # импорт FastAPI
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 # импорт Session
 from sqlalchemy.orm import Session
