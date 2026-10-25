@@ -25,6 +25,7 @@ hiddenimports += [
     'windows.analytics_tab',
     'windows.audit_tab',
     'windows.bank_settings_tab',
+    'windows.bank_settings_tab',
     'windows.change_password_dialog',
     'windows.change_password_self_dialog',
     'windows.chart_widget',
