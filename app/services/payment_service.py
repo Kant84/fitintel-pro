@@ -3,11 +3,15 @@
 from decimal import Decimal
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from uuid import UUID
+from uuid import UUID, uuid4
+import base64
 import hashlib
 import hmac
 import json
+import os
+import re
 from fastapi import HTTPException, status
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.payment import Payment
@@ -570,66 +574,206 @@ class PaymentService:
             "deeplink": f"https://qr.nspk.ru/{payment_id}",
         }
     
+    @staticmethod
+    def _webhook_secret_name(payment_system: str) -> str:
+        """Вернуть имя provider-specific секрета без небезопасного default."""
+        provider = re.sub(r"[^A-Z0-9_]", "_", payment_system.upper())
+        return f"PAYMENT_WEBHOOK_SECRET_{provider}"
+
+    def _verify_webhook_signature(
+        self,
+        payment_system: str,
+        raw_body: bytes,
+        signature: str | None,
+    ) -> None:
+        """Проверить HMAC-SHA256 исходных байтов запроса."""
+        secret_name = self._webhook_secret_name(payment_system)
+        secret = os.getenv(secret_name, "")
+        if not secret:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Webhook secret is not configured: {secret_name}",
+            )
+        if not signature:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Webhook signature is required",
+            )
+
+        digest = hmac.new(
+            secret.encode("utf-8"),
+            raw_body,
+            hashlib.sha256,
+        ).digest()
+        expected_hex = digest.hex()
+        expected_base64 = base64.b64encode(digest).decode("ascii")
+        received = signature.strip()
+        if received.lower().startswith("sha256="):
+            received = received[7:]
+
+        valid = (
+            hmac.compare_digest(received.lower(), expected_hex)
+            or hmac.compare_digest(received, expected_base64)
+        )
+        if not valid:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid webhook signature",
+            )
+
+    @staticmethod
+    def _ensure_webhook_events(db: Session) -> None:
+        """Создать журнал антидубля без сохранения платёжного payload."""
+        db.execute(text(
+            "CREATE TABLE IF NOT EXISTS payment_webhook_events ("
+            "id VARCHAR(36) PRIMARY KEY, "
+            "event_key VARCHAR(512) NOT NULL UNIQUE, "
+            "payment_system VARCHAR(50) NOT NULL, "
+            "external_payment_id VARCHAR(255), "
+            "event_status VARCHAR(50), "
+            "payload_hash VARCHAR(64) NOT NULL, "
+            "created_at TIMESTAMP NOT NULL)"
+        ))
+        db.commit()
+
+    @staticmethod
+    def _webhook_event_key(
+        payment_system: str,
+        raw_data: dict,
+        external_payment_id: str,
+        payload_hash: str,
+    ) -> str:
+        event_id = raw_data.get("event_id") or raw_data.get("notification_id")
+        if event_id:
+            return f"{payment_system}:event:{event_id}"
+        event_status = str(raw_data.get("status") or "unknown").lower()
+        return (
+            f"{payment_system}:{external_payment_id}:"
+            f"{event_status}:{payload_hash}"
+        )
+
     def handle_webhook(
         self,
         payment_system: str,
-        raw_data: dict,
+        raw_body: bytes,
         signature: str | None = None,
     ) -> dict:
-        """
-        Обработка вебхука от платёжной системы.
-        
-        Args:
-            payment_system: Платёжная система (tbank, sberbank, cloudpayments)
-            raw_data: Сырые данные от платёжной системы
-            signature: Подпись для проверки
-        
-        Returns:
-            Результат обработки
-        """
-        # Проверка подписи (если есть)
-        if signature and not self._verify_webhook_signature(payment_system, raw_data, signature):
+        """Проверить подпись и применить платёжное событие не более одного раза."""
+        self._verify_webhook_signature(
+            payment_system=payment_system,
+            raw_body=raw_body,
+            signature=signature,
+        )
+
+        try:
+            raw_data = json.loads(raw_body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid webhook signature"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid webhook JSON",
+            ) from exc
+        if not isinstance(raw_data, dict):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Webhook JSON must be an object",
             )
-        
-        # Извлекаем данные
-        external_payment_id = raw_data.get("payment_id") or raw_data.get("order_id")
-        payment_status = raw_data.get("status")
-        
+
+        external_payment_id = (
+            raw_data.get("payment_id") or raw_data.get("order_id")
+        )
+        payment_status = str(raw_data.get("status") or "").lower()
         if not external_payment_id:
             return {"status": "error", "message": "No payment_id in webhook"}
-        
-        # Ищем платёж
+
+        payload_hash = hashlib.sha256(raw_body).hexdigest()
+        event_key = self._webhook_event_key(
+            payment_system=payment_system,
+            raw_data=raw_data,
+            external_payment_id=str(external_payment_id),
+            payload_hash=payload_hash,
+        )
+        self._ensure_webhook_events(self.db)
+        duplicate = self.db.execute(
+            text(
+                "SELECT 1 FROM payment_webhook_events "
+                "WHERE event_key = :event_key"
+            ),
+            {"event_key": event_key},
+        ).first()
+        if duplicate:
+            return {"status": "ok", "duplicate": True}
+
         payment = self.repository.get_by_external_id(external_payment_id)
         if not payment:
-            # Пробуем найти по ID
             payment = self.repository.get_by_id(external_payment_id)
-        
         if not payment:
             return {"status": "error", "message": "Payment not found"}
-        
-        # Обновляем статус
-        if payment_status in ["succeeded", "completed", "paid"]:
-            self.complete_payment(
-                payment_id=str(payment.id),
-                external_payment_id=external_payment_id,
-                transaction_data=raw_data,
-            )
-        elif payment_status in ["failed", "cancelled"]:
-            self.fail_payment(
-                payment_id=str(payment.id),
-                reason=raw_data.get("failure_reason", "Payment failed"),
-            )
-        
-        return {"status": "ok"}
-    
-    def _verify_webhook_signature(self, payment_system: str, data: dict, signature: str) -> bool:
-        """Проверить подпись вебхука"""
-        # Заглушка — в реальности проверяем подпись
-        return True
-    
+
+        succeeded = payment_status in ("succeeded", "completed", "paid")
+        canceled = payment_status in ("failed", "cancelled", "canceled")
+        refunded = payment_status in ("refunded", "refund")
+        already_applied = False
+
+        if succeeded:
+            if payment.status == PaymentStatus.COMPLETED.value:
+                already_applied = True
+            else:
+                self.complete_payment(
+                    payment_id=str(payment.id),
+                    external_payment_id=str(external_payment_id),
+                    transaction_data=raw_data,
+                )
+        elif canceled:
+            if payment.status == PaymentStatus.FAILED.value:
+                already_applied = True
+            else:
+                self.fail_payment(
+                    payment_id=str(payment.id),
+                    reason=raw_data.get(
+                        "failure_reason",
+                        "Payment failed or canceled",
+                    ),
+                )
+        elif refunded:
+            if payment.status == PaymentStatus.REFUNDED.value:
+                already_applied = True
+            else:
+                amount = raw_data.get("amount")
+                self.refund_payment(
+                    payment_id=str(payment.id),
+                    amount=(
+                        Decimal(str(amount))
+                        if amount is not None
+                        else None
+                    ),
+                    reason=raw_data.get(
+                        "refund_reason",
+                        "Возврат подтверждён платёжной системой",
+                    ),
+                )
+
+        self.db.execute(
+            text(
+                "INSERT INTO payment_webhook_events "
+                "(id, event_key, payment_system, external_payment_id, "
+                "event_status, payload_hash, created_at) "
+                "VALUES (:id, :event_key, :payment_system, "
+                ":external_payment_id, :event_status, :payload_hash, "
+                ":created_at)"
+            ),
+            {
+                "id": str(uuid4()),
+                "event_key": event_key,
+                "payment_system": payment_system,
+                "external_payment_id": str(external_payment_id),
+                "event_status": payment_status,
+                "payload_hash": payload_hash,
+                "created_at": datetime.now(),
+            },
+        )
+        self.db.commit()
+        return {"status": "ok", "duplicate": already_applied}
+
     # ==========================================================
     # ПОЛУЧЕНИЕ ДАННЫХ
     # ==========================================================

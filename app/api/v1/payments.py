@@ -3,7 +3,7 @@
 from uuid import UUID
 from decimal import Decimal
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, Query, status, HTTPException
+from fastapi import APIRouter, Depends, Query, Request, status, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -190,13 +190,24 @@ def create_online_payment(
 @router.post("/webhook/{payment_system}")
 async def payment_webhook(
     payment_system: str,
-    request: dict,
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    """
-    Webhook от платёжной системы.
-    
-    Публичный endpoint (без авторизации).
-    """
+    """Публичный webhook с обязательной подписью исходного тела запроса."""
+    raw_body = await request.body()
+    signature = request.headers.get("X-Payment-Signature")
+
+    provider = payment_system.lower().replace("_", "").replace("-", "")
+    if provider == "cloudpayments":
+        signature = (
+            request.headers.get("Content-HMAC")
+            or request.headers.get("X-Content-HMAC")
+            or signature
+        )
+
     service = PaymentService(db)
-    return service.handle_webhook(payment_system, request)
+    return service.handle_webhook(
+        payment_system=payment_system,
+        raw_body=raw_body,
+        signature=signature,
+    )
