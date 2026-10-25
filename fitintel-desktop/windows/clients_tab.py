@@ -256,8 +256,17 @@ class ClientsTab(QWidget):
                 fromlist=["TrashDialog"],
             ).TrashDialog(self.api, self).exec()
         )
+        # === UNDO LAST CLIENT DELETE ===
+        self._last_deleted_client_id = None
+        self._undo_delete_btn = self._btn("Отменить удаление")
+        self._undo_delete_btn.setEnabled(False)
+        self._undo_delete_btn.clicked.connect(self._undo_delete)
+
         b_ref = self._btn("Обновить"); b_ref.clicked.connect(self.refresh)
-        for b in (b_add, b_edit, b_deact, b_del, b_trash, b_ref):
+        for b in (
+            b_add, b_edit, b_deact, b_del, b_trash,
+            self._undo_delete_btn, b_ref,
+        ):
             row.addWidget(b)
         rl.addLayout(row)
 
@@ -516,6 +525,57 @@ class ClientsTab(QWidget):
         except (RuntimeError, _requests.HTTPError) as e:
             QMessageBox.critical(self, "Ошибка", str(e)[:300])
 
+    def _undo_delete(self):
+        client_id = getattr(self, "_last_deleted_client_id", None)
+        if not client_id:
+            return
+
+        try:
+            response = self.api.session.get(
+                self.api._url("/trash"),
+                params={"entity": "clients"},
+                timeout=15,
+            )
+            response.raise_for_status()
+
+            snapshot = next(
+                (
+                    item
+                    for item in response.json().get("items", [])
+                    if item.get("entity_id") == client_id
+                ),
+                None,
+            )
+            if not snapshot:
+                raise RuntimeError(
+                    "Снимок последнего удалённого клиента не найден. "
+                    "Проверьте корзину."
+                )
+
+            response = self.api.session.post(
+                self.api._url(
+                    "/trash/%s/restore" % snapshot["id"]
+                ),
+                timeout=20,
+            )
+            response.raise_for_status()
+
+            self._last_deleted_client_id = None
+            self._undo_delete_btn.setEnabled(False)
+            self.refresh()
+
+            QMessageBox.information(
+                self,
+                "Отмена удаления",
+                "Удаление клиента отменено, клиент восстановлен.",
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Ошибка отмены удаления",
+                str(exc)[:400],
+            )
+
     def _delete(self):
         c = self._selected_client()
         if not c:
@@ -527,6 +587,8 @@ class ClientsTab(QWidget):
             return
         try:
             self.api.delete_client(str(c["id"]))
+            self._last_deleted_client_id = str(c["id"])
+            self._undo_delete_btn.setEnabled(True)
             self.refresh()
         except (RuntimeError, _requests.HTTPError) as e:
             s = str(e)
