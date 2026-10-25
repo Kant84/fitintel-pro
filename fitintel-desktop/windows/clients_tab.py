@@ -108,6 +108,7 @@ class ClientsTab(QWidget):
         self._all_data = []
         self._subs = []
         self._users = []
+        self.last_undo_error = None
         self._build_ui()
         self.refresh()
 
