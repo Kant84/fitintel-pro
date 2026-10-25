@@ -105,24 +105,6 @@ def ensure_bank_screen(db: Session) -> None:
     db.commit()
 
 
-def ensure_bank_screen(db: Session) -> None:
-    """Register Banks once without resetting existing role choices."""
-    if "banks" in _existing_codes(db):
-        return
-    db.execute(text("""
-        INSERT INTO ui_screens (code, name, path, icon, sort_order, is_active)
-        VALUES ('banks', 'Банки', '/banks', 'credit-card', 155, TRUE)
-        ON CONFLICT (code) DO NOTHING
-    """))
-    for role in ROLES:
-        db.execute(text("""
-            INSERT INTO ui_role_screens (role, screen_code, is_visible)
-            VALUES (:role, 'banks', :visible)
-            ON CONFLICT (role, screen_code) DO NOTHING
-        """), {"role": role, "visible": role in {"superadmin", "admin"}})
-    db.commit()
-
-
 def _all_screens(db: Session) -> list[dict]:
     rows = db.execute(text("""
         SELECT code, name, path, icon, sort_order, is_active
@@ -276,7 +258,6 @@ def my_screens(
 ) -> dict[str, Any]:
     """Видимые экраны текущего пользователя — строго по ui_role_screens.
     Ничего не отмечено для роли = ничего не видно (никаких профилей по умолчанию)."""
-    ensure_bank_screen(db)
     ensure_bank_screen(db)
     role = _user_role(user)
     if not role:

@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import text
 
 import conftest
-from app.api.dependencies import get_current_active_user
+from app.api.dependencies import get_current_active_user, get_current_user
 from app.api.v1 import server_settings as settings
 from app.main import app
 
@@ -19,6 +19,7 @@ PATH = "/api/v1/server-settings/bank-config"
 def bank_settings_env(monkeypatch):
     monkeypatch.setattr(settings, "engine", conftest.engine)
     with conftest.engine.begin() as connection:
+        connection.execute(text("CREATE TABLE IF NOT EXISTS server_settings (key VARCHAR(255) PRIMARY KEY, value TEXT, updated_at TIMESTAMP)"))
         connection.execute(text(
             "CREATE TABLE IF NOT EXISTS ui_screens ("
             "id VARCHAR(36), code VARCHAR(64) PRIMARY KEY, name VARCHAR(128), "
@@ -37,14 +38,18 @@ def bank_settings_env(monkeypatch):
         is_active=True, roles=[],
     )
     app.dependency_overrides[get_current_active_user] = lambda: user
+    app.dependency_overrides[get_current_user] = lambda: user
     yield user
     app.dependency_overrides.pop(get_current_active_user, None)
+    app.dependency_overrides.pop(get_current_user, None)
     with conftest.engine.begin() as connection:
+        connection.execute(text("CREATE TABLE IF NOT EXISTS server_settings (key VARCHAR(255) PRIMARY KEY, value TEXT, updated_at TIMESTAMP)"))
         connection.execute(text("DELETE FROM server_settings WHERE key='BANK_CONFIG'"))
 
 
 def _raw_config():
     with conftest.engine.begin() as connection:
+        connection.execute(text("CREATE TABLE IF NOT EXISTS server_settings (key VARCHAR(255) PRIMARY KEY, value TEXT, updated_at TIMESTAMP)"))
         raw = connection.execute(text(
             "SELECT value FROM server_settings WHERE key='BANK_CONFIG'"
         )).scalar()
@@ -58,6 +63,7 @@ def test_bank_screen_registered_with_safe_role_defaults(client, bank_settings_en
     bank = next(row for row in response.json()["screens"] if row["code"] == "banks")
     assert bank["name"] == "Банки"
     with conftest.engine.begin() as connection:
+        connection.execute(text("CREATE TABLE IF NOT EXISTS server_settings (key VARCHAR(255) PRIMARY KEY, value TEXT, updated_at TIMESTAMP)"))
         rows = connection.execute(text(
             "SELECT role, is_visible FROM ui_role_screens WHERE screen_code='banks'"
         )).fetchall()
@@ -131,6 +137,7 @@ def test_unsupported_bank_cannot_be_activated(client, bank_settings_env):
 
     assert response.status_code == 422
     with conftest.engine.begin() as connection:
+        connection.execute(text("CREATE TABLE IF NOT EXISTS server_settings (key VARCHAR(255) PRIMARY KEY, value TEXT, updated_at TIMESTAMP)"))
         assert connection.execute(text(
             "SELECT 1 FROM server_settings WHERE key='BANK_CONFIG'"
         )).first() is None
@@ -156,6 +163,7 @@ def test_role_screen_is_enforced_by_bank_settings_api(client, bank_settings_env)
 
     assert client.get(PATH).status_code == 403
     with conftest.engine.begin() as connection:
+        connection.execute(text("CREATE TABLE IF NOT EXISTS server_settings (key VARCHAR(255) PRIMARY KEY, value TEXT, updated_at TIMESTAMP)"))
         connection.execute(text(
             "UPDATE ui_role_screens SET is_visible=TRUE "
             "WHERE role='manager' AND screen_code='banks'"
