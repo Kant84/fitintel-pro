@@ -19,7 +19,7 @@
 10. [Обновление сервера](#10-Обновление-сервера)
 11. [Полезные команды](#11-Полезные-команды)
 12. [Мониторинг, логи и дашборды](#12-Мониторинг-логи-и-дашборды-всё-автоматически)
-13. [Автобэкап БД](#13-Автобэкап-БД-0300-ежедневно)
+13. [Автобэкап БД](#13-Автобэкап-БД-2130-и-после-перезапуска-vm)
 14. [Чек-лист после установки](#14-Чек-лист-после-установки-2-минуты)
 
 ---
@@ -79,6 +79,8 @@ SECRET_KEY=ДлиннаяСлучайнаяСтрокаМинимум32Симв�
 cd ~/fitintel-pro/deploy
 docker compose -f docker-compose.test.yml up -d --build
 docker compose -f docker-compose.test.yml ps
+# Автоматически установить полный ежедневный бэкап и запуск после перезагрузки VM
+bash backup/install_cron.sh
 ```
 
 Все 5 контейнеров должны быть `running`: db (healthy), redis, api (healthy), nginx, celery-worker.
@@ -140,6 +142,8 @@ curl -s http://localhost/api/v1/health/
 
 ```bash
 cd ~/fitintel-pro && git pull
+# Обновить права backup.sh и расписание без ручной настройки cron
+bash deploy/backup/install_cron.sh
 cd deploy
 docker compose -f docker-compose.test.yml up -d --build
 # при изменении моделей:
@@ -198,36 +202,56 @@ curl -s http://localhost:3100/loki/api/v1/label/container/values
 Alertmanager слушает на :9093. Для отправки уведомлений отредактируйте
 `alertmanager/alertmanager.yml` (добавьте receiver: email/Telegram/webhook).
 
-## 13. Автобэкап БД (03:00 ежедневно)
+## 13. Автобэкап БД (21:30 и после перезапуска VM)
+
+Штатная установка и обновление (шаги 5 и 10) вызывают готовый установщик:
 
 ```bash
-bash ~/fitintel-pro/scripts/backup/install_cron.sh
+bash ~/fitintel-pro/deploy/backup/install_cron.sh
 ```
 
-Одна команда: создаёт `backup.env` и добавляет задание в cron (идемпотентно —
-повторный запуск не дублирует запись). Бэкап: дамп PostgreSQL → gzip → хранилища →
-ротация (по умолчанию хранятся 14 дней). Лог: `/var/log/fitintel-backup.log`.
+Отдельная настройка cron и ручной `chmod` не нужны. Установщик идемпотентен:
+повторный запуск обновляет только задания FitIntel backup и не дублирует их.
+Другие задания пользователя, включая media-backup, сохраняются.
 
-**Выбор хранилища** — редактируется в `~/fitintel-pro/scripts/backup/backup.env`:
+- Полный архив `fitintel_full_ДАТА.tar.gz` создаётся в `~/fitintel-pro/deploy/backups/` ежедневно в **21:30**.
+- Дополнительный полный архив создаётся через 60 секунд после загрузки VM (`@reboot`).
+- В архив входят: PostgreSQL; согласованная копия accounting SQLite; все Docker-тома с медиа, фото клиентов, товаров, тренеров, сканами и брендингом; файлы лицензии; `deploy/.env`; `/etc/fitintel/secrets` (включая `media_master_key`); SSL/platform-сертификаты и доступные локальные настройки.
+- Секреты сохраняются только внутри архива с правами `0600` и не выводятся в лог. Храните копию архива вне сервера: без него восстановление зашифрованных медиа невозможно.
+- `flock` не допускает одновременного запуска двух копий.
+- Готовый файл появляется только после успешной сборки и проверки всех внутренних архивов.
+- Ротация: полные архивы и старые SQL-дампы старше **14 дней** удаляются автоматически. Полные копии медиа требуют достаточного свободного места на диске.
+- Лог: `~/fitintel-pro/deploy/backup/backup.log`.
 
-| Хранилище | Настройка |
-|---|---|
-| **Простое** (по умолчанию) | `LOCAL_DIR=$HOME/fitintel-backups` — пишется всегда |
-| **Внешний HDD** | `HDD_ENABLE=1`, примонтировать диск и указать точку: `sudo mkdir /mnt/hdd && sudo mount /dev/sdX1 /mnt/hdd`, `HDD_MOUNT=/mnt/hdd` |
-| **Облако** (Яндекс.Диск, S3, Google Drive...) | `CLOUD_ENABLE=1`; установить rclone: `curl https://rclone.org/install.sh \| sudo bash`; настроить remote: `rclone config` (создать, напр. `yandex` → Yandex Disk → пройти по ссылке авторизации); `RCLONE_REMOTE=yandex` |
+Проверка вручную (не требуется при обычной установке):
 
-**Восстановление:**
 ```bash
-gunzip -c db_ДАТА.sql.gz | docker compose -f deploy/docker-compose.test.yml exec -T db \
-  psql -U fitnexus_user -d fitnexus_ai
+bash ~/fitintel-pro/deploy/backup/backup.sh
+crontab -l | grep -F 'deploy/backup/backup.sh'
+ls -lht ~/fitintel-pro/deploy/backups/
 ```
+
+**Проверка архива и содержимое для восстановления:**
+```bash
+cd ~/fitintel-pro
+tar -tzf deploy/backups/fitintel_full_ДАТА.tar.gz
+mkdir -p /tmp/fitintel-restore && chmod 700 /tmp/fitintel-restore
+tar -xzf deploy/backups/fitintel_full_ДАТА.tar.gz -C /tmp/fitintel-restore
+cat /tmp/fitintel-restore/MANIFEST.txt
+```
+
+Внутри: `database.sql.gz` — PostgreSQL, `accounting.sqlite` — согласованная accounting БД,
+`files.tar.gz` — все файлы и Docker-тома, `settings/` — конфигурация, лицензии и секреты.
+Полное восстановление выполняйте на остановленных сервисах, не распаковывая архив поверх
+работающего клуба. После восстановления настроек и секретов права на них должны оставаться
+ограниченными.
 
 ## 14. Чек-лист после установки (2 минуты)
 
 - [ ] Сменить пароль admin (desktop → «Пользователи»)
 - [ ] Сменить пароль Grafana (administration → Users → admin; дефолт admin/admin)
 - [ ] Firewall: `sudo ufw allow 80,3000,9090/tcp && sudo ufw enable`
-- [ ] Настроить backup.env (HDD/облако) — по желанию
+- [ ] Проверить свежий дамп в `deploy/backups/` и строки `deploy/backup/backup.sh` в `crontab -l`
 - [ ] Открыть дашборды Grafana и проверить логи Loki
 
 ---

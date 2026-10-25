@@ -41,11 +41,9 @@
 
 ## 6. Надёжность и эксплуатация
 
-**Бэкапы (два пути):**
-- Windows-хост: `deploy/backup/backup.ps1` (pg_dump на 127.0.0.1, пароль из `FITINTEL_DB_PASSWORD`,
-  ротация 14 дней → `backups/`); восстановление — `restore.ps1 backup_YYYYMMDD_HHMMSS.sql`.
-- Linux/прод: каталог `./backups` (volume db) + API-задача `POST /ops/backup/run`
-  (pg_dump, fallback — каталог-таблицы), ротация настраивается в `/ops/backup/config`.
+**Бэкапы:**
+- Windows-хост: `deploy/backup/backup.ps1` — только PostgreSQL, не полная копия клуба.
+- Linux/прод: `deploy/backup/install_cron.sh` автоматически настраивает полный бэкап в 21:30 и после перезагрузки VM. Архивы `deploy/backups/fitintel_full_*.tar.gz` включают PostgreSQL, accounting SQLite, файлы и Docker-тома, лицензию, `deploy/.env`, `media_master_key` и другие локальные настройки/сертификаты. Ротация — 14 дней; секреты не выводятся в лог. Подробности и проверка архива — в `docs/INSTALL_SERVER.md`, раздел 13.
 
 **Мониторинг:** стек Prometheus + Grafana + Loki + Promtail + node-exporter + cAdvisor + Alertmanager
 (`deploy/monitoring/docker-compose.monitoring.yml`). Дашборды: FitIntel API (RPS, 5xx%, p95, топ путей,
@@ -56,7 +54,7 @@ Grafana по умолчанию admin/admin — сменить сразу. Ра�
 **env.example:** образец `deploy/.env` со всеми переменными по категориям — в репозитории (deploy/env.example).
 
 
-- **Бэкапы**: `deploy/backup/` (host-скрипт + `/ops/backup/run` через API: pg_dump, fallback — каталог-таблиц; ротация, восстановление). В prod дампы пишутся в `./backups` (volume db). Репликация: single-node (заготовка под HA).
+- **Бэкапы**: `deploy/backup/` — полный host-архив БД, accounting, файлов, лицензии, настроек и секретов; ежедневно в 21:30 и после перезагрузки VM, ротация 14 дней. `/ops/backup/run` остаётся отдельным API-инструментом PostgreSQL и не заменяет полный архив. Репликация: single-node (заготовка под HA).
 - **Мониторинг**: `/metrics`, `/health`, `/ops/health`; Sentry DSN в env.
 - **Feature flags** (`/feature-flags/*`): percentage/canary rollout (MD5-бакет user:flag), привязка к фичам лицензии, статистика оценок, WebSocket-пуши (`/feature-flags/stream`).
 - **Уведомления** (`/notify/*`): SMTP (SSL/TLS), SMS smsc.ru, Web Push (VAPID), журнал, авто-дайджест ежедневно в digest_time (поток-планировщик внутри API).
