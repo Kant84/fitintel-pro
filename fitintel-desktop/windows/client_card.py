@@ -4,13 +4,13 @@ from windows.help_dialog import install_f1_dynamic
 import datetime
 import requests as _requests
 from PyQt6.QtCore import Qt, QTimer, QDate
-from PyQt6.QtGui import QColor, QPixmap
+from PyQt6.QtGui import QColor, QPixmap, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QWidget, QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton,
     QLineEdit, QComboBox, QCheckBox, QSpinBox, QDateEdit, QListWidget, QListWidgetItem,
     QStackedWidget, QSplitter, QScrollArea, QTableWidget, QTableWidgetItem,
     QHeaderView, QMessageBox, QFileDialog, QToolButton, QAbstractItemView, QFrame, QDoubleSpinBox,
-    QSizePolicy)
+    QSizePolicy, QApplication)
 
 STATUS_LABELS = {"ACTIVE": "Активен", "FROZEN": "Заморожен", "DEBTOR": "Должник",
                  "ARCHIVED": "Архив", "INACTIVE": "Неактивен"}
@@ -126,8 +126,49 @@ class ClientCard(QDialog):
         hint.setStyleSheet("color:#94a3b8;font-size:11px;")
         root.addWidget(hint)
 
+        # Values in the card are labels, not edit fields. Make them selectable
+        # and provide one predictable Ctrl+C action for labels and tables.
+        for label in self.findChildren(QLabel):
+            label.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse
+                | Qt.TextInteractionFlag.TextSelectableByKeyboard
+            )
+            label.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self._copy_shortcut = QShortcut(QKeySequence(QKeySequence.StandardKey.Copy), self)
+        self._copy_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self._copy_shortcut.activated.connect(self._copy_current_text)
+
         QTimer.singleShot(60, self.reload)
         install_f1_dynamic(self, lambda: (self.menu.currentItem().text() if (self.menu.currentItem() is not None and bool(self.menu.currentItem().flags() & Qt.ItemFlag.ItemIsEnabled)) else ""))
+
+    def _copy_current_text(self):
+        """Copy a selected value, a whole label, or selected table rows."""
+        widget = QApplication.focusWidget()
+        text = ""
+
+        if isinstance(widget, QLabel):
+            text = widget.selectedText() if widget.hasSelectedText() else widget.text()
+        elif isinstance(widget, QLineEdit):
+            text = widget.selectedText() or widget.text()
+        elif isinstance(widget, QComboBox):
+            text = widget.currentText()
+        elif isinstance(widget, QTableWidget):
+            indexes = widget.selectedIndexes()
+            if not indexes and widget.currentIndex().isValid():
+                indexes = [widget.currentIndex()]
+            rows = {}
+            for index in indexes:
+                item = widget.item(index.row(), index.column())
+                rows.setdefault(index.row(), {})[index.column()] = item.text() if item else ""
+            text = "\n".join(
+                "\t".join(row[column] for column in sorted(row))
+                for _, row in sorted(rows.items())
+            )
+        elif isinstance(widget, QListWidget) and widget.currentItem() is not None:
+            text = widget.currentItem().text()
+
+        if text:
+            QApplication.clipboard().setText(text)
 
     # ================= data =================
     def _get(self, path, params=None):
