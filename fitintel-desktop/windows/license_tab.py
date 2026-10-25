@@ -217,7 +217,7 @@ try:
                     pass
                 def _check65():
                     import re as _re
-                    key = _re.sub(r'[^A-Za-z0-9.\-_]', '', ed.text())  # убрать пробелы, 
+                    key = _re.sub(r'[^A-Za-z0-9.\-_]', '', key_ed.text())  # убрать пробелы, 
                     api = getattr(self, "api", None)
                     base = getattr(api, "base_url", None) or getattr(api, "base", None) or "http://localhost:8001/api/v1"
                     try:
