@@ -745,3 +745,32 @@ setattr(ApiClient, "delete_face_template", delete_face_template)
 
 setattr(ApiClient, '_e55_patch', _e55_patch)
 setattr(ApiClient, '_e55_del', _e55_del)
+
+
+# === GLOBAL UNDO: outermost API request interceptor ===
+from undo_manager import UndoManager as _GlobalUndoManager
+
+_global_undo_orig_api_init = ApiClient.__init__
+
+
+def _global_undo_api_init(self, base_url="http://localhost:8001/api/v1"):
+    _global_undo_orig_api_init(self, base_url)
+    self.undo = _GlobalUndoManager(self)
+    # Installed after all earlier wrappers, so every tab/dialog uses one history.
+    self.undo.install()
+
+
+ApiClient.__init__ = _global_undo_api_init
+
+_global_undo_orig_clear_token = ApiClient.clear_token
+
+
+def _global_undo_clear_token(self):
+    # Never carry reversible actions into another authenticated session.
+    if getattr(self, "undo", None) is not None:
+        self.undo.clear()
+    return _global_undo_orig_clear_token(self)
+
+
+ApiClient.clear_token = _global_undo_clear_token
+# === GLOBAL UNDO API END ===

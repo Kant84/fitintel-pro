@@ -298,14 +298,35 @@ class UserService:
     # метод строит словарь ответа пользователя
     
     def delete_user(self, user):
-        """Безопасное удаление: деактивация + снятие ролей + обезличивание.
-        История (визиты, платежи, документы, продажи) сохраняется —
-        на users ссылаются 24 таблицы, физическое удаление невозможно без
-        потери истории. Вход после удаления невозможен (пароль сброшен)."""
+        """Soft-delete with a complete restorable user and role snapshot."""
+        # === USER TRASH SNAPSHOT ===
         import uuid as _uuid
         from sqlalchemy import text as _text
         from app.core.security import get_password_hash
+
         uid = str(user.id)
+        self.db.execute(_text("""
+            INSERT INTO deletion_snapshots (entity, entity_id, payload)
+            SELECT 'users', :uid,
+                   row_to_json(u)::jsonb || jsonb_build_object(
+                       '_roles', COALESCE((
+                           SELECT jsonb_agg(row_to_json(ur))
+                           FROM user_roles AS ur
+                           WHERE ur.user_id = u.id
+                       ), '[]'::jsonb)
+                   )
+            FROM users AS u
+            WHERE u.id::text = :uid
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM deletion_snapshots AS s
+                  WHERE s.entity = 'users'
+                    AND s.entity_id = :uid
+                    AND s.deleted_at > now() - interval '30 days'
+              )
+        """), {"uid": uid})
+
+        # Keep historical FK references, but make the account unusable.
         self.db.execute(_text("DELETE FROM user_roles WHERE user_id = :uid"),
                         {"uid": uid})
         user.is_active = False
