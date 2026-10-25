@@ -19,6 +19,8 @@ class UndoEntry:
     method: str
     path: str
     payload: Any = None
+    entity: str | None = None
+    entity_id: str | None = None
 
 
 class UndoManager:
@@ -128,7 +130,20 @@ class UndoManager:
                     raise RuntimeError("История действий пуста")
                 entry = self._history[-1]
 
-            response = self._call(entry.method, entry.path, entry.payload)
+            path = entry.path
+            if entry.entity and entry.entity_id:
+                # Snapshot ids change after restore -> delete cycles. Resolve the
+                # current snapshot by stable entity identity instead of reusing
+                # a stale /trash/{snapshot_id}/restore URL.
+                snapshot = self._find_snapshot(entry.entity, entry.entity_id)
+                if snapshot is None:
+                    raise RuntimeError(
+                        "Не удалось отменить действие: снимок уже восстановлен "
+                        "или срок его хранения в корзине истёк"
+                    )
+                path = "/trash/%s/restore" % snapshot["id"]
+
+            response = self._call(entry.method, path, entry.payload)
             if not 200 <= response.status_code < 300:
                 raise RuntimeError(
                     "Не удалось отменить действие: HTTP %s — %s"
@@ -320,6 +335,15 @@ class UndoManager:
                     }
         return None
 
+    def _find_snapshot(self, entity, entity_id):
+        data = self._get_json("/trash", params={"entity": entity, "limit": 100})
+        items = (data or {}).get("items", [])
+        # Never fall back to an arbitrary latest row when ids do not match.
+        return next(
+            (x for x in items if self._same_id(x.get("entity_id"), entity_id)),
+            None,
+        )
+
     def _after(self, context, response):
         if "entry" in context:
             self._push(context["entry"])
@@ -336,21 +360,13 @@ class UndoManager:
             return
 
         if kind == "trash_delete":
-            data = self._get_json("/trash", params={"entity": context["entity"], "limit": 100})
-            items = (data or {}).get("items", [])
-            if not items:
-                return
-            path_id = context["entity_id"]
-            snapshot = next(
-                (x for x in items if self._same_id(x.get("entity_id"), path_id)),
-                None,
-            )
-            # Never restore an arbitrary latest row when ids do not match.
+            snapshot = self._find_snapshot(context["entity"], context["entity_id"])
             if snapshot is None:
                 return
             self._push(UndoEntry(
                 self._label("Удаление", context["path"]), "POST",
                 "/trash/%s/restore" % snapshot["id"],
+                entity=context["entity"], entity_id=context["entity_id"],
             ))
             return
 
