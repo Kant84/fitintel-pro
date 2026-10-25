@@ -5,11 +5,11 @@ services:
     image: postgres:16-alpine
     container_name: fitintel-db
     environment:
-      POSTGRES_DB: fitnexus_ai
-      POSTGRES_USER: fitnexus_user
-      POSTGRES_PASSWORD: FitNexus_User_2026!
+      POSTGRES_DB: ${POSTGRES_DB:-fitnexus_ai}
+      POSTGRES_USER: ${POSTGRES_USER:-fitnexus_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
     image: redis:7-alpine
     container_name: fitintel-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
