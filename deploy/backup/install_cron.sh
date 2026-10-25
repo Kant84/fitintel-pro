@@ -7,6 +7,9 @@ SCRIPT="$BASE/deploy/backup/backup.sh"
 LOG="$BASE/deploy/backup/backup.log"
 MARKER="deploy/backup/backup.sh"
 LOCK="/tmp/fitintel-backup.lock"
+if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+    exec bash "$BASE/deploy/backup/install_systemd.sh"
+fi
 SECRETS_DIR="${FITINTEL_SECRETS_DIR:-/etc/fitintel/secrets}"
 CRON_SCOPE="user"
 
