@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QMessageBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QFormLayout,
     QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox, QDialogButtonBox,
-    QCheckBox, QTabWidget, QLabel
+    QCheckBox, QLabel
 )
 import urllib.request
 
@@ -13,7 +13,6 @@ from PyQt6.QtGui import QColor, QPixmap, QDesktopServices
 
 from api import ApiClient
 from windows import theme
-from windows.shop_tab import ShopTab
 
 
 class _PhotoLoader(QThread):
@@ -290,12 +289,11 @@ class ServicesTab(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        tabs = QTabWidget()
         host = QWidget()
         inner = QVBoxLayout(host)
         inner.setContentsMargins(16, 16, 16, 16)
         inner.setSpacing(12)
-        layout.addWidget(tabs)
+        layout.addWidget(host)
 
         row = QHBoxLayout()
         for text, handler, style in (
@@ -329,9 +327,6 @@ class ServicesTab(QWidget):
         self.table.setAlternatingRowColors(True)
         self.table.setStyleSheet(theme.table_style())
         inner.addWidget(self.table)
-        tabs.addTab(host, "Услуги")
-        self._shop = ShopTab(self.api)
-        tabs.addTab(self._shop, " Магазин")
 
     def refresh(self):
         self.worker = ServicesWorker(self.api)
