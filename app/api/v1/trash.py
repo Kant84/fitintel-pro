@@ -165,6 +165,7 @@ def trash_restore(sid: str, user=Depends(get_current_user)):
                             CAST(:payload AS jsonb)->>'status',
                             'ACTIVE'
                         ),
+                        deleted_at = NULL,
                         updated_at = now()
                     WHERE id::text = :entity_id
                     RETURNING id

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """Корзина: восстановление удалённых клиентов/пользователей/тарифов/шаблонов/зон."""
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QTableWidget, QTableWidgetItem, QMessageBox, QLabel, QComboBox)
+                             QTableWidget, QTableWidgetItem, QMessageBox, QLabel, QComboBox,
+                             QHeaderView)
 from PyQt6.QtCore import Qt
 
 
@@ -10,7 +11,7 @@ class TrashDialog(QDialog):
         super().__init__(parent)
         self.api = api
         self.setWindowTitle("Корзина (восстановление удалённого, 30 дней)")
-        self.resize(720, 480)
+        self.resize(900, 520)
         v = QVBoxLayout(self)
         bar = QHBoxLayout()
         bar.addWidget(QLabel("Сущность:"))
@@ -30,6 +31,14 @@ class TrashDialog(QDialog):
         self.table.setHorizontalHeaderLabels(["Сущность", "Название", "Удалён", ""])
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(3, 160)
+        self.table.verticalHeader().setMinimumSectionSize(46)
+        self.table.verticalHeader().setDefaultSectionSize(46)
         v.addWidget(self.table)
         self.reload()
 
@@ -51,6 +60,7 @@ class TrashDialog(QDialog):
             self.table.setItem(i, 1, QTableWidgetItem(it["name"]))
             self.table.setItem(i, 2, QTableWidgetItem(str(it["deleted_at"])[:19].replace("T", " ")))
             b = QPushButton("Восстановить")
+            b.setMinimumSize(140, 34)
             b.clicked.connect(lambda _c, sid=it["id"]: self.restore(sid))
             self.table.setCellWidget(i, 3, b)
 
@@ -60,5 +70,8 @@ class TrashDialog(QDialog):
             r.raise_for_status()
             QMessageBox.information(self, "Корзина", "Восстановлено: " + r.json().get("restored", ""))
             self.reload()
+            parent = self.parent()
+            if parent is not None and hasattr(parent, "refresh"):
+                parent.refresh()
         except Exception as e:
             QMessageBox.warning(self, "Корзина", str(e)[:200])
