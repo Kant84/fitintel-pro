@@ -404,7 +404,7 @@ def _load_att_w10(self):
             if it.widget():
                 it.widget().deleteLater()
         canvas = _C(fig)
-        canvas.setSizePolicy(_sp.Policy.Expanding, _sp.Policy.Expanding)
+        canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.att_chart_holder.addWidget(canvas, 0, 0)
     except Exception as e:
         print("att chart:", str(e)[:120])

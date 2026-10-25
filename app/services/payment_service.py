@@ -596,7 +596,7 @@ class PaymentService:
         
         # Извлекаем данные
         external_payment_id = raw_data.get("payment_id") or raw_data.get("order_id")
-        status = raw_data.get("status")
+        payment_status = raw_data.get("status")
         
         if not external_payment_id:
             return {"status": "error", "message": "No payment_id in webhook"}
@@ -611,13 +611,13 @@ class PaymentService:
             return {"status": "error", "message": "Payment not found"}
         
         # Обновляем статус
-        if status in ["succeeded", "completed", "paid"]:
+        if payment_status in ["succeeded", "completed", "paid"]:
             self.complete_payment(
                 payment_id=str(payment.id),
                 external_payment_id=external_payment_id,
                 transaction_data=raw_data,
             )
-        elif status in ["failed", "cancelled"]:
+        elif payment_status in ["failed", "cancelled"]:
             self.fail_payment(
                 payment_id=str(payment.id),
                 reason=raw_data.get("failure_reason", "Payment failed"),
