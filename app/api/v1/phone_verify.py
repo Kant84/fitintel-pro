@@ -72,7 +72,7 @@ def _provider_available(db: Session, name: str, phone: str) -> bool:
             return False
         return db.execute(text(
             "SELECT 1 FROM max_bot_bindings b JOIN clients c ON c.id=b.client_id "
-            "WHERE right(regexp_replace(c.phone,'\D','','g'),10)=:p LIMIT 1"
+            r"WHERE right(regexp_replace(c.phone,'\D','','g'),10)=:p LIMIT 1"
         ), {"p": _norm}).fetchone() is not None
     if name == "email":
         return True
@@ -135,7 +135,7 @@ def _send_max_code(db: Session, phone: str, code: str):
     _norm = re.sub(r"\D", "", phone or "")[-10:]
     row = db.execute(text(
         "SELECT b.max_user_id FROM max_bot_bindings b JOIN clients c ON c.id=b.client_id "
-        "WHERE right(regexp_replace(c.phone,'\D','','g'),10)=:p LIMIT 1"
+        r"WHERE right(regexp_replace(c.phone,'\D','','g'),10)=:p LIMIT 1"
     ), {"p": _norm}).first()
     tok = db.execute(text("SELECT bot_token FROM max_bot_settings WHERE id=1")).first()
     if not row or not tok or not tok[0]:
@@ -155,7 +155,7 @@ def _send_email_code(db: Session, phone: str, code: str):
     from email.mime.text import MIMEText
     _norm = re.sub(r"\D", "", phone or "")[-10:]
     row = db.execute(text(
-        "SELECT email FROM clients WHERE right(regexp_replace(phone,'\D','','g'),10)=:p "
+        r"SELECT email FROM clients WHERE right(regexp_replace(phone,'\D','','g'),10)=:p "
         "AND email IS NOT NULL AND email <> '' LIMIT 1"
     ), {"p": _norm}).first()
     st = db.execute(text(

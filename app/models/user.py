@@ -5,7 +5,16 @@ from datetime import datetime
 from sqlalchemy import String, Boolean, Integer, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from typing import TYPE_CHECKING
+
 from app.db.base import Base, TimestampedUUIDMixin
+
+if TYPE_CHECKING:
+    from app.models.face_id import EmployeeShift
+    from app.models.face_id import FaceTemplate
+    from app.models.role import Role
+    from app.models.trainer import TrainerProfile
+    from app.models.user_role import UserRole
 
 
 class User(TimestampedUUIDMixin, Base):

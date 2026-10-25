@@ -4,7 +4,13 @@ from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 
+from typing import TYPE_CHECKING
+
 from app.db.base import Base, TimestampedUUIDMixin
+
+if TYPE_CHECKING:
+    from app.models.permission import Permission
+    from app.models.role import Role
 
 
 class RolePermission(TimestampedUUIDMixin, Base):
