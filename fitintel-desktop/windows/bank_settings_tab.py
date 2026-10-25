@@ -246,6 +246,10 @@ class BankSettingsTab(QWidget):
         self.status.setStyleSheet("color: #b91c1c;")
 
     def _on_loaded(self, data):
+        current_index = self.tabs.currentIndex()
+        current_code = (
+            BANKS[current_index]["code"] if 0 <= current_index < len(BANKS) else ""
+        )
         self._edits = {}
         self._clear = {}
         while self.tabs.count():
@@ -261,6 +265,10 @@ class BankSettingsTab(QWidget):
             code = bank["code"]
             saved = providers.get(code) or {}
             self.tabs.addTab(self._bank_page(bank, saved), bank["name"])
+        restore_index = next(
+            (i for i, bank in enumerate(BANKS) if bank["code"] == current_code), 0
+        )
+        self.tabs.setCurrentIndex(restore_index)
         self._loaded = True
         self.status.setText(
             "Готово. После сохранения проверьте тестовый платёж в банке; "
