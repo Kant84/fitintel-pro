@@ -20,6 +20,17 @@ def _metric(db, queries, params):
     return None
 
 
+def _rows(db, queries, params):
+    """Возвращает строки первого успешного запроса."""
+    for sql in queries:
+        try:
+            rows = db.execute(text(sql), params).mappings().all()
+            return [dict(row) for row in rows]
+        except Exception:
+            db.rollback()
+    return []
+
+
 @router.get("/operational")
 def operational_report(
     date_from: date = Query(...),

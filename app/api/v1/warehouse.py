@@ -91,9 +91,8 @@ async def get_product(product_id: UUID, db: Session = Depends(get_db)):
 
 # ========== PRODUCTS CRUD (W5: Магазин) ==========
 @router.post("/products-create", status_code=201)
-async def create_product(data: dict, db: Session = Depends(get_db),
+async def create_shop_product(data: dict, db: Session = Depends(get_db),
                          current_user = Depends(require_permission("warehouse.manage"))):
-    _ensure_warehouse(db)
     import uuid as _uuid
     p = WarehouseProduct(
         id=_uuid.uuid4(), club_id=int(data.get("club_id") or 1),
