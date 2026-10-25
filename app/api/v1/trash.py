@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Корзина: просмотр снимков удалённых сущностей и их восстановление."""
 import json
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
@@ -15,6 +16,18 @@ ALLOWED = {
     "tariffs",
     "document_templates",
     "music_zones",
+    "documents",
+    "subscriptions",
+    "credentials",
+    "bonus_rules",
+    "staff_positions",
+    "connectors",
+    "roles",
+    "music_playlists",
+    "music_schedule",
+    "music_sfx",
+    "client_contacts",
+    "client_cars",
 }
 
 
@@ -25,6 +38,35 @@ def _admin(user):
     ):
         raise HTTPException(status_code=403, detail="superadmin required")
     return user
+
+
+def _undo_path(entity, entity_id, payload):
+    """Path of the inverse deletion used by global desktop Undo."""
+    value = quote(str(payload.get("code") if entity == "tariffs" else entity_id), safe="")
+    routes = {
+        "clients": "/clients/%s",
+        "users": "/users/%s",
+        "tariffs": "/tariffs/%s",
+        "document_templates": "/document-templates/%s",
+        "music_zones": "/zones/%s",
+        "documents": "/documents/%s",
+        "subscriptions": "/subscriptions/%s",
+        "credentials": "/credentials/%s",
+        "bonus_rules": "/bonus-rules/%s",
+        "staff_positions": "/staff/positions/%s",
+        "connectors": "/connectors/%s",
+        "roles": "/roles/%s",
+        "music_playlists": "/playlists/%s",
+        "music_schedule": "/schedule/%s",
+        "music_sfx": "/sfx/%s",
+    }
+    if entity in ("client_contacts", "client_cars"):
+        collection = "contacts" if entity == "client_contacts" else "cars"
+        return "/analytics/clients/%s/%s/%s" % (
+            quote(str(payload.get("client_id") or ""), safe=""), collection, value,
+        )
+    template = routes.get(entity)
+    return template % value if template else None
 
 
 @router.get("")
@@ -64,7 +106,6 @@ def trash_list(
             + " "
             + (payload.get("first_name") or "")
         ).strip()
-
         name = (
             name
             or payload.get("username")
@@ -72,7 +113,6 @@ def trash_list(
             or payload.get("code")
             or row["entity_id"]
         )
-
         items.append({
             "id": row["id"],
             "entity": row["entity"],
@@ -108,15 +148,12 @@ def trash_restore(sid: str, user=Depends(get_current_user)):
         if entity not in ALLOWED:
             raise HTTPException(status_code=400, detail="entity not restorable")
 
-        # === SOFT CLIENT RESTORE ===
-        payload_json = json.dumps(
-            snapshot["payload"] or {},
-            ensure_ascii=False,
-        )
+        payload = snapshot["payload"] or {}
+        payload_json = json.dumps(payload, ensure_ascii=False)
         restored = None
 
         if entity == "clients":
-            # Мягко удалённый клиент ещё существует в таблице.
+            # A soft-deleted client still exists; restore its original state.
             restored = connection.execute(
                 text("""
                     UPDATE clients
@@ -132,25 +169,96 @@ def trash_restore(sid: str, user=Depends(get_current_user)):
                     WHERE id::text = :entity_id
                     RETURNING id
                 """),
-                {
-                    "payload": payload_json,
-                    "entity_id": snapshot["entity_id"],
-                },
+                {"payload": payload_json, "entity_id": snapshot["entity_id"]},
             ).first()
 
-        if not restored:
-            # Для физически удалённых клиентов и остальных сущностей.
-            sql = f"""
-                INSERT INTO "{entity}"
-                SELECT * FROM jsonb_populate_record(
-                    NULL::"{entity}",
-                    CAST(:payload AS jsonb)
-                )
-                ON CONFLICT (id) DO NOTHING
-                RETURNING id
-            """
+        elif entity == "users":
+            # User deletion anonymizes the existing row instead of physically
+            # deleting it. Restore login, e-mail, active flag and original hash.
             restored = connection.execute(
-                text(sql),
+                text("""
+                    UPDATE users
+                    SET username = CAST(:payload AS jsonb)->>'username',
+                        email = CAST(:payload AS jsonb)->>'email',
+                        is_active = COALESCE(
+                            (CAST(:payload AS jsonb)->>'is_active')::boolean,
+                            TRUE
+                        ),
+                        password_hash = COALESCE(
+                            CAST(:payload AS jsonb)->>'password_hash',
+                            password_hash
+                        )
+                    WHERE id::text = :entity_id
+                    RETURNING id
+                """),
+                {"payload": payload_json, "entity_id": snapshot["entity_id"]},
+            ).first()
+
+            if not restored:
+                restored = connection.execute(
+                    text("""
+                        INSERT INTO users
+                        SELECT * FROM jsonb_populate_record(
+                            NULL::users,
+                            CAST(:payload AS jsonb) - '_roles'
+                        )
+                        ON CONFLICT (id) DO NOTHING
+                        RETURNING id
+                    """),
+                    {"payload": payload_json},
+                ).first()
+
+            if restored:
+                connection.execute(
+                    text("DELETE FROM user_roles WHERE user_id::text = :entity_id"),
+                    {"entity_id": snapshot["entity_id"]},
+                )
+                connection.execute(
+                    text("""
+                        INSERT INTO user_roles
+                        SELECT (parsed.role_row).*
+                        FROM (
+                            SELECT jsonb_populate_record(
+                                NULL::user_roles, value
+                            ) AS role_row
+                            FROM jsonb_array_elements(
+                                COALESCE(
+                                    CAST(:payload AS jsonb)->'_roles',
+                                    '[]'::jsonb
+                                )
+                            )
+                        ) AS parsed
+                        ON CONFLICT DO NOTHING
+                    """),
+                    {"payload": payload_json},
+                )
+
+        else:
+            restored = connection.execute(
+                text(f"""
+                    INSERT INTO "{entity}"
+                    SELECT * FROM jsonb_populate_record(
+                        NULL::"{entity}",
+                        CAST(:payload AS jsonb)
+                    )
+                    ON CONFLICT (id) DO NOTHING
+                    RETURNING id
+                """),
+                {"payload": payload_json},
+            ).first()
+
+        # A physically deleted client/user may be restored by the generic INSERT.
+        if not restored and entity in ("clients", "users"):
+            restored = connection.execute(
+                text(f"""
+                    INSERT INTO "{entity}"
+                    SELECT * FROM jsonb_populate_record(
+                        NULL::"{entity}",
+                        CAST(:payload AS jsonb) - '_roles'
+                    )
+                    ON CONFLICT (id) DO NOTHING
+                    RETURNING id
+                """),
                 {"payload": payload_json},
             ).first()
 
@@ -169,4 +277,5 @@ def trash_restore(sid: str, user=Depends(get_current_user)):
         "ok": True,
         "restored": entity,
         "entity_id": snapshot["entity_id"],
+        "undo_path": _undo_path(entity, snapshot["entity_id"], payload),
     }

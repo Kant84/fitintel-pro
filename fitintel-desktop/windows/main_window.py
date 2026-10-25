@@ -833,3 +833,112 @@ try:
     print("W26 platform banner OK")
 except Exception as _e26x:
     print("W26 FAIL:", _e26x)
+
+
+# === GLOBAL UNDO: header icon + Edit menu + application-wide Ctrl+Z ===
+def _global_undo_install(self):
+    if getattr(self, "_global_undo_ready", False):
+        return
+    self._global_undo_ready = True
+    self._global_undo_busy = False
+
+    from pathlib import Path as _UndoPath
+    from PyQt6.QtCore import Qt as _UndoQt, QTimer as _UndoTimer, QSize as _UndoSize
+    from PyQt6.QtGui import QAction as _UndoAction, QIcon as _UndoIcon
+    from PyQt6.QtWidgets import QToolButton as _UndoButton
+
+    icon_path = _UndoPath(__file__).parents[1] / "assets" / "undo.png"
+    icon = _UndoIcon(str(icon_path)) if icon_path.exists() else _UndoIcon()
+
+    self._undo_action = _UndoAction(icon, "Отмена последнего действия", self)
+    self._undo_action.setShortcut("Ctrl+Z")
+    # ApplicationShortcut also works while a modal child dialog is active.
+    self._undo_action.setShortcutContext(_UndoQt.ShortcutContext.ApplicationShortcut)
+    self._undo_action.triggered.connect(self._global_undo)
+    self.addAction(self._undo_action)
+
+    edit_menu = None
+    view_menu_action = None
+    for action in self.menuBar().actions():
+        title = action.text().strip().lower()
+        if title.startswith("правка"):
+            edit_menu = action.menu()
+        elif title.startswith("вид"):
+            view_menu_action = action
+    if edit_menu is None:
+        edit_menu = self.menuBar().addMenu("Правка")
+        if view_menu_action is not None:
+            self.menuBar().removeAction(edit_menu.menuAction())
+            self.menuBar().insertMenu(view_menu_action, edit_menu)
+    edit_menu.addAction(self._undo_action)
+
+    self._undo_button = _UndoButton(self._header)
+    self._undo_button.setDefaultAction(self._undo_action)
+    self._undo_button.setToolButtonStyle(_UndoQt.ToolButtonStyle.ToolButtonIconOnly)
+    self._undo_button.setIconSize(_UndoSize(30, 24))
+    self._undo_button.setFixedSize(42, 38)
+    self._undo_button.setCursor(_UndoQt.CursorShape.PointingHandCursor)
+    self._undo_button.setStyleSheet(
+        "QToolButton { border: 1px solid transparent; border-radius: 6px; padding: 4px; }"
+        "QToolButton:hover { background: rgba(59,130,246,0.14); border-color: #3b82f6; }"
+        "QToolButton:disabled { opacity: 0.35; }"
+    )
+    # After the stretch, before user information and Logout.
+    self._header.layout().insertWidget(2, self._undo_button)
+
+    self._undo_timer = _UndoTimer(self)
+    self._undo_timer.setInterval(250)
+    self._undo_timer.timeout.connect(self._global_undo_sync)
+    self._undo_timer.start()
+    self._global_undo_sync()
+
+
+def _global_undo_sync(self):
+    manager = getattr(self.api, "undo", None)
+    count = manager.count() if manager is not None else 0
+    label = manager.last_label() if manager is not None and count else ""
+    enabled = bool(count) and not getattr(self, "_global_undo_busy", False)
+    self._undo_action.setEnabled(enabled)
+    tooltip = "Отмена последнего действия (Ctrl+Z)"
+    tooltip += ("\n" + label) if label else "\nИстория действий пуста"
+    self._undo_action.setToolTip(tooltip)
+    self._undo_button.setToolTip(tooltip)
+    self._undo_action.setStatusTip(tooltip.replace("\n", ": "))
+
+
+def _global_undo(self, _checked=False):
+    if getattr(self, "_global_undo_busy", False):
+        return
+    manager = getattr(self.api, "undo", None)
+    if manager is None or not manager.count():
+        return
+
+    self._global_undo_busy = True
+    self._global_undo_sync()
+    QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+    try:
+        label = manager.undo_last()
+        self._refresh_current()
+        self.status.showMessage("Отменено: " + label, 6000)
+    except Exception as exc:
+        QMessageBox.warning(self, "Отмена последнего действия", str(exc)[:600])
+    finally:
+        QApplication.restoreOverrideCursor()
+        self._global_undo_busy = False
+        self._global_undo_sync()
+
+
+MainWindow._global_undo_install = _global_undo_install
+MainWindow._global_undo_sync = _global_undo_sync
+MainWindow._global_undo = _global_undo
+
+_global_undo_orig_init = MainWindow.__init__
+
+
+def _global_undo_init(self, *args, **kwargs):
+    _global_undo_orig_init(self, *args, **kwargs)
+    self._global_undo_install()
+
+
+MainWindow.__init__ = _global_undo_init
+# === GLOBAL UNDO END ===

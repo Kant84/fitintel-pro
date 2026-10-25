@@ -113,7 +113,7 @@ async def update_product(product_id: UUID, data: dict, db: Session = Depends(get
     p = db.query(WarehouseProduct).filter(WarehouseProduct.id == product_id).first()
     if not p:
         raise HTTPException(404, "Product not found")
-    for k in ("name", "article", "sale_price", "quantity", "unit", "photo_url"):
+    for k in ("name", "article", "sale_price", "quantity", "unit", "photo_url", "is_active"):
         if k in data and data[k] is not None:
             setattr(p, k, data[k])
     db.commit()
