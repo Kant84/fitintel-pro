@@ -19,7 +19,7 @@
 10. [Обновление сервера](#10-Обновление-сервера)
 11. [Полезные команды](#11-Полезные-команды)
 12. [Мониторинг, логи и дашборды](#12-Мониторинг-логи-и-дашборды-всё-автоматически)
-13. [Автобэкап БД](#13-Автобэкап-БД-2130-и-после-перезапуска-vm)
+13. [Автобэкап клуба](#13-Автобэкап-клуба-systemd-timer)
 14. [Чек-лист после установки](#14-Чек-лист-после-установки-2-минуты)
 
 ---
@@ -202,49 +202,43 @@ curl -s http://localhost:3100/loki/api/v1/label/container/values
 Alertmanager слушает на :9093. Для отправки уведомлений отредактируйте
 `alertmanager/alertmanager.yml` (добавьте receiver: email/Telegram/webhook).
 
-## 13. Автобэкап БД (21:30 и после перезапуска VM)
+## 13. Автобэкап клуба (systemd timer)
 
-Штатная установка и обновление (шаги 5 и 10) вызывают готовый установщик:
+**Обязательный шаг на новом сервере и при обновлении backup-установщика:**
 
-```bash
-bash ~/fitintel-pro/deploy/backup/install_cron.sh
-```
+    bash ~/fitintel-pro/deploy/backup/install_cron.sh
 
-Отдельная настройка cron и ручной `chmod` не нужны. Установщик идемпотентен:
-повторный запуск обновляет только задания FitIntel backup и не дублирует их.
-Другие задания пользователя, включая media-backup, сохраняются.
+Этот вызов уже включён в шаги 5 и 10. Пока установка backup не встроена в общий автоустановщик, это единственный отдельный шаг его настройки. Сам Dockerfile unit-файлы на хост не устанавливает и меняться не должен.
 
-- Полный архив `fitintel_full_ДАТА.tar.gz` создаётся в `~/fitintel-pro/deploy/backups/` ежедневно в **21:30**.
-- Дополнительный полный архив создаётся через 60 секунд после загрузки VM (`@reboot`).
-- В архив входят: PostgreSQL; согласованная копия accounting SQLite; все Docker-тома с медиа, фото клиентов, товаров, тренеров, сканами и брендингом; файлы лицензии; `deploy/.env`; `/etc/fitintel/secrets` (включая `media_master_key`); SSL/platform-сертификаты и доступные локальные настройки.
-- Секреты сохраняются только внутри архива с правами `0600` и не выводятся в лог. Храните копию архива вне сервера: без него восстановление зашифрованных медиа невозможно.
-- `flock` не допускает одновременного запуска двух копий.
-- Готовый файл появляется только после успешной сборки и проверки всех внутренних архивов.
-- Ротация: полные архивы и старые SQL-дампы старше **14 дней** удаляются автоматически. Полные копии медиа требуют достаточного свободного места на диске.
-- Лог: `~/fitintel-pro/deploy/backup/backup.log`.
+После одного вызова больше не требуются ручные `chmod`, настройка cron или редактирование `/etc/systemd/system`:
 
-Проверка вручную (не требуется при обычной установке):
+- На Ubuntu с systemd устанавливаются `fitintel-backup.service` и `fitintel-backup.timer`.
+- Timer включён в автозагрузку: ежедневно в **21:30** и через **60 секунд после загрузки VM**.
+- `Persistent=true` выполняет пропущенное задание после включения сервера.
+- Service работает от root и сохраняет защищённые секреты; при необходимости установщик запросит `sudo`.
+- Если systemd недоступен, автоматически используется cron fallback.
+- Прежние строки FitIntel backup удаляются из пользовательского и root cron. Другие задания, включая media-backup, сохраняются.
+- Пересборка Dockerfile и образов не нужна: timer работает на хосте Ubuntu.
 
-```bash
-bash ~/fitintel-pro/deploy/backup/backup.sh
-crontab -l | grep -F 'deploy/backup/backup.sh'
-ls -lht ~/fitintel-pro/deploy/backups/
-```
+Архив `fitintel_full_ДАТА.tar.gz` создаётся в `~/fitintel-pro/deploy/backups/` и включает PostgreSQL, accounting SQLite, медиа и файлы Docker-томов, лицензию, `deploy/.env`, `/etc/fitintel/secrets`, SSL/platform-сертификаты и доступные локальные настройки.
 
-**Проверка архива и содержимое для восстановления:**
-```bash
-cd ~/fitintel-pro
-tar -tzf deploy/backups/fitintel_full_ДАТА.tar.gz
-mkdir -p /tmp/fitintel-restore && chmod 700 /tmp/fitintel-restore
-tar -xzf deploy/backups/fitintel_full_ДАТА.tar.gz -C /tmp/fitintel-restore
-cat /tmp/fitintel-restore/MANIFEST.txt
-```
+Архив имеет права `0600`; секреты не выводятся в журнал. Храните копию вне сервера. Ротация — **14 дней**. Полные копии медиа требуют достаточного свободного места.
 
-Внутри: `database.sql.gz` — PostgreSQL, `accounting.sqlite` — согласованная accounting БД,
-`files.tar.gz` — все файлы и Docker-тома, `settings/` — конфигурация, лицензии и секреты.
-Полное восстановление выполняйте на остановленных сервисах, не распаковывая архив поверх
-работающего клуба. После восстановления настроек и секретов права на них должны оставаться
-ограниченными.
+Проверка timer и ручной запуск:
+
+    systemctl list-timers fitintel-backup.timer --no-pager
+    sudo systemctl start fitintel-backup.service
+    sudo systemctl status fitintel-backup.service --no-pager
+    sudo journalctl -u fitintel-backup.service -n 20 --no-pager
+
+Проверка архива:
+
+    latest=$(sudo ls -1t ~/fitintel-pro/deploy/backups/fitintel_full_*.tar.gz | head -1)
+    sudo stat -c '%a %s %n' "$latest"
+    sudo tar -tzf "$latest" | head -30
+
+Внутри должны быть `database.sql.gz`, `accounting.sqlite`, `files.tar.gz`, `MANIFEST.txt` и `settings/`. Полное восстановление выполняйте на остановленных сервисах отдельного стенда, не распаковывая архив поверх работающего клуба.
+
 
 ## 14. Чек-лист после установки (2 минуты)
 
