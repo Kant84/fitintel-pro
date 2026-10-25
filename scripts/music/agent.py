@@ -123,6 +123,7 @@ class Agent:
         self.base_key = None
         self.ducker = None
         self.ducked = False
+        self._stop_event = threading.Event()
         self.poll = args.interval
         atexit.register(self._kill_all)
 
@@ -200,9 +201,11 @@ class Agent:
                 on_voice=self._duck_on, on_silence=self._duck_off,
                 threshold=self.a.duck_threshold, hold_seconds=self.a.duck_hold,
                 dry_run=self.a.dry_run).start()
-        while True:
+        while not self._stop_event.is_set():
             try:
                 st = self.fetch("/music/agent/state")
+                if self._stop_event.is_set():
+                    break
                 if self.a.debug:
                     rem = self.decks[self.active].remaining()
                     print("DBG | state=%s active=%s master=%s mixing=%s rem=%.1f"
@@ -216,9 +219,10 @@ class Agent:
                 self.pads.poll()
             except Exception as e:
                 print("ERR:", e)
-            time.sleep(self.poll)
+            self._stop_event.wait(self.poll)
 
     def stop(self):
+        self._stop_event.set()
         if self.ducker:
             try:
                 self.ducker.stop()
