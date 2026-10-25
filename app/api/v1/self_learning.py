@@ -2,12 +2,16 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.api.dependencies import require_permission
 from app.db.session import get_db
 from app.ml.pricing_engine import PricingEngine
 from app.ml.self_heal import SelfHeal
 from app.ml.churn_model import ChurnModel
+from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/self-learn", tags=["Self-Learning / AI"])
+
 
 @router.get("/pricing/analyze")
 def analyze_pricing(db: Session = Depends(get_db)):
@@ -15,25 +19,68 @@ def analyze_pricing(db: Session = Depends(get_db)):
     engine = PricingEngine(db)
     return {"tariffs": engine.analyze_tariffs()}
 
+
 @router.post("/pricing/apply")
-def apply_pricing(tariff_id: str, new_price: float, db: Session = Depends(get_db)):
-    """Применить рекомендованную цену."""
+def apply_pricing(
+    tariff_id: str,
+    new_price: float,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("tariffs.update")),
+):
+    """Применить рекомендованную цену и записать успешное изменение в аудит."""
     engine = PricingEngine(db)
     success = engine.apply_price(tariff_id, new_price)
-    return {"applied": success, "tariff_id": tariff_id, "new_price": new_price}
+
+    if success:
+        AuditService(db).log(
+            action="self_learning.pricing.apply",
+            status="success",
+            actor_user_id=current_user.id,
+            entity_type="tariff",
+            message="Self-learning: цена тарифа изменена",
+            after_data={
+                "tariff_id": tariff_id,
+                "new_price": new_price,
+            },
+        )
+
+    return {
+        "applied": success,
+        "tariff_id": tariff_id,
+        "new_price": new_price,
+    }
+
 
 @router.post("/self-heal")
-def run_self_heal(db: Session = Depends(get_db)):
-    """Запустить самоисцеление БД."""
+def run_self_heal(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission("system.admin")),
+):
+    """Запустить самоисцеление БД и записать результат в аудит."""
     healer = SelfHeal(db)
     results = healer.run_all()
+
+    AuditService(db).log(
+        action="self_learning.self_heal.run",
+        status="success",
+        actor_user_id=current_user.id,
+        entity_type="system",
+        message="Self-learning: самоисцеление БД выполнено",
+        after_data={
+            "fixes_count": len(results),
+            "fixes": results,
+        },
+    )
+
     return {"healed": True, "fixes": results}
+
 
 @router.get("/churn/analyze")
 def analyze_churn(client_id: str, db: Session = Depends(get_db)):
     """Предсказать отток клиента."""
     model = ChurnModel(db)
     return model.predict(client_id)
+
 
 @router.get("/churn/batch")
 def batch_churn_analysis(db: Session = Depends(get_db)):
