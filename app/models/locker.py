@@ -4,7 +4,12 @@ from datetime import datetime, timezone
 from sqlalchemy import String, Boolean
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import TYPE_CHECKING
+
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.locker_session import LockerSession
 
 
 class Locker(Base):

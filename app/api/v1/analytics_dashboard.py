@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text as _text
 from app.db.session import get_db
 from app.models.analytics import AnalyticsDaily
 from app.models.payment import Payment

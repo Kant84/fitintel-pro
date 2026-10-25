@@ -7,7 +7,13 @@ from sqlalchemy import ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 
+from typing import TYPE_CHECKING
+
 from app.db.base import Base, TimestampedUUIDMixin, utc_now
+
+if TYPE_CHECKING:
+    from app.models.role import Role
+    from app.models.user import User
 
 
 class UserRole(TimestampedUUIDMixin, Base):

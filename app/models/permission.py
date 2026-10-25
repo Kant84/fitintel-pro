@@ -3,7 +3,12 @@ from __future__ import annotations
 from sqlalchemy import String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from typing import TYPE_CHECKING
+
 from app.db.base import Base, TimestampedUUIDMixin
+
+if TYPE_CHECKING:
+    from app.models.role_permission import RolePermission
 
 
 class Permission(TimestampedUUIDMixin, Base):

@@ -201,7 +201,7 @@ def set_monthly(body: MonthlyIn, user_id: UUID,
 
 # ---------- расчёт за месяц ----------
 @router.get("/payroll/calc")
-def calc(period: str = Query(..., pattern="^\d{4}-\d{2}$"),
+def calc(period: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
          current_user=Depends(require_permission("users.read")),
          db: Session = Depends(get_db)):
     _ensure(db)
