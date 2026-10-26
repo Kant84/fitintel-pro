@@ -73,6 +73,36 @@ compose() {
         "$@"
 }
 
+for volume_name in     deploy_static_trainers     deploy_static_products     deploy_static_scan     deploy_clients_data     deploy_media_data     deploy_accounting_data
+do
+    docker volume create "$volume_name" >/dev/null
+done
+
+MEDIA_SECRET_FILE="/etc/fitintel/secrets/media_master_key"
+install -d -m 700 -o root -g root /etc/fitintel/secrets
+if [ -L "$MEDIA_SECRET_FILE" ]; then
+    echo "Refusing to use a symlink as media_master_key" >&2
+    exit 1
+fi
+if [ ! -f "$MEDIA_SECRET_FILE" ]; then
+    python3 - "$MEDIA_SECRET_FILE" <<'PY'
+import base64
+import os
+import sys
+
+fd = os.open(
+    sys.argv[1],
+    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+    0o600,
+)
+with os.fdopen(fd, "wb") as stream:
+    stream.write(base64.b64encode(os.urandom(32)) + b"
+")
+PY
+fi
+chmod 600 "$MEDIA_SECRET_FILE"
+echo "PRODUCTION_RUNTIME_RESOURCES_OK=1"
+
 echo "Building FitIntel production image..."
 docker build -t fitintel:prod .
 
@@ -99,7 +129,7 @@ fi
 health_path="/api/v1/health/"
 
 echo "Running Alembic migrations..."
-compose run --rm api alembic upgrade head
+compose run --rm --no-deps api alembic upgrade head
 
 echo "Seeding roles and permissions..."
 compose run --rm api python -c '
