@@ -138,8 +138,8 @@ while true; do
     read -r -s -p "Confirm password: " password_confirmation
     echo
 
-    if [ "${#FITINTEL_ADMIN_PASSWORD}" -lt 12 ]; then
-        echo "Password must contain at least 12 characters."
+    if [ "${#FITINTEL_ADMIN_PASSWORD}" -lt 8 ]; then
+        echo "Password must contain at least 8 characters."
         unset FITINTEL_ADMIN_PASSWORD password_confirmation
         continue
     fi
@@ -162,7 +162,7 @@ if ! compose run --rm \
     -e FITINTEL_ADMIN_EMAIL \
     -e FITINTEL_ADMIN_USERNAME \
     -e FITINTEL_ADMIN_PASSWORD \
-    api python scripts/create_admin.py; then
+    api python -m scripts.create_admin; then
     unset FITINTEL_ADMIN_EMAIL FITINTEL_ADMIN_USERNAME FITINTEL_ADMIN_PASSWORD
     echo "Initial administrator registration failed" >&2
     exit 1

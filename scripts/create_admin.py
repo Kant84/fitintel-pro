@@ -8,11 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.db.session import SessionLocal
 from app.services.user_service import UserService
-from app.services.role_service import RoleService
-from app.services.audit_service import AuditService
-from passlib.context import CryptContext
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def create_admin():
     admin_email = os.environ.get("FITINTEL_ADMIN_EMAIL", "").strip()
@@ -30,15 +26,14 @@ def create_admin():
         admin_password = getpass.getpass("Admin password: ")
     if not admin_password:
         raise RuntimeError("Set FITINTEL_ADMIN_PASSWORD or run interactively")
-    if len(admin_password) < 12:
-        raise ValueError("FITINTEL_ADMIN_PASSWORD must contain at least 12 characters")
+    if len(admin_password) < 8:
+        raise ValueError("FITINTEL_ADMIN_PASSWORD must contain at least 8 characters")
     db = SessionLocal()
     try:
         user_service = UserService(db)
-        role_service = RoleService(db)
         
         # Проверяем, есть ли уже admin
-        existing = user_service.get_user_by_email(admin_email)
+        existing = user_service.user_repository.get_by_email(admin_email)
         if existing:
             print("Администратор уже существует!")
             return
