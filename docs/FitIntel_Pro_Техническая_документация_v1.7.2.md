@@ -2230,17 +2230,30 @@ docker compose -f docker-compose.test.yml up -d --build
 
 ### 12.3. Docker Compose (prod)
 
-**Поставка через `docker load`:**
+**Штатная установка из Git:**
+
+```bash
+cd /opt/fitintel-pro
+sudo bash deploy/install_prod.sh
+```
+
+Installer создаёт защищённый `deploy/.env`, генерирует per-server секреты, собирает `fitintel:prod`, выполняет Alembic-миграции, заполняет роли/права, интерактивно регистрирует первого администратора и проверяет API health.
+
+**Поставка через заранее подготовленный Docker-образ:**
 
 ```bash
 docker load -i fitintel-prod_v1.6.1.tar.gz
 cd deploy
-docker compose -f docker-compose.prod.yml up -d
+docker compose --env-file .env -f docker-compose.prod.yml up -d
 ```
 
+Перед таким запуском `deploy/.env` должен быть создан безопасно на целевом сервере; перенос env с другого клуба запрещён.
+
 **Особенности prod:**
-- Секреты обязательны в `deploy/.env` (`POSTGRES_PASSWORD:?`)
-- Лимиты BLAS-потоков: `OPENBLAS_NUM_THREADS=1`, `OMP_NUM_THREADS=1`, `MKL_NUM_THREADS=1` (иначе dlib/отчёты висят 10–60 с)
+- `POSTGRES_PASSWORD` и `SECRET_KEY` обязательны; стандартные и короткие значения отклоняются.
+- Production использует `deploy/docker-compose.prod.yml`, не test-профиль.
+- Лимиты BLAS-потоков: `OPENBLAS_NUM_THREADS=1`, `OMP_NUM_THREADS=1`, `MKL_NUM_THREADS=1`.
+- `LICENSE_SECRET` активной Ed25519-лицензии не требуется; на клубе находится только публичный ключ проверки.
 
 ### 12.4. Docker Compose (dev)
 
@@ -2249,7 +2262,7 @@ cd deploy
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-**Внимание:** в `docker-compose.dev.yml` жёстко задан пароль БД — не использовать для прода.
+**Внимание:** dev-профиль не предназначен для прода. `POSTGRES_PASSWORD` и `SECRET_KEY` передаются через обязательные переменные окружения; жёстко заданные значения удалены.
 
 ### 12.5. Мониторинг
 
@@ -2312,48 +2325,30 @@ docker compose -f docker-compose.monitoring.yml up -d
 
 ### 12.10. Установка сервера (Ubuntu)
 
+Полное руководство с объяснением команд: `docs/INSTALL_SERVER.md`.
+
+**Вариант А — GitHub:**
+
 ```bash
-# 1. Docker
-sudo apt update
-sudo apt install -y ca-certificates curl git
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt update && sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo usermod -aG docker $USER
-newgrp docker
-
-# 2. Клонирование
-cd ~
-git clone https://<ТОКЕН>@github.com/Kant84/fitintel-pro.git
-cd fitintel-pro
-git checkout main
-
-# 3. Конфигурация (опционально)
-nano deploy/.env
-# POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, SECRET_KEY
-
-# 4. Запуск
-cd deploy
-docker compose -f docker-compose.test.yml up -d --build
-docker compose -f docker-compose.test.yml ps
-
-# 5. Инициализация БД
-docker compose -f docker-compose.test.yml exec api python -m scripts.bootstrap_db
-docker compose -f docker-compose.test.yml exec api python -m app.db.seed.run_seed
-
-# 6. Создание администратора
-docker compose -f docker-compose.test.yml exec \
-  -e SEED_ADMIN_EMAIL="admin@club.ru" \
-  -e SEED_ADMIN_USERNAME="admin" \
-  -e SEED_ADMIN_PASSWORD="СложныйПароль123" \
-  api python -m app.db.seed.seed_admin
-
-# 7. Проверка
-curl -s http://localhost/api/v1/health/
-# {"status":"ok","app":"FitIntel Pro","module":"crm","database":"ok"}
+sudo git clone https://github.com/Kant84/fitintel-pro.git /opt/fitintel-pro
+cd /opt/fitintel-pro
+sudo git checkout main
+sudo bash deploy/install_prod.sh
 ```
+
+**Вариант Б — чистый Git-репозиторий на USB-флешке:**
+
+```bash
+# После монтирования флешки и проверки фактического пути:
+sudo git clone /mnt/fitintel-usb/fitintel-pro /opt/fitintel-pro
+sudo git -C /opt/fitintel-pro remote set-url origin   https://github.com/Kant84/fitintel-pro.git
+cd /opt/fitintel-pro
+sudo bash deploy/install_prod.sh
+```
+
+USB-способ переносит только чистый код. Действующие `.env`, `deploy/.env`, резервные копии и credentials на флешку не копируются. Текущий installer всё равно требует интернет для сборки и загрузки Docker-образов; полностью offline-режим не поддерживается.
+
+При установке пользователь вводит email-логин администратора и дважды вводит пароль скрыто. Минимальная длина пароля — 12 символов. Значения не сохраняются в env и не передаются в аргументах Docker.
 
 ### 12.11. Установка desktop (Windows)
 
@@ -2429,24 +2424,20 @@ docker exec deploy-db-1 psql -U fitnexus_user -d fitnexus_ai \
 
 ### 13.3. Инициализация и seed
 
+**Production:** инициализация выполняется installer через Alembic и seed ролей/прав. Не заменяйте миграции `bootstrap_db.py/create_all`.
+
 ```bash
-# Таблицы по моделям
-docker compose -f docker-compose.test.yml exec api python -m scripts.bootstrap_db
+# Миграции
+sudo docker compose --env-file /opt/fitintel-pro/deploy/.env   -f /opt/fitintel-pro/deploy/docker-compose.prod.yml   run --rm api alembic upgrade head
 
-# Справочники (роли, права)
-docker compose -f docker-compose.test.yml exec api python -m app.db.seed.run_seed
-
-# Создание администратора
-docker compose -f docker-compose.test.yml exec \
-  -e SEED_ADMIN_EMAIL="admin@club.ru" \
-  -e SEED_ADMIN_USERNAME="admin" \
-  -e SEED_ADMIN_PASSWORD="СложныйПароль123" \
-  api python -m app.db.seed.seed_admin
-
-# Демо-данные (услуги, тренеры, записи)
-docker cp scripts/seed_demo_data.py deploy-api-1:/app/scripts/
-docker exec -w /app deploy-api-1 python scripts/seed_demo_data.py
+# Ручное создание администратора при необходимости:
+# email и пароль будут запрошены интерактивно, пароль скрыт.
+sudo docker compose --env-file /opt/fitintel-pro/deploy/.env   -f /opt/fitintel-pro/deploy/docker-compose.prod.yml   run --rm api python scripts/create_admin.py
 ```
+
+Штатная первая регистрация с подтверждением пароля выполняется через `deploy/install_prod.sh`. Не передавайте `SEED_ADMIN_PASSWORD` или `FITINTEL_ADMIN_PASSWORD` значением в командной строке.
+
+Демо-данные допустимы только в отдельном тестовом окружении, не в production.
 
 ### 13.4. Миграции
 
@@ -2712,7 +2703,7 @@ function apilog { docker compose -f deploy/docker-compose.test.yml logs api --ta
 ### 14.2. Пароли
 
 - **bcrypt (passlib):** 12 rounds.
-- **Требования:** минимум 8 символов.
+- **Требования:** для первого администратора и служебных create/reset-скриптов — минимум 12 символов; остальные пароли подчиняются политике приложения.
 - **Хранение:** только хеши.
 - **Legacy-проблема:** в dev-режиме пароль может храниться в `client_settings.json` (saved_password). В проде — убрать или шифровать (DPAPI/CredMan).
 
@@ -2720,13 +2711,13 @@ function apilog { docker compose -f deploy/docker-compose.test.yml logs api --ta
 
 | Где | Что |
 |---|---|
-| `.env` (не в git!) | SECRET_KEY, POSTGRES_PASSWORD, SMTP_PASSWORD, LICENSE_SECRET |
+| `deploy/.env` (не в git, права 0600) | SECRET_KEY, POSTGRES_PASSWORD и опциональные секреты внешних сервисов |
 | БД (`fiscal_settings`) | Пароль ДТО ККТ |
 | БД (`notification_settings`) | Пароль SMTP |
 | БД (`integration_settings`) | Ключи интеграций (**открытым текстом — TODO: шифровать Fernet/Vault**) |
 | `client_settings.json` | `dj_agent.token`, `api_base` |
 
-**Перед продом:** сменить ВСЕ секреты, которые были в git-истории.
+**Перед продом:** сменить ВСЕ секреты, которые были в git-истории. `LICENSE_SECRET` не используется активной Ed25519-лицензией: приватный ключ подписи остаётся у платформы, на сервере клуба — только публичный ключ проверки.
 
 ### 14.4. HTTPS
 
