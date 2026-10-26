@@ -1,278 +1,543 @@
-# FitIntel Pro — Установка и настройка сервера (полное руководство)
+# FitIntel Pro — подробная установка и настройка сервера
 
-Проверено на: **Ubuntu 24.04** (также подходит Debian 11+). Сборка из исходников через Docker.
-Актуально для: **FitIntel Pro v1.5.x**
+Актуально для ветки `main` с production-установщиком из commit `2216b0a1`.
 
----
+Поддерживаются два способа получения кода:
+
+1. **Через GitHub** — предпочтительный способ при доступном интернете.
+2. **С USB-флешки** — код переносится на съёмном носителе, а системные пакеты и Docker-зависимости загружаются через интернет.
+
+> **Важно:** текущий установщик не является полностью автономным offline-установщиком. Команды `docker build` и `docker compose pull` требуют доступа к репозиториям пакетов и образов. Перед массовым внедрением выполните контрольную установку на чистой VM.
+
+Не используйте для production старые инструкции с `docker-compose.test.yml`, `scripts/bootstrap_db.py`, стандартными паролями или паролями в аргументах командной строки.
 
 ## Содержание
 
-1. [Требования](#1-Требования)
-2. [Установка Docker](#2-Установка-Docker)
-3. [Получение кода](#3-Получение-кода-приватный-репозиторий)
-4. [Конфигурация (опционально)](#4-Конфигурация-опционально)
-5. [Первый запуск (сборка)](#5-Первый-запуск-сборка-10–30-мин)
-6. [Инициализация базы данных](#6-Инициализация-базы-данных)
-7. [Создание администратора](#7-Создание-администратора-свои-логин--пароль--email)
-8. [Проверка сервера](#8-Проверка-сервера)
-9. [Подключение desktop (Windows)](#9-Подключение-desktop-windows)
-10. [Обновление сервера](#10-Обновление-сервера)
-11. [Полезные команды](#11-Полезные-команды)
-12. [Мониторинг, логи и дашборды](#12-Мониторинг-логи-и-дашборды-всё-автоматически)
-13. [Автобэкап клуба](#13-Автобэкап-клуба-systemd-timer)
-14. [Чек-лист после установки](#14-Чек-лист-после-установки-2-минуты)
+1. Требования и подготовка
+2. Установка Docker и необходимых пакетов
+3. Способ А — установка кода через GitHub
+4. Способ Б — перенос кода с USB-флешки
+5. Автоматическая production-установка
+6. Регистрация первого администратора
+7. Защищённый доступ к каталогу сервера
+8. Проверка установки
+9. Лицензия и первый вход
+10. Подключение Windows desktop
+11. Резервное копирование
+12. Обновление сервера
+13. Полезные команды
+14. Безопасность
+15. Решение типовых проблем
+16. Контрольный чек-лист
 
----
+## 1. Требования и подготовка
 
-## 1. Требования
+### Аппаратные и системные требования
 
-- Ubuntu 20.04+ / Debian 11+ (чистая машина или VM)
-- Минимум: 2 CPU, 4 GB RAM, 20 GB диск
-- Открытые порты: **80** (nginx/API), **22** (SSH)
-- Для мониторинга дополнительно: **3000** (Grafana), **9090** (Prometheus) — только для админов
-- Доступ в интернет (загрузка образов и пакетов)
+- Ubuntu 24.04 LTS; предпочтительна чистая VM или отдельный физический сервер.
+- Минимум 2 CPU, 4 GB RAM и 40 GB свободного диска.
+- Доступ root через `sudo`.
+- Git, Python 3, Docker Engine и Docker Compose v2.
+- Доступ в интернет для системных пакетов, Docker Hub и базового Docker-образа.
+- Открытые порты 80/443 для клиентских подключений; SSH только для доверенной сети администратора.
+- Для боевого HTTPS — сертификат и приватный ключ домена.
 
-## 2. Установка Docker
+Установщик не выпускает доверенный SSL-сертификат и не заменяет настройку домена.
 
-```bash
-sudo apt update && sudo apt install -y ca-certificates curl git
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt update && sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo usermod -aG docker $USER
-newgrp docker
-docker --version && docker compose version
+### Стандартный каталог установки
+
+В руководстве используется:
+
+```text
+/opt/fitintel-pro
 ```
 
-> Для Debian замените в двух местах `linux/ubuntu` на `linux/debian`.
-> Если `newgrp` не переключил группу — выйдите и зайдите по SSH заново.
+Это отдельный системный каталог, а не домашняя папка пользователя. После установки он будет защищён правами Linux.
 
-## 3. Получение кода (приватный репозиторий)
+## 2. Установка Docker и необходимых пакетов
 
-GitHub → Settings → Developer settings → Personal access tokens → Generate new token (classic) → галочка **repo** → скопируйте токен (показывается один раз!).
+Команды ниже выполняются на сервере Ubuntu независимо от выбранного способа получения кода.
+
+### 2.1. Обновление списка пакетов и установка базовых утилит
 
 ```bash
-cd ~
-git clone https://<ТОКЕН>@github.com/Kant84/fitintel-pro.git
+sudo apt update
+sudo apt install -y ca-certificates curl git python3
+```
+
+- `ca-certificates` — проверка HTTPS-сертификатов.
+- `curl` — загрузка ключа репозитория Docker.
+- `git` — получение и последующее обновление исходного кода.
+- `python3` — генерация защищённого `deploy/.env`.
+
+### 2.2. Добавление официального ключа Docker
+
+```bash
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+```
+
+Ключ проверяет подлинность пакетов Docker.
+
+### 2.3. Подключение репозитория Docker
+
+```bash
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+```
+
+Для Debian используйте `https://download.docker.com/linux/debian`.
+
+### 2.4. Установка Docker Engine и Compose v2
+
+```bash
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io \
+  docker-buildx-plugin docker-compose-plugin
+```
+
+### 2.5. Проверка установки
+
+```bash
+docker --version
+docker compose version
+python3 --version
+git --version
+```
+
+Если любая команда отсутствует, сначала устраните ошибку. Installer также выполнит собственную preflight-проверку.
+
+## 3. Способ А — установка кода через GitHub
+
+### 3.1. Клонирование репозитория
+
+Репозиторий публичный. Токен GitHub для клонирования не нужен и не должен вставляться в URL.
+
+```bash
+sudo git clone https://github.com/Kant84/fitintel-pro.git /opt/fitintel-pro
+```
+
+Команда создаёт `/opt/fitintel-pro` и загружает репозиторий с историей Git.
+
+### 3.2. Выбор основной ветки
+
+```bash
+cd /opt/fitintel-pro
+sudo git checkout main
+sudo git pull --ff-only
+```
+
+`--ff-only` не создаёт скрытый merge и останавливается при расхождении истории.
+
+### 3.3. Проверка полученного кода
+
+```bash
+sudo git -C /opt/fitintel-pro rev-parse --short HEAD
+sudo git -C /opt/fitintel-pro status --short
+test -f /opt/fitintel-pro/deploy/install_prod.sh && echo "INSTALLER_PRESENT=1"
+```
+
+Перед установкой рабочее дерево не должно содержать неожиданных изменений.
+
+Теперь переходите к разделу 5.
+
+## 4. Способ Б — перенос кода с USB-флешки
+
+Этот способ подходит, когда скачать репозиторий непосредственно на сервере нельзя, но сервер может загружать системные пакеты и Docker-зависимости.
+
+> На флешку переносится только чистый репозиторий. Не копируйте туда действующие `.env`, `deploy/.env`, резервные копии, пароли, токены или приватные ключи.
+
+### 4.1. Подготовка репозитория на компьютере с GitHub
+
+Выполните на рабочем компьютере:
+
+```bash
+git clone https://github.com/Kant84/fitintel-pro.git fitintel-pro
 cd fitintel-pro
 git checkout main
+git pull --ff-only
+git rev-parse --short HEAD
 ```
 
-После клонирования токен можно удалить на GitHub.
+Сохраните выведенный короткий hash версии. На сервере он поможет проверить, что перенесён именно тот выпуск.
 
-## 4. Конфигурация (опционально)
+Скопируйте всю папку `fitintel-pro`, включая скрытый каталог `.git`, в корень флешки. Наличие `.git` позволит проверить версию и настроить последующие обновления через GitHub.
 
-Тестовый профиль работает «из коробки». Для своих значений создайте файл `deploy/.env`:
+Не используйте папку действующего разработческого репозитория, если в ней есть локальные настройки или секреты. Для переноса делайте новый чистый `git clone`.
 
-```env
-POSTGRES_DB=fitnexus_ai
-POSTGRES_USER=fitnexus_user
-POSTGRES_PASSWORD=СложныйПарольБД
-SECRET_KEY=ДлиннаяСлучайнаяСтрокаМинимум32Символа
-```
+### 4.2. Определение флешки на сервере
 
-## 5. Первый запуск (сборка 10–30 мин)
+Подключите флешку к серверу и выполните:
 
 ```bash
-cd ~/fitintel-pro/deploy
-docker compose -f docker-compose.test.yml up -d --build
-docker compose -f docker-compose.test.yml ps
-# Автоматически установить полный ежедневный бэкап и запуск после перезагрузки VM
-bash backup/install_cron.sh
+lsblk -o NAME,FSTYPE,LABEL,SIZE,MOUNTPOINTS
 ```
 
-Все 5 контейнеров должны быть `running`: db (healthy), redis, api (healthy), nginx, celery-worker.
-При первой сборке компилируется dlib — это долго, **не прерывайте**.
+Найдите раздел по размеру, файловой системе и метке. Пример имени устройства: `/dev/sdb1`. Это только пример — не подставляйте его без проверки.
 
-## 6. Инициализация базы данных
+### 4.3. Монтирование флешки
+
+Создайте точку монтирования:
 
 ```bash
-cd ~/fitintel-pro/deploy
-# Таблицы по моделям + фиксация миграций
-docker compose -f docker-compose.test.yml exec api python -m scripts.bootstrap_db
-# Справочники: роли, права
-docker compose -f docker-compose.test.yml exec api python -m app.db.seed.run_seed
+sudo mkdir -p /mnt/fitintel-usb
 ```
 
-> **Важно:** запускать через `python -m` (а не `python scripts/...`) — иначе модуль `app` не найдется.
-
-## 7. Создание администратора (СВОИ логин / пароль / email)
-
-По умолчанию: `admin` / `Admin123!ChangeMe` / `admin@fitnexus.ru`.
-**Задать свои данные при создании:**
+Если Ubuntu уже смонтировала флешку автоматически, используйте существующий путь из `lsblk`. Для ручного монтирования подставьте фактически найденный раздел:
 
 ```bash
-cd ~/fitintel-pro/deploy
-docker compose -f docker-compose.test.yml exec \
-  -e SEED_ADMIN_EMAIL="ваша@почта.ru" \
-  -e SEED_ADMIN_USERNAME="ВашЛогин" \
-  -e SEED_ADMIN_PASSWORD="ВашПарольМинимум8Символов" \
-  api python -m app.db.seed.seed_admin
+sudo mount /dev/НАЙДЕННЫЙ_РАЗДЕЛ /mnt/fitintel-usb
 ```
 
-- Логин и пароль — **латиницей**, пароль минимум 8 символов.
-- Email — с реальным доменом (НЕ .local/.test/.invalid — валидатор их отвергает).
-- Повторный запуск с другими `-e` НЕ меняет данные существующего админа. Смена кредов существующему — через desktop («Пользователи») или SQL:
-  ```bash
-  docker compose -f docker-compose.test.yml exec db psql -U fitnexus_user -d fitnexus_ai \
-    -c "UPDATE users SET email='новая@почта.ru' WHERE username='admin';"
-  ```
-
-## 8. Проверка сервера
+Проверьте наличие репозитория и installer:
 
 ```bash
-curl -s http://localhost/api/v1/health/
-# {"status":"ok","app":"FitIntel Pro","module":"crm","database":"ok"}
+ls -la /mnt/fitintel-usb/fitintel-pro
+test -f /mnt/fitintel-usb/fitintel-pro/deploy/install_prod.sh && \
+  echo "USB_INSTALLER_PRESENT=1"
 ```
 
-## 9. Подключение desktop (Windows)
+Если installer отсутствует, остановитесь: на флешке находится неподходящая или неполная копия.
 
-1. Узнать IP сервера: `ip a | grep "inet " | grep -v 127.0.0.1`
-2. С Windows-ПК: `curl.exe -s http://<IP>/api/v1/health/` — должен вернуть тот же JSON
-3. В файле `fitintel-desktop\client_settings.json` указать:
-   ```json
-   "api_base": "http://<IP>/api/v1"
-   ```
-4. Запустить desktop (через `restart_desktop.ps1`) → вход с созданным логином/паролем
-5. **Сразу сменить пароль**, если оставляли дефолтный
+### 4.4. Клонирование с флешки в системный каталог
 
-## 10. Обновление сервера
+Не запускайте installer прямо со съёмного носителя. Создайте локальный Git-клон:
 
 ```bash
-cd ~/fitintel-pro && git pull
-# Обновить права backup.sh и расписание без ручной настройки cron
-bash deploy/backup/install_cron.sh
-cd deploy
-docker compose -f docker-compose.test.yml up -d --build
-# при изменении моделей:
-docker compose -f docker-compose.test.yml exec api alembic upgrade head
+sudo git clone /mnt/fitintel-usb/fitintel-pro /opt/fitintel-pro
 ```
 
-## 11. Полезные команды
+Установите постоянный GitHub-адрес для будущих обновлений:
 
 ```bash
-# Логи API без health-спама
-docker compose -f docker-compose.test.yml logs -f api 2>&1 | grep -v health
-# Статус контейнеров
-docker compose -f docker-compose.test.yml ps
-# Перезапуск сервиса
-docker compose -f docker-compose.test.yml restart api
-# Консоль внутри контейнера
-docker compose -f docker-compose.test.yml exec api bash
-# SQL напрямую
-docker compose -f docker-compose.test.yml exec db psql -U fitnexus_user -d fitnexus_ai \
-  -c "SELECT username, email FROM users;"
-# ПОЛНЫЙ сброс (ВСЕ ДАННЫЕ УДАЛЯТСЯ!): затем шаги 5–7 заново
-docker compose -f docker-compose.test.yml down -v
+sudo git -C /opt/fitintel-pro remote set-url origin \
+  https://github.com/Kant84/fitintel-pro.git
+sudo git -C /opt/fitintel-pro checkout main
 ```
 
----
+Пока интернет к GitHub недоступен, не выполняйте `git pull`: локальная копия уже содержит перенесённую версию.
 
-## 12. Мониторинг, логи и дашборды (всё автоматически)
+### 4.5. Проверка версии и секретных файлов
 
 ```bash
-cd ~/fitintel-pro/deploy/monitoring
-docker compose -f docker-compose.monitoring.yml up -d
+sudo git -C /opt/fitintel-pro rev-parse --short HEAD
+sudo git -C /opt/fitintel-pro status --short
 ```
 
-Поднимается 7 контейнеров: Prometheus, Grafana, Loki, Promtail, node-exporter,
-cAdvisor, Alertmanager. **Дашборды и источники данных подгружаются автоматически**
-(провиженинг из репозитория) — ничего настраивать вручную не нужно.
+Сравните hash с версией, записанной при подготовке флешки.
 
-| Сервис | Адрес | Назначение |
-|---|---|---|
-| Grafana | http://<IP>:3000 (admin/admin) | дашборды и просмотр логов |
-| Prometheus | http://<IP>:9090/targets | метрики, состояние таргетов |
-| Loki | http://<IP>:3100 | хранилище логов (Promtail шлёт автоматически) |
+Проверьте, что секретные env-файлы не попали в установочный каталог:
 
-**Дашборды** (Grafana → Dashboards → папка «FitIntel Pro»):
-- **«FitIntel API»** — запросов/сек, ошибки 5xx %, p95 латентность, запросы по статусам,
-  топ-5 медленных путей, панель логов Loki
-- **«FitIntel System»** — CPU/RAM/диск сервера, таргеты up, топ-5 контейнеров по CPU/RAM
-
-**Логи:** Grafana → Explore → источник «Loki» → запрос `{container="deploy-api-1"}`.
-Promtail собирает логи **всех** контейнеров автоматически. Посмотреть список:
 ```bash
-curl -s http://localhost:3100/loki/api/v1/label/container/values
+sudo find /opt/fitintel-pro -maxdepth 2 -type f \
+  \( -name '.env' -o -name '.env.*' \) -print
 ```
 
-**Алерты:** правила в `prometheus/rules/fitintel.yml` (HighErrorRate, APIDown, DiskSpaceLow и др.).
-Alertmanager слушает на :9093. Для отправки уведомлений отредактируйте
-`alertmanager/alertmanager.yml` (добавьте receiver: email/Telegram/webhook).
+Файл `.env.example` является шаблоном и допустим. Настоящие `.env` и `deploy/.env` с прежнего сервера переносить нельзя. Если они обнаружены, не запускайте установку до проверки и удаления только этих ошибочно скопированных файлов.
 
-## 13. Автобэкап клуба (systemd timer)
+### 4.6. Отключение флешки
 
-**Обязательный шаг на новом сервере и при обновлении backup-установщика:**
+После успешного клонирования:
 
-    bash ~/fitintel-pro/deploy/backup/install_cron.sh
+```bash
+sudo umount /mnt/fitintel-usb
+```
 
-Этот вызов уже включён в шаги 5 и 10. Пока установка backup не встроена в общий автоустановщик, это единственный отдельный шаг его настройки. Сам Dockerfile unit-файлы на хост не устанавливает и меняться не должен.
+Если флешка монтировалась автоматически в другой каталог, отключайте её через соответствующий путь или штатный файловый менеджер.
 
-После одного вызова больше не требуются ручные `chmod`, настройка cron или редактирование `/etc/systemd/system`:
+Теперь переходите к разделу 5.
 
-- На Ubuntu с systemd устанавливаются `fitintel-backup.service` и `fitintel-backup.timer`.
-- Timer включён в автозагрузку: ежедневно в **21:30** и через **60 секунд после загрузки VM**.
-- `Persistent=true` выполняет пропущенное задание после включения сервера.
-- Service работает от root и сохраняет защищённые секреты; при необходимости установщик запросит `sudo`.
-- Если systemd недоступен, автоматически используется cron fallback.
-- Прежние строки FitIntel backup удаляются из пользовательского и root cron. Другие задания, включая media-backup, сохраняются.
-- Пересборка Dockerfile и образов не нужна: timer работает на хосте Ubuntu.
+### 4.7. Ограничение полностью автономной установки
 
-Архив `fitintel_full_ДАТА.tar.gz` создаётся в `~/fitintel-pro/deploy/backups/` и включает PostgreSQL, accounting SQLite, медиа и файлы Docker-томов, лицензию, `deploy/.env`, `/etc/fitintel/secrets`, SSL/platform-сертификаты и доступные локальные настройки.
+Одной флешки с исходным кодом недостаточно для полностью offline-установки. Текущий installer:
 
-Архив имеет права `0600`; секреты не выводятся в журнал. Храните копию вне сервера. Ротация — **14 дней**. Полные копии медиа требуют достаточного свободного места.
+- собирает `fitintel:prod` и загружает базовый образ и Python-зависимости;
+- выполняет `docker compose pull db redis nginx`;
+- не содержит режима `--offline` и не заменяет загрузку командой `docker load`.
 
-Проверка timer и ручной запуск:
+Поэтому не отключайте интернет до завершения установки. Для полностью автономного сценария требуется отдельный пакет с предсобранными образами и специальный offline installer; его наличие нельзя предполагать.
 
-    systemctl list-timers fitintel-backup.timer --no-pager
-    sudo systemctl start fitintel-backup.service
-    sudo systemctl status fitintel-backup.service --no-pager
-    sudo journalctl -u fitintel-backup.service -n 20 --no-pager
+## 5. Автоматическая production-установка
 
-Проверка архива:
+Запустите:
 
-    latest=$(sudo ls -1t ~/fitintel-pro/deploy/backups/fitintel_full_*.tar.gz | head -1)
-    sudo stat -c '%a %s %n' "$latest"
-    sudo tar -tzf "$latest" | head -30
+```bash
+cd /opt/fitintel-pro
+sudo bash deploy/install_prod.sh
+```
 
-Внутри должны быть `database.sql.gz`, `accounting.sqlite`, `files.tar.gz`, `MANIFEST.txt` и `settings/`. Полное восстановление выполняйте на остановленных сервисах отдельного стенда, не распаковывая архив поверх работающего клуба.
+Установщик последовательно:
 
+1. Проверяет root, Docker, Compose и Python 3.
+2. Создаёт `deploy/.env`, только если файл ещё не существует.
+3. Генерирует отдельные `SECRET_KEY` и `POSTGRES_PASSWORD` для этого сервера.
+4. Устанавливает `APP_ENV=prod`, отключает debug и публичную документацию API.
+5. Назначает env-файлу права `0600` и проверяет обязательные значения без их вывода.
+6. Собирает `fitintel:prod`.
+7. Загружает инфраструктурные образы и запускает PostgreSQL/Redis.
+8. Ждёт готовности БД и выполняет `alembic upgrade head`.
+9. Заполняет роли и права без создания стандартного администратора.
+10. Запрашивает данные первого администратора.
+11. Запускает production-сервисы и проверяет API health.
+12. Назначает каталогу установки владельца `root:root` и защитные права.
 
-## 14. Чек-лист после установки (2 минуты)
+Существующий `deploy/.env` не перезаписывается. Не копируйте env-файл с компьютера разработчика или другого клуба.
 
-- [ ] Сменить пароль admin (desktop → «Пользователи»)
-- [ ] Сменить пароль Grafana (administration → Users → admin; дефолт admin/admin)
-- [ ] Firewall: `sudo ufw allow 80,3000,9090/tcp && sudo ufw enable`
-- [ ] Проверить свежий дамп в `deploy/backups/` и строки `deploy/backup/backup.sh` в `crontab -l`
-- [ ] Открыть дашборды Grafana и проверить логи Loki
+Первая сборка может занять продолжительное время. Не прерывайте её без необходимости.
 
----
+## 6. Регистрация первого администратора
 
-## Решение типовых проблем
+Во время установки появятся запросы:
 
-| Симптом | Решение |
+```text
+Login (email): ...
+Password: ...
+Confirm password: ...
+```
+
+### Что вводить
+
+- **Login (email)** — действующий email администратора; он используется как логин.
+- **Password** — пароль длиной не менее 12 символов; ввод скрыт.
+- **Confirm password** — тот же пароль повторно; ввод также скрыт.
+
+При несовпадении или недостаточной длине installer запросит пароль заново.
+
+Пароль:
+
+- не записывается в `deploy/.env`;
+- не передаётся значением в аргументах Docker;
+- не сохраняется в Git;
+- не выводится установщиком в журнал.
+
+Стандартного логина или пароля администратора нет. Ошибка регистрации останавливает установку; такой сервер нельзя считать успешно установленным.
+
+## 7. Защищённый доступ к каталогу сервера
+
+После успешной установки:
+
+- владелец файлов — `root:root`;
+- каталог установки имеет права `750`;
+- каталог `deploy` имеет права `700`;
+- `deploy/.env` имеет права `600`.
+
+Для администрирования используйте:
+
+```bash
+sudo -s
+cd /opt/fitintel-pro
+```
+
+После завершения работы:
+
+```bash
+exit
+```
+
+Это авторизация Linux, а не вход в FitIntel. `sudo` может временно кэшировать пароль ОС. Не применяйте `chmod 777` и не используйте пароль FitIntel как пароль Linux.
+
+## 8. Проверка установки
+
+### 8.1. Состояние контейнеров
+
+```bash
+sudo docker compose \
+  --env-file /opt/fitintel-pro/deploy/.env \
+  -f /opt/fitintel-pro/deploy/docker-compose.prod.yml ps
+```
+
+Проверьте `db`, `redis`, `api`, `nginx` и `celery-worker`.
+
+### 8.2. Health API
+
+```bash
+sudo docker compose \
+  --env-file /opt/fitintel-pro/deploy/.env \
+  -f /opt/fitintel-pro/deploy/docker-compose.prod.yml \
+  exec -T api python -c \
+  "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/v1/health/').read().decode())"
+```
+
+Запрос выполняется внутри API-контейнера и не требует публикации дополнительного порта.
+
+### 8.3. Логи
+
+```bash
+sudo docker compose \
+  --env-file /opt/fitintel-pro/deploy/.env \
+  -f /opt/fitintel-pro/deploy/docker-compose.prod.yml \
+  logs --tail=200 api
+```
+
+Не публикуйте логи, если в них видны персональные данные или credentials.
+
+Сообщение `PRODUCTION_INSTALL_COMPLETED=1` не заменяет проверку всех сервисов, HTTPS, регистрации и входа.
+
+## 9. Лицензия и первый вход
+
+1. Получите подписанную лицензию клуба через admin.platform.
+2. Активируйте её штатным окном активации FitIntel.
+3. Войдите с email и паролем администратора, созданными при установке.
+4. Проверьте срок и лимиты лицензии.
+
+Приватный ключ подписи остаётся у платформы. На сервере клуба используется только публичный ключ проверки. `LICENSE_SECRET` в production `.env` не нужен.
+
+## 10. Подключение Windows desktop
+
+В `fitintel-desktop/client_settings.json` укажите фактический адрес:
+
+```json
+{
+  "api_base": "https://club.example.com/api/v1"
+}
+```
+
+Для локальной сети используйте реальный адрес сервера и настроенную схему HTTP/HTTPS. Затем запустите desktop и войдите с созданными учётными данными.
+
+Проверка с Windows:
+
+```powershell
+curl.exe -k https://club.example.com/api/v1/health/
+```
+
+Параметр `-k` допустим только для диагностики с самоподписанным сертификатом. Для боевой работы используйте доверенный сертификат и не отключайте проверку TLS.
+
+## 11. Резервное копирование
+
+Общий installer пока не настраивает резервное копирование. После установки выполните:
+
+```bash
+sudo bash /opt/fitintel-pro/deploy/backup/install_cron.sh
+```
+
+Проверка timer и ручного архива:
+
+```bash
+systemctl list-timers fitintel-backup.timer --no-pager
+sudo systemctl start fitintel-backup.service
+sudo systemctl status fitintel-backup.service --no-pager
+```
+
+Архивы должны иметь права `0600`. Храните копию вне сервера. Перед боевым вводом выполните восстановление на отдельном стенде: наличие архива само по себе восстановление не доказывает.
+
+## 12. Обновление сервера
+
+### 12.1. Обновление через GitHub
+
+```bash
+sudo git -C /opt/fitintel-pro pull --ff-only
+```
+
+Если код первоначально переносили с флешки, команда использует GitHub-адрес, настроенный в разделе 4.4.
+
+### 12.2. Обновление с флешки
+
+На компьютере подготовьте новый чистый клон нужной версии. На сервере подключите флешку и добавьте её как временный remote:
+
+```bash
+sudo git -C /opt/fitintel-pro remote add usb \
+  /mnt/fitintel-usb/fitintel-pro
+sudo git -C /opt/fitintel-pro fetch usb main
+sudo git -C /opt/fitintel-pro merge --ff-only usb/main
+sudo git -C /opt/fitintel-pro remote remove usb
+```
+
+Если remote `usb` уже существует, сначала проверьте его адрес командой `sudo git -C /opt/fitintel-pro remote -v`; не перезаписывайте remotes без необходимости.
+
+### 12.3. Пересборка и миграции
+
+```bash
+sudo docker build -t fitintel:prod /opt/fitintel-pro
+
+sudo docker compose \
+  --env-file /opt/fitintel-pro/deploy/.env \
+  -f /opt/fitintel-pro/deploy/docker-compose.prod.yml \
+  run --rm api alembic upgrade head
+
+sudo docker compose \
+  --env-file /opt/fitintel-pro/deploy/.env \
+  -f /opt/fitintel-pro/deploy/docker-compose.prod.yml up -d
+```
+
+После обновления повторите раздел 8. Не запускайте installer поверх действующего клуба ради обычного обновления.
+
+## 13. Полезные команды
+
+### Статус сервисов
+
+```bash
+sudo docker compose --env-file /opt/fitintel-pro/deploy/.env \
+  -f /opt/fitintel-pro/deploy/docker-compose.prod.yml ps
+```
+
+### Логи API
+
+```bash
+sudo docker compose --env-file /opt/fitintel-pro/deploy/.env \
+  -f /opt/fitintel-pro/deploy/docker-compose.prod.yml logs --tail=200 api
+```
+
+### Перезапуск API
+
+```bash
+sudo docker compose --env-file /opt/fitintel-pro/deploy/.env \
+  -f /opt/fitintel-pro/deploy/docker-compose.prod.yml restart api
+```
+
+### Миграции
+
+```bash
+sudo docker compose --env-file /opt/fitintel-pro/deploy/.env \
+  -f /opt/fitintel-pro/deploy/docker-compose.prod.yml \
+  run --rm api alembic upgrade head
+```
+
+Не используйте `bootstrap_db.py/create_all` вместо Alembic.
+
+Не публикуйте вывод `env`, `printenv`, `docker inspect` или содержимое `deploy/.env`: там могут быть секреты.
+
+## 14. Безопасность
+
+- `.env` и `deploy/.env` не должны попадать в Git или на общую флешку.
+- Каждый клуб получает собственные секреты; одинаковые пароли БД и `SECRET_KEY` на всех серверах запрещены.
+- Ранее раскрытые credentials необходимо ротировать, а не только удалить из последней версии кода.
+- SMTP, SMS, платёжные и другие внешние секреты не генерируются случайно: их выдаёт соответствующий сервис.
+- Приватный лицензионный ключ платформы не устанавливается на сервер клуба.
+- Grafana/Prometheus не открывайте в интернет; используйте внутреннюю сеть или VPN.
+- Не передавайте пароли в `docker compose -e NAME=VALUE`, аргументах `ps`, командной истории или чате.
+
+## 15. Решение типовых проблем
+
+| Симптом | Объяснение и действие |
 |---|---|
-| `No matching distribution found for pywin32` | Уже исправлено в репо (маркер `sys_platform == "win32"`) |
-| Сборка падает на dlib/face-recognition | Уже исправлено (gcc/g++/cmake в Dockerfile) |
-| `alembic` лезет на 127.0.0.1 | Уже исправлено (URL БД из переменных окружения) |
-| `ModuleNotFoundError: No module named 'app'` | Запускать `python -m scripts.x`, не `python scripts/x.py` |
-| `relation "..." does not exist` | Выполнить `python -m scripts.bootstrap_db` |
-| `500` на /auth/me, «special-use or reserved name» | Email с реальным доменом (не .local/.test) |
-| `DatatypeMismatch: integer and uuid` | Уже исправлено (модели приведены к UUID) |
-| Desktop не может войти | Проверить `api_base` в client_settings.json и доступность порта 80 |
-| Loki перезапускается | Уже исправлено в репо (`user: "0"` в compose) |
-| Порядок URL: 307 Redirect | Использовать слэш в конце пути (`/clients/`, `/tariffs/`) или `python -m` |
+| `Required command is missing` | Не установлен Docker или Python 3; вернитесь к разделу 2 |
+| `Docker Compose v2 is required` | Установите `docker-compose-plugin`; команда должна быть `docker compose`, не старый `docker-compose` |
+| `Run the production installer with sudo` | Запустите `sudo bash deploy/install_prod.sh` |
+| `Refusing to overwrite existing file` | Installer защищает существующий env; не удаляйте его на действующем сервере |
+| `POSTGRES_PASSWORD is required` | Env отсутствует или неполон; на новой VM используйте генератор, на действующем сервере выполните контролируемое восстановление настроек |
+| `SECRET_KEY is standard...` | Production отклоняет стандартный или слабый ключ; требуется безопасная ротация |
+| Ошибка регистрации администратора | Установка не завершена; проверьте ввод и логи, не передавая пароль в командной строке |
+| Ошибка миграций | Диагностируйте `alembic upgrade head`; не заменяйте миграции `create_all` |
+| Нет доступа в `/opt/fitintel-pro` после установки | Это ожидаемая защита; используйте `sudo -s` |
+| Нет сети при установке с флешки | Код можно перенести, но текущие build/pull требуют интернет; полностью offline-режим не поддерживается |
 
-## Безопасность (перед боевым продом!)
+## 16. Контрольный чек-лист
 
-1. Сменить ВСЕ пароли по умолчанию (БД, admin, Grafana)
-2. Свой `SECRET_KEY` в `deploy/.env`
-3. Firewall: только 80/443 наружу, Grafana/Prometheus — внутри сети или за VPN
-4. SSL: `docker-compose.prod.yml` + сертификаты в `deploy/nginx/ssl/`
-5. Регулярные бэкапы БД (раздел 13) + выгрузка на другой носитель
-6. Токен GitHub после клонирования — удалить; обновления — через новый токен
+- [ ] Установлен ожидаемый commit `main`.
+- [ ] `deploy/.env` создан именно на этом сервере и имеет права `0600`.
+- [ ] В env нет стандартных или скопированных с прежнего клуба секретов.
+- [ ] Миграции Alembic завершились успешно.
+- [ ] Первый администратор создан через скрытую регистрацию с подтверждением пароля.
+- [ ] `db`, `redis`, `api`, `nginx` и `celery-worker` работают.
+- [ ] Health API отвечает успешно.
+- [ ] HTTPS и доверенный сертификат проверены.
+- [ ] Лицензия активирована, вход администратора выполнен.
+- [ ] Каталог установки доступен только через полномочия ОС администратора.
+- [ ] Настроен и проверен резервный архив.
+- [ ] Restore-test выполнен на отдельном стенде.
 
 ---
-*FitIntel Pro v1.5.x | Руководство обновлено: 2026-09-25*
+
+Руководство обновлено: **2026-10-26**.
