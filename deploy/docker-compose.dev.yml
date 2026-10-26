@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: fitnexus_ai
       POSTGRES_USER: fitnexus_user
-      POSTGRES_PASSWORD: FitNexus_User_2026!
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
     ports:
       - "5433:5432"
     volumes:
@@ -35,10 +35,10 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: fitnexus_ai
       POSTGRES_USER: fitnexus_user
-      POSTGRES_PASSWORD: FitNexus_User_2026!
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      SECRET_KEY: dev_secret_key_change_in_production
+      SECRET_KEY: "${SECRET_KEY:?SECRET_KEY is required}"
       DOCS_ENABLED: "true"
     depends_on:
       db:

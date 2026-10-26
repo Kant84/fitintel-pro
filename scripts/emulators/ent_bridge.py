@@ -1,3 +1,4 @@
+import os
 # ЭНТ (Firebird) -> FitIntel: мост событий СКУД (v2: JWT для /visits)
 import time, json, base64, urllib.request, urllib.error
 import firebird.driver as fb
@@ -32,7 +33,7 @@ for _ in range(10):
 if not JWT:
     raise SystemExit("FitIntel не отвечает")
 
-con = fb.connect(DB, user="SYSDBA", password="masterkey")
+con = fb.connect(DB, user=os.environ["ENT_DB_USER"], password=os.environ["ENT_DB_PASSWORD"])
 cur = con.cursor()
 cur.execute("SELECT MAX(ID) FROM FB_EVN")
 last_id = cur.fetchone()[0] or 0

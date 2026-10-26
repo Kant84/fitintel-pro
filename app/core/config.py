@@ -2,7 +2,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     # ==========================================================
 
     SECRET_KEY: str = Field(
-        default="change_me_super_secret_key",
+        default=...,
         description="Секретный ключ для подписи токенов и других чувствительных операций.",
     )
 
@@ -122,7 +122,7 @@ class Settings(BaseSettings):
     )
 
     POSTGRES_PASSWORD: str = Field(
-        default="FitNexus_User_2026!",
+        default=...,
         description="Пароль пользователя PostgreSQL.",
     )
 
@@ -394,6 +394,34 @@ class Settings(BaseSettings):
         Удобный флаг для проверки, что приложение запущено в prod-среде.
         """
         return self.APP_ENV == "prod"
+
+
+    @staticmethod
+    def _is_standard_secret(value: str, minimum_length: int) -> bool:
+        normalized = value.strip().casefold()
+        markers = (
+            "changeme", "change-me", "default", "example",
+            "password", "secret", "test",
+        )
+        return len(normalized) < minimum_length or any(
+            marker in normalized for marker in markers
+        )
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self):
+        if not self.is_prod:
+            return self
+
+        checks = (
+            ("SECRET_KEY", self.SECRET_KEY, 32),
+            ("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD, 12),
+        )
+        for name, value, minimum_length in checks:
+            if self._is_standard_secret(value, minimum_length):
+                raise ValueError(
+                    f"{name} is standard, placeholder-like, or too short for production"
+                )
+        return self
 
 
 @lru_cache

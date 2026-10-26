@@ -3,6 +3,7 @@
 
 import sys
 import os
+import getpass
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.db.session import SessionLocal
@@ -14,31 +15,49 @@ from passlib.context import CryptContext
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def create_admin():
+    admin_email = os.environ.get("FITINTEL_ADMIN_EMAIL", "").strip()
+    if not admin_email and sys.stdin.isatty():
+        admin_email = input("Admin email: ").strip()
+    if not admin_email:
+        raise RuntimeError("Set FITINTEL_ADMIN_EMAIL or run interactively")
+
+    admin_username = os.environ.get("FITINTEL_ADMIN_USERNAME", "").strip()
+    if not admin_username:
+        admin_username = admin_email
+
+    admin_password = os.environ.get("FITINTEL_ADMIN_PASSWORD")
+    if not admin_password and sys.stdin.isatty():
+        admin_password = getpass.getpass("Admin password: ")
+    if not admin_password:
+        raise RuntimeError("Set FITINTEL_ADMIN_PASSWORD or run interactively")
+    if len(admin_password) < 12:
+        raise ValueError("FITINTEL_ADMIN_PASSWORD must contain at least 12 characters")
     db = SessionLocal()
     try:
         user_service = UserService(db)
         role_service = RoleService(db)
         
         # Проверяем, есть ли уже admin
-        existing = user_service.get_user_by_email("admin@fitnexus.com")
+        existing = user_service.get_user_by_email(admin_email)
         if existing:
             print("Администратор уже существует!")
             return
         
         # Создаём администратора
         admin = user_service.create_user(
-            email="admin@fitnexus.com",
-            password="Admin123!",
+            username=admin_username,
+            email=admin_email,
+            password=admin_password,
             is_superuser=True,
             is_active=True,
             is_verified=True,
         )
         
-        print(f"✅ Администратор создан: admin@fitnexus.com / Admin123!")
-        print(f"ID: {admin.id}")
+        print("Операция выполнена.")
         
-    except Exception as e:
-        print(f"❌ Ошибка: {e}")
+    except Exception:
+        print("Admin creation failed.")
+        raise
     finally:
         db.close()
 
