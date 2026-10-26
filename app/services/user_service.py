@@ -89,6 +89,8 @@ class UserService:
         username: str | None,
         password: str,
         is_active: bool = True,
+        is_superuser: bool = False,
+        is_verified: bool = False,
     ) -> User:
         # проверяем, что хотя бы один идентификатор задан
         if not email and not username:
@@ -121,6 +123,10 @@ class UserService:
             password_hash=get_password_hash(password),
             # сохраняем флаг активности
             is_active=is_active,
+            # сохраняем признак суперпользователя
+            is_superuser=is_superuser,
+            # сохраняем признак подтверждённого аккаунта
+            is_verified=is_verified,
         )
 
         # сохраняем пользователя в БД
