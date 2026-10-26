@@ -26,7 +26,7 @@ from app.api.dependencies import get_current_user as real_auth, require_roles
 
 router = APIRouter(prefix="/api/v1/license", tags=["License"])
 
-LICENSE_SECRET = os.getenv("LICENSE_SECRET", "fitintel-license-secret")
+LICENSE_SECRET = os.getenv("LICENSE_SECRET")
 DEFAULT_GRACE_DAYS = 7
 DEFAULT_OFFLINE_DAYS = 30
 
@@ -50,10 +50,16 @@ def require_role(allowed_roles: list):
 
 # ---------- Helpers E28 ----------
 def _checksum(base: str) -> str:
+    if not LICENSE_SECRET:
+        raise RuntimeError("LICENSE_SECRET is not configured")
+
     return hmac.new(LICENSE_SECRET.encode(), base.encode(), hashlib.sha256).hexdigest()[:4].upper()
 
 
 def _validate_key(key: str) -> bool:
+    if not LICENSE_SECRET:
+        return False
+
     parts = (key or "").split("-")
     if len(parts) != 3 or parts[0] != "FITI" or len(parts[1]) != 8 or len(parts[2]) != 4:
         return False
@@ -61,6 +67,9 @@ def _validate_key(key: str) -> bool:
 
 
 def _sign(key: str, expires_at: datetime, device_limit: int) -> str:
+    if not LICENSE_SECRET:
+        raise RuntimeError("LICENSE_SECRET is not configured")
+
     data = f"{key}|{expires_at.strftime('%Y-%m-%dT%H:%M:%S')}|{device_limit}"
     return hmac.new(LICENSE_SECRET.encode(), data.encode(), hashlib.sha256).hexdigest()
 

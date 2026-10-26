@@ -32,7 +32,8 @@ def _database_url() -> str:
         port = os.environ.get("POSTGRES_PORT", "5432")
         db = os.environ.get("POSTGRES_DB", "fitnexus_ai")
         return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{db}"
-    return config.get_main_option("sqlalchemy.url")
+        from app.core.config import settings
+    return settings.DATABASE_URL
 
 
 def run_migrations_offline() -> None:

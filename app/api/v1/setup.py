@@ -778,8 +778,8 @@ def setup_license(
 ):
     """E30.3 — шаг 2: активация лицензии"""
     _require_step(db, "step_database", "Сначала настройте БД")
-    from app.routers.license import _validate_key
-    if not _validate_key(payload.license_key):
+    from app.api.v1.license_api import _validate
+    if not _validate(payload.license_key).get('valid'):
         raise HTTPException(status_code=400, detail="Невалидный ключ лицензии")
     _wizard_set(db, "step_license", "true")
     db.commit()

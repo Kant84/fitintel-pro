@@ -17,11 +17,16 @@ from app.core.security import get_password_hash
 # стартовые данные администратора (переопределяются переменными окружения SEED_ADMIN_*)
 DEFAULT_ADMIN_EMAIL    = os.environ.get("SEED_ADMIN_EMAIL",    "admin@fitnexus.ru")
 DEFAULT_ADMIN_USERNAME = os.environ.get("SEED_ADMIN_USERNAME", "admin")
-DEFAULT_ADMIN_PASSWORD = os.environ.get("SEED_ADMIN_PASSWORD", "Admin123!ChangeMe")
+DEFAULT_ADMIN_PASSWORD = os.getenv("SEED_ADMIN_PASSWORD")
 
 
 # функция создаёт первичного администратора
 def seed_admin(db) -> None:
+    if not DEFAULT_ADMIN_PASSWORD:
+        raise RuntimeError("SEED_ADMIN_PASSWORD is required")
+    if len(DEFAULT_ADMIN_PASSWORD) < 12:
+        raise ValueError("SEED_ADMIN_PASSWORD must contain at least 12 characters")
+
     # ищем пользователя по email
     existing_user = db.query(User).filter(User.email == DEFAULT_ADMIN_EMAIL).first()
 

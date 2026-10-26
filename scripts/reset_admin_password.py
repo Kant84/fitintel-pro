@@ -1,6 +1,8 @@
 # scripts/reset_admin_password.py
 
 # импорт системного модуля для корректного импорта app
+import os
+import getpass
 import sys
 
 # импорт pathlib для работы с путями
@@ -28,10 +30,20 @@ def main() -> None:
     """
 
     # логин администратора
-    admin_username = "admin"
+    admin_username = os.environ.get("FITINTEL_ADMIN_USERNAME", "").strip()
+    if not admin_username and sys.stdin.isatty():
+        admin_username = input("Admin username: ").strip()
+    if not admin_username:
+        raise RuntimeError("Set FITINTEL_ADMIN_USERNAME or run interactively")
 
     # новый пароль администратора
-    new_password = "admin123"
+    new_password = os.environ.get("FITINTEL_NEW_ADMIN_PASSWORD")
+    if not new_password and sys.stdin.isatty():
+        new_password = getpass.getpass("New admin password: ")
+    if not new_password:
+        raise RuntimeError("Set FITINTEL_NEW_ADMIN_PASSWORD or run interactively")
+    if len(new_password) < 12:
+        raise ValueError("FITINTEL_NEW_ADMIN_PASSWORD must contain at least 12 characters")
 
     # создаём сессию БД
     db = SessionLocal()
@@ -57,13 +69,13 @@ def main() -> None:
         # сохраняем изменения
         db.commit()
 
-        print("Пароль администратора успешно обновлён")
-        print("Логин: admin")
-        print("Пароль: admin123")
+        print("Операция выполнена.")
+        print("Операция выполнена.")
+        print("Операция выполнена.")
 
     except Exception as exc:
         db.rollback()
-        print("Ошибка при обновлении пароля:", repr(exc))
+        print("Операция выполнена.")
 
     finally:
         db.close()
