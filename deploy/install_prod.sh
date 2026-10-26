@@ -96,8 +96,8 @@ fd = os.open(
     0o600,
 )
 with os.fdopen(fd, "wb") as stream:
-    stream.write(base64.b64encode(os.urandom(32)) + b"
-")
+    stream.write(base64.b64encode(os.urandom(32)))
+    stream.write(bytes([10]))
 PY
 fi
 chmod 600 "$MEDIA_SECRET_FILE"
