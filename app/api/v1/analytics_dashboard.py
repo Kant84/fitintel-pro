@@ -1879,12 +1879,14 @@ def _user_perms(db, user_id: str) -> set:
 def _is_super(db, user_id: str) -> bool:
     from sqlalchemy import text as _text
     try:
+        # The license owner is marked by users.is_superuser, not login casing.
         if db.execute(_text(
-            "SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id "
-            "WHERE ur.user_id::text = :u AND r.code = 'superadmin'"), {"u": str(user_id)}).first():
+            "SELECT 1 FROM users WHERE id::text = :u AND is_superuser = TRUE"),
+            {"u": str(user_id)}).first():
             return True
         return bool(db.execute(_text(
-            "SELECT 1 FROM users WHERE id::text = :u AND username = 'superadmin'"),
+            "SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id "
+            "WHERE ur.user_id::text = :u AND r.code = 'superadmin'"),
             {"u": str(user_id)}).first())
     except Exception:
         return False
