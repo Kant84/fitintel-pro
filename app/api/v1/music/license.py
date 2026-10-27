@@ -16,25 +16,9 @@ from . import deps
 
 router = APIRouter()
 
-DDL_LICENSE = [
-    """
-    CREATE TABLE IF NOT EXISTS music_license (
-        id INTEGER PRIMARY KEY DEFAULT 1,
-        license_type VARCHAR(20) NOT NULL DEFAULT 'none',  -- none | provider | rao_vois
-        provider_name VARCHAR(100),
-        contract_number VARCHAR(100),
-        valid_until DATE,
-        updated_at TIMESTAMP NOT NULL DEFAULT now()
-    )
-    """,
-    "INSERT INTO music_license (id) VALUES (1) ON CONFLICT (id) DO NOTHING",
-]
-
-
 def _ensure_license(db):
-    for stmt in DDL_LICENSE:
-        db.execute(text(stmt))
-    db.commit()
+    """Схема создаётся Alembic-миграцией, а не конкурентно в HTTP-запросах."""
+    return None
 
 
 def license_status(db):
