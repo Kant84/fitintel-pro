@@ -32,39 +32,9 @@ def _eng():
     return _engine
 
 def _ensure():
-    with _eng().begin() as c:
-        c.execute(text("""CREATE TABLE IF NOT EXISTS document_templates (
-            id SERIAL PRIMARY KEY,
-            code VARCHAR(64) UNIQUE,
-            name VARCHAR(255) NOT NULL,
-            doc_type VARCHAR(64) DEFAULT 'contract',
-            content TEXT DEFAULT '',
-            created_at TIMESTAMP DEFAULT NOW())"""))
-        for _stmt in (
-            "ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS doc_type VARCHAR(64) DEFAULT 'contract'",
-            "ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS content TEXT DEFAULT ''",
-            "ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS code VARCHAR(64)",
-            "ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()",
-        ):
-            c.execute(text(_stmt))
-        c.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ux_doc_templates_code ON document_templates(code)"))
-    for _stmt in (
-        "CREATE SEQUENCE IF NOT EXISTS document_templates_id_seq",
-        "ALTER TABLE document_templates ALTER COLUMN id SET DEFAULT gen_random_uuid()",
-        "ALTER TABLE document_templates ALTER COLUMN id SET DEFAULT nextval('document_templates_id_seq')",
-    ):
-        try:
-            with _eng().begin() as _m:
-                _m.execute(text(_stmt))
-        except Exception:
-            pass
+    """Document template schema is created by Alembic."""
+    return None
 
-
-    try:
-        with _eng().begin() as s2:
-            s2.execute(text("INSERT INTO document_templates (code, name, doc_type, content) SELECT 'contract_std', 'Договор (стандартный)', 'contract', 'ДОГОВОР' WHERE NOT EXISTS (SELECT 1 FROM document_templates WHERE code='contract_std')"))
-    except Exception as e:
-        logger.warning("seed skip: %s", e)
 
 class TemplateIn(BaseModel):
     name: str
@@ -77,7 +47,10 @@ def list_templates(user=AUTH_DEP):
     _ensure()
     with _eng().connect() as c:
         rows = c.execute(text("SELECT id, code, name, doc_type, content, created_at FROM document_templates ORDER BY id")).mappings().all()
-    return [dict(r) for r in rows]
+    return [
+        {"template_id": str(r["id"]), **dict(r)}
+        for r in rows
+    ]
 
 @router.post("")
 @router.post("/")
