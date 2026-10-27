@@ -133,9 +133,10 @@ def _sync_superadmin_password(c, temp_pass: str, superadmin_login: str):
     if len(ids) > 1:
         raise RuntimeError("Найдено несколько учётных записей владельца лицензии")
 
+    owner_id = ids[0] if ids else str(uuid.uuid4())
     params = {
         "ph": get_password_hash(temp_pass),
-        "id": ids[0] if ids else None,
+        "id": owner_id,
     }
     if ids:
         result = c.execute(text(
@@ -145,20 +146,28 @@ def _sync_superadmin_password(c, temp_pass: str, superadmin_login: str):
         ), params)
         if result.rowcount != 1:
             raise RuntimeError("Не удалось обновить владельца лицензии")
-        return
+    else:
+        now = datetime.now(timezone.utc)
+        c.execute(text(
+            "INSERT INTO users (id, username, password_hash, is_active, "
+            "is_superuser, is_verified, is_fired, failed_login_count, "
+            "created_at, updated_at) VALUES (:id, :login, :ph, TRUE, TRUE, "
+            "TRUE, FALSE, 0, :now, :now)"
+        ), {
+            "id": owner_id,
+            "login": login,
+            "ph": params["ph"],
+            "now": now,
+        })
 
-    now = datetime.now(timezone.utc)
+    # RBACGuard требует хотя бы одного admin. Назначаем роль только
+    # владельцу лицензии; installer server-admin сюда не входит.
     c.execute(text(
-        "INSERT INTO users (id, username, password_hash, is_active, "
-        "is_superuser, is_verified, is_fired, failed_login_count, "
-        "created_at, updated_at) VALUES (:id, :login, :ph, TRUE, TRUE, "
-        "TRUE, FALSE, 0, :now, :now)"
-    ), {
-        "id": str(uuid.uuid4()),
-        "login": login,
-        "ph": params["ph"],
-        "now": now,
-    })
+        "INSERT INTO user_roles (id, user_id, role_id, assigned_at, created_at, updated_at) "
+        "SELECT gen_random_uuid(), u.id, r.id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP "
+        "FROM users u JOIN roles r ON r.code='admin' WHERE u.id=:owner_id "
+        "ON CONFLICT (user_id, role_id) DO NOTHING"
+    ), {"owner_id": owner_id})
 
 
 def _fingerprint():
