@@ -52,6 +52,23 @@ def _auto_connect_if_single() -> dict | None:
             cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
         except Exception:
             cfg = {}
+
+    current_api = str(cfg.get("api_base") or "").strip()
+    if current_api:
+        # Installer/текущий выбор сервера имеет приоритет над старым профилем.
+        # Не переносим учётные данные прежнего сервера на новый адрес.
+        conn["web_url"] = current_api
+        conn["web_login"] = cfg.get("saved_login", "")
+        conn["web_pass"] = cfg.get("saved_password", "")
+        try:
+            conn_path.write_text(
+                json.dumps(conns, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except Exception as e:
+            log.warning("Could not sync single connection: %s", e)
+        return cfg
+
     cfg["api_base"] = conn.get("web_url", "http://localhost:8001/api/v1")
     cfg["saved_login"] = conn.get("web_login", "")
     cfg["saved_password"] = conn.get("web_pass", "")
