@@ -560,6 +560,12 @@ def seed_permissions(db) -> None:
             "subscriptions.read",
             "subscriptions.create",
             "subscriptions.update",
+            "visits.read",
+            "visits.create",
+            "visits.update",
+            "payments.read",
+            "payments.create",
+            "payments.update",
         ],
     )
 
