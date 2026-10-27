@@ -265,7 +265,17 @@ class MainWindow(QMainWindow):
         title.setObjectName("header-title")
         h_layout.addWidget(title)
         h_layout.addStretch()
-        role = self.user.get("role", "admin")
+        role = self.user.get("role")
+        if not role:
+            role_names = []
+            for item in self.user.get("roles") or []:
+                if isinstance(item, dict):
+                    value = item.get("name") or item.get("code")
+                else:
+                    value = item
+                if value:
+                    role_names.append(str(value))
+            role = ", ".join(role_names) or "—"
         role_name = getattr(role, "value", role)
         user_info = QLabel(f"{self.user.get('full_name', self.user.get('username', 'Админ'))} | {role_name}")
         user_info.setObjectName("header-user")
