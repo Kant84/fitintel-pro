@@ -1590,33 +1590,8 @@ def _strip_image(data: bytes, mime: str) -> tuple:
 
 
 def _ensure_media(db):
-    from sqlalchemy import text as _text
-    db.execute(_text("""CREATE TABLE IF NOT EXISTS media_files (
-        id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL DEFAULT 't-1',
-        owner_type TEXT NOT NULL, owner_id TEXT NOT NULL,
-        photo_type TEXT NOT NULL DEFAULT 'document',
-        orig_name TEXT, mime TEXT, size BIGINT, sha256 TEXT,
-        dek_enc TEXT, dek_nonce TEXT, file_nonce TEXT,
-        key_version INT DEFAULT 1, path TEXT, legacy_path TEXT,
-        created_by TEXT, created_at TIMESTAMP DEFAULT NOW(),
-        archived_at TIMESTAMP)"""))
-    db.execute(_text("CREATE INDEX IF NOT EXISTS idx_media_owner ON media_files (tenant_id, owner_type, owner_id)"))
-    db.execute(_text("""CREATE TABLE IF NOT EXISTS media_access_log (
-        id BIGSERIAL PRIMARY KEY, file_id TEXT, user_id TEXT, user_role TEXT,
-        session_id TEXT, owner_id TEXT, action TEXT, result TEXT,
-        ip TEXT, user_agent TEXT, reason TEXT,
-        created_at TIMESTAMP DEFAULT NOW())"""))
-    db.execute(_text("""CREATE OR REPLACE FUNCTION media_log_immutable() RETURNS TRIGGER AS $$
-        BEGIN RAISE EXCEPTION 'media_access_log is append-only: % not allowed', TG_OP; RETURN NULL; END;
-        $$ LANGUAGE plpgsql"""))
-    db.execute(_text("""DO $$
-        BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'media_log_no_update') THEN
-                CREATE TRIGGER media_log_no_update BEFORE UPDATE OR DELETE ON media_access_log
-                FOR EACH ROW EXECUTE FUNCTION media_log_immutable();
-            END IF;
-        END $$"""))
-    db.commit()
+    """Media schema is created by Alembic, not during HTTP requests."""
+    return None
 
 
 def _audit(db, file_id, action, result, request, user=None, owner_id="", reason=None):
