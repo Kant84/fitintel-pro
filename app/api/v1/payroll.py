@@ -64,11 +64,8 @@ _DDL = [
 
 
 def _ensure(db: Session):
-    for ddl in _DDL:
-        db.execute(_text(ddl))
-    db.execute(_text("ALTER TABLE payroll_monthly ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(12,2) NOT NULL DEFAULT 0"))
-    db.execute(_text("ALTER TABLE payroll_monthly ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP WITH TIME ZONE"))
-    db.commit()
+    """Schema is created by Alembic, not during HTTP requests."""
+    return None
 
 
 def _row(r):
@@ -228,12 +225,14 @@ def calc(period: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
         base = base or 0.0
         earnings = 0.0
         try:
-            r = db.execute(_text(
-                """SELECT COALESCE(SUM(ts.amount),0) AS s FROM trainer_sales ts
-                   JOIN trainer_profiles tp ON tp.id = ts.trainer_id
-                   WHERE tp.user_id = :u AND ts.created_at::date BETWEEN :f AND :t"""),
-                {"u": uid, "f": d_from, "t": d_to}).first()
-            earnings = float(r[0]) if r else 0.0
+            # Optional trainer sales must not poison the payroll transaction.
+            with db.begin_nested():
+                r = db.execute(_text(
+                    """SELECT COALESCE(SUM(ts.amount),0) AS s FROM trainer_sales ts
+                       JOIN trainer_profiles tp ON tp.id = ts.trainer_id
+                       WHERE tp.user_id = :u AND ts.created_at::date BETWEEN :f AND :t"""),
+                    {"u": uid, "f": d_from, "t": d_to}).first()
+                earnings = float(r[0]) if r else 0.0
         except Exception:
             earnings = 0.0
         commission = round(earnings * commission_p / 100.0, 2)
