@@ -34,7 +34,7 @@ DEFAULT_PROFILES = {
     "superadmin": ["dashboard", "clients", "subscriptions", "visits", "schedule",
                    "payments", "music", "reports", "analytics", "documents", "devices",
                    "users", "roles", "face_id", "license", "settings",
-                   "ui_config", "setup", "banks"],
+                   "ui_config", "setup", "banks", "shop"],
     "admin": ["dashboard", "clients", "subscriptions", "visits", "schedule",
               "payments", "music", "reports", "analytics", "documents", "devices",
               "users", "roles", "face_id", "license", "settings", "banks"],

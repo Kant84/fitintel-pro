@@ -69,6 +69,18 @@ hiddenimports += [
     'windows.ui_config_tab',
     'windows.users_tab',
     'windows.visits_tab',
+    'windows.access_audit_tab',
+    'windows.client_card',
+    'windows.clients_analytics_tab',
+    'windows.comments_dialog',
+    'windows.employee_card',
+    'windows.export_helper',
+    'windows.icons',
+    'windows.pass_badge',
+    'windows.payroll_tab',
+    'windows.service_accounts_tab',
+    'windows.trash_dialog',
+    'windows.visits_stats_dialog',
 ]
 
 datas = [
