@@ -146,7 +146,7 @@ finally:
     db.close()
 '
 
-echo "Create the initial FitIntel administrator."
+echo "Create the initial FitIntel server administrator (maintenance only)."
 
 while true; do
     read -r -p "Login (email): " FITINTEL_ADMIN_USERNAME
@@ -192,14 +192,14 @@ if ! compose run --rm \
     -e FITINTEL_ADMIN_EMAIL \
     -e FITINTEL_ADMIN_USERNAME \
     -e FITINTEL_ADMIN_PASSWORD \
-    api python -m scripts.create_admin; then
+    api python -m scripts.server_admin create; then
     unset FITINTEL_ADMIN_EMAIL FITINTEL_ADMIN_USERNAME FITINTEL_ADMIN_PASSWORD
     echo "Initial administrator registration failed" >&2
     exit 1
 fi
 
 unset FITINTEL_ADMIN_EMAIL FITINTEL_ADMIN_USERNAME FITINTEL_ADMIN_PASSWORD
-echo "INITIAL_ADMIN_REGISTRATION_COMPLETED=1"
+echo "INITIAL_SERVER_ADMIN_REGISTRATION_COMPLETED=1"
 
 echo "Starting all production services..."
 compose up -d
