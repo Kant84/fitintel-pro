@@ -115,14 +115,52 @@ def _ensure_state():
             "ALTER TABLE license_state ADD COLUMN IF NOT EXISTS install_fp VARCHAR(64)"))
 
 
-def _sync_superadmin_password(temp_pass: str):
-    """Ставит пароль из лицензии пользователю superadmin (сброс блокировок)."""
+def _sync_superadmin_password(c, temp_pass: str, superadmin_login: str):
+    """Создаёт или обновляет владельца лицензии внутри общей транзакции."""
+    import uuid
+    from datetime import datetime, timezone
     from app.core.security import get_password_hash
-    with _eng().begin() as c:
-        c.execute(text(
+
+    login = (superadmin_login or "").strip()
+    if not login or len(login) > 100:
+        raise ValueError("Некорректный superadmin_login в лицензии")
+    if not isinstance(temp_pass, str) or len(temp_pass) < 8:
+        raise ValueError("Временный пароль лицензии должен содержать минимум 8 символов")
+
+    ids = c.execute(text(
+        "SELECT id FROM users WHERE lower(username)=lower(:login)"
+    ), {"login": login}).scalars().all()
+    if len(ids) > 1:
+        raise RuntimeError("Найдено несколько учётных записей владельца лицензии")
+
+    params = {
+        "ph": get_password_hash(temp_pass),
+        "id": ids[0] if ids else None,
+    }
+    if ids:
+        result = c.execute(text(
             "UPDATE users SET password_hash=:ph, failed_login_count=0, "
-            "locked_until=NULL, is_active=TRUE WHERE username='superadmin'"
-        ), {"ph": get_password_hash(temp_pass)})
+            "locked_until=NULL, is_active=TRUE, is_superuser=TRUE, "
+            "is_verified=TRUE WHERE id=:id"
+        ), params)
+        if result.rowcount != 1:
+            raise RuntimeError("Не удалось обновить владельца лицензии")
+        return
+
+    now = datetime.now(timezone.utc)
+    c.execute(text(
+        "INSERT INTO users (id, username, password_hash, is_active, "
+        "is_superuser, is_verified, is_fired, failed_login_count, "
+        "created_at, updated_at) VALUES (:id, :login, :ph, TRUE, TRUE, "
+        "TRUE, FALSE, 0, :now, :now)"
+    ), {
+        "id": str(uuid.uuid4()),
+        "login": login,
+        "ph": params["ph"],
+        "now": now,
+    })
+
+
 def _fingerprint():
     """Отпечаток установки — одноразовость лицензии (привязка к серверу)."""
     import hashlib
@@ -152,8 +190,10 @@ def activate(body: KeyIn):
         existing = c.execute(
             text("SELECT key, install_fp FROM license_state WHERE id=1")).first()
     if existing and existing[0] == body.key:
-        # тот же сервер, тот же ключ — повторная активация (сброс пароля)
-        _sync_superadmin_password(temp_pass)
+        # Тот же сервер и ключ: повторная активация также восстанавливает
+        # отсутствующего владельца лицензии после старой ошибки установки.
+        with _eng().begin() as c:
+            _sync_superadmin_password(c, temp_pass, sadmin)
         return {"activated": True, "already_active": True,
                 "plan": v.get("plan"), "superadmin_login": sadmin,
                 "temp_password": temp_pass}
@@ -164,12 +204,12 @@ def activate(body: KeyIn):
     with _eng().begin() as c:
         c.execute(text(
             "INSERT INTO license_state (id, key, mode, temp_password, superadmin_login, is_first_login, install_fp, updated_at) "
-            "VALUES (1, :k, 'soft', :tp, :sa, TRUE, :fp, NOW()) "
+            "VALUES (1, :k, 'soft', :tp, :sa, TRUE, :fp, CURRENT_TIMESTAMP) "
             "ON CONFLICT (id) DO UPDATE SET key=EXCLUDED.key, temp_password=EXCLUDED.temp_password, "
             "superadmin_login=EXCLUDED.superadmin_login, is_first_login=TRUE, "
-            "install_fp=EXCLUDED.install_fp, updated_at=EXCLUDED.updated_at"),
+            "install_fp=EXCLUDED.install_fp, updated_at=CURRENT_TIMESTAMP"),
             {"k": body.key, "tp": temp_pass, "sa": sadmin, "fp": fp})
-    _sync_superadmin_password(temp_pass)
+        _sync_superadmin_password(c, temp_pass, sadmin)
     return {"activated": True, "plan": v.get("plan"), "expires": v.get("exp"),
             "max_clients": v.get("max_clients"),
             "superadmin_login": sadmin, "temp_password": temp_pass,
