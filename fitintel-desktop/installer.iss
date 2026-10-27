@@ -101,7 +101,9 @@ begin
       '  }' + #13#10 +
       '}';
 
-    if not FileExists(JsonFile) then
-      SaveStringToFile(JsonFile, JsonStr, False);
+    // Повторная установка явно перенастраивает сервер. Не сохраняем
+    // авторизацию прежнего сервера в конфигурации нового подключения.
+    if not SaveStringToFile(JsonFile, JsonStr, False) then
+      RaiseException('Не удалось сохранить адрес сервера в client_settings.json');
   end;
 end;
