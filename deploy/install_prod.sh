@@ -226,4 +226,5 @@ chmod 700 "$SCRIPT_DIR"
 echo "INSTALL_DIRECTORY_PROTECTED=1"
 
 echo "PRODUCTION_INSTALL_COMPLETED=1"
+echo "MAINTENANCE_COMMAND=sudo bash deploy/maintenance.sh status|health|backup"
 echo "NEXT_STEP=Activate the club license and complete the protected web setup"
