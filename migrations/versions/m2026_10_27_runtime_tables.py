@@ -1,12 +1,12 @@
 """Runtime tables omitted by the clean-install baseline.
 
-Revision ID: m2026_10_27_auth_notification_runtime
+Revision ID: m2026_10_27_runtime_tables
 Revises: m2026_10_18_client_ext
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "m2026_10_27_auth_notification_runtime"
+revision = "m2026_10_27_runtime_tables"
 down_revision = "m2026_10_18_client_ext"
 branch_labels = None
 depends_on = None
