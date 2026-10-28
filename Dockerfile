@@ -40,8 +40,8 @@ COPY scripts/create_admin.py scripts/server_admin.py scripts/bootstrap_db.py scr
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 # каталог опционального хранения фото лиц — сразу с правами appuser
 # (иначе named volume создаётся под root и API не сможет писать)
-RUN mkdir -p /app/data/face_photos /app/data_accounting /srv/media \
-    && chown -R appuser:appuser /app/data /app/data_accounting /srv/media
+RUN mkdir -p /app/data/face_photos /app/data_accounting /srv/media /srv/documents \
+    && chown -R appuser:appuser /app/data /app/data_accounting /srv/media /srv/documents
 USER appuser
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \

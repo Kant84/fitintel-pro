@@ -347,6 +347,7 @@ class QA:
         self.add(role, "Документы", "Все 6 встроенных шаблонов", not missing,
                  detail="отсутствуют: " + ", ".join(sorted(missing)) if missing else "")
         first_doc = None
+        first_archive = None
         for code in sorted(REQUIRED_TEMPLATES & set(by_code)):
             tpl = by_code[code]
             r = self.call(role, "Документы/" + code, "Создать документ", "POST", "/documents",
@@ -357,17 +358,35 @@ class QA:
                                        "date": "28.10.2026"}})
             if not r:
                 continue
-            doc_id = str((_json(r) or {}).get("document_id") or "")
+            data = _json(r) or {}
+            doc_id = str(data.get("document_id") or "")
+            archive = data.get("archive") or {}
             self.created["documents"].add(doc_id)
             first_doc = first_doc or doc_id
+            first_archive = first_archive or archive
+            archived = (
+                archive.get("version") == 1
+                and all(archive.get(key) for key in (
+                    "pdf_path", "pdf_sha256", "pdf_size",
+                    "docx_path", "docx_sha256", "docx_size",
+                ))
+            )
+            self.add(role, "Документы/" + code, "Серверная версия и SHA256", archived)
             self.call(role, "Документы/" + code, "Открыть документ", "GET", "/documents/" + doc_id)
             self.call(role, "Документы/" + code, "DOCX содержит данные клиента", "GET",
                       f"/documents/{doc_id}/download?format=docx",
-                      validator=lambda x, s=suffix: self._valid_docx(x, "QA" + s))
+                      validator=lambda x, s=suffix, a=archive:
+                          self._valid_docx(x, "QA" + s, a.get("docx_sha256")))
             self.call(role, "Документы/" + code, "PDF содержит кириллицу и данные", "GET",
                       f"/documents/{doc_id}/download?format=pdf",
-                      validator=lambda x, s=suffix: self._valid_pdf(x, "QA" + s))
+                      validator=lambda x, s=suffix, a=archive:
+                          self._valid_pdf(x, "QA" + s, a.get("pdf_sha256")))
         if first_doc:
+            if first_archive:
+                self.call(role, "Документы/версии", "История версий и SHA256", "GET",
+                          f"/documents/{first_doc}/versions",
+                          validator=lambda x, a=first_archive:
+                              self._valid_versions(x, a))
             self.call(role, "Документы/подпись", "Подписать QA-документ", "POST",
                       f"/documents/{first_doc}/sign", json={})
             self.call(role, "Документы/подпись", "Повторная подпись запрещена", "POST",
@@ -375,19 +394,61 @@ class QA:
             self.call(role, "Документы/подпись", "Статус подписи сохранён", "GET",
                       "/documents/" + first_doc,
                       validator=lambda x: "" if (_json(x) or {}).get("signed") else "документ не подписан")
+            if first_archive:
+                self.call(role, "Документы/подпись", "SHA256 после подписи не изменился", "GET",
+                          f"/documents/{first_doc}/download?format=pdf",
+                          validator=lambda x, a=first_archive:
+                              self._valid_archive(x, a.get("pdf_sha256")))
+                self.call(role, "Документы/версии", "Версия после подписи не изменилась", "GET",
+                          f"/documents/{first_doc}/versions",
+                          validator=lambda x, a=first_archive:
+                              self._valid_versions(x, a))
+            if role == "manager":
+                self.forbidden(role, "Документы/удаление",
+                               f"/documents/{first_doc}", "DELETE")
 
     @staticmethod
-    def _valid_docx(response: requests.Response, marker: str) -> str:
+    def _valid_versions(response: requests.Response, expected: dict) -> str:
+        versions = (_json(response) or {}).get("versions")
+        if not isinstance(versions, list) or len(versions) != 1:
+            return "ожидалась ровно одна архивная версия"
+        current = versions[0]
+        for key in ("version", "pdf_sha256", "pdf_size",
+                    "docx_sha256", "docx_size"):
+            if current.get(key) != expected.get(key):
+                return "метаданные версии не совпали: " + key
+        if any(key.endswith("_path") for key in current):
+            return "API истории раскрывает серверный путь"
+        return ""
+
+    @staticmethod
+    def _valid_archive(response: requests.Response, expected_sha256: str) -> str:
+        if not expected_sha256:
+            return "в ответе создания нет SHA256 архивной версии"
+        actual = hashlib.sha256(response.content).hexdigest()
+        if actual != expected_sha256:
+            return "SHA256 файла не совпал с архивной версией"
+        if response.headers.get("X-SHA256") != actual:
+            return "HTTP-заголовок SHA256 не совпал с файлом"
+        return ""
+
+    @staticmethod
+    def _valid_docx(response: requests.Response, marker: str,
+                    expected_sha256: str) -> str:
         if not response.content.startswith(b"PK"):
             return "ответ не DOCX/ZIP"
         try:
             with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
                 xml = archive.read("word/document.xml").decode("utf-8")
-            return "" if marker in xml else "тело документа потеряно: нет " + marker
+            if marker not in xml:
+                return "тело документа потеряно: нет " + marker
+            return QA._valid_archive(response, expected_sha256)
         except Exception as exc:
             return "DOCX не читается: " + str(exc)[:150]
 
-    def _valid_pdf(self, response: requests.Response, marker: str) -> str:
+    @staticmethod
+    def _valid_pdf(response: requests.Response, marker: str,
+                   expected_sha256: str) -> str:
         if not response.content.startswith(b"%PDF"):
             return "ответ не PDF"
         try:
@@ -400,7 +461,9 @@ class QA:
             return "PDF parser отсутствует; содержимое не доказано"
         except Exception as exc:
             return "PDF не читается: " + str(exc)[:150]
-        return "" if marker in text else "в PDF нет кириллических данных " + marker
+        if marker not in text:
+            return "в PDF нет кириллических данных " + marker
+        return QA._valid_archive(response, expected_sha256)
 
     def booking(self, role: str, client_id: str, suffix: str) -> None:
         when = (datetime.now(timezone.utc) + timedelta(days=3)).replace(microsecond=0)

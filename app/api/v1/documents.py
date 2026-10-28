@@ -25,10 +25,15 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import require_permission
 from app.db.session import get_db
+from app.services.audit_service import AuditService
+from app.services.document_archive import DocumentArchive
 
 router = APIRouter(prefix="/documents", tags=["Documents E33"])
+READ_DEP = Depends(require_permission("documents.read"))
+CREATE_DEP = Depends(require_permission("documents.create"))
+DELETE_DEP = Depends(require_permission("documents.delete"))
 
 
 def _insert(db: Session, table: str, data: dict):
@@ -186,8 +191,8 @@ def _doc_dict(r):
 
 @router.post("", status_code=201)
 def create_document(payload: DocumentCreate, db: Session = Depends(get_db),
-                    user=Depends(get_current_user)):
-    """E33.1/E33.2/E33.8-10 — создание документа по шаблону"""
+                    user=CREATE_DEP):
+    """Создаёт документ и первую неизменяемую серверную файловую версию."""
     if not payload.template_id:
         tpl = _get_template(db, None, payload.type)
         if not tpl:
@@ -199,29 +204,49 @@ def create_document(payload: DocumentCreate, db: Session = Depends(get_db),
     client = _get_client(db, payload.client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Клиент не найден")
+
     content = _render(tpl[3], client, payload.data)
     did = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
-    _insert(db, "documents", {
-        "id": did, "client_id": payload.client_id, "template_id": tpl[0],
-        "doc_type": payload.type, "title": tpl[2],
-        "filename": f"{tpl[1] or payload.type}.pdf",
-        "content_type": "application/pdf", "file_size": len(content.encode()),
-        "pdf_data": content,
-        "status": "draft",
-        "created_at": now, "updated_at": now,
-    })
-    db.commit()
+    pdf = _pdf_bytes(tpl[2], content)
+    docx = _docx_bytes(tpl[2], content)
+    archive = DocumentArchive()
+    files = archive.write_version(did, 1, pdf, docx)
+    try:
+        _insert(db, "documents", {
+            "id": did, "client_id": payload.client_id, "template_id": tpl[0],
+            "doc_type": payload.type, "title": tpl[2],
+            "filename": f"{tpl[1] or payload.type}.pdf",
+            "content_type": "application/pdf", "file_size": len(pdf),
+            "pdf_data": content, "generated_by": str(user.id),
+            "status": "draft", "created_at": now, "updated_at": now,
+        })
+        _insert(db, "document_versions", {
+            "id": str(uuid.uuid4()), "document_id": did, "version": 1,
+            **files, "created_by": str(user.id), "created_at": now,
+        })
+        db.commit()
+    except Exception:
+        db.rollback()
+        archive.delete([files["pdf_path"], files["docx_path"]])
+        raise
+
+    AuditService(db).created(
+        actor_user_id=user.id, entity_type="document", entity_id=did,
+        message="Документ и первая архивная версия созданы",
+        after_data={"version": 1, **files},
+    )
     return {"document_id": did,
             "pdf_url": f"/api/v1/documents/{did}/download?format=pdf",
             "type": payload.type, "client_id": payload.client_id,
             "template_id": tpl[0], "title": tpl[2], "content": content,
+            "archive": {"version": 1, **files},
             "message": "Документ создан"}
 
 
 @router.get("")
 def list_documents(client_id: Optional[str] = None, db: Session = Depends(get_db),
-                   user=Depends(get_current_user)):
+                   user=READ_DEP):
     """E33.3 — список документов (фильтр по клиенту)"""
     q = f"SELECT {_DOC_COLS} FROM documents"
     params = {}
@@ -235,7 +260,7 @@ def list_documents(client_id: Optional[str] = None, db: Session = Depends(get_db
 
 
 @router.get("/templates")
-def list_templates(db: Session = Depends(get_db), user=Depends(get_current_user)):
+def list_templates(db: Session = Depends(get_db), user=READ_DEP):
     """Список доступных шаблонов документов"""
     rows = db.execute(text(
         "SELECT id, code, name FROM document_templates ORDER BY code"
@@ -246,7 +271,7 @@ def list_templates(db: Session = Depends(get_db), user=Depends(get_current_user)
 
 @router.get("/{document_id}")
 def get_document(document_id: str, db: Session = Depends(get_db),
-                 user=Depends(get_current_user)):
+                 user=READ_DEP):
     """E33.4 — документ по ID"""
     r = db.execute(text(
         f"SELECT {_DOC_COLS} FROM documents WHERE id = :id"
@@ -256,9 +281,31 @@ def get_document(document_id: str, db: Session = Depends(get_db),
     return _doc_dict(r)
 
 
+@router.get("/{document_id}/versions")
+def list_document_versions(document_id: str, db: Session = Depends(get_db),
+                           user=READ_DEP):
+    """Публичные метаданные версий без раскрытия серверных путей."""
+    exists = db.execute(text(
+        "SELECT id FROM documents WHERE id = :id"
+    ), {"id": document_id}).fetchone()
+    if not exists:
+        raise HTTPException(status_code=404, detail="Документ не найден")
+    rows = db.execute(text(
+        "SELECT version, pdf_sha256, pdf_size, docx_sha256, docx_size, "
+        "created_by, created_at FROM document_versions "
+        "WHERE document_id = :id ORDER BY version DESC"
+    ), {"id": document_id}).fetchall()
+    return {"versions": [{
+        "version": row[0], "pdf_sha256": row[1], "pdf_size": row[2],
+        "docx_sha256": row[3], "docx_size": row[4],
+        "created_by": str(row[5]) if row[5] else None,
+        "created_at": str(row[6]) if row[6] else None,
+    } for row in rows]}
+
+
 @router.post("/{document_id}/sign")
 def sign_document(document_id: str, payload: SignRequest,
-                  db: Session = Depends(get_db), user=Depends(get_current_user)):
+                  db: Session = Depends(get_db), user=CREATE_DEP):
     """E33.5/E33.6 — простое подписание документа"""
     _cols = {row[0] for row in db.execute(text(
         "SELECT column_name FROM information_schema.columns WHERE table_name='documents'")).fetchall()}
@@ -278,33 +325,50 @@ def sign_document(document_id: str, payload: SignRequest,
         _sets.append("signed = TRUE")
     if "signed_at" in _cols:
         _sets.append("signed_at = :t")
+    if "signed_by" in _cols:
+        _sets.append("signed_by = :actor")
     if "updated_at" in _cols:
         _sets.append("updated_at = :t")
     if not _sets:
         raise HTTPException(status_code=500, detail="documents: нет колонок для подписания")
     db.execute(text(
         "UPDATE documents SET %s WHERE id = :id" % ", ".join(_sets)
-    ), {"t": now, "id": document_id})
+    ), {"t": now, "id": document_id, "actor": str(user.id)})
     db.commit()
+    AuditService(db).log(
+        action="document.sign", status="success", actor_user_id=user.id,
+        entity_type="document", entity_id=document_id,
+        message="Документ подписан; архивная версия не изменена",
+        after_data={"signed_at": now},
+    )
     return {"document_id": document_id, "signed": True, "signed_at": str(now),
             "message": "Документ подписан"}
 
 
 @router.delete("/{document_id}", status_code=204)
 def delete_document(document_id: str, db: Session = Depends(get_db),
-                    user=Depends(get_current_user)):
-    """E33.7 — удаление документа"""
+                    user=DELETE_DEP):
+    """Удаляет документ и его архивные файлы; права выдаёт только RBAC."""
+    paths = db.execute(text(
+        "SELECT pdf_path, docx_path FROM document_versions WHERE document_id = :id"
+    ), {"id": document_id}).fetchall()
     r = db.execute(text(
         "DELETE FROM documents WHERE id = :id RETURNING id"
     ), {"id": document_id}).fetchone()
     db.commit()
     if not r:
         raise HTTPException(status_code=404, detail="Документ не найден")
+    archive = DocumentArchive()
+    archive.delete([str(path) for row in paths for path in row])
+    AuditService(db).deleted(
+        actor_user_id=user.id, entity_type="document", entity_id=document_id,
+        message="Документ и его архивные файлы удалены",
+    )
     return Response(status_code=204)
 
 @router.post("/{document_id}/send-email")
 def send_document_email(document_id: str, payload: EmailRequest,
-                        db: Session = Depends(get_db), user=Depends(get_current_user)):
+                        db: Session = Depends(get_db), user=CREATE_DEP):
     """E33.11 — отправка документа на email (эмуляция)"""
     r = db.execute(text(
         "SELECT client_id FROM documents WHERE id = :id"
@@ -319,7 +383,7 @@ def send_document_email(document_id: str, payload: EmailRequest,
 
 @router.post("/{document_id}/print")
 def print_document(document_id: str, db: Session = Depends(get_db),
-                   user=Depends(get_current_user)):
+                   user=CREATE_DEP):
     """E33.12 — печать документа (эмуляция)"""
     r = db.execute(text(
         "SELECT id FROM documents WHERE id = :id"
@@ -332,8 +396,10 @@ def print_document(document_id: str, db: Session = Depends(get_db),
 
 @router.get("/{document_id}/download")
 def download_document(document_id: str, format: str = "pdf",
-                      db: Session = Depends(get_db), user=Depends(get_current_user)):
-    """E33.13/E33.14 — экспорт документа в PDF / DOCX"""
+                      db: Session = Depends(get_db), user=READ_DEP):
+    """Скачивает архивную версию; legacy-документы читает по-старому."""
+    if format not in ("pdf", "docx"):
+        raise HTTPException(status_code=400, detail="Неподдерживаемый формат")
     _cols = {row[0] for row in db.execute(text(
         "SELECT column_name FROM information_schema.columns WHERE table_name='documents'")).fetchall()}
     _c_title = next((c for c in ("title", "name") if c in _cols), None)
@@ -348,19 +414,50 @@ def download_document(document_id: str, format: str = "pdf",
     ), {"id": document_id}).fetchone()
     if not r:
         raise HTTPException(status_code=404, detail="Документ не найден")
-    if format == "pdf":
-        return Response(content=_pdf_bytes(r[0], r[1] or ""),
-                        media_type="application/pdf")
-    if format == "docx":
-        return Response(
-            content=_docx_bytes(r[0], r[1] or ""),
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-    raise HTTPException(status_code=400, detail="Неподдерживаемый формат")
+
+    version = db.execute(text(
+        "SELECT version, pdf_path, pdf_sha256, docx_path, docx_sha256 "
+        "FROM document_versions WHERE document_id = :id "
+        "ORDER BY version DESC LIMIT 1"
+    ), {"id": document_id}).mappings().fetchone()
+    if version:
+        try:
+            content = DocumentArchive().read(
+                version[f"{format}_path"], version[f"{format}_sha256"]
+            )
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Архивный файл не найден")
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        sha256 = version[f"{format}_sha256"]
+        version_number = version["version"]
+    else:
+        # Только для документов, созданных до появления архива. Если строка
+        # версии существует, потерянный/изменённый файл не подменяется генерацией.
+        content = (_pdf_bytes if format == "pdf" else _docx_bytes)(r[0], r[1] or "")
+        sha256 = None
+        version_number = None
+
+    AuditService(db).log(
+        action="document.download", status="success", actor_user_id=user.id,
+        entity_type="document", entity_id=document_id,
+        message="Выгружена копия документа",
+        after_data={"format": format, "version": version_number,
+                    "legacy": version is None, "sha256": sha256},
+    )
+    media_type = (
+        "application/pdf" if format == "pdf" else
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    headers = {"X-Document-Version": str(version_number or "legacy")}
+    if sha256:
+        headers["X-SHA256"] = sha256
+    return Response(content=content, media_type=media_type, headers=headers)
 
 
 @router.post("/{document_id}/sign-ep")
 def sign_document_ep(document_id: str, payload: SignEPRequest,
-                     db: Session = Depends(get_db), user=Depends(get_current_user)):
+                     db: Session = Depends(get_db), user=CREATE_DEP):
     """E33.15 — подписание электронной подписью (CAdES-эмуляция)"""
     r = db.execute(text(
         "SELECT id, signed FROM documents WHERE id = :id"
@@ -381,6 +478,8 @@ def sign_document_ep(document_id: str, payload: SignEPRequest,
         _sets2.append("status = 'signed'")
     if "signed_at" in _cols2:
         _sets2.append("signed_at = :t")
+    if "signed_by" in _cols2:
+        _sets2.append("signed_by = :actor")
     if "updated_at" in _cols2:
         _sets2.append("updated_at = :t")
     if "signature" in _cols2:
@@ -391,8 +490,15 @@ def sign_document_ep(document_id: str, payload: SignEPRequest,
         raise HTTPException(status_code=500, detail="documents: нет колонок для подписания")
     db.execute(text(
         "UPDATE documents SET %s WHERE id = :id" % ", ".join(_sets2)
-    ), {"t": now, "s": payload.certificate, "id": document_id})
+    ), {"t": now, "s": payload.certificate, "id": document_id,
+        "actor": str(user.id)})
     db.commit()
+    AuditService(db).log(
+        action="document.sign_ep", status="success", actor_user_id=user.id,
+        entity_type="document", entity_id=document_id,
+        message="Документ подписан ЭП; архивная версия не изменена",
+        after_data={"signed_at": now, "signature_format": "CAdES"},
+    )
     return {"document_id": document_id, "signed": True, "signed_at": str(now),
             "signature_valid": True, "signature_format": "CAdES",
             "message": "Документ подписан ЭП"}
