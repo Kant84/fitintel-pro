@@ -154,9 +154,14 @@ def update_tariff(
     # создаём сервис
     tariff_service = TariffService(db)
 
+    # Во внешнем API идентификатором является code; сервису нужен UUID.
+    existing = tariff_service.get_tariff_by_code(tariff_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Тариф не найден")
+
     # обновляем тариф
     tariff = tariff_service.update_tariff(
-        tariff_id=str(tariff_id),
+        tariff_id=str(existing.id),
         code=payload.code,
         name=payload.name,
         description=payload.description,

@@ -45,6 +45,7 @@ router = APIRouter(prefix="/roles", tags=["Roles"])
 
 @router.get("/", response_model=list[RoleRead])
 def get_roles(
+    current_user=Depends(require_permission("roles.read")),
     db: Session = Depends(get_db),
 ):
     """
@@ -70,6 +71,7 @@ def get_roles(
 @router.get("/{role_id}", response_model=RoleRead)
 def get_role(
     role_id: UUID,
+    current_user=Depends(require_permission("roles.read")),
     db: Session = Depends(get_db),
 ):
     """
@@ -99,6 +101,7 @@ def get_role(
 @router.get("/{role_id}/permissions", response_model=list[PermissionRead])
 def get_role_permissions(
     role_id: UUID,
+    current_user=Depends(require_permission("roles.read")),
     db: Session = Depends(get_db),
 ):
     """
