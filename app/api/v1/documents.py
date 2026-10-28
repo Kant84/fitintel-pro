@@ -9,12 +9,19 @@ import io
 import uuid
 import zipfile
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 from xml.sax.saxutils import escape as _xesc
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -74,39 +81,45 @@ def _render(content: str, client: dict, data: dict) -> str:
     return out
 
 
+_PDF_FONT = "FitIntelDejaVuSans"
+_PDF_FONT_PATH = (
+    Path(__file__).resolve().parents[3] / "static" / "fonts" / "DejaVuSans.ttf"
+)
+if not _PDF_FONT_PATH.is_file():
+    # Локальная разработка: в production Dockerfile копирует этот же шрифт
+    # в /app/static/fonts/DejaVuSans.ttf.
+    _PDF_FONT_PATH = (
+        Path(__file__).resolve().parents[3]
+        / "fitintel-desktop" / "assets" / "DejaVuSans.ttf"
+    )
+
+
 def _pdf_bytes(title: str, content: str) -> bytes:
-    def esc(s: str) -> str:
-        return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-    lines = [title or ""] + (content or "").split("\n")
-    parts = ["BT /F1 12 Tf 50 790 Td"]
-    for i, ln in enumerate(lines[:44]):
-        safe = esc(ln).encode("latin-1", "replace").decode("latin-1")
-        if i == 0:
-            parts.append(f"({safe}) Tj")
-        else:
-            parts.append(f"0 -17 Td ({safe}) Tj")
-    parts.append("ET")
-    stream = "\n".join(parts)
-    objects = [
-        "<< /Type /Catalog /Pages 2 0 R >>",
-        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
-        "/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-        f"<< /Length {len(stream.encode('latin-1'))} >>\nstream\n{stream}\nendstream",
-        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    ]
-    pdf = "%PDF-1.4\n"
-    offsets = []
-    for i, obj in enumerate(objects, 1):
-        offsets.append(len(pdf.encode("latin-1")))
-        pdf += f"{i} 0 obj\n{obj}\nendobj\n"
-    xref = len(pdf.encode("latin-1"))
-    pdf += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n"
-    for off in offsets:
-        pdf += f"{off:010d} 00000 n \n"
-    pdf += (f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
-            f"startxref\n{xref}\n%%EOF")
-    return pdf.encode("latin-1")
+    if _PDF_FONT not in pdfmetrics.getRegisteredFontNames():
+        if not _PDF_FONT_PATH.is_file():
+            raise RuntimeError("Unicode PDF font is not installed")
+        pdfmetrics.registerFont(TTFont(_PDF_FONT, str(_PDF_FONT_PATH)))
+
+    body_style = ParagraphStyle(
+        "DocumentBody", fontName=_PDF_FONT, fontSize=11, leading=16,
+        splitLongWords=True,
+    )
+    title_style = ParagraphStyle(
+        "DocumentTitle", parent=body_style, fontSize=15, leading=20,
+        spaceAfter=8,
+    )
+    story = [Paragraph(_xesc(title or "Документ"), title_style), Spacer(1, 2 * mm)]
+    story.extend(
+        Paragraph(_xesc(line) if line else "&#160;", body_style)
+        for line in (content or "").split("\n")
+    )
+    buf = io.BytesIO()
+    document = SimpleDocTemplate(
+        buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm,
+        topMargin=18 * mm, bottomMargin=18 * mm,
+    )
+    document.build(story)
+    return buf.getvalue()
 
 
 def _docx_bytes(title: str, content: str) -> bytes:
@@ -324,7 +337,10 @@ def download_document(document_id: str, format: str = "pdf",
     _cols = {row[0] for row in db.execute(text(
         "SELECT column_name FROM information_schema.columns WHERE table_name='documents'")).fetchall()}
     _c_title = next((c for c in ("title", "name") if c in _cols), None)
-    _c_body = next((c for c in ("content", "body", "text", "html") if c in _cols), None)
+    _c_body = next(
+        (c for c in ("content", "body", "text", "html", "pdf_data") if c in _cols),
+        None,
+    )
     if not _c_title:
         raise HTTPException(status_code=500, detail="documents: нет колонки title/name")
     r = db.execute(text(
