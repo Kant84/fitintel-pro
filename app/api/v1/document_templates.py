@@ -7,14 +7,11 @@ from sqlalchemy import text
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# auth опционально: если get_current_user нет - работаем без него
-try:
-    from app.api.v1.auth import get_current_user as _gcu
-    AUTH_DEP = Depends(_gcu)
-except Exception:
-    def _noop():
-        return None
-    AUTH_DEP = Depends(_noop)
+from app.api.dependencies import get_current_user as _gcu
+from app.api.dependencies import require_roles as _require_roles
+
+AUTH_DEP = Depends(_gcu)
+ADMIN_DEP = Depends(_require_roles("admin", "owner"))
 
 _engine = None
 def _eng():
@@ -54,12 +51,8 @@ def list_templates(user=AUTH_DEP):
 
 @router.post("")
 @router.post("/")
-def create_template(body: TemplateIn, user=AUTH_DEP):
-    import traceback
-    try:
-        return _create_inner(body)
-    except Exception:
-        return {"ok": False, "error": traceback.format_exc()}
+def create_template(body: TemplateIn, user=ADMIN_DEP):
+    return _create_inner(body)
 
 def _create_inner(body):
     _ensure()
@@ -78,7 +71,7 @@ def _create_inner(body):
     return {"ok": True, "code": code}
 
 @router.put("/{tpl_id}")
-def update_template(tpl_id: str, body: TemplateIn, user=AUTH_DEP):
+def update_template(tpl_id: str, body: TemplateIn, user=ADMIN_DEP):
     _ensure()
     rc = 0
     with _eng().begin() as c:
@@ -91,7 +84,7 @@ def update_template(tpl_id: str, body: TemplateIn, user=AUTH_DEP):
 
 @router.post("/upload")
 async def upload_template(file: UploadFile = File(...), name: str = Form(None),
-                          doc_type: str = Form("other"), user=AUTH_DEP):
+                          doc_type: str = Form("other"), user=ADMIN_DEP):
     """Загрузка шаблона из файла (.docx — текст извлекается, .txt — как есть)."""
     _ensure()
     raw = await file.read()
@@ -115,7 +108,7 @@ async def upload_template(file: UploadFile = File(...), name: str = Form(None),
     return _create_inner(body)
 
 @router.delete("/{tpl_id}")
-def delete_template(tpl_id: str, user=AUTH_DEP):
+def delete_template(tpl_id: str, user=ADMIN_DEP):
     _ensure()
     with _eng().begin() as c:
         c.execute(text("DELETE FROM document_templates WHERE id=:i"), {"i": tpl_id})

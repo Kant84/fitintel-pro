@@ -237,7 +237,8 @@ def client_bookings(
             .order_by(ServiceBooking.booking_date.desc())
             .limit(50).all())
     return [{
-        "id": str(b.id), "booking_date": b.booking_date.isoformat() if b.booking_date else None,
+        "id": str(b.id), "service_id": str(b.service_id),
+        "booking_date": b.booking_date.isoformat() if b.booking_date else None,
         "status": b.status, "price": b.price, "service_name": b.service.name if b.service else None,
     } for b in rows]
 
