@@ -53,6 +53,7 @@ services:
       - static_brand:/app/static/brand
       - clients_data:/app/static/clients
       - media_data:/srv/media
+      - documents_data:/srv/documents
       - accounting_data:/app/data_accounting
       - face_photos:/app/data/face_photos   # опциональное хранение фото лиц (если клуб включил)
     depends_on:
@@ -111,6 +112,7 @@ volumes:
   media_data:
     external: true
     name: deploy_media_data
+  documents_data:
   accounting_data:
     external: true
     name: deploy_accounting_data
