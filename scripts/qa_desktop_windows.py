@@ -407,6 +407,56 @@ class QA:
                 self.forbidden(role, "Документы/удаление",
                                f"/documents/{first_doc}", "DELETE")
 
+        mass_tpl = by_code.get("contract_standard")
+        if role == "admin" and mass_tpl:
+            r = self.call(role, "Документы/массовая генерация",
+                          "Создать документ с архивной версией", "POST",
+                          "/documents/mass-generate", expected=(201,), json={
+                              "template_id": mass_tpl.get("template_id") or mass_tpl.get("id"),
+                              "client_ids": [client_id]})
+            data = _json(r) or {}
+            mass_ids = data.get("document_ids") or []
+            self.created["documents"].update(str(x) for x in mass_ids if x)
+            mass_doc = str(mass_ids[0]) if len(mass_ids) == 1 else ""
+            mass_archive = (data.get("archive") or {}).get(mass_doc) or {}
+            archived = (
+                bool(mass_doc) and mass_archive.get("version") == 1
+                and all(mass_archive.get(key) for key in (
+                    "pdf_path", "pdf_sha256", "pdf_size",
+                    "docx_path", "docx_sha256", "docx_size",
+                ))
+            )
+            self.add(role, "Документы/массовая генерация",
+                     "Серверная версия и SHA256", archived)
+            if mass_doc:
+                job_id = str(data.get("job_id") or "")
+                self.call(role, "Документы/массовая генерация",
+                          "Задача содержит документ", "GET",
+                          f"/documents/mass-jobs/{job_id}",
+                          validator=lambda x, d=mass_doc:
+                              "" if d in ((_json(x) or {}).get("document_ids") or [])
+                              else "документ не найден в задаче")
+                self.call(role, "Документы/массовая генерация",
+                          "DOCX содержит данные клиента", "GET",
+                          f"/documents/{mass_doc}/download?format=docx",
+                          validator=lambda x, s=suffix, a=mass_archive:
+                              self._valid_docx(x, "QA" + s, a.get("docx_sha256")))
+                self.call(role, "Документы/массовая генерация",
+                          "PDF содержит кириллицу и данные", "GET",
+                          f"/documents/{mass_doc}/download?format=pdf",
+                          validator=lambda x, s=suffix, a=mass_archive:
+                              self._valid_pdf(x, "QA" + s, a.get("pdf_sha256")))
+                self.call(role, "Документы/массовая генерация",
+                          "История версий и SHA256", "GET",
+                          f"/documents/{mass_doc}/versions",
+                          validator=lambda x, a=mass_archive:
+                              self._valid_versions(x, a))
+        elif role == "manager" and mass_tpl:
+            self.forbidden(role, "Документы/массовая генерация",
+                           "/documents/mass-generate", "POST", json={
+                               "template_id": mass_tpl.get("template_id") or mass_tpl.get("id"),
+                               "client_ids": [client_id]})
+
     @staticmethod
     def _valid_versions(response: requests.Response, expected: dict) -> str:
         versions = (_json(response) or {}).get("versions")
