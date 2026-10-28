@@ -24,6 +24,9 @@ except ImportError:  # pragma: no cover
         from app.database import get_db
 
 from app.api.dependencies import get_current_user, require_roles
+from app.api.v1.documents import _docx_bytes, _pdf_bytes
+from app.services.audit_service import AuditService
+from app.services.document_archive import DocumentArchive
 
 router = APIRouter(prefix="/documents", tags=["documents-bulk"])
 
@@ -123,40 +126,71 @@ def mass_generate(payload: MassGenerateRequest, db: Session = Depends(get_db),
     job_id = str(uuid.uuid4())
     doc_ids, errors, done = [], [], 0
     actor = str(getattr(user, "id", "") or "admin")
-    for cid in payload.client_ids:
-        client = _get_client(db, cid)
-        if not client:
-            errors.append(f"{cid}: клиент не найден")
-            continue
-        doc_id = str(uuid.uuid4())
-        _insert(db, "documents", {
-            "id": doc_id,
-            "doc_type": tpl.get("code") or "contract",
-            "title": title,
-            "content": _render(body, client),
-            "client_id": cid,
-            "template_id": str(tpl.get("id")),
-            "status": "generated",
-            "signed": False,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now(),
+    archive = DocumentArchive()
+    archives = {}
+    written_paths = []
+    try:
+        for cid in payload.client_ids:
+            client = _get_client(db, cid)
+            if not client:
+                errors.append(f"{cid}: клиент не найден")
+                continue
+            doc_id = str(uuid.uuid4())
+            content = _render(body, client)
+            pdf = _pdf_bytes(title, content)
+            docx = _docx_bytes(title, content)
+            files = archive.write_version(doc_id, 1, pdf, docx)
+            written_paths.extend((files["pdf_path"], files["docx_path"]))
+            now = datetime.now()
+            _insert(db, "documents", {
+                "id": doc_id,
+                "doc_type": tpl.get("code") or "contract",
+                "title": title,
+                "filename": f"{tpl.get('code') or 'document'}.pdf",
+                "content_type": "application/pdf",
+                "file_size": len(pdf),
+                "content": content,
+                "pdf_data": content,
+                "client_id": cid,
+                "template_id": str(tpl.get("id")),
+                "generated_by": actor,
+                "status": "generated",
+                "signed": False,
+                "created_at": now,
+                "updated_at": now,
+            })
+            _insert(db, "document_versions", {
+                "id": str(uuid.uuid4()), "document_id": doc_id, "version": 1,
+                **files, "created_by": actor, "created_at": now,
+            })
+            _event(db, doc_id, "created", actor)
+            _event(db, doc_id, "generated", actor)
+            doc_ids.append(doc_id)
+            archives[doc_id] = {"version": 1, **files}
+            done += 1
+        failed = len(payload.client_ids) - done
+        now = _fmt(datetime.now())
+        _insert(db, "document_jobs", {
+            "id": job_id, "template_id": str(tpl.get("id")), "total": len(payload.client_ids),
+            "done": done, "failed": failed, "status": "done",
+            "document_ids": json.dumps(doc_ids), "errors": json.dumps(errors, ensure_ascii=False),
+            "created_at": now, "finished_at": now,
         })
-        _event(db, doc_id, "created", actor)
-        _event(db, doc_id, "generated", actor)
-        doc_ids.append(doc_id)
-        done += 1
-    failed = len(payload.client_ids) - done
-    now = _fmt(datetime.now())
-    _insert(db, "document_jobs", {
-        "id": job_id, "template_id": str(tpl.get("id")), "total": len(payload.client_ids),
-        "done": done, "failed": failed, "status": "done",
-        "document_ids": json.dumps(doc_ids), "errors": json.dumps(errors, ensure_ascii=False),
-        "created_at": now, "finished_at": now,
-    })
-    db.commit()
+        db.commit()
+    except Exception:
+        db.rollback()
+        archive.delete(written_paths)
+        raise
+
+    for doc_id in doc_ids:
+        AuditService(db).created(
+            actor_user_id=user.id, entity_type="document", entity_id=doc_id,
+            message="Массовая генерация: документ и архивная версия созданы",
+            after_data=archives[doc_id],
+        )
     return {"job_id": job_id, "total": len(payload.client_ids), "done": done,
             "failed": failed, "document_ids": doc_ids, "errors": errors,
-            "message": "Массовая генерация завершена"}
+            "archive": archives, "message": "Массовая генерация завершена"}
 
 
 @router.get("/mass-jobs")
