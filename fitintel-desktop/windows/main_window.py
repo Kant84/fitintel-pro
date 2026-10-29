@@ -195,7 +195,7 @@ class MainWindow(QMainWindow):
             return SettingsHubTab(self.api, self)
         if code == "accounting":
             from windows.finance_hub_tab import FinanceHubTab
-            return FinanceHubTab(self.api)
+            return FinanceHubTab(self.api, (self.user or {}).get("permissions"))
         if code == "ai_center":
             from windows.ai_hub_tab import AIHubTab
             return AIHubTab(self.api)

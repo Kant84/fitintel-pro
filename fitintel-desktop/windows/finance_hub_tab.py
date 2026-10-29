@@ -11,7 +11,15 @@ _MOD2CLS = {
     "payroll_tab": "PayrollTab",
 }
 
-def FinanceHubTab(api):
+# Суб-вкладки, требующие конкретного права: без права скрываем.
+_PERM_REQUIRED = {
+    "Документы": "documents.read",
+    "Тарифы": "tariffs.read",
+    "Зарплата": "users.read",
+}
+
+
+def FinanceHubTab(api, perms=None):
     import importlib
 
     def _build(name):
@@ -20,8 +28,15 @@ def FinanceHubTab(api):
             return getattr(mod, _MOD2CLS[name])(api)
         return _f
 
-    specs = [(_t, _build(_m)) for _t, _m in _ITEMS]
+    avail = None if perms is None else set(perms)
+    specs = []
+    for _t, _m in _ITEMS:
+        need = _PERM_REQUIRED.get(_t)
+        if avail is not None and need and need not in avail:
+            continue
+        specs.append((_t, _build(_m)))
     return HubTab(api, specs)
+
 
 _ITEMS = [
     ("Платежи", "payments_tab"),
