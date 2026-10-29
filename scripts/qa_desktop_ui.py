@@ -72,6 +72,10 @@ DESKTOP_TOP_LEVEL = {
 UNRESTRICTED_CODES = DESKTOP_TOP_LEVEL - set().union(
     *(m.keys() for m in ROLE_MATRIX.values()))
 
+# Суб-вкладки бухгалтерии: при скрытом accounting desktop показывает их
+# самостоятельными пунктами меню.
+STANDALONE_CODES = {"payments", "reports", "documents", "tariffs"}
+
 
 class UIQA:
     def __init__(self, app: QApplication) -> None:
@@ -308,9 +312,16 @@ class UIQA:
                 self.add(role, "Главное окно", "Матрица экранов роли", None,
                          "роль не описана в ROLE_MATRIX")
             else:
+                matrix = ROLE_MATRIX[role]
                 expected_top = expected & DESKTOP_TOP_LEVEL
+                if not matrix.get("accounting", False):
+                    # accounting скрыт: видимые суб-вкладки обязаны быть
+                    # самостоятельными пунктами меню
+                    expected_top |= {c for c in STANDALONE_CODES
+                                     if matrix.get(c)}
                 missing = sorted(expected_top - set(codes))
-                extra = sorted(set(codes) - expected - UNRESTRICTED_CODES)
+                extra = sorted(set(codes) - expected
+                               - UNRESTRICTED_CODES - STANDALONE_CODES)
                 self.add(role, "Главное окно", "Все обязательные экраны доступны",
                          not missing, "нет: " + ", ".join(missing) if missing else "")
                 self.add(role, "Главное окно", "Нет экранов сверх матрицы",
