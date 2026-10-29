@@ -29,7 +29,7 @@ for mod in ("app.db.session", "app.core.database", "app.database"):
 router = APIRouter(prefix="/ui-config", tags=["UI Config"])
 
 ROLES = ["superadmin", "admin", "manager", "trainer", "reception",
-         "cashier", "accountant", "support", "owner"]
+         "cashier", "accountant", "support", "owner", "security"]
 DEFAULT_PROFILES = {
     "superadmin": ["dashboard", "clients", "subscriptions", "visits", "schedule",
                    "payments", "music", "reports", "analytics", "documents", "devices",
@@ -47,6 +47,7 @@ DEFAULT_PROFILES = {
     "accountant": ["dashboard", "payments", "reports", "documents", "analytics"],
     "support": ["dashboard", "clients", "visits"],
     "owner": ["dashboard", "analytics", "reports", "payments", "music"],
+    "security": ["dashboard", "clients", "visits", "face_id"],
 }
 
 PROTECTED_SUPERADMIN_SCREEN = "ui_config"
@@ -78,7 +79,7 @@ def _user_role(user: Any) -> str:
     if roles:
         try:
             first = list(roles)[0]
-            name = getattr(first, "name", None) or getattr(first, "code", None)
+            name = getattr(first, "code", None) or getattr(first, "name", None)
             if name is None and isinstance(first, str):
                 name = first
             if name:
