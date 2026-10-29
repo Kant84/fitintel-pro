@@ -381,6 +381,18 @@ class UIQA:
         return 0 if counts["FAIL"] == 0 else 1
 
 
+_QA_PASSWORD_ENV = "FITINTEL_QA_PASSWORD"
+
+
+def _qa_password(role: str) -> str:
+    import getpass as _gp
+    import os as _os
+    pw = _os.environ.get(_QA_PASSWORD_ENV, "").strip()
+    if pw:
+        return pw
+    return _gp.getpass(f"Пароль {role} (не отображается): ")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--confirm-test", required=True, choices=["192.168.101.14"])
@@ -393,8 +405,8 @@ def main() -> int:
     if health.status_code != 200:
         print("TEST_HEALTH_FAILED=1")
         return 2
-    admin_password = getpass.getpass("Пароль SuperAdmin (не отображается): ")
-    manager_password = getpass.getpass("Пароль Manager (не отображается): ")
+    admin_password = _qa_password("SuperAdmin")
+    manager_password = _qa_password("Manager")
     app = QApplication([])
     qa = UIQA(app)
     qa.install_guards()
@@ -409,7 +421,7 @@ def main() -> int:
                 qa.add(role or spec, "Запуск", "Некорректный --role-login", False, spec)
                 continue
             qa.run_role(role, login,
-                        getpass.getpass(f"Пароль {role} (не отображается): "))
+                        _qa_password(role))
     finally:
         for window in qa.windows:
             for timer in window.findChildren(QTimer):
