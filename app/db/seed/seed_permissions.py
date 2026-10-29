@@ -636,6 +636,19 @@ def seed_permissions(db) -> None:
         permission_codes=["clients.read", "visits.read", "lockers.read"],
     )
 
+    # reception (Ресепшен): продажа и приём оплаты
+    bind_permissions_to_role(
+        db,
+        role_code="reception",
+        permission_codes=[
+            "clients.read",
+            "tariffs.read",
+            "subscriptions.read", "subscriptions.create", "subscriptions.update",
+            "payments.read", "payments.create",
+            "visits.read", "visits.create",
+        ],
+    )
+
     # cashier работает с продажей и абонементами, но не меняет тарифы
     bind_permissions_to_role(
         db,
