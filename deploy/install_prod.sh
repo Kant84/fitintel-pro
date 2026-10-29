@@ -8,6 +8,20 @@ COMPOSE_FILE="$SCRIPT_DIR/docker-compose.prod.yml"
 
 cd "$ROOT_DIR"
 
+OFFLINE_MODE=0
+OFFLINE_DIR="${FITINTEL_OFFLINE_DIR:-$SCRIPT_DIR/offline-images}"
+for arg in "$@"; do
+    case "$arg" in
+        --offline)
+            OFFLINE_MODE=1
+            ;;
+        *)
+            echo "Unknown installer option: $arg" >&2
+            exit 1
+            ;;
+    esac
+done
+
 if [ "${EUID}" -ne 0 ]; then
     echo "Run the production installer with sudo" >&2
     exit 1
@@ -103,11 +117,27 @@ fi
 chmod 600 "$MEDIA_SECRET_FILE"
 echo "PRODUCTION_RUNTIME_RESOURCES_OK=1"
 
-echo "Building FitIntel production image..."
-docker build -t fitintel:prod .
+if [ "$OFFLINE_MODE" -eq 1 ]; then
+    echo "Offline mode: loading prebuilt images from $OFFLINE_DIR"
+    shopt -s nullglob
+    image_tars=("$OFFLINE_DIR"/*.tar)
+    shopt -u nullglob
+    if [ "${#image_tars[@]}" -eq 0 ]; then
+        echo "No image tarballs found in $OFFLINE_DIR" >&2
+        echo "Prepare them with: bash deploy/prepare_offline_bundle.sh" >&2
+        exit 1
+    fi
+    for image_tar in "${image_tars[@]}"; do
+        echo "Loading $image_tar"
+        docker load -i "$image_tar"
+    done
+else
+    echo "Building FitIntel production image..."
+    docker build -t fitintel:prod .
 
-echo "Pulling infrastructure images..."
-compose pull db redis nginx
+    echo "Pulling infrastructure images..."
+    compose pull db redis nginx
+fi
 
 echo "Starting PostgreSQL and Redis..."
 compose up -d db redis
