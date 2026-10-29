@@ -58,6 +58,20 @@ def expected_screens(role):
         return None
     return {code for code, visible in matrix.items() if visible}
 
+# Топ-уровневые коды desktop (TAB_REGISTRY в main_window.py).
+# Суб-вкладки (payments/reports/documents/tariffs и пр.) не являются
+# пунктами меню и в этой проверке не участвуют.
+DESKTOP_TOP_LEVEL = {
+    "dashboard", "clients", "subscriptions", "services", "visits",
+    "schedule", "music", "users", "face_id", "settings", "banks",
+    "connections", "accounting", "ai_center", "shop", "messenger",
+    "notifications", "credentials", "audit",
+}
+# Коды desktop, которых нет в матрице вообще: desktop добавляет их
+# по имени пользователя (superadmin), матрицей не управляются.
+UNRESTRICTED_CODES = DESKTOP_TOP_LEVEL - set().union(
+    *(m.keys() for m in ROLE_MATRIX.values()))
+
 
 class UIQA:
     def __init__(self, app: QApplication) -> None:
@@ -294,8 +308,9 @@ class UIQA:
                 self.add(role, "Главное окно", "Матрица экранов роли", None,
                          "роль не описана в ROLE_MATRIX")
             else:
-                missing = sorted(expected - set(codes))
-                extra = sorted(set(codes) - expected)
+                expected_top = expected & DESKTOP_TOP_LEVEL
+                missing = sorted(expected_top - set(codes))
+                extra = sorted(set(codes) - expected - UNRESTRICTED_CODES)
                 self.add(role, "Главное окно", "Все обязательные экраны доступны",
                          not missing, "нет: " + ", ".join(missing) if missing else "")
                 self.add(role, "Главное окно", "Нет экранов сверх матрицы",
@@ -362,7 +377,7 @@ def main() -> int:
     try:
         qa.run_role("admin", args.admin_login, admin_password)
         qa.run_role("manager", args.manager_login, manager_password)
-        for svc_role in ("client", "device"):
+        for svc_role in ("client", "device", "platform"):
             qa.add(svc_role, "Запуск", "Сервисная роль без UI-входа", None, "пропуск")
         for spec in args.role_login:
             role, sep, login = spec.partition("=")
