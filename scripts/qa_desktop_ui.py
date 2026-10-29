@@ -50,6 +50,10 @@ ROLE_MATRIX = {
         "users": 0, "visits": 1},
     "trainer": {"audit": 0, "banks": 0, "shop": 0, "dashboard": 1,
         "clients": 1, "schedule": 1, "visits": 1},
+    "security": {"audit": 0, "banks": 0, "shop": 0, "dashboard": 1,
+        "clients": 1, "visits": 1, "face_id": 1},
+    "reception": {"audit": 0, "banks": 0, "shop": 0, "dashboard": 1,
+        "clients": 1, "subscriptions": 1, "visits": 1, "payments": 1},
 }
 
 def expected_screens(role):
