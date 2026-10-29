@@ -72,6 +72,13 @@ def upgrade():
                 ON CONFLICT (role_id, permission_id) DO NOTHING
             """), {"role": role, "code": code})
 
+    # Каталог экранов: регистрируем music (connections/credentials уже есть).
+    bind.execute(sa.text("""
+        INSERT INTO ui_screens (code, name)
+        SELECT 'music', 'Музыка/DJ'
+        WHERE NOT EXISTS (SELECT 1 FROM ui_screens WHERE code = 'music')
+    """))
+
     for screen, rows in MATRIX.items():
         for role, visible in rows:
             bind.execute(sa.text("""
