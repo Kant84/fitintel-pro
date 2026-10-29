@@ -76,7 +76,9 @@ def upgrade():
         for role, visible in rows:
             bind.execute(sa.text("""
                 INSERT INTO ui_role_screens (id, role, screen_code, is_visible)
-                SELECT gen_random_uuid(), :role, :screen, :vis
+                SELECT gen_random_uuid(),
+                       CAST(:role AS varchar), CAST(:screen AS varchar),
+                       CAST(:vis AS boolean)
                 WHERE NOT EXISTS (
                     SELECT 1 FROM ui_role_screens
                     WHERE role = :role AND screen_code = :screen
