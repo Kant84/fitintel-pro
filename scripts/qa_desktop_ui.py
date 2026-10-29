@@ -55,6 +55,15 @@ ROLE_MATRIX = {
     "reception": {"audit": 0, "banks": 0, "shop": 0, "dashboard": 1,
         "clients": 1, "subscriptions": 1, "visits": 1, "payments": 1},
 }
+# Согласование с миграцией m2026_10_30_reception_alignment: экраны,
+# скрытые за отсутствием права.
+ROLE_MATRIX["accountant"]["users"] = 0
+ROLE_MATRIX["cashier"]["users"] = 0
+ROLE_MATRIX["cashier"]["documents"] = 0
+ROLE_MATRIX["support"]["users"] = 0
+ROLE_MATRIX["support"]["subscriptions"] = 0
+ROLE_MATRIX["support"]["documents"] = 0
+ROLE_MATRIX["support"]["tariffs"] = 0
 
 def expected_screens(role):
     matrix = ROLE_MATRIX.get(role)
