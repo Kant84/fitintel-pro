@@ -32,6 +32,10 @@ from windows.shop_tab import ShopTab
 from windows.reports_tab import ReportsTab
 from windows.documents_tab import DocumentsTab
 from windows.roles_tab import RolesTab
+from windows.documents_tab import DocumentsTab
+from windows.payments_tab import PaymentsTab
+from windows.reports_tab import ReportsTab
+from windows.tariffs_tab import TariffsTab
 from windows.setup_tab import SetupTab
 from windows.tariffs_tab import TariffsTab
 
@@ -54,6 +58,15 @@ TAB_REGISTRY = {
     "accounting":    ("Бухгалтерия", QWidget),
     "ai_center":     ("AI центр", QWidget),
     "shop":          ("Магазин", ShopTab),
+}
+
+# Самостоятельные пункты меню, если хаб "Бухгалтерия" скрыт матрицей,
+# но суб-вкладки (payments/reports/documents/tariffs) разрешены.
+STANDALONE_TABS = {
+    "payments":   ("Платежи", PaymentsTab),
+    "reports":    ("Отчёты", ReportsTab),
+    "documents":  ("Документы", DocumentsTab),
+    "tariffs":    ("Тарифы", TariffsTab),
 }
 
 DEFAULT_TABS = ["dashboard", "clients", "subscriptions", "tariffs", "visits", "services",
@@ -186,7 +199,7 @@ class MainWindow(QMainWindow):
         if code == "ai_center":
             from windows.ai_hub_tab import AIHubTab
             return AIHubTab(self.api)
-        cls = TAB_REGISTRY[code][1]
+        cls = (STANDALONE_TABS.get(code) or TAB_REGISTRY[code])[1]
         return cls(self.api)
 
     def _build_tab(self, code: str):
@@ -224,10 +237,19 @@ class MainWindow(QMainWindow):
         self._codes = []
 
         added = set()
-        for code in self._visible_screen_codes():
-            if code in added or code not in TAB_REGISTRY:
+        visible_codes = self._visible_screen_codes()
+        registry = TAB_REGISTRY
+        if "accounting" not in visible_codes:
+            # accounting скрыт: разрешённые суб-вкладки показываем
+            # самостоятельными пунктами меню
+            registry = dict(TAB_REGISTRY)
+            for code, spec in STANDALONE_TABS.items():
+                if code in visible_codes and code not in registry:
+                    registry[code] = spec
+        for code in visible_codes:
+            if code in added or code not in registry:
                 continue
-            title = TAB_REGISTRY[code][0]
+            title = registry[code][0]
             item = QListWidgetItem(title)
             item.setIcon(_icon(code))
             item.setSizeHint(QSize(-1, 38))

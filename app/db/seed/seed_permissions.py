@@ -569,15 +569,71 @@ def seed_permissions(db) -> None:
         ],
     )
 
-    # trainer может только читать CRM-сущности
+    # trainer читает клиентов и посещения
     bind_permissions_to_role(
         db,
         role_code="trainer",
+        permission_codes=["clients.read", "visits.read"],
+    )
+
+    # cashier: продажа, оплата, чеки
+    bind_permissions_to_role(
+        db,
+        role_code="cashier",
         permission_codes=[
             "clients.read",
             "tariffs.read",
             "subscriptions.read",
+            "payments.read",
+            "payments.create",
+            "visits.read",
+            "receipts.read",
+            "receipts.send",
         ],
+    )
+
+    # accountant: финансы, документы, касса
+    bind_permissions_to_role(
+        db,
+        role_code="accountant",
+        permission_codes=[
+            "clients.read",
+            "tariffs.read",
+            "subscriptions.read",
+            "payments.read",
+            "payments.update",
+            "visits.read",
+            "documents.read",
+            "cash_desk.read",
+        ],
+    )
+
+    # owner: полный рабочий набор manager + сотрудники и возвраты
+    bind_permissions_to_role(
+        db,
+        role_code="owner",
+        permission_codes=[
+            "clients.read", "clients.create", "clients.update",
+            "tariffs.read", "tariffs.create", "tariffs.update",
+            "subscriptions.read", "subscriptions.create", "subscriptions.update",
+            "visits.read", "visits.create", "visits.update",
+            "payments.read", "payments.create", "payments.update",
+            "users.read", "payments.refund",
+        ],
+    )
+
+    # support: минимальный доступ
+    bind_permissions_to_role(
+        db,
+        role_code="support",
+        permission_codes=["clients.read", "settings.read"],
+    )
+
+    # security (Охрана/СКУД): доступ и шкафчики
+    bind_permissions_to_role(
+        db,
+        role_code="security",
+        permission_codes=["clients.read", "visits.read", "lockers.read"],
     )
 
     # cashier работает с продажей и абонементами, но не меняет тарифы
