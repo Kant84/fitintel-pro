@@ -46,7 +46,7 @@ def SettingsHubTab(api, main_window=None):
         if have_perms:
             if _title == "Мастер установки" and "settings.read" not in perms:
                 continue
-            if _title == "Экраны ролей" and False:
-                pass
+            if _title == "Экраны ролей" and not is_admin:
+                continue
         specs.append((_title, _build(_mod)))
     return HubTab(api, specs, main_window)
