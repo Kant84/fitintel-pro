@@ -29,7 +29,7 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 
 ; ── Файлы ───────────────────────────────────────────
 [Files]
-Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\FitIntelDesktop\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 ; mpv, tools\nssm.exe, assets, scripts\music — уже внутри exe (onefile),
 ; поэтому отдельно копировать НЕ НУЖНО.
 
