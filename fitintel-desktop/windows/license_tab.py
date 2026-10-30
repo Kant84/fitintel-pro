@@ -312,10 +312,18 @@ def _e67_init(self, *a, **kw):
 LicenseTab.__init__ = _e67_init
 
 # === E68_ACTIVATE_FROM_CLIENT v2 ===
+def _e68_settings_path():
+    try:
+        from paths import APP_DIR
+        return APP_DIR / "client_settings.json"
+    except Exception:
+        return "client_settings.json"
+
+
 def _e68_base():
     import json as _j
     try:
-        cfg = _j.load(open("client_settings.json", encoding="utf-8"))
+        cfg = _j.load(open(_e68_settings_path(), encoding="utf-8"))
         return cfg.get("api_base") or cfg.get("base_url") or cfg.get("server_url") or "http://localhost:8001/api/v1"
     except Exception:
         return "http://localhost:8001/api/v1"
@@ -323,7 +331,7 @@ def _e68_base():
 def _e68_token(skip_stored=False):
     import json as _j, urllib.request as _u
     try:
-        cfg = _j.load(open("client_settings.json", encoding="utf-8"))
+        cfg = _j.load(open(_e68_settings_path(), encoding="utf-8"))
     except Exception as e:
         print("[E68] client_settings:", e)
         return None
