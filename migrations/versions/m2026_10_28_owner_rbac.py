@@ -14,19 +14,26 @@ depends_on = None
 
 def upgrade():
     # Используем логин из активной лицензии, а не installer server-admin.
+    # license_state — runtime-таблица старых установок; в чистом baseline
+    # её может не быть — тогда назначение не требуется.
     op.execute(sa.text("""
-        INSERT INTO user_roles (
-            id, user_id, role_id, assigned_at, created_at, updated_at
-        )
-        SELECT gen_random_uuid(), u.id, r.id,
-               CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-        FROM license_state AS ls
-        JOIN users AS u ON lower(u.username) = lower(ls.superadmin_login)
-        JOIN roles AS r ON r.code = 'admin'
-        WHERE ls.id = 1
-          AND u.is_active = TRUE
-          AND u.is_superuser = TRUE
-        ON CONFLICT (user_id, role_id) DO NOTHING
+        DO $$
+        BEGIN
+            IF to_regclass('public.license_state') IS NOT NULL THEN
+                INSERT INTO user_roles (
+                    id, user_id, role_id, assigned_at, created_at, updated_at
+                )
+                SELECT gen_random_uuid(), u.id, r.id,
+                       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                FROM license_state AS ls
+                JOIN users AS u ON lower(u.username) = lower(ls.superadmin_login)
+                JOIN roles AS r ON r.code = 'admin'
+                WHERE ls.id = 1
+                  AND u.is_active = TRUE
+                  AND u.is_superuser = TRUE
+                ON CONFLICT (user_id, role_id) DO NOTHING;
+            END IF;
+        END $$;
     """))
 
 
