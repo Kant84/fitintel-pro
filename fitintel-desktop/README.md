@@ -61,4 +61,4 @@ desktop/
 ```
 
 ## Лицензия
-© 2026 ИП Санакин А.В. | FitIntel Pro v1.3.0
+© 2026 FitIntel Pro v1.6.1

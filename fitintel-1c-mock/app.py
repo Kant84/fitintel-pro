@@ -12,7 +12,7 @@ app = Flask(__name__)
 app.url_map.strict_slashes = False
 
 API_KEY   = os.environ.get("MOCK_API_KEY", "fitintel-mock-key-2026")
-AUTH_USER = os.environ.get("MOCK_USER", "СанакинАВ")
+AUTH_USER = os.environ.get("MOCK_USER", "admin")
 AUTH_PASS = os.environ.get("MOCK_PASSWORD", "demo123")
 APP_VERSION = "2.0.0-full-schema"
 
