@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt
 
 
 class ActivationDialog(QDialog):
-    def __init__(self, api_base: str, parent=None):
+    def __init__(self, api_base: str, parent=None, preset_key: str = ""):
         super().__init__(parent)
         self.api_base = api_base.rstrip("/")
         self.token = None
@@ -28,6 +28,8 @@ class ActivationDialog(QDialog):
         lay.addWidget(title)
         self.ed_key = QLineEdit()
         self.ed_key.setPlaceholderText("Лицензионный ключ (FIPRO-...)")
+        if preset_key:
+            self.ed_key.setText(preset_key)
         lay.addWidget(self.ed_key)
         row = QHBoxLayout()
         b_act = QPushButton("Активировать и войти")
