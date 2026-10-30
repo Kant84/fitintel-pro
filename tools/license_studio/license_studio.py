@@ -13,7 +13,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives import serialization
 from cryptography.exceptions import InvalidSignature
 
-DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, "frozen", False):
+    # PyInstaller onefile: ключи и реестр лежат РЯДОМ С EXE, а не в _MEI temp.
+    DIR = os.path.dirname(sys.executable)
+else:
+    DIR = os.path.dirname(os.path.abspath(__file__))
 PRIV_FILE = os.path.join(DIR, "license_private.key")   # ТОЛЬКО у владельца! В git НЕ коммитить!
 PUB_FILE  = os.path.join(DIR, "license_public.key")    # копия → репо: app/core/license_public.pem
 REG_FILE = os.path.join(DIR, "licenses_issued.json")
