@@ -3,7 +3,7 @@
 #define MyAppVersion "1.6.1"
 #define MyAppPublisher "FitIntel Systems"
 #define MyAppExeName "FitIntelDesktop.exe"
-#define MyDefaultApiBase "http://localhost/api/v1"
+#define MyDefaultApiBase "http://192.168.101.14/api/v1"
 
 ; ── Секция [Setup] ──────────────────────────────────
 [Setup]
@@ -105,5 +105,28 @@ begin
     // авторизацию прежнего сервера в конфигурации нового подключения.
     if not SaveStringToFile(JsonFile, JsonStr, False) then
       RaiseException('Не удалось сохранить адрес сервера в client_settings.json');
+
+    // connections.json: единственный профиль с введённым сервером.
+    // Иначе stale-профиль переживёт переустановку и авто-подключение
+    // перекроет api_base старым адресом.
+    JsonFile := ExpandConstant('{app}\connections.json');
+    JsonStr :=
+      '[' + #13#10 +
+      '  {' + #13#10 +
+      '    "name": "Сервер клуба",' + #13#10 +
+      '    "type": "web",' + #13#10 +
+      '    "local_path": "",' + #13#10 +
+      '    "web_url": "' + ApiBase + '",' + #13#10 +
+      '    "web_login": "",' + #13#10 +
+      '    "web_pass": "",' + #13#10 +
+      '    "db_host": "",' + #13#10 +
+      '    "db_port": "",' + #13#10 +
+      '    "db_name": "",' + #13#10 +
+      '    "db_user": "",' + #13#10 +
+      '    "db_pass": ""' + #13#10 +
+      '  }' + #13#10 +
+      ']';
+    if not SaveStringToFile(JsonFile, JsonStr, False) then
+      RaiseException('Не удалось сохранить connections.json');
   end;
 end;
