@@ -82,6 +82,33 @@ def _auto_connect_if_single() -> dict | None:
 def main():
     install_excepthook()
 
+    _argv = sys.argv[1:]
+    _server_url = None
+    _i = 0
+    while _i < len(_argv):
+        _a = _argv[_i]
+        if _a == "--server" and _i + 1 < len(_argv):
+            _server_url = _argv[_i + 1]
+            _i += 2
+            continue
+        _i += 1
+    if _server_url:
+        try:
+            _url = _server_url.strip().rstrip("/")
+            if not _url.endswith("/api/v1"):
+                _url += "/api/v1"
+            _cfg = {}
+            if _SETTINGS_PATH.exists():
+                _cfg = json.loads(_SETTINGS_PATH.read_text(encoding="utf-8"))
+            _cfg["api_base"] = _url
+            _SETTINGS_PATH.write_text(json.dumps(_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+            _CONN_PATH.write_text(json.dumps([{"name": "Сервер клуба", "type": "web",
+                "web_url": _url, "web_login": "", "web_pass": ""}],
+                ensure_ascii=False, indent=2), encoding="utf-8")
+            log.info("CLI --server: %s", _url)
+        except Exception as _e:
+            log.warning("CLI --server: %s", _e)
+
     # Windows: собственная иконка в панели задач (иначе показывает python.exe)
     try:
         import ctypes
@@ -263,6 +290,30 @@ def main():
             log.error('E16 RFID Monitor FAIL: %s', e)
 
         main_window.show()
+
+        if "--license" in sys.argv:
+            from PyQt6.QtCore import QTimer
+
+            def _open_license_tab(mw):
+                try:
+                    from PyQt6.QtWidgets import QTabWidget
+                    for _row in range(mw.sidebar.count()):
+                        _item = mw.sidebar.item(_row)
+                        if _item and _item.data(Qt.ItemDataRole.UserRole) == "settings":
+                            mw.sidebar.setCurrentRow(_row)
+                            break
+
+                    def _pick():
+                        for _tw in mw.findChildren(QTabWidget):
+                            for _idx in range(_tw.count()):
+                                if "Лицензия" in (_tw.tabText(_idx) or ""):
+                                    _tw.setCurrentIndex(_idx)
+                                    return
+                    QTimer.singleShot(400, _pick)
+                except Exception as _e:
+                    log.warning("open license tab: %s", _e)
+
+            QTimer.singleShot(300, lambda: _open_license_tab(main_window))
 
     def show_login():
         nonlocal rfid_monitor
