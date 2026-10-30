@@ -49,11 +49,21 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Запустить FitIntel Des
 ; ── Диалог с URL сервера ────────────────────────────
 [Code]
 var
+  LicensePage: TInputQueryWizardPage;
   ServerPage: TInputQueryWizardPage;
 
 procedure InitializeWizard();
 begin
-  ServerPage := CreateInputQueryPage(wpSelectDir,
+  LicensePage := CreateInputQueryPage(wpSelectDir,
+    'Лицензия клуба',
+    'Введите лицензионный ключ',
+    'Ключ формата FIPRO-... выдаётся в License Studio. ' +
+    'Логин главного администратора и временный пароль ' +
+    'содержатся в самом ключе — отдельно вводить их не нужно.');
+  LicensePage.Add('Лицензионный ключ:', False);
+  LicensePage.Values[0] := '';
+
+  ServerPage := CreateInputQueryPage(LicensePage.ID,
     'Адрес сервера клуба',
     'Укажите адрес API-сервера FitIntel',
     'Введите адрес сервера клуба (выдаётся поставщиком системы). ' +
@@ -68,6 +78,16 @@ end;
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
+  if CurPageID = LicensePage.ID then
+  begin
+    if (Trim(LicensePage.Values[0]) <> '') and
+       (Copy(Trim(LicensePage.Values[0]), 1, 6) <> 'FIPRO-') then
+    begin
+      MsgBox('Ключ должен начинаться с FIPRO-. Оставьте поле пустым, если лицензия уже активирована.', mbError, MB_OK);
+      Result := False;
+      Exit;
+    end;
+  end;
   if CurPageID = ServerPage.ID then
   begin
     if Trim(ServerPage.Values[0]) = '' then
@@ -81,11 +101,14 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  JsonFile, JsonStr, ApiBase: String;
+  JsonFile, JsonStr, ApiBase, LicenseKey: String;
 begin
   if CurStep = ssPostInstall then
   begin
     ApiBase := Trim(ServerPage.Values[0]);
+    LicenseKey := Trim(LicensePage.Values[0]);
+    StringChangeEx(LicenseKey, '\', '\\', True);
+    StringChangeEx(LicenseKey, '"', '\"', True);
     StringChangeEx(ApiBase, '\', '\\', True);
     StringChangeEx(ApiBase, '"', '\"', True);
 
@@ -93,6 +116,7 @@ begin
     JsonStr :=
       '{' + #13#10 +
       '  "api_base": "' + ApiBase + '",' + #13#10 +
+      '  "license_key": "' + LicenseKey + '",' + #13#10 +
       '  "theme": "dark",' + #13#10 +
       '  "dj_agent": {' + #13#10 +
       '    "token": "",' + #13#10 +

@@ -343,7 +343,21 @@ def main():
         if not _lic.get("activated"):
             from windows.activation_dialog import ActivationDialog
             dlg = ActivationDialog(api.base_url)
-            if dlg.exec() == QDialog.DialogCode.Accepted and dlg.token:
+            _preset = ""
+            try:
+                _cfg2 = json.loads(_SETTINGS_PATH.read_text(encoding="utf-8"))
+                _preset = str(_cfg2.get("license_key") or "").strip()
+            except Exception:
+                pass
+            if _preset:
+                # Ключ задан при установке: активируем без вопросов.
+                dlg.ed_key.setText(_preset)
+                dlg._activate()
+            if dlg.token:
+                login.hide()
+                on_login_success(dlg.user_data or {"username": "SuperAdmin"}, dlg.token)
+                activation_done = True
+            elif dlg.exec() == QDialog.DialogCode.Accepted and dlg.token:
                 login.hide()
                 on_login_success(dlg.user_data or {"username": "SuperAdmin"}, dlg.token)
                 activation_done = True
