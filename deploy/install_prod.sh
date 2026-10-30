@@ -169,12 +169,21 @@ from app.db.seed.seed_roles import seed_roles
 
 db = SessionLocal()
 try:
-    seed_permissions(db)
+    # Сначала роли, потом привязки прав: на чистой БД ролей ещё нет.
     seed_roles(db)
+    db.commit()
+    seed_permissions(db)
     db.commit()
 finally:
     db.close()
 '
+
+SEED_ADMIN_PERMS="$(compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT count(*) FROM role_permissions rp JOIN roles r ON r.id=rp.role_id WHERE r.code='"'"'admin'"'"'"')"
+if [ "${SEED_ADMIN_PERMS:-0}" -eq 0 ]; then
+    echo "ERROR: seeding failed, admin role has no permissions" >&2
+    exit 1
+fi
+echo "SEED_VERIFIED=$SEED_ADMIN_PERMS"
 
 echo "Create the initial FitIntel server administrator (maintenance only)."
 
