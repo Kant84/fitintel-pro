@@ -3,7 +3,7 @@
 #define MyAppVersion "1.6.1"
 #define MyAppPublisher "FitIntel Systems"
 #define MyAppExeName "FitIntelDesktop.exe"
-#define MyDefaultApiBase "http://192.168.101.14/api/v1"
+#define MyDefaultApiBase "http://localhost/api/v1"
 
 ; ── Секция [Setup] ──────────────────────────────────
 [Setup]
