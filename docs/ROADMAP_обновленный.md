@@ -14,6 +14,10 @@
 - [x] **Дефект «окно закрывается после входа» — ЗАКРЫТ 31.10.** Причина: старый `connections.json` в cp1251 + читатели без fallback. Исправлены `_auto_connect_if_single`, `StartupDialog` (чтение/запись по APP_DIR, fallback UTF-8→cp1251).
 - [x] **Дефект «QThread: Destroyed…» при выходе — ЗАКРЫТ 31.10.** RFID-поток останавливается через `aboutToQuit`; защита опроса PC/SC при отсутствии ридера.
 
+## Отложено (решение 31.10)
+
+- [ ] **Сборка сервера для Windows (нативная, без Docker)**. Цель: ПК клуба на Win 10/11 Pro. Оценка: API через PyInstaller + PostgreSQL-инсталлятор + службы nssm + Inno Setup; риски — Celery на Windows (solo-пул/RabbitMQ), сборка dlib. Этапы: (1) MVP: API+Postgres+службы+установщик, точка остановки; (2) Celery/Nginx/Face ID. Docker-вариант (готовые образы + Docker Desktop bootstrapper) — запасной, делом одного вечера.
+
 ## Итоги 30.10.2026 — RBAC-роли, чистая установка, дистрибутив v1.6.1
 
 ### Сделано (подтверждено автотестами/холодной установкой)
