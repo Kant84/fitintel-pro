@@ -248,8 +248,9 @@ def main():
             if os.path.exists(cfg_path):
                 with open(cfg_path, "r", encoding="utf-8") as f:
                     cfg = json.load(f)
-            cfg["token"] = token
-            cfg["access_token"] = token
+            cfg.pop("token", None); cfg.pop("access_token", None); cfg.pop("refresh_token", None)
+            from secure_store import save_tokens as _save_tokens
+            _save_tokens(access=token)
             with open(cfg_path, "w", encoding="utf-8") as f:
                 json.dump(cfg, f, ensure_ascii=False, indent=2)
             log.info("Token saved to client_settings.json")
@@ -290,6 +291,22 @@ def main():
             log.error('E16 RFID Monitor FAIL: %s', e)
 
         main_window.show()
+
+        if "--license" in sys.argv:
+            from PyQt6.QtCore import QTimer
+
+            # C2: миграция токенов json -> Credential Manager
+    try:
+        _cfg0 = json.loads(_SETTINGS_PATH.read_text(encoding="utf-8")) if _SETTINGS_PATH.exists() else {}
+        if any(k in _cfg0 for k in ("token", "access_token", "refresh_token")):
+            from secure_store import save_tokens as _st0, strip_tokens_from_json
+            _st0(access=_cfg0.get("access_token") or _cfg0.get("token"),
+                 refresh=_cfg0.get("refresh_token"))
+            _SETTINGS_PATH.write_text(json.dumps(strip_tokens_from_json(_cfg0),
+                ensure_ascii=False, indent=2), encoding="utf-8")
+            log.info("C2: токены перенесены в Credential Manager")
+    except Exception as _e:
+        log.warning("C2 migration: %s", _e)
 
         if "--license" in sys.argv:
             from PyQt6.QtCore import QTimer

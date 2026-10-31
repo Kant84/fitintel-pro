@@ -41,7 +41,8 @@ def _base():
 
 
 def _req(method, path, data=None):
-    tok = (_cfg() or {}).get("token") or ""
+    from secure_store import get_token as _gt
+    tok = _gt() or (_cfg() or {}).get("token") or ""
     headers = {"Content-Type": "application/json"}
     if tok:
         headers["Authorization"] = "Bearer " + tok
