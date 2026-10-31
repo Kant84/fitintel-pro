@@ -26,6 +26,10 @@ celery_app.conf.update(
 
 # Расписание (beat)
 celery_app.conf.beat_schedule = {
+    "email-queue-process": {
+        "task": "app.tasks.process_email_queue",
+        "schedule": 300.0,  # A4: каждые 5 минут
+    },
     "ml-dataset-dump": {
         "task": "app.tasks.dump_parquet",
         "schedule": crontab(hour=4, minute=0),  # E60: ночной дамп в Parquet
