@@ -395,12 +395,16 @@ def _qa_password(role: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--confirm-test", required=True, choices=["192.168.101.14"])
+    parser.add_argument("--confirm-test", required=True,
+                        help="IP сервера для прогона, например 192.168.101.14")
     parser.add_argument("--admin-login", required=True)
     parser.add_argument("--manager-login", default="aaa")
     parser.add_argument("--role-login", action="append", default=[],
                         help="role=login, может повторяться")
     args = parser.parse_args()
+    global BASE_URL
+    BASE_URL = "http://%s/api/v1" % args.confirm_test
+    print("QA_TARGET=" + BASE_URL)
     health = requests.get(BASE_URL + "/health/", timeout=15)
     if health.status_code != 200:
         print("TEST_HEALTH_FAILED=1")
