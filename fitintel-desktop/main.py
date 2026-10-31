@@ -122,6 +122,7 @@ def main():
     )
 
     app = QApplication(sys.argv)
+    print('DBG: QApplication created')
 
     # ─── Иконка окна / панели задач / Alt+Tab ─────────────────
     # Ищем в порядке приоритета: работает и из исходников, и из PyInstaller-сборки.
@@ -232,7 +233,9 @@ def main():
         log.warning("E72 first-run prompt skipped: %s", e)
     # ==============================================================================
 
+    print('DBG: before LoginWindow')
     login = LoginWindow()
+    print('DBG: after LoginWindow')
     main_window = None
     rfid_monitor = None
 
@@ -241,23 +244,22 @@ def main():
         nonlocal main_window, rfid_monitor
         api.set_token(token)
 
-        # Сохраняем токен в client_settings.json
+        # C2: токены - в Windows Credential Manager, из json удалены
         try:
+            from secure_store import save_tokens as _save_tokens
+            _save_tokens(access=token)
             cfg_path = str(APP_DIR / "client_settings.json")
             cfg = {}
             if os.path.exists(cfg_path):
                 with open(cfg_path, "r", encoding="utf-8") as f:
                     cfg = json.load(f)
-            cfg.pop("token", None); cfg.pop("access_token", None); cfg.pop("refresh_token", None)
-            from secure_store import save_tokens as _save_tokens
-            _save_tokens(access=token)
+            for _k in ("token", "access_token", "refresh_token"):
+                cfg.pop(_k, None)
             with open(cfg_path, "w", encoding="utf-8") as f:
                 json.dump(cfg, f, ensure_ascii=False, indent=2)
-            log.info("Token saved to client_settings.json")
         except Exception as e:
             log.warning("Could not save token: %s", e)
 
-        # === Выбор базы: авто-подключение при единственном профиле ===
         auto_cfg = _auto_connect_if_single()
         if auto_cfg is None:
             startup = StartupDialog()
@@ -267,17 +269,15 @@ def main():
                 return
         else:
             log.info("Авто-подключение к единственной базе: %s", auto_cfg.get("api_base"))
-        # Перезагружаем api с актуальными настройками
+
         try:
             cfg_path = str(APP_DIR / "client_settings.json")
             if os.path.exists(cfg_path):
                 with open(cfg_path, "r", encoding="utf-8") as f:
                     cfg = json.load(f)
                 api.base_url = cfg.get("api_base", api.base_url)
-                log.info("API base updated to: %s", api.base_url)
         except Exception as e:
             log.warning("Could not reload API base: %s", e)
-        # ==============================================
 
         main_window = MainWindow(api, user_data, token)
         main_window.logout_requested.connect(show_login)
@@ -291,22 +291,6 @@ def main():
             log.error('E16 RFID Monitor FAIL: %s', e)
 
         main_window.show()
-
-        if "--license" in sys.argv:
-            from PyQt6.QtCore import QTimer
-
-            # C2: миграция токенов json -> Credential Manager
-    try:
-        _cfg0 = json.loads(_SETTINGS_PATH.read_text(encoding="utf-8")) if _SETTINGS_PATH.exists() else {}
-        if any(k in _cfg0 for k in ("token", "access_token", "refresh_token")):
-            from secure_store import save_tokens as _st0, strip_tokens_from_json
-            _st0(access=_cfg0.get("access_token") or _cfg0.get("token"),
-                 refresh=_cfg0.get("refresh_token"))
-            _SETTINGS_PATH.write_text(json.dumps(strip_tokens_from_json(_cfg0),
-                ensure_ascii=False, indent=2), encoding="utf-8")
-            log.info("C2: токены перенесены в Credential Manager")
-    except Exception as _e:
-        log.warning("C2 migration: %s", _e)
 
         if "--license" in sys.argv:
             from PyQt6.QtCore import QTimer
@@ -385,7 +369,9 @@ def main():
         login.show()
     # ============================================================
 
+    print('DBG: before exec, activation_done=%s' % activation_done)
     code = app.exec()
+    print('DBG: exec returned, code=%s' % code)
     log.info('=== Клиент завершил работу ===')
     sys.exit(code)
 
