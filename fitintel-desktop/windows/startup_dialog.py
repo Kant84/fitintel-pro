@@ -9,6 +9,24 @@ import json, os
 CONNECTIONS_FILE = "connections.json"
 SETTINGS_FILE = "client_settings.json"
 
+
+def _app_path(name):
+    """Абсолютный путь рядом с приложением + чтение json с fallback cp1251."""
+    try:
+        from paths import APP_DIR
+        return APP_DIR / name
+    except Exception:
+        return name
+
+
+def _load_json(path):
+    with open(path, "rb") as f:
+        raw = f.read()
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except UnicodeDecodeError:
+        return json.loads(raw.decode("cp1251"))
+
 class StartupDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -65,9 +83,9 @@ class StartupDialog(QDialog):
     def _load_list(self):
         self.list.clear()
         self.connections = []
-        if os.path.exists(CONNECTIONS_FILE):
-            with open(CONNECTIONS_FILE, "r", encoding="utf-8") as f:
-                self.connections = json.load(f)
+        conn_path = _app_path(CONNECTIONS_FILE)
+        if os.path.exists(conn_path):
+            self.connections = _load_json(conn_path)
         else:
             self.connections = [{
                 "name": "Локальный сервер",
@@ -83,7 +101,7 @@ class StartupDialog(QDialog):
             self.list.addItem(item)
 
     def _save_connections(self):
-        with open(CONNECTIONS_FILE, "w", encoding="utf-8") as f:
+        with open(_app_path(CONNECTIONS_FILE), "w", encoding="utf-8") as f:
             json.dump(self.connections, f, ensure_ascii=False, indent=2)
 
     def _on_connect(self):
@@ -93,12 +111,13 @@ class StartupDialog(QDialog):
             return
         conn = self.connections[idx]
         cfg = {}
-        if os.path.exists(SETTINGS_FILE):
-            cfg = json.load(open(SETTINGS_FILE, encoding="utf-8"))
+        st_path = _app_path(SETTINGS_FILE)
+        if os.path.exists(st_path):
+            cfg = _load_json(st_path)
         cfg["api_base"] = conn.get("web_url", "http://localhost:8001/api/v1")
         cfg["saved_login"] = conn.get("web_login", "")
         cfg["saved_password"] = conn.get("web_pass", "")
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+        with open(_app_path(SETTINGS_FILE), "w", encoding="utf-8") as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
         self.selected_config = cfg
         self.accept()
