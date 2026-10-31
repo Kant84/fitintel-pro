@@ -57,6 +57,9 @@ def _get_settings(db: Session) -> dict:
         extra = json.loads(raw) if isinstance(raw, str) else (raw or {})
     except Exception:
         extra = {}
+    if isinstance(extra, dict) and extra.get("dto_password"):
+        from app.core.field_crypto import decrypt_field
+        extra["dto_password"] = decrypt_field(extra["dto_password"])
     return {"driver": row[0], "port": row[1], "settings": extra, "ofd_provider": row[3]}
 
 
@@ -355,7 +358,11 @@ def set_settings(payload: FiscalSettingsRequest, db: Session = Depends(get_db),
         "SELECT id FROM fiscal_settings ORDER BY created_at LIMIT 1"
     )).fetchone()
     ofd = payload.ofd_provider or "ofd-ru"
-    settings_json = json.dumps(payload.settings or {}, ensure_ascii=False)
+    settings_dict = dict(payload.settings or {})
+    if settings_dict.get("dto_password"):
+        from app.core.field_crypto import encrypt_field
+        settings_dict["dto_password"] = encrypt_field(settings_dict["dto_password"])
+    settings_json = json.dumps(settings_dict, ensure_ascii=False)
     if row:
         db.execute(text(
             "UPDATE fiscal_settings SET driver = :d, port = :p, settings = :s, ofd_provider = :o WHERE id = :id"
