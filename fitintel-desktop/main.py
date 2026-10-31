@@ -39,7 +39,11 @@ def _auto_connect_if_single() -> dict | None:
     if not conn_path.exists():
         return None  # файла нет — диалог сам создаст дефолтный профиль
     try:
-        conns = json.loads(conn_path.read_text(encoding="utf-8"))
+        _raw = conn_path.read_bytes()
+        try:
+            conns = json.loads(_raw.decode("utf-8"))
+        except UnicodeDecodeError:
+            conns = json.loads(_raw.decode("cp1251"))
     except Exception:
         return None
     if not isinstance(conns, list) or len(conns) != 1:
@@ -49,7 +53,11 @@ def _auto_connect_if_single() -> dict | None:
     cfg = {}
     if cfg_path.exists():
         try:
-            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+            _rawc = cfg_path.read_bytes()
+            try:
+                cfg = json.loads(_rawc.decode("utf-8"))
+            except UnicodeDecodeError:
+                cfg = json.loads(_rawc.decode("cp1251"))
         except Exception:
             cfg = {}
 
