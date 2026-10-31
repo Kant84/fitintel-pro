@@ -80,7 +80,17 @@ class PollThread(QThread):
         rd = DirectReader()
         last = None
         while not self.isInterruptionRequested():
-            uid = rd.detect_uid()
+            if not rd._reader:
+                try:
+                    rd._pick()
+                except Exception:
+                    pass
+                self.msleep(3000)
+                continue
+            try:
+                uid = rd.detect_uid()
+            except BaseException:
+                uid = None
             if uid != last:
                 last = uid
                 if uid:
@@ -121,10 +131,22 @@ class RFIDMonitorWidget(QWidget):
         self._thread.card.connect(self._on_card)
         self._thread.start()
         self.hide()
+        try:
+            from PyQt6.QtWidgets import QApplication
+            QApplication.instance().aboutToQuit.connect(self._stop_thread)
+        except Exception:
+            pass
+
+    def _stop_thread(self):
+        try:
+            if self._thread.isRunning():
+                self._thread.requestInterruption()
+                self._thread.wait(2000)
+        except Exception:
+            pass
 
     def closeEvent(self, ev):
-        self._thread.requestInterruption()
-        self._thread.wait(2000)
+        self._stop_thread()
         super().closeEvent(ev)
 
     def mousePressEvent(self, ev):
