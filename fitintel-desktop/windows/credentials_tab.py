@@ -99,8 +99,13 @@ class CredentialsTab(QWidget):
     def _token(self):
         try:
             cfg = json.load(open("client_settings.json", encoding="utf-8"))
-            if cfg.get("token"):
-                return cfg["token"]
+            try:
+                from secure_store import get_token as _gt
+                _t = _gt() or cfg.get("token")
+                if _t:
+                    return _t
+            except Exception:
+                pass
             r = urllib.request.Request(
                 self._base() + "/auth/login",
                 data=json.dumps({"login": cfg.get("saved_login"),

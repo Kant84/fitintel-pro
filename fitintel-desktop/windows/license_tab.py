@@ -336,6 +336,13 @@ def _e68_token(skip_stored=False):
         print("[E68] client_settings:", e)
         return None
     if not skip_stored:
+        try:
+            from secure_store import get_token as _gt
+            _t = _gt()
+            if _t:
+                return _t
+        except Exception:
+            pass
         for tk in ("token", "access_token", "jwt", "auth_token"):
             if cfg.get(tk):
                 return cfg[tk]

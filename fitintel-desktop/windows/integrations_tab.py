@@ -29,8 +29,13 @@ class IntegrationsTab(QWidget):
     def _token(self):
         try:
             cfg = json.load(open("client_settings.json", encoding="utf-8"))
-            if cfg.get("token"):
-                return cfg["token"]
+            try:
+                from secure_store import get_token as _gt
+                _t = _gt() or cfg.get("token")
+                if _t:
+                    return _t
+            except Exception:
+                pass
             r = urllib.request.Request(self._base() + "/auth/login",
                 data=json.dumps({"login": cfg.get("saved_login"), "password": cfg.get("saved_password")}).encode(),
                 headers={"Content-Type": "application/json"})
@@ -389,18 +394,22 @@ try:
     def _refresh_settings_token():
         try:
             cfg = _json.load(open(_SETTINGS, encoding="utf-8"))
-            rt = cfg.get("refresh_token")
+            rt = None
+            try:
+                from secure_store import get_refresh_token as _grt
+                rt = _grt()
+            except Exception:
+                rt = None
+            if not rt:
+                rt = cfg.get("refresh_token")
             if not rt:
                 return None
             req = _uq.Request(cfg["api_base"] + "/auth/refresh",
                               data=_json.dumps({"refresh_token": rt}).encode(),
                               headers={"Content-Type": "application/json"})
             resp = _json.load(_uq.urlopen(req, timeout=10))
-            cfg["token"] = resp["access_token"]
-            if resp.get("refresh_token"):
-                cfg["refresh_token"] = resp["refresh_token"]
-            _json.dump(cfg, open(_SETTINGS, "w", encoding="utf-8"),
-                       ensure_ascii=False, indent=2)
+            from secure_store import save_tokens as _st
+            _st(access=resp["access_token"], refresh=resp.get("refresh_token"))
             return cfg["token"]
         except Exception:
             return None

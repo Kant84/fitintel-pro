@@ -249,7 +249,9 @@ class LoginWindow(QWidget):
         if rt:
             try:
                 st = _load_settings()
-                st["refresh_token"] = rt
+                from secure_store import save_tokens as _st
+                _st(refresh=rt)
+                st.pop("token", None); st.pop("access_token", None); st.pop("refresh_token", None)
                 SETTINGS_PATH.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
                 self.api._refresh_token = rt
             except Exception:

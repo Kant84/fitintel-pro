@@ -53,7 +53,8 @@ class DashboardTab(QWidget):
             from paths import SETTINGS
             cfg = _json.load(open(SETTINGS, encoding="utf-8"))
             s = _rq.Session()
-            s.headers["Authorization"] = "Bearer " + cfg.get("token", "")
+            from secure_store import get_token as _gt
+            s.headers["Authorization"] = "Bearer " + (_gt() or cfg.get("token", ""))
             return s
         except Exception:
             return _rq
