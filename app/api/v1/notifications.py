@@ -134,7 +134,7 @@ def _send_webpush(title, body):
             webpush({"endpoint": ep, "keys": json.loads(keys)},
                     json.dumps({"title": title, "body": body}, ensure_ascii=False),
                     vapid_private_key=s.get("vapid_private"),
-                    vapid_claims={"sub": s.get("vapid_sub") or "mailto:admin@fitintel.local"})
+                    vapid_claims={"sub": _club_contact() or s.get("vapid_sub") or "mailto:admin@fitintel.local"})
             ok += 1
         except Exception as e:
             errs.append(str(e)[:150])
@@ -193,6 +193,84 @@ def get_log(limit: int = 50):
     with _eng().connect() as c:
         rows = c.execute(text("SELECT id, channel, recipient, subject, status, error, created_at FROM notification_log ORDER BY id DESC LIMIT :n"), {"n": min(limit, 200)}).mappings().all()
     return [dict(r) for r in rows]
+
+def _club_contact():
+    """Email поддержки клуба: из 'Параметры клуба -> Настройки приложения'
+    (max_bot_settings) или club_params; иначе None."""
+    import re
+    pat = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
+    for table in ("max_bot_settings", "club_params"):
+        try:
+            with _eng().connect() as c:
+                rows = c.execute(text(f"SELECT key, value FROM {table}")).fetchall()
+            for k, v in rows:
+                if v is None:
+                    continue
+                kk = str(k).lower()
+                if "email" not in kk and "support" not in kk and "поддерж" not in kk:
+                    continue
+                m = pat.search(str(v))
+                if m:
+                    return "mailto:" + m.group(0)
+        except Exception:
+            continue
+    return None
+
+
+_PUSH_PAGE = """<!doctype html><html lang=ru><head><meta charset=utf-8>
+<title>FitIntel Push</title></head>
+<body style="font-family:sans-serif;max-width:560px;margin:40px auto;text-align:center">
+<h2>FitIntel Pro — push-уведомления</h2>
+<p id=st>Нажмите кнопку и разрешите уведомления в браузере.</p>
+<p><button id=b style="font-size:16px;padding:10px 28px">Подписаться</button></p>
+<script>
+const PUB = "__PUB__";
+function b64u(s){const p="=".repeat((4-s.length%4)%4);const b=atob((s+p).replace(/-/g,"+").replace(/_/g,"/"));
+return Uint8Array.from([...b].map(c=>c.charCodeAt(0)))}
+document.getElementById("b").onclick = async () => {
+  try {
+    const reg = await navigator.serviceWorker.register("__SW__");
+    const sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64u(PUB)});
+    const r = await fetch("__SUB__", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(sub.toJSON())});
+    const j = await r.json().catch(()=>({}));
+    document.getElementById("st").textContent = (r.ok && j.ok) ? "Подписка сохранена. Можно закрыть страницу." : ("Ошибка: " + (j.error || r.status));
+  } catch (e) { document.getElementById("st").textContent = "Ошибка: " + e; }
+};
+</script></body></html>"""
+
+
+@router.get("/notify/webpush/page")
+def wp_page():
+    from fastapi.responses import HTMLResponse
+    _ensure()
+    with _eng().connect() as c:
+        row = c.execute(text("SELECT vapid_public FROM notification_settings WHERE id=1")).first()
+    pub = (row[0] if row else "") or ""
+    base = "/api/v1"
+    html = (_PUSH_PAGE.replace("__PUB__", pub)
+            .replace("__SW__", base + "/notify/webpush/sw.js")
+            .replace("__SUB__", base + "/notify/webpush/subscribe"))
+    return HTMLResponse(html)
+
+
+@router.get("/notify/webpush/sw.js")
+def wp_sw():
+    from fastapi.responses import Response
+    js = ("self.addEventListener('push', e => { const d = e.data ? e.data.json() : {}; "
+          "e.waitUntil(self.registration.showNotification(d.title || 'FitIntel Pro', "
+          "{ body: d.body || '', icon: '/static/icon.png' })); });")
+    return Response(js, media_type="application/javascript")
+
+
+@router.post("/notify/webpush/test")
+def wp_test(body: dict | None = None):
+    """Тестовая рассылка push всем подписчикам."""
+    title = (body or {}).get("title", "FitIntel Pro")
+    text = (body or {}).get("body", "Тест push-уведомления")
+    res = _send_webpush(title, text)
+    return {"ok": True, "result": res}
+
 
 @router.post("/notify/webpush/subscribe")
 def wp_subscribe(body: dict):
