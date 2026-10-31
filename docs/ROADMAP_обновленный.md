@@ -18,6 +18,8 @@
 
 - [ ] **Сборка сервера для Windows (нативная, без Docker)**. Цель: ПК клуба на Win 10/11 Pro. Оценка: API через PyInstaller + PostgreSQL-инсталлятор + службы nssm + Inno Setup; риски — Celery на Windows (solo-пул/RabbitMQ), сборка dlib. Этапы: (1) MVP: API+Postgres+службы+установщик, точка остановки; (2) Celery/Nginx/Face ID. Docker-вариант (готовые образы + Docker Desktop bootstrapper) — запасной, делом одного вечера.
 
+- [x] **Web Push (бесплатно, свои силы) — РАБОТАЕТ 31.10**: VAPID-ключи (base64-DER), страница подписки `/api/v1/notify/webpush/page`, service worker, тестовый эндпоинт, динамический контакт из 'Email поддержки' клуба. Проверено: test + nfs (доставка подтверждена). Инструкция: `docs/WEBPUSH_SETUP.md`. Прод-ограничение: нужен HTTPS (белый адрес + Let's Encrypt).
+
 ## Итоги 30.10.2026 — RBAC-роли, чистая установка, дистрибутив v1.6.1
 
 ### Сделано (подтверждено автотестами/холодной установкой)
