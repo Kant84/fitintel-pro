@@ -348,7 +348,7 @@ class ReceiptService:
         # White-label (Коммерция -> branding_settings.club_name) — единый источник.
         try:
             row = self.db.execute(text(
-                "SELECT club_name FROM branding_settings WHERE id=1")).first()
+                "SELECT club_name FROM branding_settings WHERE club_name IS NOT NULL AND club_name <> '' ORDER BY id LIMIT 1")).first()
             if row and row[0]:
                 return str(row[0])
         except Exception:
