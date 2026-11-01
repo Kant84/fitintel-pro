@@ -52,6 +52,7 @@ from app.api.v1.roles import router as roles_router
 from app.api.v1.permissions import router as permissions_router
 from app.api.v1.auth_debug import router as auth_debug_router
 from app.api.v1.rbac import router as rbac_router
+from app.api.v1.vending import router as vending_router
 from app.api.v1.clients import router as clients_router
 from app.api.v1.client_history import router as client_history_router
 from app.api.v1.tariffs import router as tariffs_router
@@ -147,6 +148,7 @@ app.include_router(roles_router, prefix=settings.API_V1_PREFIX)
 app.include_router(permissions_router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth_debug_router, prefix=settings.API_V1_PREFIX)
 app.include_router(rbac_router, prefix=settings.API_V1_PREFIX)
+app.include_router(vending_router, prefix=settings.API_V1_PREFIX)
 app.include_router(tariffs_router, prefix=settings.API_V1_PREFIX)
 app.include_router(subscriptions_router, prefix=settings.API_V1_PREFIX)
 app.include_router(health_router, prefix=settings.API_V1_PREFIX)
