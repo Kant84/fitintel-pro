@@ -28,7 +28,7 @@ celery_app.conf.update(
 celery_app.conf.beat_schedule = {
     "email-queue-process": {
         "task": "app.tasks.process_email_queue",
-        "schedule": 300.0,  # A4: каждые 5 минут
+        "schedule": 60.0,  # A4: каждую минуту
     },
     "ml-dataset-dump": {
         "task": "app.tasks.dump_parquet",
