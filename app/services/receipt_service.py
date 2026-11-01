@@ -334,6 +334,33 @@ class ReceiptService:
             message=f"Чек отправлен на {', '.join(sent_to)}" if sent_to else "Не удалось отправить чек",
         )
     
+    def _cashier_name(self, user_id):
+        try:
+            if not user_id:
+                return None
+            row = self.db.execute(text(
+                "SELECT full_name FROM users WHERE id=:i"), {"i": str(user_id)}).first()
+            return row[0] if row and row[0] else None
+        except Exception:
+            return None
+
+    def _club_name(self):
+        try:
+            row = self.db.execute(text(
+                "SELECT value FROM club_params WHERE key IN "
+                "('CLUB_NAME','BRAND_NAME','APP_CLUB_NAME') LIMIT 1")).first()
+            return row[0] if row and row[0] else None
+        except Exception:
+            return None
+
+    def _club_inn(self):
+        try:
+            row = self.db.execute(text(
+                "SELECT value FROM club_params WHERE key IN ('CLUB_INN','INN','ORG_INN') LIMIT 1")).first()
+            return row[0] if row and row[0] else None
+        except Exception:
+            return None
+
     def _send_email_receipt(self, email: str, receipt_data: dict, qr_code: str) -> None:
         """
         Отправить чек на email.
@@ -358,25 +385,48 @@ class ReceiptService:
 
     @staticmethod
     def _receipt_html(receipt_data: dict) -> str:
+        """Макет по образцу фискального чека (копия; фискальные реквизиты — в чеке ОФД)."""
         c = receipt_data.get("client", {})
         pay_date = receipt_data.get("payment_date")
         try:
             pay_date = pay_date.strftime("%d.%m.%Y %H:%M")
         except Exception:
             pay_date = str(pay_date or "")
+
+        method = str(receipt_data.get("payment_method") or "").upper()
+        if "CASH" in method or "НАЛ" in method:
+            method_label = "НАЛИЧНЫМИ"
+        elif method and "CASH" not in method:
+            method_label = "БЕЗНАЛИЧНЫМИ"
+        else:
+            method_label = method or "—"
+
+        def row(k, v):
+            return (f"<tr><td style='padding:4px 0;color:#222'>{k}</td>"
+                    f"<td align='right' style='padding:4px 0'>{v}</td></tr>")
+
         return (
-            "<div style='font-family:Arial,sans-serif;max-width:520px;margin:auto'>"
-            "<h2 style='color:#0A7A3D'>FitIntel Pro — чек об оплате</h2>"
-            "<table style='width:100%;border-collapse:collapse'>"
-            f"<tr><td style='padding:6px 0;color:#666'>Номер</td><td align='right'><b>{receipt_data.get('receipt_number')}</b></td></tr>"
-            f"<tr><td style='padding:6px 0;color:#666'>Дата</td><td align='right'>{pay_date}</td></tr>"
-            f"<tr><td style='padding:6px 0;color:#666'>Клиент</td><td align='right'>{c.get('name') or ''}</td></tr>"
-            f"<tr><td style='padding:6px 0;color:#666'>Способ оплаты</td><td align='right'>{receipt_data.get('payment_method') or ''}</td></tr>"
-            f"<tr><td colspan='2' style='border-top:1px solid #ddd;padding:10px 0;font-size:18px' align='right'>"
-            f"<b>{receipt_data.get('amount')} {receipt_data.get('currency')}</b></td></tr>"
-            "</table>"
-            "<p style='color:#888;font-size:12px'>Копия чека. Фискальный чек (с фискальным признаком) "
-            "направляется оператором фискальных данных на этот же адрес.</p>"
+            "<div style='font-family:Arial,sans-serif;max-width:460px;margin:auto;"
+            "border:1px solid #ddd;padding:24px'>"
+            "<div style='text-align:center;font-size:18px;letter-spacing:2px'>КАССОВЫЙ ЧЕК</div>"
+            "<div style='text-align:center;color:#888;font-size:12px;margin-bottom:14px'>"
+            "(копия — фискальный чек направляет ОФД)</div>"
+            "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
+            + row("ПОЛЬЗОВАТЕЛЬ", receipt_data.get("club_name") or "FitIntel Pro")
+            + row("ИНН ПОЛЬЗОВАТЕЛЯ", receipt_data.get("club_inn") or "—")
+            + row("", "")
+            + "<tr><td colspan='2' style='font-weight:bold;padding-top:8px'>ПРИХОД</td></tr>"
+            + row(receipt_data.get("payment_category") or "Оплата", "")
+            + row("1.00 x " + str(receipt_data.get("amount")), "")
+            + row("<b>ИТОГ</b>", f"<b>{receipt_data.get('amount')} {receipt_data.get('currency')}</b>")
+            + row(f"<b>{method_label}</b>", f"<b>{receipt_data.get('amount')}</b>")
+            + row("Кассир:", receipt_data.get("cashier") or "—")
+            + row("СНО:", receipt_data.get("tax_system") or "—")
+            + row("Дата:", pay_date)
+            + row("РН ККТ / ФН / ФПД:", "см. фискальный чек ОФД")
+            + "</table>"
+            "<p style='color:#888;font-size:11px;margin-top:16px'>Проверить фискальный чек: "
+            "https://www.nalog.gov.ru (номер ФД/ФПД — в чеке от ОФД).</p>"
             "</div>"
         )
 
@@ -390,6 +440,11 @@ class ReceiptService:
                 return False
             receipt = self.generate_receipt(payment_id, ReceiptType.SALE)
             data = self._build_receipt_data(payment, receipt.receipt_type, receipt.receipt_number)
+            data["payment_category"] = payment.payment_category or "Оплата"
+            data["cashier"] = self._cashier_name(payment.created_by)
+            data["club_name"] = self._club_name()
+            data["club_inn"] = self._club_inn()
+            data["tax_system"] = None
             self._send_email_receipt(email, data, receipt.qr_code)
             receipt.is_sent = True
             self.receipt_repo.save(receipt)
