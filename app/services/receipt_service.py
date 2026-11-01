@@ -345,6 +345,14 @@ class ReceiptService:
             return None
 
     def _club_name(self):
+        # White-label (Коммерция -> branding_settings.club_name) — единый источник.
+        try:
+            row = self.db.execute(text(
+                "SELECT club_name FROM branding_settings WHERE id=1")).first()
+            if row and row[0]:
+                return str(row[0])
+        except Exception:
+            pass
         try:
             row = self.db.execute(text(
                 "SELECT value FROM club_params WHERE key IN "

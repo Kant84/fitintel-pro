@@ -230,7 +230,9 @@ return Uint8Array.from([...b].map(c=>c.charCodeAt(0)))}
 document.getElementById("b").onclick = async () => {
   try {
     const reg = await navigator.serviceWorker.register("__SW__");
-    const sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64u(PUB)});
+    let sub = await reg.pushManager.getSubscription();
+    if (sub) { try { await sub.unsubscribe(); } catch (e) {} }
+    sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64u(PUB)});
     const r = await fetch("__SUB__", {method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify(sub.toJSON())});
     const j = await r.json().catch(()=>({}));
