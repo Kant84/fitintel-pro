@@ -24,7 +24,7 @@ def call(method, path, token, payload=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["purchase", "confirm", "sales"])
+    ap.add_argument("cmd", choices=["purchase", "confirm", "sales", "session", "poll"])
     ap.add_argument("--token", required=True)
     ap.add_argument("--client-id")
     ap.add_argument("--uid")
@@ -33,6 +33,7 @@ def main():
     ap.add_argument("--price", default="0")
     ap.add_argument("--sale")
     ap.add_argument("--status", default="dispensed", choices=["dispensed", "failed"])
+    ap.add_argument("--code")
     a = ap.parse_args()
 
     if a.cmd == "purchase":
@@ -42,6 +43,10 @@ def main():
             "product_name": a.product, "price": a.price})
     elif a.cmd == "confirm":
         out = call("POST", "/confirm", a.token, {"sale_id": a.sale, "status": a.status})
+    elif a.cmd == "session":
+        out = call("POST", "/session", a.token, {"product_name": a.product, "price": a.price})
+    elif a.cmd == "poll":
+        out = call("GET", "/session/" + a.code, a.token)
     else:
         out = call("GET", "/sales?limit=20", a.token)
     print(json.dumps(out, ensure_ascii=False, indent=2))
