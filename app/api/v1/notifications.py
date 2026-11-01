@@ -217,7 +217,7 @@ def _club_contact():
     return None
 
 
-_PUSH_PAGE = """<!doctype html><html lang=ru><head><meta charset=utf-8>
+_PUSH_PAGE = """<!doctype html><html lang=ru><head><link rel="manifest" href="/api/v1/notify/webpush/manifest.json"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="apple-touch-icon" href="/static/icon.png"><meta charset=utf-8>
 <title>FitIntel Push</title></head>
 <body style="font-family:sans-serif;max-width:560px;margin:40px auto;text-align:center">
 <h2>FitIntel Pro — push-уведомления</h2>
@@ -229,6 +229,7 @@ function b64u(s){const p="=".repeat((4-s.length%4)%4);const b=atob((s+p).replace
 return Uint8Array.from([...b].map(c=>c.charCodeAt(0)))}
 document.getElementById("b").onclick = async () => {
   try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) { throw new Error('Браузер без web-push. iPhone/iPad: откройте в Safari, «Поделиться» → «На экран Домой», запустите с иконки и подпишитесь там (iOS 16.4+). Android: используйте Chrome.'); }
     const reg = await navigator.serviceWorker.register("__SW__");
     await navigator.serviceWorker.ready; // ждём активации SW, иначе subscribe упадёт на первом визите
     let sub = await reg.pushManager.getSubscription();
@@ -393,3 +394,20 @@ def email_queue_process(current_user=Depends(get_current_user),
     """Ручной процессинг очереди (админ): отправка due-писем."""
     from app.services.email_queue_service import EmailQueueService
     return EmailQueueService(db).process_queue()
+
+@router.get("/manifest.json")
+def _webpush_manifest():
+    """PWA-манифест для установки на экран Домой (нужен для web-push на iOS 16.4+)."""
+    return {
+        "name": "FitIntel Pro",
+        "short_name": "FitIntel",
+        "start_url": "/api/v1/notify/webpush/page",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": "#ffffff",
+        "theme_color": "#0A7A3D",
+        "icons": [
+            {"src": "/static/icon.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": "/static/icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+        ],
+    }
