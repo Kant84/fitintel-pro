@@ -351,8 +351,8 @@ class ReceiptService:
         ensure_email_queue(self.db)
         self.db.execute(_text(
             "INSERT INTO email_queue (id, profile, recipient, subject, body, status, "
-            "attempts, created_at, updated_at) "
-            "SELECT gen_random_uuid(), 'receipt', :r, :s, :b, 'PENDING', 0, now(), now()"
+            "attempts, created_at) "
+            "SELECT gen_random_uuid(), 'receipt', :r, :s, :b, 'PENDING', 0, now()"
         ), {"r": email, "s": subject, "b": html})
         self.db.commit()
 
