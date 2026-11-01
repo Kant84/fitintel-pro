@@ -376,6 +376,9 @@ class ReceiptService:
         
         В реальности здесь будет отправка через SMTP или email-сервис.
         """
+        # Название клуба — всегда из White-label, независимо от вызывающего кода
+        if not receipt_data.get("club_name"):
+            receipt_data["club_name"] = self._club_name()
         subject = (f"Чек {receipt_data.get('receipt_number')} — "
                    f"{receipt_data.get('amount')} {receipt_data.get('currency')}")
         self._enqueue_receipt_email(email, subject, self._receipt_html(receipt_data))
