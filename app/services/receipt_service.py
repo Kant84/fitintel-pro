@@ -11,6 +11,7 @@ import io
 import base64
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from app.models.receipt import Receipt
 from app.models.payment import Payment
