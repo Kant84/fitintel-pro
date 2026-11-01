@@ -395,7 +395,7 @@ def email_queue_process(current_user=Depends(get_current_user),
     from app.services.email_queue_service import EmailQueueService
     return EmailQueueService(db).process_queue()
 
-@router.get("/webpush/manifest.json")
+@router.get("/notify/webpush/manifest.json")
 def _webpush_manifest():
     """PWA-манифест для установки на экран Домой (нужен для web-push на iOS 16.4+)."""
     return {
