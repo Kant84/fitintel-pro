@@ -230,6 +230,7 @@ return Uint8Array.from([...b].map(c=>c.charCodeAt(0)))}
 document.getElementById("b").onclick = async () => {
   try {
     const reg = await navigator.serviceWorker.register("__SW__");
+    await navigator.serviceWorker.ready; // ждём активации SW, иначе subscribe упадёт на первом визите
     let sub = await reg.pushManager.getSubscription();
     if (sub) { try { await sub.unsubscribe(); } catch (e) {} }
     sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64u(PUB)});
