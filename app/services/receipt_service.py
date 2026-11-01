@@ -340,11 +340,64 @@ class ReceiptService:
         
         В реальности здесь будет отправка через SMTP или email-сервис.
         """
-        # Заглушка для разработки
-        print(f"[EMAIL] Sending receipt to {email}")
-        print(f"[EMAIL] Receipt number: {receipt_data['receipt_number']}")
-        print(f"[EMAIL] Amount: {receipt_data['amount']} {receipt_data['currency']}")
+        subject = (f"Чек {receipt_data.get('receipt_number')} — "
+                   f"{receipt_data.get('amount')} {receipt_data.get('currency')}")
+        self._enqueue_receipt_email(email, subject, self._receipt_html(receipt_data))
     
+    def _enqueue_receipt_email(self, email: str, subject: str, html: str) -> None:
+        """Письмо в очередь email_queue (ретраи 1->5->15 мин, A4)."""
+        from app.services.email_queue_service import ensure_email_queue
+        from sqlalchemy import text as _text
+        ensure_email_queue(self.db)
+        self.db.execute(_text(
+            "INSERT INTO email_queue (id, profile, recipient, subject, body, status, "
+            "attempts, created_at, updated_at) "
+            "SELECT gen_random_uuid(), 'receipt', :r, :s, :b, 'PENDING', 0, now(), now()"
+        ), {"r": email, "s": subject, "b": html})
+        self.db.commit()
+
+    @staticmethod
+    def _receipt_html(receipt_data: dict) -> str:
+        c = receipt_data.get("client", {})
+        pay_date = receipt_data.get("payment_date")
+        try:
+            pay_date = pay_date.strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            pay_date = str(pay_date or "")
+        return (
+            "<div style='font-family:Arial,sans-serif;max-width:520px;margin:auto'>"
+            "<h2 style='color:#0A7A3D'>FitIntel Pro — чек об оплате</h2>"
+            "<table style='width:100%;border-collapse:collapse'>"
+            f"<tr><td style='padding:6px 0;color:#666'>Номер</td><td align='right'><b>{receipt_data.get('receipt_number')}</b></td></tr>"
+            f"<tr><td style='padding:6px 0;color:#666'>Дата</td><td align='right'>{pay_date}</td></tr>"
+            f"<tr><td style='padding:6px 0;color:#666'>Клиент</td><td align='right'>{c.get('name') or ''}</td></tr>"
+            f"<tr><td style='padding:6px 0;color:#666'>Способ оплаты</td><td align='right'>{receipt_data.get('payment_method') or ''}</td></tr>"
+            f"<tr><td colspan='2' style='border-top:1px solid #ddd;padding:10px 0;font-size:18px' align='right'>"
+            f"<b>{receipt_data.get('amount')} {receipt_data.get('currency')}</b></td></tr>"
+            "</table>"
+            "<p style='color:#888;font-size:12px'>Копия чека. Фискальный чек (с фискальным признаком) "
+            "направляется оператором фискальных данных на этот же адрес.</p>"
+            "</div>"
+        )
+
+    def auto_send_for_payment(self, payment_id: str) -> bool:
+        """Чек (создать, если нет) и отправить клиенту на email."""
+        try:
+            payment = self._get_payment(payment_id)
+            client = self._get_client(payment.client_id)
+            email = client.email or None
+            if not email:
+                return False
+            receipt = self.generate_receipt(payment_id, ReceiptType.SALE)
+            data = self._build_receipt_data(payment, receipt.receipt_type, receipt.receipt_number)
+            self._send_email_receipt(email, data, receipt.qr_code)
+            receipt.is_sent = True
+            self.receipt_repo.save(receipt)
+            return True
+        except Exception as e:
+            print(f"[auto receipt email] {payment_id}: {e}")
+            return False
+
     def _send_sms_receipt(self, phone: str, receipt_data: dict) -> None:
         """
         Отправить SMS с информацией о чеке.

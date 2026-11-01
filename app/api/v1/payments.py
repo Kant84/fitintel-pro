@@ -136,9 +136,18 @@ def complete_payment(
     # 1. Сначала чек на кассу: при закрытой смене здесь 400, платёж останется «Ожидает»
     items = [{"name": payment.payment_category or "Оплата FitIntel",
               "price": float(payment.amount), "quantity": 1}]
+    _cust_email = None
+    try:
+        _ce = db.execute(text("SELECT email FROM clients WHERE id=:i"),
+                         {"i": str(payment.client_id)}).first()
+        _cust_email = _ce[0] if _ce and _ce[0] else None
+    except Exception:
+        pass
+    _payload = {"items": items, "payment_id": str(payment.id)}
+    if _cust_email:
+        _payload["customer_email"] = _cust_email
     _fiscalize(db, _get_settings(db)["driver"], "sale",
-               float(payment.amount),
-               payload={"items": items, "payment_id": str(payment.id)})
+               float(payment.amount), payload=_payload)
     # 2. Чек пробит — подтверждаем платёж (попадает в баланс смены)
     payment = service.complete_payment(
         payment_id=str(payment_id),
@@ -148,6 +157,11 @@ def complete_payment(
     db.execute(text("UPDATE payments SET completed_at = :n WHERE id = :id"),
                {"n": datetime.now(timezone.utc), "id": str(payment.id)})
     db.commit()
+    try:
+        from app.services.receipt_service import ReceiptService
+        ReceiptService(db).auto_send_for_payment(str(payment.id))
+    except Exception:
+        pass
     return service._build_response(payment)
 
 
