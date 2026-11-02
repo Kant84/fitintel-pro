@@ -198,6 +198,12 @@ echo | openssl s_client -connect &lt;LAN-IP-фронта&gt;:443 -servername &lt
 ---
 
 ## ЧАСТЬ 3. ПОДПИСКА УСТРОЙСТВ
+# === Шаг 3. Сертификат (на 125, webroot через фронт) ===
+certbot certonly --webroot -w /opt/fixintel/fixintel/certbot/www \
+  -d <НОВЫЙ-КЛУБ>.fixintel.ru --non-interactive --agree-tos -m andrei@fixintel.ru
+mkdir -p /opt/fixintel/fixintel/ssl/<НОВЫЙ-КЛУБ>
+cp /etc/letsencrypt/live/<НОВЫЙ-КЛУБ>.fixintel.ru/fullchain.pem /opt/fixintel/fixintel/ssl/<НОВЫЙ-КЛУБ>/
+cp /etc/letsencrypt/live/<НОВЫЙ-КЛУБ>.fixintel.ru/privkey.pem  /opt/fixintel/fixintel/ssl/<НОВЫЙ-КЛУБ>/
 
 ### 3.1. ПК (Windows/macOS/Linux) — персонал
 
@@ -237,6 +243,29 @@ echo | openssl s_client -connect &lt;LAN-IP-фронта&gt;:443 -servername &lt
 ---
 
 ## ЧАСТЬ 4. ЭКСПЛУАТАЦИЯ
+# === Шаг 4. Файл /opt/fixintel/fixintel/nginx/conf.d/<НОВЫЙ-КЛУБ>.conf ===
+server {
+    listen 80;
+    server_name <НОВЫЙ-КЛУБ>.fixintel.ru;
+    location /.well-known/acme-challenge/ { root /var/www/certbot; allow all; }
+    location / { return 301 https://$server_name$request_uri; }
+}
+server {
+    listen 443 ssl;
+    server_name <НОВЫЙ-КЛУБ>.fixintel.ru;
+    ssl_certificate     /etc/nginx/ssl/<НОВЫЙ-КЛУБ>/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/<НОВЫЙ-КЛУБ>/privkey.pem;
+    location / {
+        proxy_pass http://<LAN-IP-нового-клуба>:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 60s;
+        client_max_body_size 20m;
+    }
+}
+# применить конфиг
+docker exec fixintel-nginx nginx -t && docker exec fixintel-nginx nginx -s reload
 
 ### 4.1. Тестовая отправка всем подписчикам
 
@@ -282,6 +311,15 @@ COMPOSE=(docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml
 
 ---
 
+
+# === Шаг 5. Авто-продление: /etc/letsencrypt/renewal-hooks/deploy/<НОВЫЙ-КЛУБ>.sh ===
+#!/bin/sh
+cp /etc/letsencrypt/live/<НОВЫЙ-КЛУБ>.fixintel.ru/fullchain.pem /opt/fixintel/fixintel/ssl/<НОВЫЙ-КЛУБ>/fullchain.pem
+cp /etc/letsencrypt/live/<НОВЫЙ-КЛУБ>.fixintel.ru/privkey.pem  /opt/fixintel/fixintel/ssl/<НОВЫЙ-КЛУБ>/privkey.pem
+docker exec fixintel-nginx nginx -s reload
+
+(создать, затем chmod +x /etc/letsencrypt/renewal-hooks/deploy/<НОВЫЙ-КЛУБ>.sh)
+
 ## ЧАСТЬ 5. НЕИСПРАВНОСТИ
 
 | Симптом | Причина | Решение |
@@ -306,3 +344,7 @@ COMPOSE=(docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml
   автоматическое заведение поддоменов API платформой при регистрации клуба.
 - Для клиентских массовых уведомлений основной канал — MAX (уведомления
   присылает мессенджер), web push — канал персонала и запасной.
+  
+# === Шаг 6. Проверка ===
+curl -sS https://<НОВЫЙ-КЛУБ>.fixintel.ru/api/v1/health/
+echo | openssl s_client -connect 192.168.101.125:443 -servername <НОВЫЙ-КЛУБ>.fixintel.ru 2>/dev/null | openssl x509 -noout -subject
