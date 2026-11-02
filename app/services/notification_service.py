@@ -246,12 +246,29 @@ class NotificationService:
     # SMS (smsc.ru)
     # =====================================================================
     def send_sms(self, phone: str, message: str) -> bool:
-        """Отправка SMS через smsc.ru"""
+        """Отправка SMS через smsc.ru (sys/send.php, JSON-ответ)."""
         try:
-            self._log('sms', phone, None, message, 'sent')
-            return True
+            row = self.db.execute(text(
+                "SELECT sms_enabled, smsc_login, smsc_pass, smsc_sender"
+                " FROM notification_settings LIMIT 1")).first()
+            if not row or not row[0]:
+                raise ValueError("SMS-уведомления отключены (вкладка «SMS»)")
+            login, psw = row[1], row[2]
+            if not login or not psw:
+                raise ValueError("SMSC логин/пароль не заданы (вкладка «SMS»)")
+            params = {"login": login, "psw": psw, "phones": phone,
+                      "mes": message, "fmt": 3, "charset": "utf-8"}
+            if row[3]:
+                params["sender"] = row[3]
+            r = requests.get("https://smsc.ru/sys/send.php",
+                             params=params, timeout=15)
+            data = r.json() if r.content else {}
+            if isinstance(data, list) and data and "id" in data[0]:
+                self._log('sms', phone, None, message, 'sent')
+                return True
+            raise ValueError("SMSC ответ: %s" % (data if data else r.text[:200]))
         except Exception as e:
-            self._log('sms', phone, None, message, 'failed', error=str(e))
+            self._log('sms', phone, None, message, 'failed', error=str(e)[:300])
             return False
 
     # =====================================================================
