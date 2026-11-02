@@ -76,6 +76,19 @@ class NotificationsTab(QWidget):
         self.cb_ev_exp = QCheckBox("Абонемент истекает")
         f.addRow(self.cb_ev_pay); f.addRow(self.cb_ev_vend)
         f.addRow(self.cb_ev_book); f.addRow(self.cb_ev_exp)
+        f.addRow(QLabel("Подключение каналов:"))
+        self.ed_max_tok = QLineEdit(); self.ed_max_tok.setEchoMode(QLineEdit.EchoMode.Password)
+        self.ed_max_tok.setPlaceholderText("Токен бота MAX (выдаёт @masterbot)")
+        self.lbl_max_st = QLabel("MAX: не проверено")
+        bmax = QPushButton(" Сохранить токен MAX")
+        bmax.clicked.connect(self.save_max_token)
+        f.addRow(self.ed_max_tok); f.addRow(self.lbl_max_st); f.addRow(bmax)
+        self.ed_tg_tok = QLineEdit(); self.ed_tg_tok.setEchoMode(QLineEdit.EchoMode.Password)
+        self.ed_tg_tok.setPlaceholderText("Токен Telegram-бота (от @BotFather)")
+        self.lbl_tg_st = QLabel("Telegram: не проверено")
+        btg = QPushButton(" Подключить Telegram")
+        btg.clicked.connect(self.save_telegram_token)
+        f.addRow(self.ed_tg_tok); f.addRow(self.lbl_tg_st); f.addRow(btg)
         b = QPushButton(" Сохранить «Клиенту»")
         b.clicked.connect(self.save_client_settings)
         f.addRow(b)
@@ -121,8 +134,58 @@ class NotificationsTab(QWidget):
             self.cb_ev_vend.setChecked(bool(ev.get("vending", True)))
             self.cb_ev_book.setChecked(bool(ev.get("booking_reminder", True)))
             self.cb_ev_exp.setChecked(bool(ev.get("subscription_expiry", True)))
+            self._cn_load_tokens()
         except Exception:
             pass
+
+    def _cn_request(self, method, path, payload=None):
+        try:
+            if hasattr(self.api, "session") and hasattr(self.api, "_url"):
+                r = self.api.session.request(method, self.api._url(path), json=payload, timeout=20)
+                return r.status_code, (r.json() if r.content else {})
+            fn = getattr(self.api, method.lower(), None)
+            if fn is None:
+                return 0, {"error": "api-клиент не поддерживает " + method}
+            r = fn(path, json=payload) if payload is not None else fn(path)
+            return getattr(r, "status_code", 200), (r if isinstance(r, dict) else r.json())
+        except Exception as e:
+            return 0, {"error": str(e)[:150]}
+
+    def save_max_token(self):
+        tok = self.ed_max_tok.text().strip()
+        if not tok:
+            QMessageBox.warning(self, "MAX", "Введите токен бота.")
+            return
+        code, data = self._cn_request("POST", "/max-bot/config", {"bot_token": tok})
+        if code < 300:
+            self.ed_max_tok.clear()
+            self._cn_load_tokens()
+            QMessageBox.information(self, "MAX", "Токен сохранён, webhook подписан автоматически.")
+        else:
+            QMessageBox.warning(self, "MAX", "Ошибка: %s" % data)
+
+    def save_telegram_token(self):
+        tok = self.ed_tg_tok.text().strip()
+        if not tok:
+            QMessageBox.warning(self, "Telegram", "Введите токен бота.")
+            return
+        code, data = self._cn_request("POST", "/telegram/setup", {"token": tok})
+        if code < 300:
+            self.ed_tg_tok.clear()
+            self._cn_load_tokens()
+            QMessageBox.information(self, "Telegram", "Бот подключён, webhook установлен.")
+        else:
+            QMessageBox.warning(self, "Telegram", "Ошибка: %s" % data)
+
+    def _cn_load_tokens(self):
+        code, d = self._cn_request("GET", "/max-bot/config")
+        if code < 300:
+            self.lbl_max_st.setText("MAX: " + ("подключён (…%s)" % d.get("bot_token_tail")
+                                               if d.get("bot_token_set") else "токен не задан"))
+        code, d = self._cn_request("GET", "/telegram/webhook-info")
+        if code < 300:
+            self.lbl_tg_st.setText("Telegram: " + ("подключён" if d.get("is_active")
+                                    else ("токен задан" if d.get("token_configured") else "не настроен")))
 
     def _build_sms_tab(self):
         w = QWidget(); f = QFormLayout(w)
