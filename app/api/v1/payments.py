@@ -162,6 +162,14 @@ def complete_payment(
         ReceiptService(db).auto_send_for_payment(str(payment.id))
     except Exception:
         pass
+    # Уведомление клиенту (MAX -> Telegram -> SMS): оплата принята
+    try:
+        from app.services.client_notify_service import ClientNotifyService
+        ClientNotifyService(db).send(
+            str(payment.client_id), "payment",
+            f"Оплата {payment.amount} {getattr(payment, 'currency', None) or 'RUB'} принята. Чек направлен на email.")
+    except Exception:
+        pass
     return service._build_response(payment)
 
 

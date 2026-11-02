@@ -445,3 +445,33 @@ def _webpush_manifest():
             {"src": "/static/icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
         ],
     }
+
+
+@router.get("/notify/client-settings")
+def cn_settings_get(db: Session = Depends(get_db)):
+    from app.services.client_notify_service import ClientNotifyService
+    return ClientNotifyService(db).settings()
+
+
+@router.put("/notify/client-settings")
+def cn_settings_put(body: dict, db: Session = Depends(get_db)):
+    from app.services.client_notify_service import ClientNotifyService, ensure_client_notify_columns
+    allowed = {"client_notify_enabled", "cn_max", "cn_telegram", "cn_sms"}
+    ensure_client_notify_columns(db)
+    sets, params = [], {}
+    for k in allowed:
+        if k in body:
+            sets.append(f"{k} = :{k}")
+            params[k] = bool(body[k])
+    if sets:
+        db.execute(text(f"UPDATE notification_settings SET {', '.join(sets)}"))
+        db.commit()
+    return ClientNotifyService(db).settings()
+
+
+@router.get("/notify/client-plan")
+def cn_plan(client_id: str, db: Session = Depends(get_db)):
+    """Диагностика: какие каналы доступны клиенту без отправки."""
+    from app.services.client_notify_service import ClientNotifyService
+    svc = ClientNotifyService(db)
+    return {"settings": svc.settings(), "channels": svc.resolve(client_id)}

@@ -267,6 +267,14 @@ def confirm(body: dict, x_device_token: str | None = Header(None),
     with engine.begin() as c:
         c.execute(text("UPDATE vending_sales SET status=:s, updated_at=now() WHERE id=:i"),
                   {"s": new_status, "i": sale_id})
+    if new_status == "CONFIRMED":
+        try:
+            from app.services.client_notify_service import ClientNotifyService
+            ClientNotifyService(db).send(
+                client_id, "vending",
+                f"Покупка «{product}» на сумму {price} ₽. Спасибо!")
+        except Exception:
+            pass
     return {"ok": True, "sale_id": sale_id, "status": new_status}
 
 
