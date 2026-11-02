@@ -2,7 +2,7 @@
 # Быстрая сборка: тяжёлые зависимости (dlib/face-recognition) — в requirements-base.txt
 # (слой кэшируется, меняется редко). Лёгкие — в requirements.txt.
 
-FROM python:3.12-slim AS base
+FROM python:3.12-slim@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab3 AS base
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
