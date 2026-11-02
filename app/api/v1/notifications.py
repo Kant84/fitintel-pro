@@ -215,6 +215,19 @@ def get_log(limit: int = 50):
         rows = c.execute(text("SELECT id, channel, recipient, subject, status, error, created_at FROM notification_log ORDER BY id DESC LIMIT :n"), {"n": min(limit, 200)}).mappings().all()
     return [dict(r) for r in rows]
 
+def _club_name() -> str:
+    """Название клуба из White-label (branding_settings.club_name)."""
+    try:
+        with _eng().connect() as c:
+            row = c.execute(text(
+                "SELECT club_name FROM branding_settings WHERE club_name IS NOT NULL AND club_name <> '' ORDER BY id LIMIT 1")).first()
+        if row and row[0]:
+            return str(row[0])
+    except Exception:
+        pass
+    return "FitIntel Pro"
+
+
 def _club_contact():
     """Email поддержки клуба: из 'Параметры клуба -> Настройки приложения'
     (max_bot_settings) или club_params; иначе None."""
@@ -241,7 +254,7 @@ def _club_contact():
 _PUSH_PAGE = """<!doctype html><html lang=ru><head><link rel="manifest" href="/api/v1/notify/webpush/manifest.json"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="apple-touch-icon" href="/static/icon.png"><meta charset=utf-8>
 <title>FitIntel Push</title></head>
 <body style="font-family:sans-serif;max-width:560px;margin:40px auto;text-align:center">
-<h2>FitIntel Pro — push-уведомления</h2>
+<h2>__CLUB__ — push-уведомления</h2>
 <p id=st>Нажмите кнопку и разрешите уведомления в браузере.</p>
 <p><button id=b style="font-size:16px;padding:10px 28px">Подписаться</button></p>
 <script>
@@ -275,7 +288,9 @@ def wp_page():
     base = "/api/v1"
     html = (_PUSH_PAGE.replace("__PUB__", pub)
             .replace("__SW__", base + "/notify/webpush/sw.js")
-            .replace("__SUB__", base + "/notify/webpush/subscribe"))
+            .replace("__SUB__", base + "/notify/webpush/subscribe")
+            .replace("__CLUB__", _club_name()))
+    html = html.replace("</head>", '<meta name="apple-mobile-web-app-title" content="' + _club_name() + '"></head>')
     return HTMLResponse(html)
 
 
@@ -418,8 +433,8 @@ def email_queue_process(current_user=Depends(get_current_user),
 def _webpush_manifest():
     """PWA-манифест для установки на экран Домой (нужен для web-push на iOS 16.4+)."""
     return {
-        "name": "FitIntel Pro",
-        "short_name": "FitIntel",
+        "name": _club_name(),
+        "short_name": _club_name()[:12],
         "start_url": "/api/v1/notify/webpush/page",
         "scope": "/",
         "display": "standalone",
