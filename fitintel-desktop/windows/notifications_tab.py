@@ -69,6 +69,13 @@ class NotificationsTab(QWidget):
         self.cb_cn_tg = QCheckBox("Telegram (бесплатно)")
         self.cb_cn_sms = QCheckBox("SMS через SMSC.ru (платно: ~5–11 ₽/шт)")
         f.addRow(self.cb_cn_max); f.addRow(self.cb_cn_tg); f.addRow(self.cb_cn_sms)
+        f.addRow(QLabel("События:"))
+        self.cb_ev_pay = QCheckBox("Оплата принята")
+        self.cb_ev_vend = QCheckBox("Вендинг-покупка")
+        self.cb_ev_book = QCheckBox("Напоминание о записи")
+        self.cb_ev_exp = QCheckBox("Абонемент истекает")
+        f.addRow(self.cb_ev_pay); f.addRow(self.cb_ev_vend)
+        f.addRow(self.cb_ev_book); f.addRow(self.cb_ev_exp)
         b = QPushButton(" Сохранить «Клиенту»")
         b.clicked.connect(self.save_client_settings)
         f.addRow(b)
@@ -80,6 +87,10 @@ class NotificationsTab(QWidget):
             "cn_max": self.cb_cn_max.isChecked(),
             "cn_telegram": self.cb_cn_tg.isChecked(),
             "cn_sms": self.cb_cn_sms.isChecked(),
+            "cn_ev_payment": self.cb_ev_pay.isChecked(),
+            "cn_ev_vending": self.cb_ev_vend.isChecked(),
+            "cn_ev_booking": self.cb_ev_book.isChecked(),
+            "cn_ev_expiry": self.cb_ev_exp.isChecked(),
         }
         try:
             fn = getattr(self.api, "put", None) or getattr(self.api, "post", None)
@@ -105,6 +116,11 @@ class NotificationsTab(QWidget):
             self.cb_cn_max.setChecked(bool(data.get("max")))
             self.cb_cn_tg.setChecked(bool(data.get("telegram")))
             self.cb_cn_sms.setChecked(bool(data.get("sms")))
+            ev = data.get("events") or {}
+            self.cb_ev_pay.setChecked(bool(ev.get("payment", True)))
+            self.cb_ev_vend.setChecked(bool(ev.get("vending", True)))
+            self.cb_ev_book.setChecked(bool(ev.get("booking_reminder", True)))
+            self.cb_ev_exp.setChecked(bool(ev.get("subscription_expiry", True)))
         except Exception:
             pass
 
