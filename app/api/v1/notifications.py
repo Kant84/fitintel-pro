@@ -126,7 +126,7 @@ def _send_webpush(title, body):
         from pywebpush import webpush, WebPushException
     except ImportError:
         return False, "pywebpush не установлен (pip install pywebpush)"
-    ok, errs = 0, []
+    ok, errs, dead = 0, [], []
     with _eng().connect() as c:
         subs = c.execute(text("SELECT endpoint, keys_json FROM webpush_subscriptions")).all()
     for ep, keys in subs:
@@ -134,12 +134,20 @@ def _send_webpush(title, body):
             webpush({"endpoint": ep, "keys": json.loads(keys)},
                     json.dumps({"title": title, "body": body}, ensure_ascii=False),
                     vapid_private_key=s.get("vapid_private"),
-                    vapid_claims={"sub": _club_contact() or s.get("vapid_sub") or "mailto:admin@fitintel.local"})
+                    vapid_claims={"sub": _club_contact() or s.get("vapid_sub") or "mailto:admin@fitintel.local"},
+                    headers={"urgency": "high", "TTL": "2419200"})
             ok += 1
         except Exception as e:
-            errs.append(str(e)[:150])
+            msg = str(e)[:150]
+            errs.append(ep[:42] + ": " + msg)
+            if "404" in msg or "410" in msg or getattr(e, "status_code", None) in (404, 410):
+                dead.append(ep)
+    if dead:
+        with _eng().begin() as c:
+            for epd in dead:
+                c.execute(text("DELETE FROM webpush_subscriptions WHERE endpoint=:e"), {"e": epd})
     if ok:
-        return True, None
+        return True, ("; ".join(errs) or None)
     return False, "; ".join(errs) or "нет подписок"
 
 class TestIn(BaseModel):
@@ -261,7 +269,7 @@ def wp_page():
 @router.get("/notify/webpush/sw.js")
 def wp_sw():
     from fastapi.responses import Response
-    js = ("self.addEventListener('push', e => { const d = e.data ? e.data.json() : {}; "
+    js = ("self.addEventListener('push', e => { const d = e.data ? e.data.json() : {}; e.waitUntil(self.registration.showNotification(d.title || 'FitIntel Pro', { body: d.body || '', icon: '/static/icon.png' })); }); self.addEventListener('pushsubscriptionchange', e => { e.waitUntil(self.registration.pushManager.subscribe({ userVisibleOnly: true }).then(sub => { const b64 = buf => btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); return fetch('/api/v1/notify/webpush/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh: b64(sub.getKey('p256dh')), auth: b64(sub.getKey('auth')) } }) }); }).catch(() => {})); }); 
           "e.waitUntil(self.registration.showNotification(d.title || 'FitIntel Pro', "
           "{ body: d.body || '', icon: '/static/icon.png' })); });")
     return Response(js, media_type="application/javascript")
