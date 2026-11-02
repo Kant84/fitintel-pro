@@ -17,9 +17,8 @@ def ensure_client_notify_columns(db: Session) -> None:
         "ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS cn_telegram BOOLEAN DEFAULT TRUE",
         "ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS cn_sms BOOLEAN DEFAULT FALSE",
     ]
-    with db.connection() as c:
-        for s in stmts:
-            c.execute(text(s))
+    for st in stmts:
+        db.execute(text(st))
     db.commit()
 
 
