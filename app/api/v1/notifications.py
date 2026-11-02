@@ -465,7 +465,7 @@ def cn_settings_put(body: dict, db: Session = Depends(get_db)):
             sets.append(f"{k} = :{k}")
             params[k] = bool(body[k])
     if sets:
-        db.execute(text(f"UPDATE notification_settings SET {', '.join(sets)}"))
+        db.execute(text(f"UPDATE notification_settings SET {', '.join(sets)}"), params)
         db.commit()
     return ClientNotifyService(db).settings()
 
