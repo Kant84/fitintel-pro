@@ -283,29 +283,30 @@ class NotificationService:
     # MAX MESSENGER
     # =====================================================================
     def send_max_message(self, user_id: str, message: str) -> bool:
-        """Отправка через MAX Messenger API"""
+        """Отправка через MAX API. Токен — из max_bot_settings (fallback: env),
+        формат вызова — как в messenger._send_max (platform-api.max.ru)."""
         try:
-            if not settings.MAX_BOT_TOKEN:
-                raise ValueError("MAX_BOT_TOKEN not set")
-
-            headers = {
-                'Authorization': f'Bearer {settings.MAX_BOT_TOKEN}',
-                'Content-Type': 'application/json'
-            }
-            response = requests.post(
-                f"{settings.MAX_API_URL}/messages",
-                headers=headers,
-                json={'user_id': user_id, 'text': message},
-                timeout=10
-            )
-
-            if response.status_code in (200, 201):
+            token = None
+            try:
+                row = self.db.execute(text(
+                    "SELECT bot_token FROM max_bot_settings WHERE id=1")).first()
+                token = row[0] if row else None
+            except Exception:
+                self.db.rollback()
+            token = token or getattr(settings, "MAX_BOT_TOKEN", None)
+            if not token:
+                raise ValueError("MAX bot token не задан (max_bot_settings)")
+            uid = int(str(user_id))
+            r = requests.post("https://platform-api.max.ru/messages",
+                              params={"user_id": uid},
+                              json={"text": message},
+                              headers={"Authorization": token}, timeout=10)
+            if r.status_code in (200, 201):
                 self._log('max', user_id, None, message, 'sent')
                 return True
-            else:
-                raise ValueError(f"MAX API error: {response.text}")
+            raise ValueError("MAX API HTTP %s: %s" % (r.status_code, r.text[:200]))
         except Exception as e:
-            self._log('max', user_id, None, message, 'failed', error=str(e))
+            self._log('max', user_id, None, message, 'failed', error=str(e)[:300])
             return False
 
     # =====================================================================
