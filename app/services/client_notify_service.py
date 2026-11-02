@@ -53,7 +53,7 @@ class ClientNotifyService:
         for key, sql in (
             ("phone", "SELECT phone FROM clients WHERE id::text=:i"),
             ("telegram_chat", "SELECT chat_id FROM telegram_links WHERE client_id::text=:i LIMIT 1"),
-            ("max_user", "SELECT max_user_id FROM messenger_bindings WHERE client_id::text=:i ORDER BY created_at DESC LIMIT 1"),
+            ("max_user", "SELECT max_user_id FROM messenger_bindings WHERE client_id::text=:i ORDER BY length(max_user_id) ASC LIMIT 1"),
         ):
             try:
                 r = self.db.execute(text(sql), {"i": str(client_id)}).first()
