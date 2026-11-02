@@ -456,7 +456,8 @@ def cn_settings_get(db: Session = Depends(get_db)):
 @router.put("/notify/client-settings")
 def cn_settings_put(body: dict, db: Session = Depends(get_db)):
     from app.services.client_notify_service import ClientNotifyService, ensure_client_notify_columns
-    allowed = {"client_notify_enabled", "cn_max", "cn_telegram", "cn_sms"}
+    allowed = {"client_notify_enabled", "cn_max", "cn_telegram", "cn_sms",
+               "cn_ev_payment", "cn_ev_vending", "cn_ev_booking", "cn_ev_expiry"}
     ensure_client_notify_columns(db)
     sets, params = [], {}
     for k in allowed:

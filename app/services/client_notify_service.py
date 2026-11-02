@@ -1,26 +1,31 @@
 """Уведомления КЛИЕНТУ: единая точка отправки.
 
-Приоритет каналов: MAX -> Telegram -> SMS. Канал выбирается по привязкам
-клиента и настройкам клуба (notification_settings: client_notify_enabled,
-cn_max, cn_telegram, cn_sms). SMS платный (SMSC) и по умолчанию ВЫКЛЮЧЕН.
+Приоритет каналов: MAX -> Telegram -> SMS. Отдельные флажки на ТИПЫ событий:
+payment (оплата), vending (вендинг), booking_reminder (запись),
+subscription_expiry (абонемент). SMS платный и по умолчанию ВЫКЛЮЧЕН.
 """
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.services.notification_service import NotificationService
 
+EVENT_FLAGS = {
+    "payment": "cn_ev_payment",
+    "vending": "cn_ev_vending",
+    "booking_reminder": "cn_ev_booking",
+    "subscription_expiry": "cn_ev_expiry",
+}
 
-def ensure_client_notify_columns(db: Session) -> None:
-    stmts = [
-        "ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS client_notify_enabled BOOLEAN DEFAULT TRUE",
-        "ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS cn_max BOOLEAN DEFAULT TRUE",
-        "ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS cn_telegram BOOLEAN DEFAULT TRUE",
-        "ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS cn_sms BOOLEAN DEFAULT FALSE",
-    ]
+_COLUMNS = ["client_notify_enabled", "cn_max", "cn_telegram", "cn_sms",
+            "cn_ev_payment", "cn_ev_vending", "cn_ev_booking", "cn_ev_expiry"]
+
+
+def ensure_client_notify_columns(db: Session = None) -> None:
     from app.db.session import engine
     with engine.begin() as c:
-        for st in stmts:
-            c.execute(text(st))
+        for col in _COLUMNS:
+            default = "FALSE" if col == "cn_sms" else "TRUE"
+            c.execute(text(f"ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS {col} BOOLEAN DEFAULT {default}"))
 
 
 class ClientNotifyService:
@@ -29,39 +34,33 @@ class ClientNotifyService:
 
     def settings(self) -> dict:
         ensure_client_notify_columns(self.db)
-        row = self.db.execute(text(
-            "SELECT client_notify_enabled, cn_max, cn_telegram, cn_sms "
-            "FROM notification_settings LIMIT 1")).first()
+        cols = ", ".join(_COLUMNS)
+        row = self.db.execute(text(f"SELECT {cols} FROM notification_settings LIMIT 1")).first()
         if not row:
-            return {"enabled": False, "max": False, "telegram": False, "sms": False}
-        return {"enabled": bool(row[0]), "max": bool(row[1]),
-                "telegram": bool(row[2]), "sms": bool(row[3])}
+            return {"enabled": False, "max": False, "telegram": False, "sms": False,
+                    "events": {k: False for k in EVENT_FLAGS}}
+        d = dict(zip(_COLUMNS, row))
+        return {
+            "enabled": bool(d["client_notify_enabled"]),
+            "max": bool(d["cn_max"]),
+            "telegram": bool(d["cn_telegram"]),
+            "sms": bool(d["cn_sms"]),
+            "events": {ev: bool(d[col]) for ev, col in EVENT_FLAGS.items()},
+        }
 
     def resolve(self, client_id: str) -> dict:
         info = {"phone": None, "telegram_chat": None, "max_user": None}
-        try:
-            r = self.db.execute(text("SELECT phone FROM clients WHERE id::text=:i"),
-                                {"i": str(client_id)}).first()
-            if r and r[0]:
-                info["phone"] = str(r[0])
-        except Exception:
-            self.db.rollback()
-        try:
-            r = self.db.execute(text(
-                "SELECT chat_id FROM telegram_links WHERE client_id::text=:i LIMIT 1"),
-                {"i": str(client_id)}).first()
-            if r and r[0]:
-                info["telegram_chat"] = str(r[0])
-        except Exception:
-            self.db.rollback()
-        try:
-            r = self.db.execute(text(
-                "SELECT max_user_id FROM messenger_bindings WHERE client_id::text=:i "
-                "ORDER BY created_at DESC LIMIT 1"), {"i": str(client_id)}).first()
-            if r and r[0]:
-                info["max_user"] = str(r[0])
-        except Exception:
-            self.db.rollback()
+        for key, sql in (
+            ("phone", "SELECT phone FROM clients WHERE id::text=:i"),
+            ("telegram_chat", "SELECT chat_id FROM telegram_links WHERE client_id::text=:i LIMIT 1"),
+            ("max_user", "SELECT max_user_id FROM messenger_bindings WHERE client_id::text=:i ORDER BY created_at DESC LIMIT 1"),
+        ):
+            try:
+                r = self.db.execute(text(sql), {"i": str(client_id)}).first()
+                if r and r[0]:
+                    info[key] = str(r[0])
+            except Exception:
+                self.db.rollback()
         if not info["max_user"]:
             try:
                 r = self.db.execute(text("SELECT user_id FROM clients WHERE id::text=:i"),
@@ -77,6 +76,9 @@ class ClientNotifyService:
         res = {"ok": False, "event": event, "channel": None, "error": None, "tried": []}
         if not st.get("enabled"):
             res["error"] = "клиентские уведомления отключены настройками клуба"
+            return res
+        if event in EVENT_FLAGS and not st.get("events", {}).get(event, True):
+            res["error"] = f"событие '{event}' отключено настройками клуба"
             return res
         info = self.resolve(client_id)
         ns = NotificationService(self.db)
