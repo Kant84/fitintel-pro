@@ -31,6 +31,7 @@ class NotificationsTab(QWidget):
 
         self._build_email_tab()
         self._build_sms_tab()
+        self._build_client_tab()
         self._build_push_tab()
         self._build_test_tab()
         self._build_log_tab()
@@ -59,6 +60,53 @@ class NotificationsTab(QWidget):
         b = QPushButton(" Сохранить Email"); b.clicked.connect(lambda: self.save_settings("email"))
         f.addRow(b)
         self.tabs.addTab(w, " Email")
+
+    def _build_client_tab(self):
+        w = QWidget(); f = QFormLayout(w)
+        self.cb_cn = QCheckBox("Включить уведомления клиентам (MAX → Telegram → SMS)")
+        f.addRow(self.cb_cn)
+        self.cb_cn_max = QCheckBox("MAX (мессенджер, бесплатно)")
+        self.cb_cn_tg = QCheckBox("Telegram (бесплатно)")
+        self.cb_cn_sms = QCheckBox("SMS через SMSC.ru (платно: ~5–11 ₽/шт)")
+        f.addRow(self.cb_cn_max); f.addRow(self.cb_cn_tg); f.addRow(self.cb_cn_sms)
+        b = QPushButton(" Сохранить «Клиенту»")
+        b.clicked.connect(self.save_client_settings)
+        f.addRow(b)
+        self.tabs.addTab(w, " Клиенту")
+
+    def save_client_settings(self):
+        payload = {
+            "client_notify_enabled": self.cb_cn.isChecked(),
+            "cn_max": self.cb_cn_max.isChecked(),
+            "cn_telegram": self.cb_cn_tg.isChecked(),
+            "cn_sms": self.cb_cn_sms.isChecked(),
+        }
+        try:
+            fn = getattr(self.api, "put", None) or getattr(self.api, "post", None)
+            if fn is None:
+                raise RuntimeError("api-клиент без put/post")
+            r = fn("/api/v1/notify/client-settings", json=payload)
+            code = getattr(r, "status_code", 200)
+            if code < 300:
+                QMessageBox.information(self, "Клиенту", "Настройки сохранены.")
+            else:
+                QMessageBox.warning(self, "Клиенту", f"Сервер вернул {code}")
+        except Exception as e:
+            QMessageBox.warning(self, "Клиенту", f"Ошибка сохранения: {e}")
+
+    def load_client_settings(self):
+        try:
+            fn = getattr(self.api, "get", None) or getattr(self.api, "request", None)
+            if fn is None:
+                return
+            r = fn("/api/v1/notify/client-settings")
+            data = r if isinstance(r, dict) else (r.json() if hasattr(r, "json") else {})
+            self.cb_cn.setChecked(bool(data.get("enabled")))
+            self.cb_cn_max.setChecked(bool(data.get("max")))
+            self.cb_cn_tg.setChecked(bool(data.get("telegram")))
+            self.cb_cn_sms.setChecked(bool(data.get("sms")))
+        except Exception:
+            pass
 
     def _build_sms_tab(self):
         w = QWidget(); f = QFormLayout(w)
@@ -124,10 +172,14 @@ class NotificationsTab(QWidget):
 
     # ---------- логика ----------
     def _get(self, path):
-        return requests.get(self.api.base_url.rstrip(chr(47)) + path, timeout=15).json()
+        response = self.api.session.get(self.api._url(path), timeout=15)
+        response.raise_for_status()
+        return response.json()
 
     def _post(self, path, payload):
-        return requests.post(self.api.base_url.rstrip(chr(47)) + path, json=payload, timeout=25).json()
+        response = self.api.session.post(self.api._url(path), json=payload, timeout=25)
+        response.raise_for_status()
+        return response.json()
 
     def load_contacts(self):
         try:
@@ -155,6 +207,7 @@ class NotificationsTab(QWidget):
             s = self._get("/notify/settings")
             self.cb_email.setChecked(bool(s.get("email_enabled")))
             self.cb_sms.setChecked(bool(s.get("sms_enabled")))
+            self.load_client_settings()
             self.cb_push.setChecked(bool(s.get("webpush_enabled")))
             self.ed_smtp_host.setText(s.get("smtp_host") or "")
             self.ed_smtp_port.setValue(int(s.get("smtp_port") or 465))
