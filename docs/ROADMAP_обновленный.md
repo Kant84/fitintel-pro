@@ -263,6 +263,7 @@
 - [x] **Вендинг с баланса — работает**: RFID + оплата по коду из миниаппа, возврат при сбое выдачи, журнал, эмулятор; контракт docs/VENDING.md.
 
 ## Итоги 02.11.2026 (финал дня)
+- [x] **ЖИВАЯ ДОСТАВКА ПОДТВЕРЖДЕНА 02.11**: клиент написал боту MAX -> привязка по телефону (messenger_bindings, числовой user_id) -> ClientNotifyService -> MAX API -> сообщение получено в мессенджере (send ok, channel=max; webhook бота на club-test.fixintel.ru). Фиксы пути: send_max_message читает токен из max_bot_settings + корректный формат platform-api.max.ru; resolve привязки numeric-first.
 - [x] **Уведомления клиенту MAX/Telegram/SMS — ГОТОВО**: ClientNotifyService (приоритет по привязкам), флаги каналов + 4 флага событий, API GET/PUT /notify/client-settings, события в payments/vending/W6/cron-expiry; SMS по умолчанию выкл (SMSC платный). Проверено на nfs: PUT/GET, skip по флагу события.
 - [x] **Desktop 1.6.2**: вкладка «Клиенту» (каналы, события, токены MAX/Telegram с автоподпиской webhook и живыми статусами), HELP_TEXTS «Клиенту»/«SMS», версия 1.6.2 везде.
 - [x] **Web Push** (ПК/Android/iOS-PWA), **чеки на email**, **вендинг с баланса**, **пин base-образа** — см. итоги выше.
