@@ -252,7 +252,7 @@ def _club_contact():
 
 
 _PUSH_PAGE = """<!doctype html><html lang=ru><head><link rel="manifest" href="/api/v1/notify/webpush/manifest.json"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="apple-touch-icon" href="/static/icon.png"><meta charset=utf-8>
-<title>FitIntel Push</title></head>
+<title>__CLUB__ Push</title></head>
 <body style="font-family:sans-serif;max-width:560px;margin:40px auto;text-align:center">
 <h2>__CLUB__ — push-уведомления</h2>
 <p id=st>Нажмите кнопку и разрешите уведомления в браузере.</p>
