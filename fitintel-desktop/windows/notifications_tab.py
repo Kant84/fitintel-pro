@@ -93,6 +93,8 @@ class NotificationsTab(QWidget):
         b.clicked.connect(self.save_client_settings)
         f.addRow(b)
         self.tabs.addTab(w, " Клиенту")
+        _idx = self.tabs.indexOf(w)
+        self.tabs.currentChanged.connect(lambda i, _i=_idx: i == _i and self._cn_load_tokens())
 
     def save_client_settings(self):
         payload = {
@@ -182,10 +184,14 @@ class NotificationsTab(QWidget):
         if code < 300:
             self.lbl_max_st.setText("MAX: " + ("подключён (…%s)" % d.get("bot_token_tail")
                                                if d.get("bot_token_set") else "токен не задан"))
+        else:
+            self.lbl_max_st.setText("MAX: ошибка %s %s" % (code, d))
         code, d = self._cn_request("GET", "/telegram/webhook-info")
         if code < 300:
             self.lbl_tg_st.setText("Telegram: " + ("подключён" if d.get("is_active")
                                     else ("токен задан" if d.get("token_configured") else "не настроен")))
+        else:
+            self.lbl_tg_st.setText("Telegram: ошибка %s %s" % (code, d))
 
     def _build_sms_tab(self):
         w = QWidget(); f = QFormLayout(w)
