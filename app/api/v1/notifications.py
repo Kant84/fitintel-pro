@@ -269,9 +269,7 @@ def wp_page():
 @router.get("/notify/webpush/sw.js")
 def wp_sw():
     from fastapi.responses import Response
-    js = ("self.addEventListener('push', e => { const d = e.data ? e.data.json() : {}; e.waitUntil(self.registration.showNotification(d.title || 'FitIntel Pro', { body: d.body || '', icon: '/static/icon.png' })); }); self.addEventListener('pushsubscriptionchange', e => { e.waitUntil(self.registration.pushManager.subscribe({ userVisibleOnly: true }).then(sub => { const b64 = buf => btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); return fetch('/api/v1/notify/webpush/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh: b64(sub.getKey('p256dh')), auth: b64(sub.getKey('auth')) } }) }); }).catch(() => {})); }); 
-          "e.waitUntil(self.registration.showNotification(d.title || 'FitIntel Pro', "
-          "{ body: d.body || '', icon: '/static/icon.png' })); });")
+    js = "self.addEventListener('push', e => { const d = e.data ? e.data.json() : {}; e.waitUntil(self.registration.showNotification(d.title || 'FitIntel Pro', { body: d.body || '', icon: '/static/icon.png' })); }); self.addEventListener('pushsubscriptionchange', e => { e.waitUntil(self.registration.pushManager.subscribe({ userVisibleOnly: true }).then(sub => { const b64 = buf => btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); return fetch('/api/v1/notify/webpush/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh: b64(sub.getKey('p256dh')), auth: b64(sub.getKey('auth')) } }) }); }).catch(() => {})); });"
     return Response(js, media_type="application/javascript")
 
 
