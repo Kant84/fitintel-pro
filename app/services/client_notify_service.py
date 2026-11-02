@@ -17,9 +17,10 @@ def ensure_client_notify_columns(db: Session) -> None:
         "ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS cn_telegram BOOLEAN DEFAULT TRUE",
         "ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS cn_sms BOOLEAN DEFAULT FALSE",
     ]
-    for st in stmts:
-        db.execute(text(st))
-    db.commit()
+    from app.db.session import engine
+    with engine.begin() as c:
+        for st in stmts:
+            c.execute(text(st))
 
 
 class ClientNotifyService:
@@ -44,7 +45,7 @@ class ClientNotifyService:
             if r and r[0]:
                 info["phone"] = str(r[0])
         except Exception:
-            pass
+            self.db.rollback()
         try:
             r = self.db.execute(text(
                 "SELECT chat_id FROM telegram_links WHERE client_id::text=:i LIMIT 1"),
@@ -52,7 +53,7 @@ class ClientNotifyService:
             if r and r[0]:
                 info["telegram_chat"] = str(r[0])
         except Exception:
-            pass
+            self.db.rollback()
         try:
             r = self.db.execute(text(
                 "SELECT max_user_id FROM messenger_bindings WHERE client_id::text=:i "
@@ -60,7 +61,7 @@ class ClientNotifyService:
             if r and r[0]:
                 info["max_user"] = str(r[0])
         except Exception:
-            pass
+            self.db.rollback()
         if not info["max_user"]:
             try:
                 r = self.db.execute(text("SELECT user_id FROM clients WHERE id::text=:i"),
@@ -68,7 +69,7 @@ class ClientNotifyService:
                 if r and r[0]:
                     info["max_user"] = str(r[0])
             except Exception:
-                pass
+                self.db.rollback()
         return info
 
     def send(self, client_id: str, event: str, message: str) -> dict:
