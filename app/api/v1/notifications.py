@@ -118,6 +118,19 @@ def _send_sms(phone, message):
     except Exception as e:
         return False, str(e)[:300]
 
+def _resolve_vapid_sub(s: dict) -> str:
+    """VAPID sub клуба: из Уведомления -> Web Push (поле VAPID sub) или email поддержки
+    White-label. Только mailto:/https: с реальным доменом; иначе - ошибка (без хардкода)."""
+    cc = _club_contact()
+    for cand in ((s.get("vapid_sub") or "").strip(), (cc or "").strip()):
+        if not cand or cand.endswith(".local"):
+            continue
+        if (cand.startswith("mailto:") and "@" in cand) or cand.startswith("https://"):
+            return cand
+    raise RuntimeError("VAPID sub не задан: заполните «VAPID sub» в Уведомления -> Web Push "
+                       "(mailto:адрес@домен.клуба) или «Email поддержки» в Коммерция -> White-label")
+
+
 def _send_webpush(title, body):
     s = _settings()
     if not s.get("webpush_enabled"):
@@ -134,7 +147,7 @@ def _send_webpush(title, body):
             webpush({"endpoint": ep, "keys": json.loads(keys)},
                     json.dumps({"title": title, "body": body}, ensure_ascii=False),
                     vapid_private_key=s.get("vapid_private"),
-                    vapid_claims={"sub": _club_contact() or s.get("vapid_sub") or "mailto:admin@fitintel.local"},
+                    vapid_claims={"sub": _resolve_vapid_sub(s), "exp": __import__("time").time() + 43200},
                     headers={"urgency": "high", "TTL": "2419200"})
             ok += 1
         except Exception as e:
