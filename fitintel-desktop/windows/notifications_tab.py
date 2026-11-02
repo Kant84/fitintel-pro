@@ -107,18 +107,11 @@ class NotificationsTab(QWidget):
             "cn_ev_booking": self.cb_ev_book.isChecked(),
             "cn_ev_expiry": self.cb_ev_exp.isChecked(),
         }
-        try:
-            fn = getattr(self.api, "put", None) or getattr(self.api, "post", None)
-            if fn is None:
-                raise RuntimeError("api-клиент без put/post")
-            r = fn("/api/v1/notify/client-settings", json=payload)
-            code = getattr(r, "status_code", 200)
-            if code < 300:
-                QMessageBox.information(self, "Клиенту", "Настройки сохранены.")
-            else:
-                QMessageBox.warning(self, "Клиенту", f"Сервер вернул {code}")
-        except Exception as e:
-            QMessageBox.warning(self, "Клиенту", f"Ошибка сохранения: {e}")
+        code, data = self._cn_request("PUT", "/notify/client-settings", payload)
+        if code < 300:
+            QMessageBox.information(self, "Клиенту", "Настройки сохранены.")
+        else:
+            QMessageBox.warning(self, "Клиенту", "Ошибка сохранения: %s" % data)
 
     def load_client_settings(self):
         try:
