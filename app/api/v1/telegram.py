@@ -230,19 +230,12 @@ def cron_subscription_expiry(
         end = _as_aware(sub.end_date)
         if not end or not (now <= end <= horizon):
             continue
-        link = db.execute(
-            select(TelegramLink).where(TelegramLink.client_id == str(sub.client_id),
-                                       TelegramLink.is_active == True)
-        ).scalar_one_or_none()
-        if link:
-            days_left = (end - now).days
-            sent.append({
-                "client_id": str(sub.client_id),
-                "telegram_id": link.telegram_id,
-                "days_left": days_left,
-                "message": f"⏰ Ваш абонемент истекает через {days_left} дн. Не забудьте продлить!",
-            })
-    return {"notifications_sent": len(sent), "notifications": sent}
+        days_left = (end - now).days
+        msg = f"⏰ Ваш абонемент истекает через {days_left} дн. Не забудьте продлить!"
+        from app.services.client_notify_service import ClientNotifyService
+        r = ClientNotifyService(db).send(str(sub.client_id), "subscription_expiry", msg)
+        sent.append({"client_id": str(sub.client_id), "days_left": days_left, "result": r})
+    return {"notifications_checked": len(subs), "notifications": sent}
 
 
 @router.post("/cron/booking-reminder")
@@ -262,18 +255,12 @@ def cron_booking_reminder(
         bd = _as_aware(r.booking_date)
         if not bd or not (now <= bd <= horizon):
             continue
-        link = db.execute(
-            select(TelegramLink).where(TelegramLink.client_id == str(r.client_id),
-                                       TelegramLink.is_active == True)
-        ).scalar_one_or_none()
-        if link:
-            sent.append({
-                "client_id": str(r.client_id),
-                "telegram_id": link.telegram_id,
-                "booking_date": bd.isoformat(),
-                "message": "📅 Напоминание: у вас бронирование через час!",
-            })
-    return {"notifications_sent": len(sent), "notifications": sent}
+        from app.services.client_notify_service import ClientNotifyService
+        res = ClientNotifyService(db).send(
+            str(r.client_id), "booking_reminder",
+            f"📅 Напоминание: у вас бронирование через час! ({bd.strftime('%d.%m %H:%M')})")
+        sent.append({"client_id": str(r.client_id), "booking_date": bd.isoformat(), "result": res})
+    return {"notifications_checked": len(rows), "notifications": sent}
 
 
 # ---------- E25.13 / E25.14: выкл/вкл ----------

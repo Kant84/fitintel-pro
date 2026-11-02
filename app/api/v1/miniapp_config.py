@@ -795,16 +795,19 @@ def _booking_reminder_job():
             a = (now + _tdl(hours=hours) - _tdl(minutes=20)).replace(tzinfo=None)
             z = (now + _tdl(hours=hours)).replace(tzinfo=None)
             rows = db.execute(_t(
-                f"SELECT b.id, b.booking_date, s.name, c.phone FROM {_bk_tbl()} b "
+                f"SELECT b.id, b.booking_date, s.name, c.phone, b.client_id FROM {_bk_tbl()} b "
                 "JOIN services s ON replace(cast(s.id as varchar),'-','')=replace(cast(b.service_id as varchar),'-','') "
                 "JOIN clients c ON replace(cast(c.id as varchar),'-','')=replace(cast(b.client_id as varchar),'-','') "
                 "WHERE b.status IN ('BOOKED','CONFIRMED') AND b.booking_date BETWEEN :a AND :z "
                 "AND b.reminded_at IS NULL AND c.phone IS NOT NULL AND c.phone <> '' LIMIT 50"),
                 {"a": a, "z": z}).fetchall()
-            for rid, when, name, phone in rows:
+            for rid, when, name, phone, cid in rows:
                 try:
                     dtxt = when.strftime("%d.%m") if when.date() != now.date() else "Сегодня"
-                    _max_send(phone, f"🔔 Напоминание: {dtxt} в {when.strftime('%H:%M')} — {name}. Ждём вас!")
+                    from app.services.client_notify_service import ClientNotifyService
+                    ClientNotifyService(db).send(
+                        str(cid).replace("-", ""), "booking_reminder",
+                        f"🔔 Напоминание: {dtxt} в {when.strftime('%H:%M')} — {name}. Ждём вас!")
                     db.execute(_t(f"UPDATE {_bk_tbl()} SET reminded_at=now() WHERE replace(cast(id as varchar),'-','')=replace(cast(:r as varchar),'-','')"), {"r": str(rid).replace("-","")})
                     db.commit()
                 except Exception:
