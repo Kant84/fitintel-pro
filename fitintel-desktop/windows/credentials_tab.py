@@ -676,9 +676,9 @@ class CredentialsTab(QWidget):
         kv.addLayout(row2)
         row3 = QHBoxLayout()
         row3.addWidget(QLabel("Аренда:"))
-        self.kr_client = QLineEdit()
-        self.kr_client.setPlaceholderText("UUID клиента...")
-        self.kr_client.setMinimumWidth(220)
+        row3.addWidget(QLabel("Клиент:"))
+        self.kr_client = QComboBox()
+        self.kr_client.setMinimumWidth(280)
         row3.addWidget(self.kr_client)
         self.kr_days = QSpinBox()
         self.kr_days.setRange(1, 3650)
@@ -713,6 +713,12 @@ class CredentialsTab(QWidget):
         kv.addLayout(self.kr_zones)
         lay.addWidget(kg)
 
+        self.ol_log = QPlainTextEdit()
+        self.ol_log.setMaximumBlockCount(200)
+        self.ol_log.setMinimumHeight(360)
+        self.ol_log.setPlaceholderText("Журнал онлайн-замков...")
+        lay.addWidget(self.ol_log)
+
         tg = QGroupBox("  Облачные провайдеры")
         tv = QVBoxLayout(tg)
         f = QFormLayout()
@@ -737,11 +743,6 @@ class CredentialsTab(QWidget):
         tv.addWidget(b)
         lay.addWidget(tg)
 
-        self.ol_log = QPlainTextEdit()
-        self.ol_log.setMaximumBlockCount(200)
-        self.ol_log.setMinimumHeight(360)
-        self.ol_log.setPlaceholderText("Журнал онлайн-замков...")
-        lay.addWidget(self.ol_log, 1)
         scroll.setWidget(inner)
         outer.addWidget(scroll)
         self._kr_cus = []
@@ -771,6 +772,29 @@ class CredentialsTab(QWidget):
                     self.kr_zone.setCurrentIndex(i)
         else:
             self.kr_status.setText("Kerong не настроен на сервере (настройки: /notify/kerong)")
+        self._kr_load_clients()
+
+    def _kr_load_clients(self):
+        try:
+            r = self._req("GET", "/clients?limit=300")
+        except Exception:
+            return
+        items = r if isinstance(r, list) else (r or {}).get("items") or []
+        cur = self.kr_client.currentData()
+        self.kr_client.clear()
+        for c in items:
+            cid = c.get("id") or c.get("client_id")
+            if not cid:
+                continue
+            name = (c.get("full_name") or "").strip()
+            if not name:
+                name = ((c.get("last_name") or "") + " " + (c.get("first_name") or "")).strip()
+            phone = (c.get("phone") or "").strip()
+            self.kr_client.addItem((name or "—") + ((" · " + phone) if phone else ""), str(cid))
+        if cur:
+            i = self.kr_client.findData(cur)
+            if i >= 0:
+                self.kr_client.setCurrentIndex(i)
 
     def _kr_zone_widget(self, z):
         cu = z["cu_board_id"]
@@ -802,10 +826,11 @@ class CredentialsTab(QWidget):
             closed = bool(lk.get("closed"))
             color = "#ef4444" if closed else "#10b981"
             border = "#8b5cf6" if rented else color
+            bw = 4 if rented else 2
             btn.setStyleSheet(
-                "QPushButton { background:%s; border:2px solid %s; color:#ffffff;"
+                "QPushButton { background:%s; border:%dpx solid %s; color:#ffffff;"
                 " font-size:15px; font-weight:800; padding:0; }"
-                "QPushButton:hover { border:2px solid #ffffff; }" % (color, border))
+                "QPushButton:hover { border:2px solid #ffffff; }" % (color, bw, border))
             tip = "№%d · %s" % (n, "закрыт" if closed else "открыт")
             if rented:
                 tip += " · аренда: " + str(lk["rented_by"])
@@ -846,9 +871,9 @@ class CredentialsTab(QWidget):
     def _kr_rent(self):
         cu = self.kr_zone.currentData()
         txt = self.kr_num.text().strip()
-        cid = self.kr_client.text().strip()
+        cid = self.kr_client.currentData()
         if cu is None or not txt.isdigit() or not cid:
-            self.ol_log.appendPlainText(" Аренда: нужны раздевалка, № замка и UUID клиента")
+            self.ol_log.appendPlainText(" Аренда: выберите раздевалку, № замка (сверху) и клиента из списка")
             return
         r = self._req("POST", "/notify/kerong/rent",
                       {"client_id": cid, "cu_board_id": int(cu),
