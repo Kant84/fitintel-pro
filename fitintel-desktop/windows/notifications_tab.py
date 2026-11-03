@@ -63,12 +63,12 @@ class NotificationsTab(QWidget):
 
     def _build_client_tab(self):
         w = QWidget(); f = QFormLayout(w)
-        self.cb_cn = QCheckBox("Включить уведомления клиентам (MAX → Telegram → SMS)")
+        self.cb_cn = QCheckBox("Включить уведомления клиентам (MAX → SMS)")
         f.addRow(self.cb_cn)
         self.cb_cn_max = QCheckBox("MAX (мессенджер, бесплатно)")
         self.cb_cn_tg = QCheckBox("Telegram (бесплатно)")
         self.cb_cn_sms = QCheckBox("SMS через SMSC.ru (платно: ~5–11 ₽/шт)")
-        f.addRow(self.cb_cn_max); f.addRow(self.cb_cn_tg); f.addRow(self.cb_cn_sms)
+        f.addRow(self.cb_cn_max); f.addRow(self.cb_cn_sms)
         f.addRow(QLabel("События:"))
         self.cb_ev_pay = QCheckBox("Оплата принята")
         self.cb_ev_vend = QCheckBox("Вендинг-покупка")
@@ -83,12 +83,6 @@ class NotificationsTab(QWidget):
         bmax = QPushButton(" Сохранить токен MAX")
         bmax.clicked.connect(self.save_max_token)
         f.addRow(self.ed_max_tok); f.addRow(self.lbl_max_st); f.addRow(bmax)
-        self.ed_tg_tok = QLineEdit(); self.ed_tg_tok.setEchoMode(QLineEdit.EchoMode.Password)
-        self.ed_tg_tok.setPlaceholderText("Токен Telegram-бота (от @BotFather)")
-        self.lbl_tg_st = QLabel("Telegram: не проверено")
-        btg = QPushButton(" Подключить Telegram")
-        btg.clicked.connect(self.save_telegram_token)
-        f.addRow(self.ed_tg_tok); f.addRow(self.lbl_tg_st); f.addRow(btg)
         b = QPushButton(" Сохранить «Клиенту»")
         b.clicked.connect(self.save_client_settings)
         f.addRow(b)
@@ -100,7 +94,6 @@ class NotificationsTab(QWidget):
         payload = {
             "client_notify_enabled": self.cb_cn.isChecked(),
             "cn_max": self.cb_cn_max.isChecked(),
-            "cn_telegram": self.cb_cn_tg.isChecked(),
             "cn_sms": self.cb_cn_sms.isChecked(),
             "cn_ev_payment": self.cb_ev_pay.isChecked(),
             "cn_ev_vending": self.cb_ev_vend.isChecked(),
@@ -122,7 +115,6 @@ class NotificationsTab(QWidget):
             data = r if isinstance(r, dict) else (r.json() if hasattr(r, "json") else {})
             self.cb_cn.setChecked(bool(data.get("enabled")))
             self.cb_cn_max.setChecked(bool(data.get("max")))
-            self.cb_cn_tg.setChecked(bool(data.get("telegram")))
             self.cb_cn_sms.setChecked(bool(data.get("sms")))
             ev = data.get("events") or {}
             self.cb_ev_pay.setChecked(bool(ev.get("payment", True)))
@@ -159,19 +151,6 @@ class NotificationsTab(QWidget):
         else:
             QMessageBox.warning(self, "MAX", "Ошибка: %s" % data)
 
-    def save_telegram_token(self):
-        tok = self.ed_tg_tok.text().strip()
-        if not tok:
-            QMessageBox.warning(self, "Telegram", "Введите токен бота.")
-            return
-        code, data = self._cn_request("POST", "/telegram/setup", {"token": tok})
-        if code < 300:
-            self.ed_tg_tok.clear()
-            self._cn_load_tokens()
-            QMessageBox.information(self, "Telegram", "Бот подключён, webhook установлен.")
-        else:
-            QMessageBox.warning(self, "Telegram", "Ошибка: %s" % data)
-
     def _cn_load_tokens(self):
         code, d = self._cn_request("GET", "/max-bot/config")
         if code < 300:
@@ -179,12 +158,6 @@ class NotificationsTab(QWidget):
                                                if d.get("bot_token_set") else "токен не задан"))
         else:
             self.lbl_max_st.setText("MAX: ошибка %s %s" % (code, d))
-        code, d = self._cn_request("GET", "/telegram/webhook-info")
-        if code < 300:
-            self.lbl_tg_st.setText("Telegram: " + ("подключён" if d.get("is_active")
-                                    else ("токен задан" if d.get("token_configured") else "не настроен")))
-        else:
-            self.lbl_tg_st.setText("Telegram: ошибка %s %s" % (code, d))
 
     def _build_sms_tab(self):
         w = QWidget(); f = QFormLayout(w)
