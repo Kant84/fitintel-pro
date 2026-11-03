@@ -660,6 +660,9 @@ class CredentialsTab(QWidget):
         row2.addWidget(QLabel("Открыть по номеру:"))
         self.kr_zone = QComboBox()
         self.kr_zone.setMinimumWidth(180)
+        for _cu in range(10):
+            self.kr_zone.addItem(str(_cu), _cu)
+        self.kr_zone.setToolTip("Раздевалка (по умолчанию — номер; после настройки — название)")
         row2.addWidget(self.kr_zone)
         self.kr_num = QLineEdit()
         self.kr_num.setPlaceholderText("№ замка")
@@ -726,7 +729,7 @@ class CredentialsTab(QWidget):
             self.kr_zone.clear()
             for z in r["zones"]:
                 self._kr_cus.append(z["cu_board_id"])
-                self.kr_zone.addItem(z.get("name") or ("Раздевалка " + str(z["cu_board_id"] + 1)),
+                self.kr_zone.addItem(z.get("name") or str(z["cu_board_id"]),
                                      z["cu_board_id"])
                 self.kr_zones.addWidget(self._kr_zone_widget(z))
             if cur is not None:
@@ -741,7 +744,7 @@ class CredentialsTab(QWidget):
         box = QGroupBox("")
         v = QVBoxLayout(box)
         h = QHBoxLayout()
-        ed = QLineEdit(z.get("name") or ("Раздевалка " + str(cu + 1)))
+        ed = QLineEdit(z.get("name") or str(cu))
         ed.setMaximumWidth(240)
         b_save = QPushButton("Сохранить название")
         b_save.setStyleSheet(BTN_SECONDARY)
