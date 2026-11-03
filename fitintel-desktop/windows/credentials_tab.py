@@ -676,9 +676,17 @@ class CredentialsTab(QWidget):
         kv.addLayout(row2)
         row3 = QHBoxLayout()
         row3.addWidget(QLabel("Аренда:"))
+        row3.addWidget(QLabel("Раздевалка:"))
+        self.kr_zone2 = QComboBox()
+        self.kr_zone2.setMinimumWidth(130)
+        for _cu in range(10):
+            self.kr_zone2.addItem(str(_cu), _cu)
+        row3.addWidget(self.kr_zone2)
         row3.addWidget(QLabel("Клиент:"))
         self.kr_client = QComboBox()
-        self.kr_client.setMinimumWidth(280)
+        self.kr_client.setMinimumWidth(300)
+        self.kr_client.setEditable(True)
+        self.kr_client.setToolTip("Выберите из списка или вставьте UUID вручную")
         row3.addWidget(self.kr_client)
         self.kr_days = QSpinBox()
         self.kr_days.setRange(1, 3650)
@@ -713,12 +721,6 @@ class CredentialsTab(QWidget):
         kv.addLayout(self.kr_zones)
         lay.addWidget(kg)
 
-        self.ol_log = QPlainTextEdit()
-        self.ol_log.setMaximumBlockCount(200)
-        self.ol_log.setMinimumHeight(360)
-        self.ol_log.setPlaceholderText("Журнал онлайн-замков...")
-        lay.addWidget(self.ol_log)
-
         tg = QGroupBox("  Облачные провайдеры")
         tv = QVBoxLayout(tg)
         f = QFormLayout()
@@ -744,7 +746,12 @@ class CredentialsTab(QWidget):
         lay.addWidget(tg)
 
         scroll.setWidget(inner)
-        outer.addWidget(scroll)
+        outer.addWidget(scroll, 1)
+        self.ol_log = QPlainTextEdit()
+        self.ol_log.setMaximumBlockCount(300)
+        self.ol_log.setFixedHeight(240)
+        self.ol_log.setPlaceholderText("Журнал онлайн-замков...")
+        outer.addWidget(self.ol_log)
         self._kr_cus = []
         QTimer.singleShot(300, self._kr_refresh)
         return w
@@ -760,16 +767,23 @@ class CredentialsTab(QWidget):
         if isinstance(r, dict) and r.get("ok") and r.get("zones"):
             self.kr_status.setText("Подключено · раздевалок: %d" % len(r["zones"]))
             cur = self.kr_zone.currentData()
+            cur2 = self.kr_zone2.currentData()
             self.kr_zone.clear()
+            self.kr_zone2.clear()
             for z in r["zones"]:
                 self._kr_cus.append(z["cu_board_id"])
-                self.kr_zone.addItem(z.get("name") or str(z["cu_board_id"]),
-                                     z["cu_board_id"])
+                nm = z.get("name") or str(z["cu_board_id"])
+                self.kr_zone.addItem(nm, z["cu_board_id"])
+                self.kr_zone2.addItem(nm, z["cu_board_id"])
                 self.kr_zones.addWidget(self._kr_zone_widget(z))
             if cur is not None:
                 i = self.kr_zone.findData(cur)
                 if i >= 0:
                     self.kr_zone.setCurrentIndex(i)
+            if cur2 is not None:
+                i2 = self.kr_zone2.findData(cur2)
+                if i2 >= 0:
+                    self.kr_zone2.setCurrentIndex(i2)
         else:
             self.kr_status.setText("Kerong не настроен на сервере (настройки: /notify/kerong)")
         self._kr_load_clients()
@@ -777,9 +791,20 @@ class CredentialsTab(QWidget):
     def _kr_load_clients(self):
         try:
             r = self._req("GET", "/clients?limit=300")
-        except Exception:
+        except Exception as e:
+            if hasattr(self, "ol_log"):
+                self.ol_log.appendPlainText(" Клиенты: ОШИБКА запроса: " + str(e)[:200])
             return
+        if hasattr(self, "ol_log"):
+            if isinstance(r, dict):
+                self.ol_log.appendPlainText(" Клиенты: ответ dict, ключи=" + ",".join(list(r.keys())[:8]))
+            elif isinstance(r, list):
+                self.ol_log.appendPlainText(" Клиенты: ответ list, len=" + str(len(r)))
+            else:
+                self.ol_log.appendPlainText(" Клиенты: неожиданный ответ: " + str(type(r)))
         items = r if isinstance(r, list) else (r or {}).get("items") or []
+        if hasattr(self, "ol_log"):
+            self.ol_log.appendPlainText(" Клиенты: записей=" + str(len(items)))
         cur = self.kr_client.currentData()
         self.kr_client.clear()
         for c in items:
@@ -869,27 +894,27 @@ class CredentialsTab(QWidget):
             self._kr_open_all(cu)
 
     def _kr_rent(self):
-        cu = self.kr_zone.currentData()
+        cu = self.kr_zone2.currentData()
         txt = self.kr_num.text().strip()
-        cid = self.kr_client.currentData()
+        cid = self.kr_client.currentData() or self.kr_client.currentText().strip()
         if cu is None or not txt.isdigit() or not cid:
-            self.ol_log.appendPlainText(" Аренда: выберите раздевалку, № замка (сверху) и клиента из списка")
+            self.ol_log.appendPlainText(" Аренда: выберите РАЗДЕВАЛКУ (в строке Аренда), № замка и клиента")
             return
         r = self._req("POST", "/notify/kerong/rent",
                       {"client_id": cid, "cu_board_id": int(cu),
                        "lock_number": int(txt), "days": int(self.kr_days.value())})
-        self.ol_log.appendPlainText(" Аренда: " + ("OK" if isinstance(r, dict) and r.get("ok") else str(r)))
+        self.ol_log.appendPlainText(" Аренда ответ: " + str(r)[:200])
         self._kr_refresh()
 
     def _kr_release(self):
-        cu = self.kr_zone.currentData()
+        cu = self.kr_zone2.currentData()
         txt = self.kr_num.text().strip()
         if cu is None or not txt.isdigit():
-            self.ol_log.appendPlainText(" Снятие: нужны раздевалка и № замка")
+            self.ol_log.appendPlainText(" Снятие: нужны раздевалка (в строке Аренда) и № замка")
             return
         r = self._req("POST", "/notify/kerong/release",
                       {"cu_board_id": int(cu), "lock_number": int(txt)})
-        self.ol_log.appendPlainText(" Снятие аренды: " + ("OK" if isinstance(r, dict) and r.get("ok") else str(r)))
+        self.ol_log.appendPlainText(" Снятие ответ: " + str(r)[:200])
         self._kr_refresh()
 
     def _kr_open_by_number(self):
