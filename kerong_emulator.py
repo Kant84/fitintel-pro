@@ -3,6 +3,7 @@
 Запуск: python3 -m uvicorn kerong_emulator:app --host 0.0.0.0 --port 9876
 """
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 app = FastAPI(title="Kerong Emulator")
@@ -36,7 +37,7 @@ def open_lock(req: OpenLockRequest):
     if not board or req.lockNumber not in board:
         raise HTTPException(status_code=550, detail="Lock not found")
     board[req.lockNumber]["status"] = "OPEN"
-    return {"status": "OPENED"}
+    return JSONResponse({"status": "OPENED"}, status_code=201)
 
 @app.post("/kerong-api/set-unlocking-time")
 def set_unlocking_time(krBuId: str, krCuId: int, unlockingTime: int):
