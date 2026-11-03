@@ -683,7 +683,18 @@ class CredentialsTab(QWidget):
         self.kr_days = QSpinBox()
         self.kr_days.setRange(1, 3650)
         self.kr_days.setValue(30)
-        self.kr_days.setMinimumWidth(80)
+        self.kr_days.setMinimumWidth(96)
+        self.kr_days.setStyleSheet(
+            "QSpinBox { padding-right: 22px; background: #131a2a; color: #e2e8f0;"
+            " border: 1px solid #334155; border-radius: 6px; }"
+            "QSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right;"
+            " width: 20px; border-left: 1px solid #334155; background: #1e293b; }"
+            "QSpinBox::up-arrow { border-left: 5px solid none; border-right: 5px solid none;"
+            " border-bottom: 7px solid #06b6d4; width: 0; height: 0; }"
+            "QSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right;"
+            " width: 20px; border-left: 1px solid #334155; background: #1e293b; }"
+            "QSpinBox::down-arrow { border-left: 5px solid none; border-right: 5px solid none;"
+            " border-top: 7px solid #06b6d4; width: 0; height: 0; }")
         row3.addWidget(self.kr_days)
         b_rent = QPushButton(" Арендовать (раздевалка+№ сверху)")
         b_rent.setStyleSheet(BTN_SUCCESS)
