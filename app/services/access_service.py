@@ -5,6 +5,7 @@ from typing import Optional, Tuple
 from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from app.models.client import Client
 from app.models.device import Device
@@ -229,6 +230,33 @@ class AccessService:
             {"can_exit": True} — можно выходить
             {"can_exit": False, "reason": "..."} — нельзя
         """
+        # --- Онлайн-замки (Kerong API): закрытая ячейка без активной аренды
+        # удерживает выход (правило: закрытый замок = чья-то аренда). Исключения:
+        # VIP / привилегия RENTAL (как для офлайн-шкафчиков).
+        try:
+            from app.services.kerong_settings import get_kerong_settings
+            from app.services.kerong_service import KerongService
+            cfg = get_kerong_settings(self.db)
+            if cfg.get("base_url") and cfg.get("bu_board_uuid"):
+                if not (self._has_valid_privilege(client_id, "VIP")
+                        or self._has_valid_privilege(client_id, "RENTAL")):
+                    svc = KerongService(self.db, cfg["base_url"], cfg["bu_board_uuid"])
+                    for cu in (cfg.get("cu_boards") or []):
+                        for lk in (svc.get_locks(cu) or []):
+                            if str(lk.get("status", "")).upper() != "LOCK":
+                                continue
+                            ln = int(lk.get("lockId", 0))
+                            row = self.db.execute(
+                                text("SELECT 1 FROM locker_rentals WHERE cu_board_id=:c "
+                                     "AND lock_number=:l AND is_active"),
+                                {"c": cu, "l": ln}).first()
+                            if not row:
+                                return {"can_exit": False,
+                                        "reason": (f"Ячейка {cu}/{ln} закрыта без аренды. "
+                                                   f"Освободите её или оформите аренду на ресепшене.")}
+        except Exception:
+            pass
+
         sessions = (
             self.db.query(LockerSession)
             .filter(LockerSession.client_id == client_id,

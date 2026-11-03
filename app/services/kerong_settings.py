@@ -22,6 +22,7 @@ def ensure_kerong_tables(db: Session = None) -> None:
         c.execute(text("""
             CREATE UNIQUE INDEX IF NOT EXISTS locker_rentals_one_active
             ON locker_rentals(cu_board_id, lock_number) WHERE is_active"""))
+        c.execute(text("ALTER TABLE locker_rentals ADD COLUMN IF NOT EXISTS rented_until TIMESTAMPTZ"))
 
 
 def _parse_config(raw) -> dict:

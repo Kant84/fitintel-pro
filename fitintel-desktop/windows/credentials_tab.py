@@ -674,6 +674,27 @@ class CredentialsTab(QWidget):
         row2.addWidget(b_one)
         row2.addStretch(1)
         kv.addLayout(row2)
+        row3 = QHBoxLayout()
+        row3.addWidget(QLabel("Аренда:"))
+        self.kr_client = QLineEdit()
+        self.kr_client.setPlaceholderText("UUID клиента...")
+        self.kr_client.setMinimumWidth(220)
+        row3.addWidget(self.kr_client)
+        self.kr_days = QSpinBox()
+        self.kr_days.setRange(1, 3650)
+        self.kr_days.setValue(30)
+        self.kr_days.setMinimumWidth(80)
+        row3.addWidget(self.kr_days)
+        b_rent = QPushButton(" Арендовать (раздевалка+№ сверху)")
+        b_rent.setStyleSheet(BTN_SUCCESS)
+        b_rent.clicked.connect(self._kr_rent)
+        row3.addWidget(b_rent)
+        b_rel = QPushButton("Снять аренду")
+        b_rel.setStyleSheet(BTN_WARNING)
+        b_rel.clicked.connect(self._kr_release)
+        row3.addWidget(b_rel)
+        row3.addStretch(1)
+        kv.addLayout(row3)
         kv.addWidget(QLabel("<span style='color:#ef4444'>■</span> закрыт  "
                             "<span style='color:#10b981'>■</span> открыт  "
                             "<span style='color:#8b5cf6'>▣</span> арендован (фиолетовая рамка)"))
@@ -707,6 +728,7 @@ class CredentialsTab(QWidget):
 
         self.ol_log = QPlainTextEdit()
         self.ol_log.setMaximumBlockCount(200)
+        self.ol_log.setMinimumHeight(360)
         self.ol_log.setPlaceholderText("Журнал онлайн-замков...")
         lay.addWidget(self.ol_log, 1)
         scroll.setWidget(inner)
@@ -807,6 +829,30 @@ class CredentialsTab(QWidget):
     def _kr_open_all_zones(self):
         for cu in list(self._kr_cus):
             self._kr_open_all(cu)
+
+    def _kr_rent(self):
+        cu = self.kr_zone.currentData()
+        txt = self.kr_num.text().strip()
+        cid = self.kr_client.text().strip()
+        if cu is None or not txt.isdigit() or not cid:
+            self.ol_log.appendPlainText(" Аренда: нужны раздевалка, № замка и UUID клиента")
+            return
+        r = self._req("POST", "/notify/kerong/rent",
+                      {"client_id": cid, "cu_board_id": int(cu),
+                       "lock_number": int(txt), "days": int(self.kr_days.value())})
+        self.ol_log.appendPlainText(" Аренда: " + ("OK" if isinstance(r, dict) and r.get("ok") else str(r)))
+        self._kr_refresh()
+
+    def _kr_release(self):
+        cu = self.kr_zone.currentData()
+        txt = self.kr_num.text().strip()
+        if cu is None or not txt.isdigit():
+            self.ol_log.appendPlainText(" Снятие: нужны раздевалка и № замка")
+            return
+        r = self._req("POST", "/notify/kerong/release",
+                      {"cu_board_id": int(cu), "lock_number": int(txt)})
+        self.ol_log.appendPlainText(" Снятие аренды: " + ("OK" if isinstance(r, dict) and r.get("ok") else str(r)))
+        self._kr_refresh()
 
     def _kr_open_by_number(self):
         cu = self.kr_zone.currentData()

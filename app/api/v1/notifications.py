@@ -589,3 +589,36 @@ def kerong_open(body: dict, db: Session = Depends(get_db), current=Depends(get_c
         return {"ok": opened > 0, "opened": opened, "total": len(results)}
     ln = int(body.get("lock_number", 0))
     return svc.open_lock(cu, ln)
+
+
+@router.post("/notify/kerong/rent")
+def kerong_rent(body: dict, db: Session = Depends(get_db), current=Depends(get_current_user)):
+    from app.services.kerong_settings import ensure_kerong_tables
+    ensure_kerong_tables(db)
+    cid = str(body.get("client_id") or "").strip()
+    cu = int(body.get("cu_board_id", 0))
+    ln = int(body.get("lock_number", 0))
+    days = int(body.get("days", 30))
+    if not cid:
+        raise HTTPException(status_code=400, detail="client_id обязателен")
+    if not db.execute(text("SELECT 1 FROM clients WHERE id::text=:c"), {"c": cid}).first():
+        raise HTTPException(status_code=404, detail="Клиент не найден")
+    if db.execute(text("SELECT 1 FROM locker_rentals WHERE cu_board_id=:c AND lock_number=:l AND is_active"),
+                  {"c": cu, "l": ln}).first():
+        raise HTTPException(status_code=409, detail="Ячейка уже арендована")
+    db.execute(text("INSERT INTO locker_rentals (client_id, cu_board_id, lock_number, rented_until) "
+                    "VALUES (:c,:u,:l, now() + make_interval(days => :d))"),
+               {"c": cid, "u": cu, "l": ln, "d": days})
+    db.commit()
+    return {"ok": True, "cu_board_id": cu, "lock_number": ln, "days": days}
+
+
+@router.post("/notify/kerong/release")
+def kerong_release(body: dict, db: Session = Depends(get_db), current=Depends(get_current_user)):
+    cu = int(body.get("cu_board_id", 0))
+    ln = int(body.get("lock_number", 0))
+    db.execute(text("UPDATE locker_rentals SET is_active=FALSE "
+                    "WHERE cu_board_id=:c AND lock_number=:l AND is_active"),
+               {"c": cu, "l": ln})
+    db.commit()
+    return {"ok": True}
