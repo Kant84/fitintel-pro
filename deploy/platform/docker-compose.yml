@@ -45,14 +45,14 @@ services:
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
     ports:
-      - "51820:51820/udp"
+      - "51829:51820/udp"
     volumes:
       - wireguard_config:/config
       - /lib/modules:/lib/modules:ro
     environment:
       SERVERURL: ${PUBLIC_IP:?79.174.46.68 — задайте в .env}
-      SERVERPORT: "51820"
-      PEERS: "10"
+      SERVERPORT: "51829"
+      PEERS: "13"
       PEERDNS: "auto"
       INTERNAL_SUBNET: "10.0.0.0/24"
       ALLOWEDIPS: "10.0.0.0/24"
