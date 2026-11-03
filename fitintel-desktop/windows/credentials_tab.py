@@ -798,6 +798,8 @@ class CredentialsTab(QWidget):
             tip = "№%d · %s" % (n, "закрыт" if closed else "открыт")
             if rented:
                 tip += " · аренда: " + str(lk["rented_by"])
+                if lk.get("rented_until"):
+                    tip += " (до " + str(lk["rented_until"]) + ")"
             btn.setToolTip(tip)
             btn.clicked.connect(lambda _, c=cu, l=n: self._kr_open_one(c, l))
             grid.addWidget(btn, i // per_row, i % per_row)

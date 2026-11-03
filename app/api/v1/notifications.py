@@ -530,11 +530,13 @@ def kerong_board(db: Session = Depends(get_db), current=Depends(get_current_user
     try:
         rows = db.execute(text("""
             SELECT r.cu_board_id, r.lock_number,
-                   trim(concat_ws(' ', c.last_name, c.first_name)) AS name
+                   trim(concat_ws(' ', c.last_name, c.first_name)) AS name,
+                   r.rented_until
             FROM locker_rentals r LEFT JOIN clients c ON c.id = r.client_id
             WHERE r.is_active""")).all()
-        for cu, ln, nm in rows:
-            rentals[(cu, ln)] = nm or "Арендован"
+        for cu, ln, nm, until in rows:
+            rentals[(cu, ln)] = {"name": nm or "Арендован",
+                                 "until": str(until)[:10] if until else ""}
     except Exception:
         db.rollback()
     zones = []
@@ -544,8 +546,10 @@ def kerong_board(db: Session = Depends(get_db), current=Depends(get_current_user
         for lk in locks:
             ln = int(lk.get("lockId", 0))
             st = str(lk.get("status", "OPEN")).upper()
+            rent = rentals.get((cu, ln))
             out.append({"lock_number": ln, "closed": st == "LOCK",
-                        "rented_by": rentals.get((cu, ln))})
+                        "rented_by": rent["name"] if rent else None,
+                        "rented_until": rent["until"] if rent else None})
         zones.append({"cu_board_id": cu,
                       "name": zones_cfg.get(str(cu)) or str(cu),
                       "locks": out})
