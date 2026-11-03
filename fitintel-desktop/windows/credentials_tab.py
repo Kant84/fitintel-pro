@@ -683,6 +683,10 @@ class CredentialsTab(QWidget):
         for _cu in range(10):
             self.kr_zone2.addItem(str(_cu), _cu)
         row3.addWidget(self.kr_zone2)
+        self.kr_num2 = QLineEdit()
+        self.kr_num2.setPlaceholderText("№")
+        self.kr_num2.setMaximumWidth(64)
+        row3.addWidget(self.kr_num2)
         row3.addWidget(QLabel("Клиент:"))
         self.kr_client = QComboBox()
         self.kr_client.setMinimumWidth(230)
@@ -898,10 +902,10 @@ class CredentialsTab(QWidget):
 
     def _kr_rent(self):
         cu = self.kr_zone2.currentData()
-        txt = self.kr_num.text().strip()
+        txt = self.kr_num2.text().strip()
         cid = self.kr_client.currentData() or self.kr_client.currentText().strip()
         if cu is None or not txt.isdigit() or not cid:
-            self.ol_log.appendPlainText(" Аренда: выберите РАЗДЕВАЛКУ (в строке Аренда), № замка и клиента")
+            self.ol_log.appendPlainText(" Аренда: заполните Раздевалку, № шкафчика и выберите клиента")
             return
         r = self._req("POST", "/notify/kerong/rent",
                       {"client_id": cid, "cu_board_id": int(cu),
@@ -911,9 +915,9 @@ class CredentialsTab(QWidget):
 
     def _kr_release(self):
         cu = self.kr_zone2.currentData()
-        txt = self.kr_num.text().strip()
+        txt = self.kr_num2.text().strip()
         if cu is None or not txt.isdigit():
-            self.ol_log.appendPlainText(" Снятие: нужны раздевалка (в строке Аренда) и № замка")
+            self.ol_log.appendPlainText(" Снятие: укажите Раздевалку и № шкафчика")
             return
         r = self._req("POST", "/notify/kerong/release",
                       {"cu_board_id": int(cu), "lock_number": int(txt)})
