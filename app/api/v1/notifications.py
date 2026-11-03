@@ -476,3 +476,33 @@ def cn_plan(client_id: str, db: Session = Depends(get_db), current=Depends(get_c
     from app.services.client_notify_service import ClientNotifyService
     svc = ClientNotifyService(db)
     return {"settings": svc.settings(), "channels": svc.resolve(client_id)}
+
+
+@router.get("/notify/kerong")
+def kerong_settings_get(db: Session = Depends(get_db), current=Depends(get_current_user)):
+    from app.services.kerong_settings import get_kerong_settings
+    return get_kerong_settings(db)
+
+
+@router.put("/notify/kerong")
+def kerong_settings_put(body: dict, db: Session = Depends(get_db), current=Depends(get_current_user)):
+    from app.services.kerong_settings import save_kerong_settings
+    try:
+        return save_kerong_settings(db, body)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/notify/kerong/test")
+def kerong_test(body: dict, db: Session = Depends(get_db), current=Depends(get_current_user)):
+    """Проверка связи с Kerong API (locks-list по указанной/первой CU-плате)."""
+    from app.services.kerong_settings import get_kerong_settings
+    from app.services.kerong_service import KerongService
+    cfg = get_kerong_settings(db)
+    base_url = (body.get("base_url") or cfg["base_url"] or "").strip()
+    bu_uuid = (body.get("bu_board_uuid") or cfg["bu_board_uuid"] or "").strip()
+    if not base_url or not bu_uuid:
+        raise HTTPException(status_code=400, detail="base_url и bu_board_uuid обязательны")
+    svc = KerongService(db, base_url, bu_uuid)
+    locks = svc.get_locks(int(body.get("cu_board_id", 0)))
+    return {"ok": bool(locks), "locks_count": len(locks), "sample": locks[:2]}
