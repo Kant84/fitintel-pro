@@ -76,6 +76,8 @@ class NotificationsTab(QWidget):
         self.cb_ev_exp = QCheckBox("Абонемент истекает")
         f.addRow(self.cb_ev_pay); f.addRow(self.cb_ev_vend)
         f.addRow(self.cb_ev_book); f.addRow(self.cb_ev_exp)
+        self.cb_ev_locker = QCheckBox("Аренда шкафчика истекает")
+        f.addRow(self.cb_ev_locker)
         f.addRow(QLabel("Подключение каналов:"))
         self.ed_max_tok = QLineEdit(); self.ed_max_tok.setEchoMode(QLineEdit.EchoMode.Password)
         self.ed_max_tok.setPlaceholderText("Токен бота MAX (выдаёт @masterbot)")
@@ -99,6 +101,7 @@ class NotificationsTab(QWidget):
             "cn_ev_vending": self.cb_ev_vend.isChecked(),
             "cn_ev_booking": self.cb_ev_book.isChecked(),
             "cn_ev_expiry": self.cb_ev_exp.isChecked(),
+            "cn_ev_locker": self.cb_ev_locker.isChecked(),
         }
         code, data = self._cn_request("PUT", "/notify/client-settings", payload)
         if code < 300:
@@ -121,6 +124,7 @@ class NotificationsTab(QWidget):
             self.cb_ev_vend.setChecked(bool(ev.get("vending", True)))
             self.cb_ev_book.setChecked(bool(ev.get("booking_reminder", True)))
             self.cb_ev_exp.setChecked(bool(ev.get("subscription_expiry", True)))
+            self.cb_ev_locker.setChecked(bool(ev.get("locker_rental_expiry", True)))
             self._cn_load_tokens()
         except Exception:
             pass

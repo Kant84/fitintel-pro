@@ -30,6 +30,10 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.process_email_queue",
         "schedule": 60.0,  # A4: каждую минуту
     },
+    "locker-rental-reminders": {
+        "task": "app.tasks.locker_rental_reminders",
+        "schedule": 3600.0,  # каждый час: аренды с истечением <= 72 ч
+    },
     "ml-dataset-dump": {
         "task": "app.tasks.dump_parquet",
         "schedule": crontab(hour=4, minute=0),  # E60: ночной дамп в Parquet

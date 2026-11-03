@@ -14,10 +14,11 @@ EVENT_FLAGS = {
     "vending": "cn_ev_vending",
     "booking_reminder": "cn_ev_booking",
     "subscription_expiry": "cn_ev_expiry",
+    "locker_rental_expiry": "cn_ev_locker",
 }
 
 _COLUMNS = ["client_notify_enabled", "cn_max", "cn_telegram", "cn_sms",
-            "cn_ev_payment", "cn_ev_vending", "cn_ev_booking", "cn_ev_expiry"]
+            "cn_ev_payment", "cn_ev_vending", "cn_ev_booking", "cn_ev_expiry", "cn_ev_locker"]
 
 
 def ensure_client_notify_columns(db: Session = None) -> None:
