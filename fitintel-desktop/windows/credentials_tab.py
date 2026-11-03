@@ -6,8 +6,8 @@ import json, urllib.request
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTableWidget, QTableWidgetItem, QMessageBox, QComboBox,
     QLineEdit, QGroupBox, QFormLayout, QSpinBox, QPlainTextEdit,
-    QTabWidget, QSplitter, QFrame, QDialog, QTextEdit, QCheckBox)
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+    QTabWidget, QSplitter, QFrame, QDialog, QTextEdit, QCheckBox, QScrollArea, QGridLayout)
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
 
 STYLE_DARK = """
@@ -633,16 +633,45 @@ class CredentialsTab(QWidget):
     def _online_tab(self):
         w = QWidget()
         w.setStyleSheet(STYLE_DARK)
-        lay = QVBoxLayout(w)
+        outer = QVBoxLayout(w)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        inner = QWidget()
+        lay = QVBoxLayout(inner)
         lay.setSpacing(12)
         lay.addWidget(QLabel("<h3 style='color:#06b6d4;'>☁️  Управление онлайн-замками</h3>"))
+
+        kg = QGroupBox("  Kerong (локальный контроллер)")
+        kv = QVBoxLayout(kg)
+        top = QHBoxLayout()
+        self.kr_status = QLabel("Загрузка...")
+        top.addWidget(self.kr_status, 1)
+        b_ref = QPushButton("  Обновить")
+        b_ref.setStyleSheet(BTN_SECONDARY)
+        b_ref.clicked.connect(self._kr_refresh)
+        top.addWidget(b_ref)
+        b_all = QPushButton("  Открыть ВСЕ замки (все раздевалки)")
+        b_all.setStyleSheet(BTN_DANGER)
+        b_all.clicked.connect(self._kr_open_all_zones)
+        top.addWidget(b_all)
+        kv.addLayout(top)
+        kv.addWidget(QLabel("<span style='color:#ef4444'>■</span> закрыт  "
+                            "<span style='color:#10b981'>■</span> открыт  "
+                            "<span style='color:#8b5cf6'>▣</span> арендован (фиолетовая рамка)"))
+        self.kr_zones = QVBoxLayout()
+        kv.addLayout(self.kr_zones)
+        lay.addWidget(kg)
+
+        tg = QGroupBox("  Облачные провайдеры")
+        tv = QVBoxLayout(tg)
         f = QFormLayout()
         f.setSpacing(10)
         self.ol_client = QLineEdit()
         self.ol_client.setPlaceholderText("UUID клиента...")
         f.addRow("Клиент ID:", self.ol_client)
         self.ol_provider = QComboBox()
-        self.ol_provider.addItems(["TTLock", " Cloud", "Sciener"])
+        self.ol_provider.addItems(["TTLock", " Cloud", "Sciener", "Kerong (API)"])
         f.addRow("Провайдер:", self.ol_provider)
         self.ol_lock_id = QLineEdit()
         self.ol_lock_id.setPlaceholderText("ID замка в облаке...")
@@ -650,17 +679,106 @@ class CredentialsTab(QWidget):
         self.ol_pass = QLineEdit()
         self.ol_pass.setPlaceholderText("Временный пароль (TTLock)...")
         f.addRow("Пароль:", self.ol_pass)
-        lay.addLayout(f)
+        tv.addLayout(f)
         b = QPushButton("  Создать цифровой ключ")
         b.setStyleSheet(BTN_SUCCESS)
         b.setMinimumHeight(44)
         b.clicked.connect(self._create_online_key)
-        lay.addWidget(b)
+        tv.addWidget(b)
+        lay.addWidget(tg)
+
         self.ol_log = QPlainTextEdit()
-        self.ol_log.setMaximumBlockCount(100)
+        self.ol_log.setMaximumBlockCount(200)
         self.ol_log.setPlaceholderText("Журнал онлайн-замков...")
         lay.addWidget(self.ol_log, 1)
+        scroll.setWidget(inner)
+        outer.addWidget(scroll)
+        self._kr_cus = []
+        QTimer.singleShot(300, self._kr_refresh)
         return w
+
+    def _kr_refresh(self):
+        while self.kr_zones.count():
+            item = self.kr_zones.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+        r = self._req("GET", "/notify/kerong/board")
+        self._kr_cus = []
+        if isinstance(r, dict) and r.get("ok") and r.get("zones"):
+            self.kr_status.setText("Подключено · раздевалок: %d" % len(r["zones"]))
+            for z in r["zones"]:
+                self._kr_cus.append(z["cu_board_id"])
+                self.kr_zones.addWidget(self._kr_zone_widget(z))
+        else:
+            self.kr_status.setText("Kerong не настроен на сервере (настройки: /notify/kerong)")
+
+    def _kr_zone_widget(self, z):
+        cu = z["cu_board_id"]
+        box = QGroupBox("")
+        v = QVBoxLayout(box)
+        h = QHBoxLayout()
+        ed = QLineEdit(z.get("name") or ("Раздевалка " + str(cu + 1)))
+        ed.setMaximumWidth(240)
+        b_save = QPushButton("Сохранить название")
+        b_save.setStyleSheet(BTN_SECONDARY)
+        b_save.clicked.connect(lambda _, e=ed, c=cu: self._kr_save_zone(c, e.text()))
+        h.addWidget(QLabel("Раздевалка:"))
+        h.addWidget(ed)
+        h.addWidget(b_save)
+        b_open = QPushButton("  Открыть все в раздевалке")
+        b_open.setStyleSheet(BTN_WARNING)
+        b_open.clicked.connect(lambda _, c=cu: self._kr_open_all(c))
+        h.addWidget(b_open)
+        h.addStretch(1)
+        v.addLayout(h)
+        grid = QGridLayout()
+        grid.setSpacing(4)
+        per_row = 10
+        for i, lk in enumerate(z.get("locks", [])):
+            n = int(lk["lock_number"])
+            btn = QPushButton(str(n))
+            btn.setFixedSize(42, 34)
+            rented = bool(lk.get("rented_by"))
+            closed = bool(lk.get("closed"))
+            color = "#ef4444" if closed else "#10b981"
+            border = "#8b5cf6" if rented else color
+            btn.setStyleSheet(
+                "background:%s; border:2px solid %s; color:white; font-weight:600;" % (color, border))
+            tip = "№%d · %s" % (n, "закрыт" if closed else "открыт")
+            if rented:
+                tip += " · аренда: " + str(lk["rented_by"])
+            btn.setToolTip(tip)
+            btn.clicked.connect(lambda _, c=cu, l=n: self._kr_open_one(c, l))
+            grid.addWidget(btn, i // per_row, i % per_row)
+        v.addLayout(grid)
+        return box
+
+    def _kr_save_zone(self, cu, name):
+        r = self._req("PUT", "/notify/kerong/zones", {"cu_board_id": cu, "name": name})
+        if isinstance(r, dict) and r.get("ok"):
+            self.ol_log.appendPlainText(" Название раздевалки %d сохранено: %s" % (cu, name))
+        else:
+            self.ol_log.appendPlainText(" Ошибка сохранения: " + str(r))
+
+    def _kr_open_one(self, cu, lock):
+        r = self._req("POST", "/notify/kerong/open", {"cu_board_id": cu, "lock_number": lock})
+        ok = isinstance(r, dict) and r.get("ok")
+        self.ol_log.appendPlainText((" Открыт замок %d/%d" % (cu, lock)) if ok
+                                    else (" Ошибка %d/%d: %s" % (cu, lock, r)))
+        self._kr_refresh()
+
+    def _kr_open_all(self, cu):
+        r = self._req("POST", "/notify/kerong/open", {"cu_board_id": cu, "all": True})
+        if isinstance(r, dict):
+            self.ol_log.appendPlainText(" Раздевалка %d: открыто %s из %s" % (cu, r.get("opened"), r.get("total")))
+        else:
+            self.ol_log.appendPlainText(" Ошибка: " + str(r))
+        self._kr_refresh()
+
+    def _kr_open_all_zones(self):
+        for cu in list(self._kr_cus):
+            self._kr_open_all(cu)
 
     def _create_online_key(self):
         cid = self.ol_client.text().strip()

@@ -10,7 +10,7 @@ app = FastAPI(title="Kerong Emulator")
 BU_UUID = "ad0e006b-845d-48e4-a172-277020791536"
 
 CU_BOARDS = {
-    c: {i: {"lockId": i, "cuBoardId": c, "status": "LOCK", "detectionStatus": "EMPTY"}
+    c: {i: {"lockId": i, "cuBoardId": c, "status": "OPEN", "detectionStatus": "EMPTY"}
         for i in range(1, 51)}
     for c in range(4)
 }
@@ -45,3 +45,23 @@ def set_unlocking_time(krBuId: str, krCuId: int, unlockingTime: int):
     if not (0 <= unlockingTime <= 24000):
         raise HTTPException(status_code=400, detail="unlockingTime out of range")
     return {"ok": True, "unlockingTime": unlockingTime}
+
+
+class SetStatusReq(BaseModel):
+    buBoardUuid: str
+    cuBoardId: int
+    lockNumber: int
+    status: str  # LOCK | OPEN
+
+@app.post("/kerong-api/emulator/set-status")
+def emu_set_status(req: SetStatusReq):
+    """Тест: закрыть/открыть ячейку (имитация физического действия клиента)."""
+    if req.buBoardUuid != BU_UUID:
+        raise HTTPException(status_code=500, detail="Invalid BU UUID")
+    board = CU_BOARDS.get(req.cuBoardId)
+    if not board or req.lockNumber not in board:
+        raise HTTPException(status_code=550, detail="Lock not found")
+    if req.status not in ("LOCK", "OPEN"):
+        raise HTTPException(status_code=400, detail="status: LOCK|OPEN")
+    board[req.lockNumber]["status"] = req.status
+    return {"ok": True, "lock": board[req.lockNumber]}

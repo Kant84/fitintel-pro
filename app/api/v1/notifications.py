@@ -506,3 +506,86 @@ def kerong_test(body: dict, db: Session = Depends(get_db), current=Depends(get_c
     svc = KerongService(db, base_url, bu_uuid)
     locks = svc.get_locks(int(body.get("cu_board_id", 0)))
     return {"ok": bool(locks), "locks_count": len(locks), "sample": locks[:2]}
+
+
+@router.get("/notify/kerong/board")
+def kerong_board(db: Session = Depends(get_db), current=Depends(get_current_user)):
+    """Доска онлайн-замков: раздевалки, статусы из Kerong API, аренда из locker_rentals."""
+    import json as _json
+    from app.services.kerong_settings import get_kerong_settings
+    from app.services.kerong_service import KerongService
+    cfg = get_kerong_settings(db)
+    if not cfg["base_url"] or not cfg["bu_board_uuid"]:
+        return {"ok": False, "error": "Kerong не настроен", "zones": []}
+    svc = KerongService(db, cfg["base_url"], cfg["bu_board_uuid"])
+    row = db.execute(text("SELECT config FROM notification_settings LIMIT 1")).first()
+    zones_cfg = {}
+    if row and row[0]:
+        try:
+            cfgj = row[0] if isinstance(row[0], dict) else _json.loads(row[0])
+            zones_cfg = ((cfgj.get("kerong") or {}).get("zones")) or {}
+        except Exception:
+            pass
+    rentals = {}
+    try:
+        rows = db.execute(text("""
+            SELECT r.cu_board_id, r.lock_number,
+                   trim(concat_ws(' ', c.last_name, c.first_name)) AS name
+            FROM locker_rentals r LEFT JOIN clients c ON c.id = r.client_id
+            WHERE r.is_active""")).all()
+        for cu, ln, nm in rows:
+            rentals[(cu, ln)] = nm or "Арендован"
+    except Exception:
+        db.rollback()
+    zones = []
+    for cu in cfg["cu_boards"]:
+        locks = svc.get_locks(cu) or []
+        out = []
+        for lk in locks:
+            ln = int(lk.get("lockId", 0))
+            st = str(lk.get("status", "OPEN")).upper()
+            out.append({"lock_number": ln, "closed": st == "LOCK",
+                        "rented_by": rentals.get((cu, ln))})
+        zones.append({"cu_board_id": cu,
+                      "name": zones_cfg.get(str(cu)) or ("Раздевалка " + str(cu + 1)),
+                      "locks": out})
+    return {"ok": True, "zones": zones}
+
+
+@router.put("/notify/kerong/zones")
+def kerong_zones_put(body: dict, db: Session = Depends(get_db), current=Depends(get_current_user)):
+    import json as _json
+    from app.services.kerong_settings import ensure_kerong_tables
+    ensure_kerong_tables(db)
+    cu = int(body.get("cu_board_id", 0))
+    name = str(body.get("name") or "").strip()
+    row = db.execute(text("SELECT config FROM notification_settings LIMIT 1")).first()
+    if row and row[0]:
+        cfgd = row[0] if isinstance(row[0], dict) else _json.loads(row[0])
+    else:
+        cfgd = {}
+    k = cfgd.get("kerong") or {}
+    zones = k.get("zones") or {}
+    zones[str(cu)] = name
+    k["zones"] = zones
+    cfgd["kerong"] = k
+    db.execute(text("UPDATE notification_settings SET config = :c"), {"c": _json.dumps(cfgd)})
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/notify/kerong/open")
+def kerong_open(body: dict, db: Session = Depends(get_db), current=Depends(get_current_user)):
+    from app.services.kerong_settings import get_kerong_settings
+    from app.services.kerong_service import KerongService
+    cfg = get_kerong_settings(db)
+    svc = KerongService(db, cfg["base_url"], cfg["bu_board_uuid"])
+    cu = int(body.get("cu_board_id", 0))
+    if body.get("all"):
+        locks = svc.get_locks(cu) or []
+        results = [svc.open_lock(cu, int(l["lockId"])) for l in locks
+                   if str(l.get("status", "")).upper() == "LOCK"]
+        opened = sum(1 for r in results if r.get("ok"))
+        return {"ok": opened > 0, "opened": opened, "total": len(results)}
+    ln = int(body.get("lock_number", 0))
+    return svc.open_lock(cu, ln)
