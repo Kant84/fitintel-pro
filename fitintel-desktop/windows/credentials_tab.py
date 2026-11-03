@@ -793,7 +793,7 @@ class CredentialsTab(QWidget):
 
     def _kr_load_clients(self):
         try:
-            r = self._req("GET", "/clients?limit=300")
+            r = self._req("GET", "/clients/")
         except Exception as e:
             if hasattr(self, "ol_log"):
                 self.ol_log.appendPlainText(" Клиенты: ОШИБКА запроса: " + str(e)[:200])
