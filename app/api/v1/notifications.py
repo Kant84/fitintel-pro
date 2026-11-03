@@ -169,7 +169,7 @@ class TestIn(BaseModel):
     message: str = "Тестовое уведомление FitIntel Pro"
 
 @router.get("/notify/settings")
-def get_settings():
+def get_settings(current=Depends(get_current_user)):
     s = _settings()
     for k in ("smtp_pass", "smsc_pass", "vapid_private"):
         if s.get(k):
@@ -177,7 +177,7 @@ def get_settings():
     return s
 
 @router.post("/notify/settings")
-def set_settings(body: dict):
+def set_settings(body: dict, current=Depends(get_current_user)):
     _ensure()
     allowed = {"email_enabled", "smtp_host", "smtp_port", "smtp_user", "smtp_pass", "email_from",
                "sms_enabled", "smsc_login", "smsc_pass", "smsc_sender",
@@ -195,7 +195,7 @@ def set_settings(body: dict):
     return {"ok": True}
 
 @router.post("/notify/test")
-def test_send(body: TestIn, db: Session = Depends(get_db)):
+def test_send(body: TestIn, db: Session = Depends(get_db), current=Depends(get_current_user)):
     ch = body.channel.lower()
     if ch == "email":
         ok, err = _send_email(body.to, "FitIntel Pro — тест", body.message, db)
@@ -209,7 +209,7 @@ def test_send(body: TestIn, db: Session = Depends(get_db)):
     return {"ok": ok, "error": err}
 
 @router.get("/notify/log")
-def get_log(limit: int = 50):
+def get_log(limit: int = 50, current=Depends(get_current_user)):
     _ensure()
     with _eng().connect() as c:
         rows = c.execute(text("SELECT id, channel, recipient, subject, status, error, created_at FROM notification_log ORDER BY id DESC LIMIT :n"), {"n": min(limit, 200)}).mappings().all()
@@ -302,7 +302,7 @@ def wp_sw():
 
 
 @router.post("/notify/webpush/test")
-def wp_test(body: dict | None = None):
+def wp_test(body: dict | None = None, current=Depends(get_current_user)):
     """Тестовая рассылка push всем подписчикам."""
     title = (body or {}).get("title", "FitIntel Pro")
     text = (body or {}).get("body", "Тест push-уведомления")
@@ -349,7 +349,7 @@ def send_digest(db: Session = Depends(get_db)):
     return {"ok": ok, "error": err, "stats": {"clients": clients, "visits_today": visits, "revenue_today": revenue}}
 
 @router.get("/notify/contacts")
-def notify_contacts():
+def notify_contacts(current=Depends(get_current_user)):
     """Список контактов клиентов для выбора получателя (без ручного ввода)."""
     out = []
     try:
@@ -448,13 +448,13 @@ def _webpush_manifest():
 
 
 @router.get("/notify/client-settings")
-def cn_settings_get(db: Session = Depends(get_db)):
+def cn_settings_get(db: Session = Depends(get_db), current=Depends(get_current_user)):
     from app.services.client_notify_service import ClientNotifyService
     return ClientNotifyService(db).settings()
 
 
 @router.put("/notify/client-settings")
-def cn_settings_put(body: dict, db: Session = Depends(get_db)):
+def cn_settings_put(body: dict, db: Session = Depends(get_db), current=Depends(get_current_user)):
     from app.services.client_notify_service import ClientNotifyService, ensure_client_notify_columns
     allowed = {"client_notify_enabled", "cn_max", "cn_telegram", "cn_sms",
                "cn_ev_payment", "cn_ev_vending", "cn_ev_booking", "cn_ev_expiry"}
@@ -471,7 +471,7 @@ def cn_settings_put(body: dict, db: Session = Depends(get_db)):
 
 
 @router.get("/notify/client-plan")
-def cn_plan(client_id: str, db: Session = Depends(get_db)):
+def cn_plan(client_id: str, db: Session = Depends(get_db), current=Depends(get_current_user)):
     """Диагностика: какие каналы доступны клиенту без отправки."""
     from app.services.client_notify_service import ClientNotifyService
     svc = ClientNotifyService(db)
