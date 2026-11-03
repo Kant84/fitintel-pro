@@ -656,6 +656,21 @@ class CredentialsTab(QWidget):
         b_all.clicked.connect(self._kr_open_all_zones)
         top.addWidget(b_all)
         kv.addLayout(top)
+        row2 = QHBoxLayout()
+        row2.addWidget(QLabel("Открыть по номеру:"))
+        self.kr_zone = QComboBox()
+        self.kr_zone.setMinimumWidth(180)
+        row2.addWidget(self.kr_zone)
+        self.kr_num = QLineEdit()
+        self.kr_num.setPlaceholderText("№ замка")
+        self.kr_num.setMaximumWidth(90)
+        row2.addWidget(self.kr_num)
+        b_one = QPushButton("Открыть")
+        b_one.setStyleSheet(BTN_SUCCESS)
+        b_one.clicked.connect(self._kr_open_by_number)
+        row2.addWidget(b_one)
+        row2.addStretch(1)
+        kv.addLayout(row2)
         kv.addWidget(QLabel("<span style='color:#ef4444'>■</span> закрыт  "
                             "<span style='color:#10b981'>■</span> открыт  "
                             "<span style='color:#8b5cf6'>▣</span> арендован (фиолетовая рамка)"))
@@ -707,9 +722,17 @@ class CredentialsTab(QWidget):
         self._kr_cus = []
         if isinstance(r, dict) and r.get("ok") and r.get("zones"):
             self.kr_status.setText("Подключено · раздевалок: %d" % len(r["zones"]))
+            cur = self.kr_zone.currentData()
+            self.kr_zone.clear()
             for z in r["zones"]:
                 self._kr_cus.append(z["cu_board_id"])
+                self.kr_zone.addItem(z.get("name") or ("Раздевалка " + str(z["cu_board_id"] + 1)),
+                                     z["cu_board_id"])
                 self.kr_zones.addWidget(self._kr_zone_widget(z))
+            if cur is not None:
+                i = self.kr_zone.findData(cur)
+                if i >= 0:
+                    self.kr_zone.setCurrentIndex(i)
         else:
             self.kr_status.setText("Kerong не настроен на сервере (настройки: /notify/kerong)")
 
@@ -779,6 +802,17 @@ class CredentialsTab(QWidget):
     def _kr_open_all_zones(self):
         for cu in list(self._kr_cus):
             self._kr_open_all(cu)
+
+    def _kr_open_by_number(self):
+        cu = self.kr_zone.currentData()
+        if cu is None:
+            self.ol_log.appendPlainText(" Нет данных о раздевалках — нажмите «Обновить»")
+            return
+        txt = self.kr_num.text().strip()
+        if not txt.isdigit():
+            self.ol_log.appendPlainText(" Введите номер замка (число)")
+            return
+        self._kr_open_one(int(cu), int(txt))
 
     def _create_online_key(self):
         cid = self.ol_client.text().strip()
