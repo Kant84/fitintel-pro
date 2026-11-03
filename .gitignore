@@ -132,3 +132,4 @@ deploy/platform/nginx/certs/ca.key
 !tools/license_studio/
 !tools/license_studio/*.py
 
+deploy/platform/nginx/certs/
