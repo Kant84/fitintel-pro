@@ -547,7 +547,7 @@ def kerong_board(db: Session = Depends(get_db), current=Depends(get_current_user
             out.append({"lock_number": ln, "closed": st == "LOCK",
                         "rented_by": rentals.get((cu, ln))})
         zones.append({"cu_board_id": cu,
-                      "name": zones_cfg.get(str(cu)) or ("Раздевалка " + str(cu + 1)),
+                      "name": zones_cfg.get(str(cu)) or str(cu),
                       "locks": out})
     return {"ok": True, "zones": zones}
 
