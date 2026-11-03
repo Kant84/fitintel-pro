@@ -263,7 +263,9 @@ class NotificationService:
             r = requests.get("https://smsc.ru/sys/send.php",
                              params=params, timeout=15)
             data = r.json() if r.content else {}
-            if isinstance(data, list) and data and "id" in data[0]:
+            ok_resp = (isinstance(data, list) and data and "id" in data[0]) \
+                      or (isinstance(data, dict) and ("id" in data or "cnt" in data))
+            if ok_resp:
                 self._log('sms', phone, None, message, 'sent')
                 return True
             raise ValueError("SMSC ответ: %s" % (data if data else r.text[:200]))
