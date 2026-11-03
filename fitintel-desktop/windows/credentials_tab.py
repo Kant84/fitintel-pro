@@ -764,13 +764,15 @@ class CredentialsTab(QWidget):
         for i, lk in enumerate(z.get("locks", [])):
             n = int(lk["lock_number"])
             btn = QPushButton(str(n))
-            btn.setFixedSize(42, 34)
+            btn.setFixedSize(46, 38)
             rented = bool(lk.get("rented_by"))
             closed = bool(lk.get("closed"))
             color = "#ef4444" if closed else "#10b981"
             border = "#8b5cf6" if rented else color
             btn.setStyleSheet(
-                "background:%s; border:2px solid %s; color:white; font-weight:600;" % (color, border))
+                "QPushButton { background:%s; border:2px solid %s; color:#ffffff;"
+                " font-size:15px; font-weight:800; padding:0; }"
+                "QPushButton:hover { border:2px solid #ffffff; }" % (color, border))
             tip = "№%d · %s" % (n, "закрыт" if closed else "открыт")
             if rented:
                 tip += " · аренда: " + str(lk["rented_by"])
