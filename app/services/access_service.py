@@ -33,33 +33,6 @@ from app.services.locker_service import LockerService
 from app.models.locker import Locker
 
 
-
-# --- Кэш статуса онлайн-замков для стража выхода ---
-_KRL_CACHE = {"ts": 0.0, "closed": frozenset()}
-_KRL_TTL = 5.0
-
-
-def _closed_locks_cached(svc, cus):
-    """Закрытые ячейки (cu, ln) с TTL 5 с. Без кэша каждый вход/выход ходит
-    в Kerong API 4 раза (~40 мс) - при 60% визитов в трафике это главный
-    пожиратель CPU (потолок ~25 r/s на 2 ядрах)."""
-    import time as _time
-    now = _time.time()
-    if now - _KRL_CACHE["ts"] < _KRL_TTL:
-        return _KRL_CACHE["closed"]
-    closed = set()
-    for cu in cus:
-        try:
-            for lk in (svc.get_locks(cu) or []):
-                if str(lk.get("status", "")).upper() == "LOCK":
-                    closed.add((cu, int(lk.get("lockId", 0))))
-        except Exception:
-            continue
-    _KRL_CACHE["closed"] = frozenset(closed)
-    _KRL_CACHE["ts"] = now
-    return _KRL_CACHE["closed"]
-
-
 class AccessService:
     """
     Сервис для работы с СКУД/турникетами.
@@ -268,17 +241,22 @@ class AccessService:
                 if not (self._has_valid_privilege(client_id, "VIP")
                         or self._has_valid_privilege(client_id, "RENTAL")):
                     svc = KerongService(self.db, cfg["base_url"], cfg["bu_board_uuid"])
-                    for (cu, ln) in _closed_locks_cached(svc, cfg.get("cu_boards") or []):
-                        row = self.db.execute(
-                            text("SELECT 1 FROM locker_rentals WHERE cu_board_id=:c "
-                                 "AND lock_number=:l AND is_active"),
-                            {"c": cu, "l": ln}).first()
-                        if not row:
-                            return {"can_exit": False,
-                                    "reason": (f"Ячейка {cu}/{ln} закрыта без аренды. "
-                                               f"Освободите её или оформите аренду на ресепшене.")}
+                    for cu in (cfg.get("cu_boards") or []):
+                        for lk in (svc.get_locks(cu) or []):
+                            if str(lk.get("status", "")).upper() != "LOCK":
+                                continue
+                            ln = int(lk.get("lockId", 0))
+                            row = self.db.execute(
+                                text("SELECT 1 FROM locker_rentals WHERE cu_board_id=:c "
+                                     "AND lock_number=:l AND is_active"),
+                                {"c": cu, "l": ln}).first()
+                            if not row:
+                                return {"can_exit": False,
+                                        "reason": (f"Ячейка {cu}/{ln} закрыта без аренды. "
+                                                   f"Освободите её или оформите аренду на ресепшене.")}
         except Exception:
             pass
+
         sessions = (
             self.db.query(LockerSession)
             .filter(LockerSession.client_id == client_id,
