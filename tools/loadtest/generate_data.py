@@ -38,7 +38,7 @@ def main():
         SELECT column_name, data_type FROM information_schema.columns
         WHERE table_name = 'clients' AND is_nullable = 'NO'
           AND column_default IS NULL
-          AND column_name NOT IN ('id', 'created_at')
+          AND column_name <> 'created_at'
         ORDER BY ordinal_position""")).all()
 
     # реальные значения-образцы из базы (не гадаем соглашения)
@@ -47,6 +47,7 @@ def main():
         return r[0] if r else None
     gender_val = sample("gender") or "НЕ_УКАЗАН"
     cat_val = sample("client_category") or "Обычный"
+    status_val = sample("status") or "active"
 
     values = {"first_name": ":first", "last_name": ":last", "phone": ":phone",
               "email": ":email", "created_at": "now()",
@@ -78,3 +79,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
