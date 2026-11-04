@@ -49,6 +49,19 @@ def ensure_subscriptions(db):
                 vals[name] = "gen_random_uuid()"
             else:
                 vals[name] = "'LOAD'"
+    # tariff_id - FK в tariffs: берем реальный id (или создаем минимальный тариф)
+    trow = db.execute(text("SELECT id FROM tariffs LIMIT 1")).first()
+    if not trow:
+        try:
+            db.execute(text("INSERT INTO tariffs (id, name, is_active, created_at) "
+                            "VALUES (gen_random_uuid(), 'LOAD', true, now())"))
+            db.commit()
+            trow = db.execute(text("SELECT id FROM tariffs LIMIT 1")).first()
+        except Exception:
+            db.rollback()
+    if trow:
+        vals["tariff_id"] = "'%s'" % trow[0]
+    vals["currency"] = "'RUB'"
     sql = ("INSERT INTO subscriptions (%s) SELECT %s FROM clients c "
            "WHERE c.phone LIKE '+7999LT%%' AND NOT EXISTS "
            "(SELECT 1 FROM subscriptions s WHERE s.client_id = c.id)") % (
@@ -113,6 +126,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
