@@ -510,14 +510,14 @@ def kerong_test(body: dict, db: Session = Depends(get_db), current=Depends(get_c
 
 @router.get("/notify/kerong/board")
 def kerong_board(db: Session = Depends(get_db), current=Depends(get_current_user)):
-    """Доска онлайн-замков: раздевалки, статусы из Kerong API, аренда из locker_rentals."""
+    """Доска онлайн-замков. Сессия БД освобождается ДО сетевых вызовов Kerong."""
     import json as _json
+    from concurrent.futures import ThreadPoolExecutor
     from app.services.kerong_settings import get_kerong_settings
     from app.services.kerong_service import KerongService
     cfg = get_kerong_settings(db)
     if not cfg["base_url"] or not cfg["bu_board_uuid"]:
         return {"ok": False, "error": "Kerong не настроен", "zones": []}
-    svc = KerongService(db, cfg["base_url"], cfg["bu_board_uuid"])
     row = db.execute(text("SELECT config FROM notification_settings LIMIT 1")).first()
     zones_cfg = {}
     if row and row[0]:
@@ -539,22 +539,25 @@ def kerong_board(db: Session = Depends(get_db), current=Depends(get_current_user
                                  "until": str(until)[:10] if until else ""}
     except Exception:
         db.rollback()
+    db.close()  # возвращаем соединение в пул ДО сетевых вызовов
+    svc = KerongService(db, cfg["base_url"], cfg["bu_board_uuid"])
+    cus = cfg["cu_boards"]
+    with ThreadPoolExecutor(max_workers=max(1, min(4, len(cus)))) as ex:
+        locks_by_cu = dict(zip(cus, ex.map(lambda c: svc.get_locks(c) or [], cus)))
     zones = []
-    for cu in cfg["cu_boards"]:
-        locks = svc.get_locks(cu) or []
+    for cu in cus:
         out = []
-        for lk in locks:
+        for lk in locks_by_cu.get(cu, []):
             ln = int(lk.get("lockId", 0))
             st = str(lk.get("status", "OPEN")).upper()
-            rent = rentals.get((cu, ln))
+            rent = rentals.get((cu, ln)) or {}
             out.append({"lock_number": ln, "closed": st == "LOCK",
-                        "rented_by": rent["name"] if rent else None,
-                        "rented_until": rent["until"] if rent else None})
+                        "rented_by": rent.get("name"),
+                        "rented_until": rent.get("until")})
         zones.append({"cu_board_id": cu,
                       "name": zones_cfg.get(str(cu)) or str(cu),
                       "locks": out})
     return {"ok": True, "zones": zones}
-
 
 @router.put("/notify/kerong/zones")
 def kerong_zones_put(body: dict, db: Session = Depends(get_db), current=Depends(get_current_user)):
@@ -626,3 +629,4 @@ def kerong_release(body: dict, db: Session = Depends(get_db), current=Depends(ge
                {"c": cu, "l": ln})
     db.commit()
     return {"ok": True}
+

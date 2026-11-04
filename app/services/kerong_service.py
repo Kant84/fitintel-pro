@@ -15,7 +15,7 @@ class KerongService:
         url = f"{self.base_url}/kerong-api/open-lock"
         payload = {"buBoardUuid": self.bu_uuid, "cuBoardId": cu_board_id, "lockNumber": lock_number}
         try:
-            r = requests.post(url, json=payload, timeout=5)
+            r = requests.post(url, json=payload, timeout=3)
             if r.status_code == 201:
                 return {"ok": True, "status": "OPENED"}
             try:
@@ -33,7 +33,7 @@ class KerongService:
         url = f"{self.base_url}/kerong-api/locks-list"
         params = {"kr-bu-uuid": self.bu_uuid, "kr-cu-id": cu_board_id}
         try:
-            r = requests.get(url, params=params, timeout=5)
+            r = requests.get(url, params=params, timeout=3)
             return r.json() if r.status_code == 200 else []
         except Exception:
             return []
@@ -42,7 +42,8 @@ class KerongService:
         url = f"{self.base_url}/kerong-api/set-unlocking-time"
         payload = {"krBuId": self.bu_uuid, "krCuId": cu_board_id, "unlockingTime": ms}
         try:
-            r = requests.post(url, json=payload, timeout=5)
+            r = requests.post(url, json=payload, timeout=3)
             return {"ok": r.status_code == 200, "status_code": r.status_code}
         except Exception as e:
             return {"ok": False, "error": str(e)[:200]}
+
