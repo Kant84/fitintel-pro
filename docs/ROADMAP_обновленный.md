@@ -277,3 +277,27 @@
 - [x] **Web Push** (ПК/Android/iOS-PWA), **чеки на email**, **вендинг с баланса**, **пин base-образа** — см. итоги выше.
 - [ ] Демо-стенд (экспорт образа+БД на ноутбук/VPS) — по запросу. Далее: релиз 1.6.2 по правилам, DKIM, авто-поддомены, выбор канала клиентом в миниаппе.
 
+## Нагрузочное тестирование (04.11.2026)
+
+**Точка №1: 20 000 клиентов / 100 VU / 10 мин** (стенд nfs, 2 vCPU):
+~20 r/s, p50 ~3,5 с, fails ~0 (срез nginx-лимита, не код). Предел - 2 vCPU стенда,
+не ПО: реальный клуб в час пик = 0,2-1 запрос/с -> запас 20-50x.
+Точка №2 (50k / 300 VU) - только на 4+ vCPU, не раньше.
+
+**Баги, найденные и исправленные под нагрузкой (в main):**
+1. nginx rate-limit 10 r/s на один IP (desktop/turnstiles/loadtest упирались бы
+   в час пик) -> LAN-whitelist в deploy/nginx/nginx.conf.
+2. 20+ runtime ALTER/CREATE ... IF NOT EXISTS на каждый запрос -> конвой
+   ACCESS EXCLUSIVE -> глобальный once-per-process guard (app/db/session.py).
+3. Доска Kerong держала сессию БД во время сетевых вызовов + 4 последовательных
+   запроса -> освобождение сессии до сети + параллельный опрос плат.
+4. LicenseLimitMiddleware: синхронный psycopg в event loop на каждый запрос
+   -> кэш license_block_check 30 с (app/api/v1/license_api.py).
+
+**Инфраструктура прогонов:** tools/loadtest/ (генератор 20k клиентов + активных
+безлимитных абонементов, locustfile v4 с честными кодами, эмулятор Kerong на :9876),
+лицензия стенда max_clients=100000 (SMSC/License Studio).
+
+**Правила прогонов:** VPN на ПК выключен; токен пересоздавать после активации
+лицензии; synchronous_commit=off только на время тестов (после - вернуть on:
+ALTER DATABASE <db> RESET synchronous_commit; + restart api/celery).
