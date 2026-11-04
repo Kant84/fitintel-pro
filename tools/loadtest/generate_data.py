@@ -26,12 +26,43 @@ def default_expr(name, dtype):
         return "gen_random_uuid()"
     return "'LOAD'"
 
+def ensure_subscriptions(db):
+    """Активный безлимитный абонемент каждому LoadTest-клиенту (иначе входы -> 403)."""
+    cols = db.execute(text("""
+        SELECT column_name, data_type FROM information_schema.columns
+        WHERE table_name = 'subscriptions' AND is_nullable = 'NO'
+          AND column_default IS NULL ORDER BY ordinal_position""")).all()
+    vals = {"id": "gen_random_uuid()", "client_id": "c.id", "is_active": "true",
+            "status": "'ACTIVE'", "end_date": "CURRENT_DATE + 365",
+            "is_unlimited": "true", "visits_used": "0", "visit_limit": "0",
+            "time_restriction_type": "'FULLDAY'", "created_at": "now()"}
+    for name, dtype in cols:
+        if name not in vals:
+            d = (dtype or "").lower()
+            if "timestamp" in d or d == "date":
+                vals[name] = "now()"
+            elif d in ("integer", "bigint", "smallint", "numeric"):
+                vals[name] = "0"
+            elif d == "boolean":
+                vals[name] = "false"
+            elif "uuid" in d:
+                vals[name] = "gen_random_uuid()"
+            else:
+                vals[name] = "'LOAD'"
+    sql = ("INSERT INTO subscriptions (%s) SELECT %s FROM clients c "
+           "WHERE c.phone LIKE '+7999LT%%' AND NOT EXISTS "
+           "(SELECT 1 FROM subscriptions s WHERE s.client_id = c.id)") % (
+        ", ".join(vals.keys()), ", ".join(vals.values()))
+    res = db.execute(text(sql))
+    db.commit()
+    print("SUBSCRIPTIONS_ENSURED=%d" % (res.rowcount or 0))
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--clients", type=int, default=20000)
     ap.add_argument("--batch", type=int, default=1000)
     args = ap.parse_args()
     db = SessionLocal()
+    ensure_subscriptions(db)
 
     # NOT NULL колонки без DEFAULT (id/created_at исключаем - у них значения)
     cols = db.execute(text("""
@@ -82,5 +113,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 

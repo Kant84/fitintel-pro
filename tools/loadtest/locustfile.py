@@ -66,7 +66,8 @@ class FitIntelUser(HttpUser):
                     pass
             elif cid:
                 _return_free(cid)   # отказ (абонемент/уже внутри) - клиент снова на улице
-            r.success()
+            if r.status_code < 500:
+                r.success()
 
     @task(14)
     def turnstile_exit(self):
@@ -76,7 +77,8 @@ class FitIntelUser(HttpUser):
         with self.client.post("/api/v1/visits/exit", headers=HEADERS,
                               json={"visit_id": vid},
                               name="POST /visits/exit", catch_response=True) as r:
-            r.success()
+            if r.status_code < 500:
+                r.success()
 
     @task(8)
     def client_create(self):
@@ -92,7 +94,8 @@ class FitIntelUser(HttpUser):
                         _return_free(str(cid))   # новый клиент сразу доступен для входов
                 except Exception:
                     pass
-            r.success()
+            if r.status_code < 500:
+                r.success()
 
     @task(4)
     def kerong_board(self):
@@ -159,3 +162,4 @@ def _build_get_tasks(host):
 @events.test_start.add_listener
 def _on_start(environment, **kwargs):
     _build_get_tasks(environment.host)
+
