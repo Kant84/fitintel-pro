@@ -39,3 +39,54 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Глобальная защита от повторного идемпотентного DDL на горячем пути.
+# ALTER/CREATE ... IF NOT EXISTS берет тяжелые блокировки ДАЖЕ когда объект
+# уже существует; 20+ таких вызовов на запрос конвоем сериализовали всю БД.
+# Здесь каждая уникальная DDL выполняется один раз за процесс (в любом месте
+# кода), повторы заменяются на SELECT 1. Схему владеют миграции - runtime-DDL
+# только страхуют, поэтому пропуск повторов безопасен.
+# ---------------------------------------------------------------------------
+import threading as _threading
+
+from sqlalchemy import event as _event
+
+_DDL_ONCE: set = set()
+_DDL_PENDING: set = set()
+_DDL_LOCK = _threading.Lock()
+
+
+def _ddl_key(statement: str):
+    u = " ".join(statement.lstrip().upper().split())
+    if "IF NOT EXISTS" not in u:
+        return None
+    if u.startswith(("ALTER TABLE", "CREATE TABLE", "CREATE INDEX", "CREATE UNIQUE INDEX")):
+        return u
+    return None
+
+
+@_event.listens_for(engine, "before_cursor_execute", retval=True)
+def _ddl_once_before(conn, cursor, statement, parameters, context, executemany):
+    if executemany:
+        return statement, parameters
+    key = _ddl_key(statement)
+    if key is None:
+        return statement, parameters
+    with _DDL_LOCK:
+        if key in _DDL_ONCE:
+            return "SELECT 1", ()
+        _DDL_PENDING.add(key)
+    return statement, parameters
+
+
+@_event.listens_for(engine, "after_cursor_execute")
+def _ddl_once_after(conn, cursor, statement, parameters, context, executemany):
+    key = _ddl_key(statement)
+    if key is None:
+        return
+    with _DDL_LOCK:
+        if key in _DDL_PENDING:
+            _DDL_PENDING.discard(key)
+            _DDL_ONCE.add(key)
