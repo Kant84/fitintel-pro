@@ -28,7 +28,13 @@ def _eng():
         raise RuntimeError("DB engine not found")
     return _engine
 
+_ENSURE_DONE = False
+
+
 def _ensure():
+    global _ENSURE_DONE
+    if _ENSURE_DONE:
+        return
     with _eng().begin() as c:
         c.execute(text("""CREATE TABLE IF NOT EXISTS notification_settings (
             id INT PRIMARY KEY, updated_at TIMESTAMP DEFAULT NOW())"""))
@@ -58,6 +64,9 @@ def _ensure():
         c.execute(text("""CREATE TABLE IF NOT EXISTS webpush_subscriptions (
             id BIGSERIAL PRIMARY KEY, endpoint TEXT UNIQUE, keys_json TEXT,
             created_at TIMESTAMP DEFAULT NOW())"""))
+
+
+    _ENSURE_DONE = True
 
 
 def _settings():
@@ -629,4 +638,5 @@ def kerong_release(body: dict, db: Session = Depends(get_db), current=Depends(ge
                {"c": cu, "l": ln})
     db.commit()
     return {"ok": True}
+
 

@@ -21,12 +21,21 @@ _COLUMNS = ["client_notify_enabled", "cn_max", "cn_telegram", "cn_sms",
             "cn_ev_payment", "cn_ev_vending", "cn_ev_booking", "cn_ev_expiry", "cn_ev_locker"]
 
 
+_ENSURED = False
+
+
 def ensure_client_notify_columns(db: Session = None) -> None:
+    global _ENSURED
+    if _ENSURED:
+        return
     from app.db.session import engine
     with engine.begin() as c:
         for col in _COLUMNS:
             default = "FALSE" if col == "cn_sms" else "TRUE"
             c.execute(text(f"ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS {col} BOOLEAN DEFAULT {default}"))
+
+
+    _ENSURED = True
 
 
 class ClientNotifyService:
@@ -105,3 +114,4 @@ class ClientNotifyService:
                 res["tried"].append({"channel": channel, "ok": False, "error": str(e)[:120]})
         res["error"] = "все доступные каналы вернули неуспех"
         return res
+
