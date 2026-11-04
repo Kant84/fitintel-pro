@@ -262,7 +262,25 @@ def current_limit_status():
         return {"activated": False, "error": str(e)}
 
 
-def license_block_check():
+_BLOCK_CACHE = {'ts': 0.0, 'result': None}
+_BLOCK_CACHE_TTL = 30.0
+
+
+def license_block_check(db):
+    # Кэш 30 с на процесс: лицензионная проверка не ходит в БД на каждый запрос.
+    # Синхронный psycopg в async middleware блокировал event loop обоих воркеров.
+    import time as _time
+    now = _time.time()
+    cached = _BLOCK_CACHE
+    if now - cached['ts'] < _BLOCK_CACHE_TTL:
+        return cached['result']
+    result = _license_block_check_impl(db)
+    cached['ts'] = now
+    cached['result'] = result
+    return result
+
+
+def _license_block_check_impl():
     st = current_limit_status()
     if st.get("activated") and not st.get("within_limit") and st.get("mode") == "hard":
         return {"block": True, "used": st.get("clients_used"),
