@@ -8,7 +8,15 @@ from app.db.session import engine
 DEFAULT_CU_BOARDS = [0, 1, 2, 3]
 
 
+_ENSURED = False
+
+
 def ensure_kerong_tables(db: Session = None) -> None:
+    """DDL - один раз за процесс. ALTER TABLE IF NOT EXISTS берет ACCESS EXCLUSIVE
+    даже когда колонка уже есть - на каждый запускать недопустимо под нагрузкой."""
+    global _ENSURED
+    if _ENSURED:
+        return
     with engine.begin() as c:
         c.execute(text("""
             CREATE TABLE IF NOT EXISTS locker_rentals (
@@ -23,7 +31,7 @@ def ensure_kerong_tables(db: Session = None) -> None:
             CREATE UNIQUE INDEX IF NOT EXISTS locker_rentals_one_active
             ON locker_rentals(cu_board_id, lock_number) WHERE is_active"""))
         c.execute(text("ALTER TABLE locker_rentals ADD COLUMN IF NOT EXISTS rented_until TIMESTAMPTZ"))
-
+    _ENSURED = True
 
 def _parse_config(raw) -> dict:
     if not raw:
@@ -63,3 +71,4 @@ def save_kerong_settings(db: Session, data: dict) -> dict:
     db.execute(text("UPDATE notification_settings SET config = :c"), {"c": json.dumps(cfg)})
     db.commit()
     return block
+
