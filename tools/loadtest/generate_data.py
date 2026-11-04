@@ -52,6 +52,9 @@ def main():
     values = {"first_name": ":first", "last_name": ":last", "phone": ":phone",
               "email": ":email", "created_at": "now()",
               "gender": ":gender", "client_category": ":cat"}
+    values["id"] = "gen_random_uuid()"
+    values["is_active"] = "true"
+    values["status"] = ":status"
     for name, dtype in cols:
         if name not in values:
             values[name] = default_expr(name, dtype)
@@ -68,7 +71,7 @@ def main():
     for start in range(0, args.clients, args.batch):
         n = min(args.batch, args.clients - start)
         rows = [{"first": random.choice(FIRST), "last": random.choice(LAST),
-                 "gender": gender_val, "cat": cat_val,
+                 "gender": gender_val, "cat": cat_val, "status": status_val,
                  "phone": "+7999LT%06d" % (start + i),
                  "email": "lt%06d@load.test" % (start + i)} for i in range(n)]
         db.execute(text(sql), rows)
@@ -79,4 +82,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
