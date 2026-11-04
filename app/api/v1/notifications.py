@@ -13,6 +13,9 @@ from app.api.dependencies import get_current_user
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+from concurrent.futures import ThreadPoolExecutor as _TPE
+_BOARD_EX = _TPE(max_workers=4)
+
 _engine = None
 def _eng():
     global _engine
@@ -521,7 +524,8 @@ def kerong_test(body: dict, db: Session = Depends(get_db), current=Depends(get_c
 def kerong_board(db: Session = Depends(get_db), current=Depends(get_current_user)):
     """Доска онлайн-замков. Сессия БД освобождается ДО сетевых вызовов Kerong."""
     import json as _json
-    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import ThreadPoolExecutor as _TPE_cls
+    global _BOARD_EX
     from app.services.kerong_settings import get_kerong_settings
     from app.services.kerong_service import KerongService
     cfg = get_kerong_settings(db)
@@ -638,5 +642,6 @@ def kerong_release(body: dict, db: Session = Depends(get_db), current=Depends(ge
                {"c": cu, "l": ln})
     db.commit()
     return {"ok": True}
+
 
 
