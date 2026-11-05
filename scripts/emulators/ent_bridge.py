@@ -5,8 +5,11 @@ import firebird.driver as fb
 
 DB = "192.168.101.11:C:\\Program Files\\ENT\\Server\\DB\\CBASE.FDB"
 FIT = "http://192.168.101.182/api/v1"
-BASIC = "Basic " + base64.b64encode(b"itc:***REMOVED***").decode()
-ADMIN = {"login": "admin", "password": "***REMOVED***"}
+_missing = [n for n in ("ITC_BASIC_USER", "ITC_BASIC_PASSWORD", "FITINTEL_BRIDGE_LOGIN", "FITINTEL_BRIDGE_PASSWORD") if not os.environ.get(n)]
+if _missing:
+    raise SystemExit("ent_bridge: задайте env: " + ", ".join(_missing))
+ITC_BASIC = "Basic " + base64.b64encode((os.environ["ITC_BASIC_USER"] + ":" + os.environ["ITC_BASIC_PASSWORD"]).encode()).decode()
+FIT_ADMIN = {"login": os.environ["FITINTEL_BRIDGE_LOGIN"], "password": os.environ["FITINTEL_BRIDGE_PASSWORD"]}
 
 def http(m, u, p=None, auth=None):
     req = urllib.request.Request(u, data=json.dumps(p).encode() if p else None,
@@ -23,7 +26,7 @@ def http(m, u, p=None, auth=None):
 # JWT админа для /visits (с ретраями)
 JWT = None
 for _ in range(10):
-    st, tok = http("POST", FIT + "/auth/login", ADMIN)
+    st, tok = http("POST", FIT + "/auth/login", FIT_ADMIN)
     if st == 200 and isinstance(tok, dict) and tok.get("access_token"):
         JWT = "Bearer " + tok["access_token"]
         print("JWT получен", flush=True)
@@ -52,7 +55,7 @@ while True:
         last_id = max(last_id, eid)
         st, resp = http("POST", FIT + "/skud/checkaccess",
                         {"device_id": "ent-" + dvs, "client_card": uid,
-                         "request_id": str(eid), "direction": "entry"}, BASIC)
+                         "request_id": str(eid), "direction": "entry"}, ITC_BASIC)
         grant = resp.get("grant_access") if isinstance(resp, dict) else None
         print(f"[{dt}] карта {uid} -> HTTP {st} grant={grant}", flush=True)
         if grant == 1 and isinstance(resp, dict) and resp.get("client_id"):
@@ -61,6 +64,6 @@ while True:
                             "access_method": "RFID", "zone": "ENT", "notes": "ЭНТ bridge evt " + str(eid)}, JWT)
             print(f"    -> визит: HTTP {st2}", flush=True)
             if st2 == 401:  # токен протух — обновим
-                st3, tok = http("POST", FIT + "/auth/login", ADMIN)
+                st3, tok = http("POST", FIT + "/auth/login", FIT_ADMIN)
                 if st3 == 200: JWT = "Bearer " + tok["access_token"]
     time.sleep(2)

@@ -70,12 +70,11 @@ def main() -> None:
         db.commit()
 
         print("Операция выполнена.")
-        print("Операция выполнена.")
-        print("Операция выполнена.")
 
     except Exception as exc:
         db.rollback()
-        print("Операция выполнена.")
+        print("Ошибка сброса пароля: %s" % exc)
+        raise
 
     finally:
         db.close()
