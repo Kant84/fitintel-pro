@@ -508,9 +508,7 @@ except Exception as _e17e:
 
 
 # [W5] commerce/export/accounting/integrations объединены в хабы — E-блоки отключены
-# [W5] «Интеграции» — подвкладка хаба «Настройки»
-except Exception as _e21ui:
-    print("E21 integrations tab FAIL:", _e21ui)
+# [W5] «Интеграции» — подвкладка хаба «Настройки» (E21 try удалён в W5; осиротевший except убран 05.11)
 
 
 # === E15_CREDENTIALS_TAB ===
@@ -989,7 +987,16 @@ try:
         try:
             from PyQt6.QtGui import QAction
             act = QAction("Поддержка разработчика (email)", self)
-            act.triggered.connect(lambda: SupportDialog(self.api, self).exec())
+                        def _open_sup(_checked=False):
+                try:
+                    SupportDialog(self.api, self).exec()
+                except Exception as _sup_e:
+                    import traceback
+                    traceback.print_exc()
+                    from PyQt6.QtWidgets import QMessageBox as _QMB
+                    _QMB.warning(self, "Поддержка",
+                                 "Не удалось открыть окно поддержки:\n%s" % str(_sup_e)[:250])
+            act.triggered.connect(_open_sup)
             help_menu = None
             for a_ in self.menuBar().actions():
                 if a_.text().replace("&", "").strip().lower().startswith("помощь"):
@@ -1004,3 +1011,4 @@ try:
     print("Support menu OK")
 except Exception as e:
     print("Support menu FAIL:", e)
+
