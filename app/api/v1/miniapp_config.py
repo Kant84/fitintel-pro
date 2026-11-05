@@ -3,7 +3,7 @@ import urllib.parse as _up
 import uuid as _uuid
 from datetime import datetime as _dt, timezone as _tz
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request as _Req
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy import text as _t
 
@@ -506,8 +506,18 @@ def _wallet_credit(db, client_id: str, amount: float, bonus_percent: float) -> d
     return {"balance": round(bal, 2)}
 
 
+def _return_url(request) -> str:
+    """После оплаты: параметр WALLET_RETURN_URL -> Origin запроса -> дефолт."""
+    u = (get_param("WALLET_RETURN_URL", "") or "").strip()
+    if u:
+        return u
+    h = (request.headers.get("origin") or request.headers.get("referer") or "") if request is not None else ""
+    h = h.split("?")[0].rstrip("/")
+    return (h + "/static/miniapp/index.html") if h else "https://fixintel.ru/static/miniapp/index.html"
+
+
 @router.post("/miniapp/wallet/topup")
-def wallet_topup(body: TopupIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
+def wallet_topup(body: TopupIn, request: _Req = None, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     cfg = _wallet_cfg(db)
     from app.api.v1.club_params import get_param
     if str(get_param("WALLET_ENABLED", "1") or "1").lower() not in ("1", "true", "yes", "on"):
@@ -528,7 +538,7 @@ def wallet_topup(body: TopupIn, current=_Dep(_gcu), db: _S = _Dep(_gdb)):
     if cfg["provider"] == "yookassa":
         from app.services.yookassa_service import YooKassaService
         pay = YooKassaService(db).create_payment(
-            amount, "Пополнение кошелька", "https://fixintel.ru/static/miniapp/index.html",
+            amount, "Пополнение кошелька", _return_url(request),
             metadata={"wallet_topup": "1", "client_id": cid, "bonus_percent": str(cfg["bonus_percent"])})
         url = ((pay or {}).get("confirmation") or {}).get("confirmation_url") or (pay or {}).get("payment_url")
         return {"ok": True, "provider": "yookassa", "payment_url": url, "payment_id": (pay or {}).get("id")}

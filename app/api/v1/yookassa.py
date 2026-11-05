@@ -156,6 +156,9 @@ async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
                     "payload TEXT, created_at TIMESTAMPTZ,"
                     "updated_at TIMESTAMPTZ)"))
     db.commit()
+    # Реальная ЮKassa уведомления НЕ подписывает. Если заголовок есть - это наш
+    # тест-клиент (проверка HMAC как раньше); если нет - source IP по официальным
+    # диапазонам ЮKassa (оверрайд: параметр YK_WEBHOOK_ALLOW_IPS, список через запятую).
     signature = request.headers.get("X-YooKassa-Signature", "")
     sig_key = os.getenv("YOOKASSA_SECRET_KEY", "")
     if not sig_key:
@@ -164,9 +167,24 @@ async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
             sig_key = get_param("YK_SECRET_KEY", "") or ""
         except Exception:
             sig_key = ""
-    expected = hmac.new((sig_key or WEBHOOK_SECRET).encode(), body, hashlib.sha256).hexdigest()
-    if not signature or not hmac.compare_digest(signature, expected):
-        raise HTTPException(status_code=403, detail="Невалидная подпись webhook")
+    if signature:
+        expected = hmac.new((sig_key or WEBHOOK_SECRET).encode(), body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            raise HTTPException(status_code=403, detail="Невалидная подпись webhook")
+    else:
+        import ipaddress
+        from app.api.v1.club_params import get_param as _gp
+        allow = (_gp("YK_WEBHOOK_ALLOW_IPS", "") or "").strip()
+        nets = [ipaddress.ip_network(x.strip()) for x in allow.split(",") if x.strip()] or [
+            ipaddress.ip_network(n) for n in (
+                "185.71.76.0/27", "185.71.77.0/27",
+                "77.75.154.0/23", "77.75.156.0/23", "2a02:5180::/32")]
+        try:
+            src = ipaddress.ip_address(request.client.host if request.client else "")
+        except ValueError:
+            src = None
+        if src is None or not any(src in n for n in nets):
+            raise HTTPException(status_code=403, detail="Webhook: источник вне сетей ЮKassa")
 
     payload = json.loads(body.decode())
     event = payload.get("event", "")
@@ -183,6 +201,15 @@ async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
     result = {"status": "ok", "event": event}
     row = _find_payment(db, yk_id)
     now = datetime.now(timezone.utc)
+
+    # Verify: с кабинетом (YK_SECRET_KEY задан) событие подтверждаем запросом
+    # к API ЮKassa - спуф IP исключен. Не подтверждено -> 202, ЮKassa повторит.
+    if event in ("payment.succeeded", "payment.canceled") and yk_id and sig_key:
+        from app.services.yookassa_service import YooKassaService
+        ver = YooKassaService(db).get_payment(yk_id)
+        want = "succeeded" if event == "payment.succeeded" else "canceled"
+        if (ver or {}).get("status") != want:
+            raise HTTPException(status_code=202, detail="Событие не подтверждено API ЮKassa")
 
     # W6: пополнение кошелька из мини-приложения (metadata.wallet_topup)
     md = obj.get("metadata") or {}
