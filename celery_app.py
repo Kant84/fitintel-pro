@@ -38,7 +38,11 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.dump_parquet",
         "schedule": crontab(hour=4, minute=0),  # E60: ночной дамп в Parquet
     },
-        "churn-retrain": {
+        "support-mail-poll": {
+        "task": "app.tasks.poll_support_mail",
+        "schedule": 300.0,  # П1: поддержка по email, каждые 5 мин
+    },
+    "churn-retrain": {
         "task": "app.tasks.retrain_churn",
         "schedule": crontab(day_of_week=1, hour=5, minute=0),
     },
