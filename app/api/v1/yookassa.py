@@ -179,8 +179,11 @@ async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
             ipaddress.ip_network(n) for n in (
                 "185.71.76.0/27", "185.71.77.0/27",
                 "77.75.154.0/23", "77.75.156.0/23", "2a02:5180::/32")]
+        # За nginx/прокси реальный IP приходит в заголовках (uvicorn не доверяет им по умолчанию)
+        fwd = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+        host_ip = fwd or request.headers.get("x-real-ip") or (request.client.host if request.client else "")
         try:
-            src = ipaddress.ip_address(request.client.host if request.client else "")
+            src = ipaddress.ip_address(host_ip)
         except ValueError:
             src = None
         if src is None or not any(src in n for n in nets):
