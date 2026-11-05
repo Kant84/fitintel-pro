@@ -112,7 +112,7 @@
 **Готово, когда:** в json токена нет, автоперелогин работает.
 * [x] **C3. Фикс `auth_service.py`.** Убрать мёртвый код после `return`; убрать хардкод `devices.create` из `has_permission`. ✅ 25.10: хардкод и мёртвый код удалены, файл проверен и развёрнут.
 * [x] **C4. Закрыть служебное в проде.** `/auth/debug-access`, `/fiscal/test/drivers`, `/test/*` — под feature-flag/`APP_DEBUG` (prod: 404). ✅ 25.10: production проверен, оба endpoint возвращают 404, API healthy.
-* [ ] **C5. `deploy/.env` в `.gitignore`** (проверить), секреты из истории git не светятся. Связано с SEC3: ротация ITC_BASIC_PASSWORD (нужен хост itcservice) и чистка git-истории при приватизации репо.
+* [x] **C5. `deploy/.env` в `.gitignore`** (проверить), секреты из истории git не светятся. Связано с SEC3: ротация ITC_BASIC_PASSWORD (нужен хост itcservice) и чистка git-истории при приватизации репо. ✅ ЗАКРЫТО 05.11: .env в индексе нет, .gitignore покрывает; корневой .env найден в истории (d662b64c) — вычистка в BFG-списке при приватизации.
 
 ## D. Качество кода и тесты
 
@@ -260,7 +260,7 @@
 - [x] **FIX2. Исправить подтверждённые undefined-name/runtime ошибки — ЗАКРЫТО 05.11.** Список аудита (exports.py os, reports_ops.py _rows, warehouse.py, payment_service.py status, self_learning.py text, tariffs.py HTTPException, aa_bridge.py Fitness1CError, analytics_dashboard.py _text, bot_scenarios.py, universal_fiscal.py operator_name, hardware asyncio, repositories timedelta, tasks date/Visit, adaptive_ui.py screens, desktop license_tab/rfid_monitor_widget/clients_analytics_tab, sale_temp.py, regex SyntaxWarning payroll/phone_verify). ✅ 05.11: ruff 0.17.2 F821/F822/F823 — All checks passed (app/ + fitintel-desktop/), compileall чист; повреждённый `app/schemas/sale_temp.py` удалён (ссылок нет). Первая партия — `ca848a23`.
 **Готово, когда:** Ruff F821/F822/F823 не содержит реальных дефектов, целевые сценарии проходят без NameError/UnboundLocalError.
 
-- [ ] **FIX3. Восстановить frontend build и lint.** Разрешить расхождение TypeScript 7.0.2 через `npx` и 5.9.3 в lockfile, привести `baseUrl`/tsconfig к выбранной версии, перенести `eslint.config.js` в канонический `frontend/` и проверить чистую установку через `npm ci`.
+- [x] **FIX3. Восстановить frontend build и lint.** Разрешить расхождение TypeScript 7.0.2 через `npx` и 5.9.3 в lockfile, привести `baseUrl`/tsconfig к выбранной версии, перенести `eslint.config.js` в канонический `frontend/` и проверить чистую установку через `npm ci`. ✅ ЗАКРЫТО 05.11 (c96373ab): воссозданы lib/utils (cn) + lib/api (axios, 25 методов); npm run build зелёный (20,7 с). Пути freeze/wallet/selfservice/qr сверить с OpenAPI при запуске панели.
 **Готово, когда:** на чистом checkout последовательно проходят `npm ci`, `npm run lint` и `npm run build`.
 
 - [ ] **D4. Включить эффективный CI для GitHub `main`.** Сейчас найден только `.gitlab-ci.yml`; работа GitLab mirror не подтверждена. Добавить GitHub Actions: Ruff/compile, backend pytest, frontend lint/build, проверку миграций на чистой БД и запрет секретов/`node_modules` в Git. Проверить production-пути и SSH host key checking в deploy job.
@@ -268,13 +268,13 @@
 
 ### P2. Чистка репозитория и документации
 
-- [ ] **CLEAN1. Убрать зависимости и логи из Git.** Удалить из индекса `frontend/node_modules` (27 270 файлов в `frontend/`, около 197 МиБ) и `logs/access.log.*` с IP/путями запросов; обновить `.gitignore`, оставить установку зависимостей через lockfile. Оценить очистку истории отдельно от обычного cleanup-commit.
+- [x] **CLEAN1. Убрать зависимости и логи из Git.** Удалить из индекса `frontend/node_modules` (27 270 файлов в `frontend/`, около 197 МиБ) и `logs/access.log.*` с IP/путями запросов; обновить `.gitignore`, оставить установку зависимостей через lockfile. Оценить очистку истории отдельно от обычного cleanup-commit. ✅ ЗАКРЫТО 05.11: node_modules выведен из индекса (bed0dfdb); история — в BFG-списке при приватизации.
 **Готово, когда:** свежий clone не содержит зависимостей/логов, `npm ci` восстанавливает frontend, приложение пишет логи в игнорируемый каталог.
 
-- [ ] **CLEAN2. Оставить один канонический frontend.** Перенести нужный ESLint-конфиг в `frontend/`, сверить отличия `App.tsx`, затем удалить случайные `app/src`, frontend package/config files, `app/info.md` и связанные дубли. README должен ссылаться на `frontend/src`.
+- [x] **CLEAN2. Оставить один канонический frontend.** Перенести нужный ESLint-конфиг в `frontend/`, сверить отличия `App.tsx`, затем удалить случайные `app/src`, frontend package/config files, `app/info.md` и связанные дубли. README должен ссылаться на `frontend/src`. ✅ ЗАКРЫТО 05.11 (44916b62): дубль app/src + Vite-конфиги в app/ удалены (90 файлов), канон — frontend/; backend и образ не затронуты.
 **Готово, когда:** в репозитории один frontend, сборка использует только его, ссылки документации верны.
 
-- [ ] **CLEAN3. Удалить подтверждённый мусор отдельным commit.** Кандидаты: `README_OLD.md`, `tree.txt`, `tree_6.10.txt`, `.setup_state`, `deploy/backup.zip`, `doc/MAIN_ICONS_PATCH (1).txt`, `docs/markmap (1).svg`, `tools/license_studio/log.txt`, `app/services/Текстовый документ.txt`, пустые временные scripts из аудита и одна из двух одинаковых инструкций. Корневые `clients_tab.py`, `apply_icons.py`, `patch_timeouts.py`, `connections.json` — только после проверки содержимого и ссылок. Не удалять массово пустые `__init__.py`; `reader.py` и `rfid_reader.py` не являются дублями и сохраняются.
+- [x] **CLEAN3. Удалить подтверждённый мусор отдельным commit.** Кандидаты: `README_OLD.md`, `tree.txt`, `tree_6.10.txt`, `.setup_state`, `deploy/backup.zip`, `doc/MAIN_ICONS_PATCH (1).txt`, `docs/markmap (1).svg`, `tools/license_studio/log.txt`, `app/services/Текстовый документ.txt`, пустые временные scripts из аудита и одна из двух одинаковых инструкций. Корневые `clients_tab.py`, `apply_icons.py`, `patch_timeouts.py`, `connections.json` — только после проверки содержимого и ссылок. Не удалять массово пустые `__init__.py`; `reader.py` и `rfid_reader.py` не являются дублями и сохраняются. ✅ ЗАКРЫТО 05.11 (f49a96e0): 8 мусорных файлов удалены отдельным коммитом.
 **Готово, когда:** каждый удалённый файл проверен на ссылки, импорт/сборка/тесты проходят, необходимые package markers сохранены.
 
 - [ ] **DOC1. Привести документацию к одной версии и структуре.** Устранить противоречия версий (`README` 1.6.1, документы 1.7.2, `APP_VERSION` 1.3.1), Python 3.11/3.12 и React 18/19; исправить около 12 кандидатов на broken local Markdown links; определить канонические `doc/` или `docs/`, старые инструкции перенести в явный archive.
