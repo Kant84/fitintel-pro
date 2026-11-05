@@ -208,8 +208,51 @@ class EmployeeCard(QDialog):
             v.addWidget(QLabel("Ошибка загрузки: %s" % str(e)[:180]))
             v.addStretch(1)
 
+    def _avatar_label(self):
+        lab = QLabel("—")
+        lab.setFixedSize(140, 140)
+        lab.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lab.setStyleSheet("background:#D8C88F;border-radius:70px;color:#64748b;font-weight:700;")
+        return lab
+
+    def _load_avatar(self, lab):
+        try:
+            d = self._get("/analytics/w12/media/list",
+                          {"owner_type": "staff", "owner_id": self.user_id})
+            items = d.get("items", [])
+        except Exception:
+            return
+        for r in items:
+            if str(r.get("photo_type") or "") != "document":
+                url = str(r.get("url") or "")
+                if url:
+                    try:
+                        full = url if url.startswith("http") else self.api._url(url)
+                        px = QPixmap()
+                        px.loadFromData(self.api.session.get(full, timeout=15).content)
+                        if not px.isNull():
+                            lab.setPixmap(px.scaled(140, 140, Qt.AspectRatioMode.KeepAspectRatio,
+                                                    Qt.TransformationMode.SmoothTransformation))
+                    except Exception:
+                        pass
+                break
+
+    def _change_photo(self):
+        self._upload_photo()
     def _p_profile(self):
         v = self._layout("Анкета")
+        top = QHBoxLayout()
+        self.ava_profile = self._avatar_label()
+        top.addWidget(self.ava_profile, 0, Qt.AlignmentFlag.AlignTop)
+        bv = QVBoxLayout()
+        bchg = QPushButton(" Сменить фото")
+        bchg.clicked.connect(self._change_photo)
+        bv.addWidget(bchg)
+        bv.addWidget(QLabel("Фото хранится на сервере в защищённой папке медиа-хранилища."))
+        bv.addStretch(1)
+        top.addLayout(bv, 1)
+        v.addLayout(top)
+        self._load_avatar(self.ava_profile)
         u = self._u
         grid = QGridLayout()
         rows = [("Логин", u.get("username")), ("Email", u.get("email")),
@@ -333,7 +376,9 @@ class EmployeeCard(QDialog):
                 files={"file": open(path, "rb")}, timeout=90)
             r.raise_for_status()
             QMessageBox.information(self, "Фото", "Фото сохранено в защищённое хранилище")
-            self._load_page("Фото")
+            it = self.menu.currentItem()
+            if it is not None and (it.flags() & Qt.ItemFlag.ItemIsEnabled):
+                self._load_page(it.text())
         except Exception as e:
             QMessageBox.warning(self, "Фото", str(e)[:200])
 
@@ -616,3 +661,4 @@ class EmployeeCard(QDialog):
                             pass
                         return
         QMessageBox.information(self, "Навигация", "Экран «%s» не найден." % title)
+
