@@ -987,7 +987,7 @@ try:
         try:
             from PyQt6.QtGui import QAction
             act = QAction("Поддержка разработчика (email)", self)
-                        def _open_sup(_checked=False):
+            def _open_sup(_checked=False):
                 try:
                     SupportDialog(self.api, self).exec()
                 except Exception as _sup_e:
@@ -1011,4 +1011,5 @@ try:
     print("Support menu OK")
 except Exception as e:
     print("Support menu FAIL:", e)
+
 
