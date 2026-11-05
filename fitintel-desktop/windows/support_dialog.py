@@ -1,10 +1,10 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """П1: окно «Поддержка разработчика (email)» — обращения с support@fixintel.ru.
 Открывается из меню «Помощь». Список обращений, тред, ответы (SMTP, треды
 склеиваются заголовками), статусы new/in_progress/done, настройки IMAP."""
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
                              QPushButton, QComboBox, QCheckBox, QListWidget,
-                             QListWidgetItem, QPlainTextEdit, QSplitter,
+                             QListWidgetItem, QPlainTextEdit, QSplitter, QWidget,
                              QMessageBox, QApplication)
 from PyQt6.QtCore import Qt
 
