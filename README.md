@@ -31,7 +31,7 @@ FitIntel Pro — комплексная система для автоматиз
 | **Сервер API** | Python 3.11, FastAPI, SQLAlchemy, PostgreSQL 16, Redis 7, Celery | `app/` |
 | **Desktop-клиент** | Python 3.11, PyQt6 (17 вкладок sidebar, ~99 экранов расчётно) | `fitintel-desktop/` |
 | **DJ-агент** | Python + mpv (3 процесса: A, B, PAD) | `scripts/music/` |
-| **React-админка** | React 18 + Vite + Tailwind (опционально) | `app/src/` |
+| **React-админка** | React 18 + Vite + Tailwind (опционально) | `frontend/src/` |
 | **PWA для тренеров** | Отдельный веб-интерфейс | `app/static/trainer-pwa/` |
 | **Мониторинг** | Prometheus + Grafana + Loki + Alertmanager | `deploy/monitoring/` |
 | **Развёртывание** | Docker Compose (test/prod/dev) | `deploy/` |
