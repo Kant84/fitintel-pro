@@ -979,3 +979,28 @@ def _global_undo_init(self, *args, **kwargs):
 
 MainWindow.__init__ = _global_undo_init
 # === GLOBAL UNDO END ===
+
+# === П1: «Поддержка разработчика (email)» в меню «Помощь» ===
+try:
+    from windows.support_dialog import SupportDialog
+    _orig_init_sup = MainWindow.__init__
+    def _mw_init_sup(self, *a, **k):
+        _orig_init_sup(self, *a, **k)
+        try:
+            from PyQt6.QtGui import QAction
+            act = QAction("Поддержка разработчика (email)", self)
+            act.triggered.connect(lambda: SupportDialog(self.api, self).exec())
+            help_menu = None
+            for a_ in self.menuBar().actions():
+                if a_.text().replace("&", "").strip().lower().startswith("помощь"):
+                    help_menu = a_.menu()
+                    break
+            if help_menu is None:
+                help_menu = self.menuBar().addMenu("Помощь")
+            help_menu.addAction(act)
+        except Exception as e:
+            print("support menu:", e)
+    MainWindow.__init__ = _mw_init_sup
+    print("Support menu OK")
+except Exception as e:
+    print("Support menu FAIL:", e)
