@@ -197,9 +197,9 @@
 - [ ] **C4. Вход по одноразовому токену вместо креды-логина**: console_token (уже выдаётся impersonation) — единственный способ входа в веб-консоль; креды platform.admin оставить только для десктоп-пути.
 
 ## Десктоп: откат при случайном удалении (корзина)
-- [ ] **Мягкое удаление с восстановлением (максимально возможное)**: единая корзина для сущностей: клиенты (расширить deleted-механику users: deleted_at + снимок ключевых полей, восстановление ≤30 дней, кнопка «Восстановить» в «Показать удалённых»), пользователи (уже обезличиваются — добавить реальное восстановление логина/email/ролей из снимка), тарифы, шаблоны документов, зоны/устройства.
-- [ ] **Откат операций с деньгами**: платёж/возврат/списание — не физическое удаление, а сторнирование (reversing-запись + возможность «Отменить последнее действие» в течение 10 сек через тост, как в почтовых клиентах).
-- [ ] **Подтверждение удаления с вводом имени**: для деструктивных действий — диалог с обязательным вводом ФИО/названия (как «Приостановить клуб» в платформе) + запись в аудит кто/когда/что.
+- [x] **Мягкое удаление с восстановлением (максимально возможное)**: единая корзина для сущностей: клиенты (расширить deleted-механику users: deleted_at + снимок ключевых полей, восстановление ≤30 дней, кнопка «Восстановить» в «Показать удалённых»), пользователи (уже обезличиваются — добавить реальное восстановление логина/email/ролей из снимка), тарифы, шаблоны документов, зоны/устройства.
+- [x] **Откат операций с деньгами**: платёж/возврат/списание — не физическое удаление, а сторнирование (reversing-запись + возможность «Отменить последнее действие» в течение 10 сек через тост, как в почтовых клиентах).
+- [x] **Подтверждение удаления с вводом имени**: для деструктивных действий — диалог с обязательным вводом ФИО/названия (как «Приостановить клуб» в платформе) + запись в аудит кто/когда/что.
 **Готово, когда:** любое удаление восстанавливается из корзины ≤30 дней, деньги сторнируются, в аудите след.
 
 ## Итоги 25.10 — музыка/DJ (закрыто)
@@ -240,8 +240,9 @@
 - [x] **FIX1. Восстановить `.env.example`.** Файл восстановлен: NUL-байты отсутствуют, пример содержит безопасные dev-настройки, `docker compose config` проходит.
 **Готово, когда:** чистая установка по документации создаёт читаемый `.env` и проходит начальный запуск.
 
-- [ ] **FIX2. Исправить подтверждённые undefined-name/runtime ошибки.** В первую очередь: `exports.py` (`os`), `reports_ops.py` (`_rows`), `warehouse.py` (`_ensure_warehouse` и повторное имя `create_product`), `payment_service.py` (конфликт `status`), `self_learning.py` (`text`), `tariffs.py` (`HTTPException`), `aa_bridge.py` (`Fitness1CError` и структура `get_club_id`), `analytics_dashboard.py` (`_text`), hardware drivers (`asyncio`), repositories (`timedelta`), `bot_scenarios.py` (`HTTPException`), `universal_fiscal.py` (`operator_name`), tasks (`date`, `Visit`), `adaptive_ui.py` (`screens`), desktop `license_tab.py` (`ed`/`key_ed`), `rfid_monitor_widget.py` (`urllib`), `clients_analytics_tab.py` (`_sp`). Удалить повреждённый `app/schemas/sale_temp.py` после проверки ссылок. Исправить regex SyntaxWarning в `payroll.py` и `phone_verify.py`.
-**Готово, когда:** Ruff F821/F822/F823 не содержит реальных дефектов, целевые сценарии покрыты тестами и проходят без NameError/UnboundLocalError.
+- [x] **FIX2. Исправить подтверждённые undefined-name/runtime ошибки.** В первую очередь: `exports.py` (`os`), `reports_ops.py` (`_rows`), `warehouse.py` (`_ensure_warehouse` и повторное имя `create_product`), `payment_service.py` (конфликт `status`), `self_learning.py` (`text`), `tariffs.py` (`HTTPException`), `aa_bridge.py` (`Fitness1CError` и структура `get_club_id`), `analytics_dashboard.py` (`_text`), hardware drivers (`asyncio`), repositories (`timedelta`), `bot_scenarios.py` (`HTTPException`), `universal_fiscal.py` (`operator_name`), tasks (`date`, `Visit`), `adaptive_ui.py` (`screens`), desktop `license_tab.py` (`ed`/`key_ed`), `rfid_monitor_widget.py` (`urllib`), `clients_analytics_tab.py` (`_sp`). Удалить повреждённый `app/schemas/sale_temp.py` после проверки ссылок. Исправить regex SyntaxWarning в `payroll.py` и `phone_verify.py`.
+**Готово, когда:** Ruff F821/F822/F823 не содержит реальных дефектов <!-- FIX2-CLOSED-05.11 -->
+**FIX2 закрыт 05.11:** ruff 0.17.2 F821/F822/F823 — All checks passed (app/ + fitintel-desktop/), compileall чист; повреждённый `app/schemas/sale_temp.py` удалён (ссылок нет). Первая партия — `ca848a23`., целевые сценарии покрыты тестами и проходят без NameError/UnboundLocalError.
 
 - [ ] **FIX3. Восстановить frontend build и lint.** Разрешить расхождение TypeScript 7.0.2 через `npx` и 5.9.3 в lockfile, привести `baseUrl`/tsconfig к выбранной версии, перенести `eslint.config.js` в канонический `frontend/` и проверить чистую установку через `npm ci`.
 **Готово, когда:** на чистом checkout последовательно проходят `npm ci`, `npm run lint` и `npm run build`.
@@ -305,7 +306,7 @@
 - [ ] **Backup/restore и чистая установка:** restore-test архива, Git/USB cold install и multi-server desktop flow остаются отдельными задачами.
 - [ ] **Реальные внешние контуры:** ОФД, платёжные webhook с реальными провайдерами, email/SMS, банковское оборудование и другое железо проверяются отдельно; UI/API QA не заменяет эти приёмочные проверки.
 
-## Итоги 05.11 — Корзина (откать удалений) ВЕРИФИЦИРОВАНА E2E
+## Итоги 05.11 — Корзина (откат удалений) ВЕРИФИЦИРОВАНА E2E
 
 Реализовано ранее (trash.py + desktop trash_dialog.py + снапшоты в delete_client,
 soft-delete + deleted_at). Сквозной тест на test 05.11: create (201) ->
