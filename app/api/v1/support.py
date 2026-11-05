@@ -353,3 +353,8 @@ def poll_once():
     except Exception as e:
         return {"ok": False, "error": str(e)[:200]}
     return {"ok": True, "imported": imported, "new_tickets": tickets_new, "errors": errors}
+# ---------- ручной опрос (кнопка в desktop) ----------
+@router.post("/support/poll-now")
+def poll_now(current=Depends(get_current_user)):
+    """Немедленный проход IMAP-поллера (без ожидания beat)."""
+    return poll_once()
