@@ -417,8 +417,25 @@ def analytics_trend_forecast(metric: str = "revenue", date_from: str = None,
     }
 
 
+_CHURN_CACHE = {"ts": 0.0, "data": None}
+_CHURN_TTL = 60.0
+
+
 @router.get("/churn-summary")
 def analytics_churn_summary(db: Session = Depends(get_db)):
+    """Кэш 60 с: SQL с LATERAL-подзапросами по всем клиентам занимает секунды
+    и подвешивал desktop на каждом открытии экрана (20k+ клиентов)."""
+    import time as _time
+    now = _time.time()
+    if _CHURN_CACHE["data"] is not None and now - _CHURN_CACHE["ts"] < _CHURN_TTL:
+        return _CHURN_CACHE["data"]
+    data = _churn_summary_impl(db)
+    _CHURN_CACHE["ts"] = now
+    _CHURN_CACHE["data"] = data
+    return data
+
+
+def _churn_summary_impl(db: Session = Depends(get_db)):
     """Сводка рисков оттока — SQL-правила, полный автоподбор схемы."""
     from sqlalchemy import text as _text
 
