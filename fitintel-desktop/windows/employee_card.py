@@ -311,7 +311,7 @@ class EmployeeCard(QDialog):
                 url = str(r.get("url") or "")
                 if url:
                     try:
-                        full = url if url.startswith("http") else ("http://192.168.101.182" + url)
+                        full = url if url.startswith("http") else self.api._url(url)
                         px = QPixmap()
                         px.loadFromData(self.api.session.get(full, timeout=15).content)
                         if not px.isNull():
@@ -474,7 +474,7 @@ class EmployeeCard(QDialog):
         url = str(r.get("url") or "")
         if url:
             import os
-            full = url if url.startswith("http") else ("http://192.168.101.182" + url)
+            full = url if url.startswith("http") else self.api._url(url)
             os.startfile(full)
 
     def _del_doc(self):
