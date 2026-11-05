@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """П1: «Поддержка разработчика (email)» — окно КЛУБА.
 Клуб пишет обращение -> письмо уходит С ящика КЛУБА (его SMTP: сервер/ящик/пароль)
 НА support@fixintel.ru. Адрес получателя зашит на сервере, в desktop его нет."""
@@ -35,8 +35,8 @@ class SupportDialog(QDialog):
         grp.addWidget(bsave)
         v.addLayout(grp)
 
-        v.addWidget(QLabel("Обращения уходят на Техподдержку FitIntel — support@fixintel.ru "
-                           "(получатель задан на сервере, изменить нельзя)."))
+        v.addWidget(QLabel("Почтовый ящик Тех. поддержки: support@fixintel.ru"
+                           ""))
         bar = QHBoxLayout()
         bref = QPushButton("Обновить историю")
         self.lbl = QLabel("")
