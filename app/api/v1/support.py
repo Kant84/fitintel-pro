@@ -22,7 +22,8 @@ DEFAULT_SETTINGS = {
     "imap_host": "", "imap_port": 993, "imap_ssl": True,
     "imap_user": "", "imap_password": "",
     "support_email": "support@fixintel.ru",  # официальный канал поддержки
-    "from_email": "",         # обратный адрес в ответах (по умолчанию = imap_user)
+    "from_email": "",
+    "smtp_host": "", "smtp_port": 465, "smtp_user": "", "smtp_password": "",         # обратный адрес в ответах (по умолчанию = imap_user)
     "poll_interval": 300,
 }
 
@@ -82,6 +83,10 @@ class SettingsIn(BaseModel):
     imap_password: Optional[str] = None
     support_email: Optional[str] = None
     from_email: Optional[str] = None
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
     poll_interval: Optional[int] = None
 
 
