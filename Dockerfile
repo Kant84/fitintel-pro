@@ -20,12 +20,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # ТЯЖЁЛЫЕ зависимости — отдельный слой (кэш ~вечный)
 COPY requirements-base.txt .
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements-base.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --upgrade pip \
+    && pip install -r requirements-base.txt
 
 # ЛЁГКИЕ зависимости — быстрый слой (изменения = 1-2 мин, dlib не трогается)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
 # App code
 COPY app/ ./app/
