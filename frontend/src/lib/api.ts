@@ -40,7 +40,7 @@ export const subscriptionsApi = {
 
 export const analyticsApi = {
   dashboard: () => api.get('/analytics/dashboard'),
-  visits: (params?: any) => api.get('/analytics/visits', { params }),
+  visits: (start?: any, end?: any) => api.get('/analytics/visits', { params: { start, end } }),
 }
 
 export const financeApi = {
