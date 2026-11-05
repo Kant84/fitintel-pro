@@ -359,3 +359,79 @@ def poll_now(current=Depends(get_current_user)):
     """Немедленный проход IMAP-поллера (без ожидания beat)."""
     return poll_once()
 
+
+# ---------- П1 (модель «клуб -> разработчик»): отправка обращений ----------
+SUPPORT_TO = "support@fixintel.ru"  # ящик техподдержки; зашит на сервере, из desktop не меняется
+
+
+def _ensure_outbox():
+    with engine.begin() as c:
+        c.execute(text("CREATE TABLE IF NOT EXISTS support_outbox("
+                       "id TEXT PRIMARY KEY, subject TEXT, body TEXT, "
+                       "status TEXT, error TEXT, created_at TEXT)"))
+
+
+class SendIn(BaseModel):
+    subject: str
+    text: str
+
+
+@router.post("/support/send")
+def support_send(body: SendIn, current=Depends(get_current_user)):
+    _ensure_outbox()
+    if not body.text.strip():
+        raise HTTPException(400, "Текст обращения пуст")
+    cfg = get_settings()
+    host = cfg.get("smtp_host") or cfg.get("imap_host")
+    port = int(cfg.get("smtp_port") or 465)
+    user = cfg.get("smtp_user") or cfg.get("imap_user")
+    pwd = cfg.get("smtp_password") or cfg.get("imap_password")
+    if not host or not user or not pwd:
+        raise HTTPException(400, "Не настроен почтовый ящик клуба: сервер / ящик / пароль")
+    msg = EmailMessage()
+    msg["From"] = user
+    msg["To"] = SUPPORT_TO
+    msg["Subject"] = "[FitIntel Pro] " + (body.subject.strip() or "Обращение в поддержку")
+    msg["Message-ID"] = make_msgid(domain="fitintel-support")
+    msg.set_content(body.text)
+    status, error = "sent", None
+    try:
+        if port == 465:
+            s = smtplib.SMTP_SSL(host, port, timeout=25)
+        else:
+            s = smtplib.SMTP(host, port, timeout=25)
+            s.starttls(context=ssl.create_default_context())
+        s.login(user, pwd)
+        s.send_message(msg)
+        s.quit()
+    except Exception as e:
+        status, error = "error", str(e)[:300]
+    with engine.begin() as c:
+        c.execute(text("INSERT INTO support_outbox(id, subject, body, status, error, created_at) "
+                       "VALUES(:i,:s,:b,:st,:e,:ca)"),
+                  {"i": uuid.uuid4().hex, "s": body.subject, "b": body.text,
+                   "st": status, "e": error, "ca": _now()})
+    if status != "sent":
+        raise HTTPException(502, "Не удалось отправить: %s" % error)
+    return {"ok": True, "to": SUPPORT_TO}
+
+
+@router.get("/support/outbox")
+def support_outbox(limit: int = 100, current=Depends(get_current_user)):
+    _ensure_outbox()
+    with engine.begin() as c:
+        rows = c.execute(text("SELECT id, subject, status, error, created_at "
+                              "FROM support_outbox ORDER BY created_at DESC LIMIT %d" % int(limit))).fetchall()
+    return {"items": [{"id": r[0], "subject": r[1], "status": r[2],
+                       "error": r[3], "created_at": r[4]} for r in rows]}
+
+
+@router.get("/support/outbox/{oid}")
+def support_outbox_item(oid: str, current=Depends(get_current_user)):
+    _ensure_outbox()
+    with engine.begin() as c:
+        r = c.execute(text("SELECT subject, body, status, error, created_at "
+                           "FROM support_outbox WHERE id=:i"), {"i": oid}).fetchone()
+    if not r:
+        raise HTTPException(404, "Не найдено")
+    return {"subject": r[0], "body": r[1], "status": r[2], "error": r[3], "created_at": r[4]}

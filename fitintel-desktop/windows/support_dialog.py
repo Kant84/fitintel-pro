@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
-"""П1: окно «Поддержка разработчика (email)» — обращения с support@fixintel.ru.
-Открывается из меню «Помощь». Список обращений, тред, ответы (SMTP, треды
-склеиваются заголовками), статусы new/in_progress/done, настройки IMAP."""
+﻿# -*- coding: utf-8 -*-
+"""П1: «Поддержка разработчика (email)» — окно КЛУБА.
+Клуб пишет обращение -> письмо уходит С ящика КЛУБА (его SMTP: сервер/ящик/пароль)
+НА support@fixintel.ru. Адрес получателя зашит на сервере, в desktop его нет."""
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-                             QPushButton, QComboBox, QCheckBox, QListWidget,
-                             QListWidgetItem, QPlainTextEdit, QSplitter, QWidget,
+                             QPushButton, QListWidget, QListWidgetItem, QTextEdit,
                              QMessageBox, QApplication)
 from PyQt6.QtCore import Qt
 
@@ -14,58 +13,56 @@ class SupportDialog(QDialog):
         super().__init__(parent)
         self.api = api
         self.setWindowTitle("Поддержка разработчика (email)")
-        self.resize(980, 640)
+        self.resize(860, 620)
         v = QVBoxLayout(self)
 
         grp = QHBoxLayout()
-        self.sup_host = QLineEdit(); self.sup_host.setPlaceholderText("imap.fixintel.ru")
-        self.sup_host.setMaximumWidth(170)
-        self.sup_user = QLineEdit(); self.sup_user.setPlaceholderText("логин")
-        self.sup_user.setMaximumWidth(150)
-        self.sup_pass = QLineEdit(); self.sup_pass.setPlaceholderText("пароль")
-        self.sup_pass.setEchoMode(QLineEdit.EchoMode.Password)
-        self.sup_pass.setMaximumWidth(150)
-        self.sup_email = QLineEdit("support@fixintel.ru")
-        self.sup_email.setMaximumWidth(200)
-        self.sup_en = QCheckBox("Включено")
+        self.ed_host = QLineEdit()
+        self.ed_host.setPlaceholderText("Почтовый сервер клиента, с доменом (напр. smtp.fixintel.ru)")
+        self.ed_host.setMinimumWidth(280)
+        self.ed_user = QLineEdit()
+        self.ed_user.setPlaceholderText("Почтовый ящик клиента")
+        self.ed_user.setMinimumWidth(210)
+        self.ed_pass = QLineEdit()
+        self.ed_pass.setPlaceholderText("Пароль")
+        self.ed_pass.setEchoMode(QLineEdit.EchoMode.Password)
+        self.ed_pass.setMinimumWidth(140)
         bsave = QPushButton(" Сохранить")
-        grp.addWidget(QLabel("IMAP:")); grp.addWidget(self.sup_host)
-        grp.addWidget(self.sup_user); grp.addWidget(self.sup_pass)
-        grp.addWidget(self.sup_email); grp.addWidget(self.sup_en)
-        grp.addWidget(bsave); grp.addStretch(1)
+        grp.addWidget(QLabel("SMTP:"))
+        grp.addWidget(self.ed_host, 1)
+        grp.addWidget(self.ed_user)
+        grp.addWidget(self.ed_pass)
+        grp.addWidget(bsave)
         v.addLayout(grp)
 
+        v.addWidget(QLabel("Обращения уходят на Техподдержку FitIntel — support@fixintel.ru "
+                           "(получатель задан на сервере, изменить нельзя)."))
         bar = QHBoxLayout()
-        self.cmb_st = QComboBox(); self.cmb_st.addItems(["Все", "new", "in_progress", "done"])
-        bref = QPushButton("Обновить")
-        bpoll = QPushButton(" Проверить почту")
+        bref = QPushButton("Обновить историю")
         self.lbl = QLabel("")
-        bar.addWidget(QLabel("Статус:")); bar.addWidget(self.cmb_st); bar.addWidget(bref)
-        bar.addWidget(bpoll); bar.addWidget(self.lbl, 1)
+        bar.addWidget(bref)
+        bar.addWidget(self.lbl, 1)
         v.addLayout(bar)
 
-        split = QSplitter(Qt.Orientation.Horizontal)
-        self.listw = QListWidget(); self.listw.setMaximumWidth(360)
-        split.addWidget(self.listw)
-        right = QWidget(); rv = QVBoxLayout(right); rv.setContentsMargins(0, 0, 0, 0)
-        self.thread = QPlainTextEdit(); self.thread.setReadOnly(True)
-        rv.addWidget(self.thread, 1)
-        row = QHBoxLayout()
-        self.cmb_act = QComboBox(); self.cmb_act.addItems(["Ответить", "В работу", "Закрыть"])
-        self.input = QLineEdit()
-        self.input.setPlaceholderText("Ответ клиенту уходит на email (тред склеивается)...")
-        bgo = QPushButton("Выполнить")
-        row.addWidget(self.cmb_act); row.addWidget(self.input, 1); row.addWidget(bgo)
-        rv.addLayout(row)
-        split.addWidget(right); split.setStretchFactor(1, 1)
-        v.addWidget(split, 1)
+        self.listw = QListWidget()
+        self.listw.setMaximumHeight(170)
+        v.addWidget(self.listw)
+
+        v.addWidget(QLabel("Тема:"))
+        self.ed_subj = QLineEdit()
+        self.ed_subj.setPlaceholderText("Коротко о проблеме")
+        v.addWidget(self.ed_subj)
+        v.addWidget(QLabel("Текст обращения:"))
+        self.ed_body = QTextEdit()
+        self.ed_body.setPlaceholderText("Опишите проблему: что делали, что увидели, тексты ошибок...")
+        v.addWidget(self.ed_body, 1)
+        bsend = QPushButton(" Отправить обращение разработчику")
+        v.addWidget(bsend)
 
         bsave.clicked.connect(self._save)
         bref.clicked.connect(self._load)
-        bpoll.clicked.connect(self._poll)
-        bgo.clicked.connect(self._action)
+        bsend.clicked.connect(self._send)
         self.listw.currentRowChanged.connect(self._open)
-        self.cmb_st.currentTextChanged.connect(lambda _t: self._load())
         self._load_settings()
         self._load()
 
@@ -77,108 +74,73 @@ class SupportDialog(QDialog):
     def _load_settings(self):
         try:
             s = self._get("/support/settings")
-            self.sup_host.setText(str(s.get("imap_host") or ""))
-            self.sup_user.setText(str(s.get("imap_user") or ""))
-            self.sup_pass.setText("" if not s.get("imap_password") else "saved")
-            if s.get("support_email"):
-                self.sup_email.setText(str(s.get("support_email")))
-            self.sup_en.setChecked(bool(s.get("enabled")))
+            self.ed_host.setText(str(s.get("smtp_host") or ""))
+            self.ed_user.setText(str(s.get("smtp_user") or ""))
+            self.ed_pass.setText("" if not s.get("smtp_password") else "saved")
         except Exception as e:
-            self.lbl.setText("Настройки: %s" % str(e)[:120])
+            self.lbl.setText("Настройки: %s" % str(e)[:150])
 
     def _save(self):
-        payload = {"enabled": bool(self.sup_en.isChecked()),
-                   "imap_host": self.sup_host.text().strip(),
-                   "imap_user": self.sup_user.text().strip(),
-                   "support_email": self.sup_email.text().strip()}
-        if self.sup_pass.text() and self.sup_pass.text() != "saved":
-            payload["imap_password"] = self.sup_pass.text().strip()
+        payload = {"smtp_host": self.ed_host.text().strip(),
+                   "smtp_port": 465,
+                   "smtp_user": self.ed_user.text().strip(),
+                   "enabled": True}
+        if self.ed_pass.text() and self.ed_pass.text() != "saved":
+            payload["smtp_password"] = self.ed_pass.text().strip()
         try:
             r = self.api.session.put(self.api._url("/support/settings"), json=payload, timeout=20)
-            self.lbl.setText("Сохранено (%s). SMTP — из «Уведомления → Email»." % r.status_code)
+            self.lbl.setText("Сохранено (%s). Обращения уходят на support@fixintel.ru." % r.status_code)
         except Exception as e:
             self.lbl.setText("Ошибка: %s" % str(e)[:150])
 
-    def _poll(self):
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
-            r = self.api.session.post(self.api._url("/support/poll-now"), timeout=90)
-            try:
-                d = r.json()
-            except Exception:
-                d = {"raw": r.text[:150]}
-            self.lbl.setText("Опрос: %s" % d)
-        except Exception as e:
-            self.lbl.setText("Опрос: %s" % str(e)[:150])
-        finally:
-            QApplication.restoreOverrideCursor()
-        self._load()
-
     def _load(self):
         try:
-            st = self.cmb_st.currentText()
-            d = self._get("/support/tickets" + ("" if st == "Все" else "?status=" + st))
+            d = self._get("/support/outbox")
         except Exception as e:
-            self.lbl.setText("Список: %s" % str(e)[:150])
+            self.lbl.setText("История: %s" % str(e)[:150])
             return
         rows = d.get("items", []) if isinstance(d, dict) else []
         self._rows = rows
         self.listw.clear()
         for t in rows:
-            it = QListWidgetItem("%s  [%s]\n%s — %s" % (
-                str(t.get("updated_at") or "")[:16], t.get("status"),
-                t.get("name") or t.get("email"),
-                (t.get("subject") or "")[:40]))
+            mark = {"sent": "✔", "error": "✖"}.get(t.get("status"), "?")
+            it = QListWidgetItem("%s %s  %s" % (mark, str(t.get("created_at") or "")[:16],
+                                                t.get("subject") or "(без темы)"))
+            if t.get("status") == "error":
+                it.setToolTip(str(t.get("error") or "")[:300])
             it.setData(Qt.ItemDataRole.UserRole, t.get("id"))
             self.listw.addItem(it)
 
     def _open(self, row):
         if row < 0 or row >= len(getattr(self, "_rows", [])):
             return
-        tid = self._rows[row].get("id")
-        self._tid = tid
+        oid = self._rows[row].get("id")
         try:
-            d = self._get("/support/tickets/%s/messages" % tid)
+            d = self._get("/support/outbox/%s" % oid)
         except Exception:
             return
-        rows = d.get("items", []) if isinstance(d, dict) else []
-        self.thread.setPlainText("\n\n".join(
-            "[%s] %s:\n%s" % (str(m.get("created_at") or "")[:16],
-                              "Клиент" if m.get("direction") == "in" else "Мы",
-                              m.get("body")) for m in rows) or "(пусто)")
+        self.ed_subj.setText(str(d.get("subject") or ""))
+        self.ed_body.setPlainText(str(d.get("body") or ""))
 
-    def _action(self):
-        tid = getattr(self, "_tid", None)
-        if not tid:
-            QMessageBox.information(self, "Поддержка", "Сначала выберите обращение слева.")
+    def _send(self):
+        text = self.ed_body.toPlainText().strip()
+        if not text:
+            QMessageBox.information(self, "Поддержка", "Напишите текст обращения.")
             return
-        act = self.cmb_act.currentText()
-        if act == "Ответить":
-            text = self.input.text().strip()
-            if not text:
-                QMessageBox.information(self, "Поддержка", "Введите текст ответа.")
-                return
-            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-            try:
-                r = self.api.session.post(self.api._url("/support/tickets/%s/reply" % tid),
-                                          json={"text": text}, timeout=40)
-            finally:
-                QApplication.restoreOverrideCursor()
-            if r.status_code < 300:
-                self.input.clear()
-                self._open(self.listw.currentRow())
-                self._load()
-            else:
-                try:
-                    detail = r.json().get("detail", r.text[:200])
-                except Exception:
-                    detail = r.text[:200]
-                QMessageBox.warning(self, "Поддержка", "Ошибка %s: %s" % (r.status_code, detail))
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            r = self.api.session.post(self.api._url("/support/send"),
+                                      json={"subject": self.ed_subj.text().strip(), "text": text},
+                                      timeout=40)
+        finally:
+            QApplication.restoreOverrideCursor()
+        if r.status_code < 300:
+            self.ed_body.clear()
+            self.lbl.setText("Обращение отправлено на support@fixintel.ru.")
+            self._load()
         else:
-            st = "in_progress" if act == "В работу" else "done"
             try:
-                self.api.session.put(self.api._url("/support/tickets/%s/status" % tid),
-                                     json={"status": st}, timeout=15)
-                self._load()
-            except Exception as e:
-                QMessageBox.warning(self, "Поддержка", str(e)[:200])
+                detail = r.json().get("detail", r.text[:250])
+            except Exception:
+                detail = r.text[:250]
+            QMessageBox.warning(self, "Поддержка", "Ошибка %s:\n%s" % (r.status_code, detail))
