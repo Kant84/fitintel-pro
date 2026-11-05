@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """П1: «Почта разработчика в системе» — обращения в поддержку по email.
 IMAP-поллер (celery app.tasks.poll_support_mail) забирает входящие в support_tickets;
 ответы уходят через SMTP (notification_settings) с заголовками треда
@@ -21,7 +21,7 @@ DEFAULT_SETTINGS = {
     "enabled": False,
     "imap_host": "", "imap_port": 993, "imap_ssl": True,
     "imap_user": "", "imap_password": "",
-    "support_email": "",      # адрес разработчика, на который пишут клиенты/клубы
+    "support_email": "support@fixintel.ru",  # официальный канал поддержки
     "from_email": "",         # обратный адрес в ответах (по умолчанию = imap_user)
     "poll_interval": 300,
 }
@@ -358,3 +358,4 @@ def poll_once():
 def poll_now(current=Depends(get_current_user)):
     """Немедленный проход IMAP-поллера (без ожидания beat)."""
     return poll_once()
+

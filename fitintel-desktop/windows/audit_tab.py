@@ -81,7 +81,7 @@ class AuditTab(QWidget):
         self.dt_to.setCalendarPopup(True)
         self.dt_to.setDisplayFormat("yyyy-MM-dd")
         bar.addWidget(self.dt_to)
-        b_load = QPushButton("Загрузить")
+        b_load = QPushButton("Применить фильтры")
         b_load.clicked.connect(self.load)
         bar.addWidget(b_load)
         b_ret = QPushButton("Срок хранения…")
