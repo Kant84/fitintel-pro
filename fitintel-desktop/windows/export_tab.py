@@ -1,42 +1,9 @@
 """E19: Экспорт данных + 152-ФЗ право на забвение (UI)."""
-import json
-import urllib.request
-import urllib.error
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QLabel,
                              QLineEdit, QPushButton, QComboBox, QTableWidget,
                              QTableWidgetItem, QMessageBox, QFileDialog)
 
 ENTITIES = ["clients", "payments", "visits", "subscriptions", "tariffs", "users", "tenants", "notification_log"]
-
-
-def _base():
-    try:
-        cfg = json.load(open("client_settings.json", encoding="utf-8"))
-        return cfg.get("api_base") or cfg.get("base_url") or "http://localhost:8001/api/v1"
-    except Exception:
-        return "http://localhost:8001/api/v1"
-
-
-def _token():
-    try:
-        cfg = json.load(open("client_settings.json", encoding="utf-8"))
-        if cfg.get("token"):
-            return cfg["token"]
-        r = urllib.request.Request(_base() + "/auth/login",
-            data=json.dumps({"login": cfg.get("saved_login"), "password": cfg.get("saved_password")}).encode(),
-            headers={"Content-Type": "application/json"})
-        d = json.load(urllib.request.urlopen(r, timeout=10))
-        return d.get("access_token") or d.get("token")
-    except Exception:
-        return None
-
-
-def _get(path):
-    req = urllib.request.Request(_base() + path)
-    tok = _token()
-    if tok:
-        req.add_header("Authorization", "Bearer " + tok)
-    return urllib.request.urlopen(req, timeout=30)
 
 
 class ExportTab(QWidget):
@@ -50,6 +17,17 @@ class ExportTab(QWidget):
         tabs.addTab(self._forget_tab(), " Право на забвение")
         tabs.addTab(self._log_tab(), " Журнал")
         lay.addWidget(tabs)
+
+    def _connection(self):
+        if self.api is None or not getattr(self.api, "token", None):
+            raise RuntimeError("Нет активной авторизованной сессии")
+        return self.api.base_url.rstrip("/"), self.api.token
+
+    def _get(self, path):
+        base, _token = self._connection()
+        response = self.api.session.get(base + path, timeout=30)
+        response.raise_for_status()
+        return response
 
     def _export_tab(self):
         w = QWidget()
@@ -76,17 +54,20 @@ class ExportTab(QWidget):
     def do_export(self):
         ent = self.cb_entity.currentText()
         fmt = self.cb_fmt.currentText()
-        tok = _token()
-        if not tok:
-            self.exp_status.setText(" Нет токена (проверьте saved_login в client_settings.json)")
+        try:
+            base, token = self._connection()
+        except RuntimeError as exc:
+            self.exp_status.setText(" " + str(exc))
             return
         path, _ = QFileDialog.getSaveFileName(self, "Сохранить экспорт", f"{ent}.{fmt}",
                                               "Excel (*.xlsx)" if fmt == "xlsx" else "JSON (*.json)")
         if not path:
             return
         try:
-            req = urllib.request.Request(_base() + f"/export/{ent}?fmt={fmt}&token={tok}")
-            data = urllib.request.urlopen(req, timeout=60).read()
+            response = self.api.session.get(
+                base + f"/export/{ent}?fmt={fmt}&token={token}", timeout=60)
+            response.raise_for_status()
+            data = response.content
             with open(path, "wb") as f:
                 f.write(data)
             self.exp_status.setText(f" Сохранено: {path} ({len(data)} байт)")
@@ -119,15 +100,15 @@ class ExportTab(QWidget):
         if QMessageBox.question(self, "152-ФЗ",
                 f"Анонимизировать клиента {cid}?\nПерсональные данные будут стёрты безвозвратно!") != QMessageBox.StandardButton.Yes:
             return
-        tok = _token()
         try:
-            req = urllib.request.Request(_base() + f"/export/forget?token={tok}",
-                data=json.dumps({"client_id": cid, "reason": self.e_reason.text().strip()}).encode(),
-                headers={"Content-Type": "application/json"}, method="POST")
-            r = json.load(urllib.request.urlopen(req, timeout=15))
-            self.frg_status.setText(f" Анонимизировано полей: {len(r.get('anonymized', []))}")
-        except urllib.error.HTTPError as e:
-            self.frg_status.setText(f" {e.code}: {e.read().decode()[:150]}")
+            base, token = self._connection()
+            response = self.api.session.post(
+                base + f"/export/forget?token={token}",
+                json={"client_id": cid, "reason": self.e_reason.text().strip()},
+                timeout=15)
+            response.raise_for_status()
+            data = response.json()
+            self.frg_status.setText(f" Анонимизировано полей: {len(data.get('anonymized', []))}")
         except Exception as e:
             self.frg_status.setText(" " + str(e)[:150])
 
@@ -145,13 +126,15 @@ class ExportTab(QWidget):
 
     def load_log(self):
         try:
-            tok = _token()
-            rows = json.loads(_get(f"/export/log/list?token={tok}").read())
+            _base, token = self._connection()
+            rows = self._get(f"/export/log/list?token={token}").json()
             self.tbl.setRowCount(0)
             for t in rows:
                 r = self.tbl.rowCount()
                 self.tbl.insertRow(r)
                 for i, k in enumerate(("id", "action", "entity", "fmt", "created_at")):
                     self.tbl.setItem(r, i, QTableWidgetItem(str(t.get(k, ""))))
+            return True
         except Exception as e:
             print("[E19] log:", str(e)[:120])
+            return False

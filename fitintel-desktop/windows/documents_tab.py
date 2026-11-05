@@ -434,6 +434,7 @@ def _download_pdf_w16(self):
 
 DocumentsTab._doc_text = _doc_text
 DocumentsTab._open_word = _open_word
+DocumentsTab._doc_dbl = _doc_dbl
 DocumentsTab._generate = _generate_w16
 DocumentsTab._download_pdf = _download_pdf_w16
 

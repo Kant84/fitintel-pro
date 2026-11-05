@@ -1,6 +1,6 @@
 ; ── Шапка: все define ────────────────────────────────
 #define MyAppName "FitIntel Pro Desktop"
-#define MyAppVersion "1.6.1"
+#define MyAppVersion "1.6.2"
 #define MyAppPublisher "FitIntel Systems"
 #define MyAppExeName "FitIntelDesktop.exe"
 #define MyDefaultApiBase "http://localhost/api/v1"

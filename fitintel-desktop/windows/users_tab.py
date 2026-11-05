@@ -269,8 +269,9 @@ class UsersTab(QWidget):
                              and not u.get("is_active"))]
         t = self.edit_filter.text().strip().lower()
         if t:
-            users = [u for u in users if isinstance(u, dict) and t in "%s %s %s" % (
-                (u.get("full_name") or ""), u.get("username", ""), u.get("email", "")).lower()]
+            users = [u for u in users if isinstance(u, dict) and t in (
+                "%s %s %s" % ((u.get("full_name") or ""),
+                              u.get("username", ""), u.get("email", ""))).lower()]
         dept = self.cb_dept.currentText().strip()
         if dept and dept != "Все":
             users = [u for u in users if isinstance(u, dict)

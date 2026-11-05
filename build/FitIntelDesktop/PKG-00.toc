@@ -1,0 +1,89 @@
+('E:\\FitNexus AI\\FitIntel AI\\build\\FitIntelDesktop\\FitIntelDesktop.pkg',
+ {'BINARY': True,
+  'DATA': True,
+  'EXECUTABLE': True,
+  'EXTENSION': True,
+  'PYMODULE': True,
+  'PYSOURCE': True,
+  'PYZ': False,
+  'SPLASH': True,
+  'SYMLINK': False},
+ [('pyi-contents-directory _internal', '', 'OPTION'),
+  ('PYZ-00.pyz',
+   'E:\\FitNexus AI\\FitIntel AI\\build\\FitIntelDesktop\\PYZ-00.pyz',
+   'PYZ'),
+  ('struct',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\build\\FitIntelDesktop\\localpycs\\struct.pyc',
+   'PYMODULE'),
+  ('pyimod01_archive',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\build\\FitIntelDesktop\\localpycs\\pyimod01_archive.pyc',
+   'PYMODULE'),
+  ('pyimod02_importers',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\build\\FitIntelDesktop\\localpycs\\pyimod02_importers.pyc',
+   'PYMODULE'),
+  ('pyimod03_ctypes',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\build\\FitIntelDesktop\\localpycs\\pyimod03_ctypes.pyc',
+   'PYMODULE'),
+  ('pyimod04_pywin32',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\build\\FitIntelDesktop\\localpycs\\pyimod04_pywin32.pyc',
+   'PYMODULE'),
+  ('pyiboot01_bootstrap',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\.venv\\Lib\\site-packages\\PyInstaller\\loader\\pyiboot01_bootstrap.py',
+   'PYSOURCE'),
+  ('pyi_rth_inspect',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_inspect.py',
+   'PYSOURCE'),
+  ('pyi_rth_pkgutil',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_pkgutil.py',
+   'PYSOURCE'),
+  ('pyi_rth_multiprocessing',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_multiprocessing.py',
+   'PYSOURCE'),
+  ('pyi_rth_cryptography_openssl',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\rthooks\\pyi_rth_cryptography_openssl.py',
+   'PYSOURCE'),
+  ('pyi_rth_mplconfig',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_mplconfig.py',
+   'PYSOURCE'),
+  ('pyi_rth_pkgres',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_pkgres.py',
+   'PYSOURCE'),
+  ('pyi_rth_pywintypes',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\rthooks\\pyi_rth_pywintypes.py',
+   'PYSOURCE'),
+  ('pyi_rth_pythoncom',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\rthooks\\pyi_rth_pythoncom.py',
+   'PYSOURCE'),
+  ('pyi_rth_setuptools',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_setuptools.py',
+   'PYSOURCE'),
+  ('pyi_rth_pyqt6',
+   'E:\\FitNexus AI\\FitIntel '
+   'AI\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_pyqt6.py',
+   'PYSOURCE'),
+  ('main',
+   'E:\\FitNexus AI\\FitIntel AI\\fitintel-desktop\\main.py',
+   'PYSOURCE')],
+ 'python311.dll',
+ True,
+ False,
+ False,
+ [],
+ None,
+ None,
+ None)
