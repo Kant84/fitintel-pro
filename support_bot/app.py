@@ -1,17 +1,16 @@
-"""FitIntel Support Bot — по ТЗ, контракт MAX сверен с dev.max.ru (06.11.2026).
+"""FitIntel Support Bot — v4: привязка клуба через deeplink (?start=) из desktop.
 
-- Webhook: подписка POST /subscriptions {url, update_types, secret};
-  события приходят объектом Update, секрет — заголовок X-Max-Bot-Api-Secret.
-- Исходящие: POST /messages?user_id=... {text, attachments}; заголовок Authorization: <token>.
-- Вложения: POST /uploads?type=image -> {url, token} -> multipart на url ->
-  attachments=[{type:"image", payload:{token}}] (PNG-скриншоты из docs/images/desktop).
-- Идентификация клуба: GET /platform/clubs + /platform/clubs/{slug}/license
-  (platform_api в netns wireguard, порт 8002; заголовок X-Client-CN).
+Контракт MAX (dev.max.ru, 06.11): диплинк https://max.ru/<bot>?start=<payload≤128>;
+подписка POST /subscriptions; webhook Update + X-Max-Bot-Api-Secret;
+исходящие POST /messages?user_id=... Authorization: token;
+вложения /uploads?type=image -> multipart -> attachments.
+Идентификация клуба: API платформы (netns wireguard :8002, X-Client-CN).
 
-Платформу не изменяет. TODO фаза 3: маршрутизация админских ответов по reply,
-дежурства support_schedule.
+Сценарий: desktop открывает max.ru/fitintel_support?start=<license_key[:24]>
+-> bot_started/message_created с payload -> клуб привязывается БЕЗ ввода лицензии.
+Fallback для телефона без desktop: прислать полный ключ лицензии текстом.
 """
-import logging, os, random
+import json, logging, os, random
 import httpx
 import psycopg
 from fastapi import FastAPI, Request, Header, HTTPException
@@ -23,8 +22,8 @@ DATABASE_URL   = os.environ["DATABASE_URL"]
 BOT_TOKEN      = os.environ["BOT_TOKEN"]
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 MAX_API_BASE   = os.environ.get("MAX_API_BASE", "https://platform-api.max.ru")
-PLATFORM_API_URL = os.environ.get("PLATFORM_API_URL", "")  # http://platform-wireguard-1:8002
-PLATFORM_ADMIN_CN = os.environ.get("PLATFORM_ADMIN_CN", "andrei@fitintel.local")
+PLATFORM_API_URL = os.environ.get("PLATFORM_API_URL", "")
+PLATFORM_ADMIN_CN = os.environ.get("PLATFORM_ADMIN_CN", "andrei@fixintel.ru")
 ALLOWED_LICENSE_STATUSES = {s.strip() for s in
     os.environ.get("ALLOWED_LICENSE_STATUSES", "active,grace").split(",") if s.strip()}
 SCREENSHOTS_DIR = os.environ.get("SCREENSHOTS_DIR", "/screenshots")
@@ -47,7 +46,6 @@ async def max_send(user_id: str, text: str, attachments: list | None = None):
         r.raise_for_status()
 
 async def max_upload_image(name: str, data: bytes):
-    """Шаги 1-2 загрузки: получаем upload URL+token, заливаем multipart (ответ CDN не парсим)."""
     async with httpx.AsyncClient(timeout=60) as c:
         r = await c.post(f"{MAX_API_BASE}/uploads", params={"type": "image"},
                          headers={"Authorization": BOT_TOKEN})
@@ -75,7 +73,8 @@ async def max_send_screenshots(user_id: str, files: list):
 
 # ---------- platform: идентификация клуба по лицензии (только чтение) ----------
 async def check_license(key: str):
-    if not PLATFORM_API_URL:
+    """key — полный ключ или его префикс (от 12 симв.). Возвращает (ok, slug)."""
+    if not PLATFORM_API_URL or len(key) < 12:
         return False, ""
     headers = {"X-Client-CN": f"CN={PLATFORM_ADMIN_CN}"}
     try:
@@ -86,7 +85,7 @@ async def check_license(key: str):
                 return False, ""
             slug = None
             for cl in r.json().get("clubs", []):
-                pref = cl.get("license_key")  # хранится как 12 символов + '...'
+                pref = cl.get("license_key")  # 12 символов + '...'
                 if pref and key.startswith(pref[:-3]):
                     slug = cl.get("slug")
                     break
@@ -142,37 +141,52 @@ async def notify_admins(text: str):
             log.warning("admin notify failed %s: %s", a, e)
 
 # ---------- flows ----------
-async def admin_reply(admin_id: str, text: str):
-    """Админ пишет боту -> ответ в последний открытый тикет.
-    Точная маршрутизация по reply/quote — фаза 3 (посмотрим реальный Update)."""
+async def admin_reply(admin_id: str, text: str) -> bool:
+    """Ответ в последний открытый тикет. False — если тикетов нет (вызывающий код
+    тогда ведёт сообщение по пользовательскому сценарию)."""
     with conn() as cn, cn.cursor() as cur:
         cur.execute("SELECT id, user_max_id FROM tickets WHERE status IN ('new','in_progress','waiting') "
                     "ORDER BY updated_at DESC LIMIT 1")
         row = cur.fetchone()
     if not row:
-        await max_send(admin_id, "Нет открытых тикетов.")
-        return
+        return False
     ticket_id, user_id = row
     add_message(ticket_id, "out", text, author=admin_id)
     await max_send(user_id, text)
+    return True
 
-async def user_message(user_id: str, text: str):
+async def bind_club(user_id: str, key: str, via: str) -> bool:
+    ok, slug = await check_license(key.strip())
+    if not ok:
+        return False
+    with conn() as cn, cn.cursor() as cur:
+        cur.execute("INSERT INTO clubs_bound (max_user_id, club_id, license_key) VALUES (%s,%s,%s) "
+                    "ON CONFLICT (max_user_id) DO UPDATE SET club_id=EXCLUDED.club_id",
+                    (user_id, slug, key.strip()[:64]))
+        cn.commit()
+    src = "через desktop" if via == "deeplink" else "по ключу лицензии"
+    await max_send(user_id, f"Клуб привязан ({slug}) — {src}. Задайте вопрос: настройки, права, "
+                            "платежи, ошибки. Если решения нет в базе знаний — создам тикет инженеру.")
+    return True
+
+async def user_message(user_id: str, text: str, payload: str = ""):
     with conn() as cn, cn.cursor() as cur:
         cur.execute("SELECT club_id FROM clubs_bound WHERE max_user_id=%s", (user_id,))
         bound = cur.fetchone()
+
     if not bound:
-        ok, slug = await check_license(text.strip())
-        if ok:
-            with conn() as cn, cn.cursor() as cur:
-                cur.execute("INSERT INTO clubs_bound (max_user_id, club_id, license_key) VALUES (%s,%s,%s) "
-                            "ON CONFLICT (max_user_id) DO UPDATE SET club_id=EXCLUDED.club_id",
-                            (user_id, slug, text.strip()))
-                cn.commit()
-            await max_send(user_id, f"Клуб привязан ({slug}). Задайте вопрос — отвечу из базы знаний; "
-                                    "если решения нет, создам тикет инженеру.")
-        else:
-            await max_send(user_id, "Лицензия не найдена или не активна. "
-                                    "Уточните ключ лицензии вашего клуба.")
+        # 1) привязка: сначала payload из deeplink (?start=), иначе текст как ключ (fallback)
+        if payload:
+            if await bind_club(user_id, payload, "deeplink"):
+                return
+            await max_send(user_id, "Не смог опознать клуб по данным из desktop. "
+                                    "Напишите нам: support@fixintel.ru (логи прикладывайте кнопкой в Помощи).")
+            return
+        if await bind_club(user_id, text, "text"):
+            return
+        await max_send(user_id, "Клуб ещё не привязан. Откройте чат с этим ботом из desktop-клиента "
+                                "(Помощь → Поддержка разработчика → Открыть MAX) — клуб подключится автоматически. "
+                                "Или пришлите ключ лицензии вашего клуба.")
         return
 
     club_id = bound[0]
@@ -206,21 +220,38 @@ def health():
         n = cur.fetchone()[0]
     return {"status": "ok", "kb_articles": n}
 
+def extract_payload(data: dict, msg: dict, body: dict) -> str:
+    """Payload из deeplink ?start= : текст '/start <payload>' либо отдельные поля Update.
+    Толерантно к формату — реальный вид зафиксируем по логу первого события."""
+    text = (body.get("text") or msg.get("text") or "").strip()
+    for pfx in ("/start", "!start", "/старт"):
+        if text.startswith(pfx):
+            rest = text[len(pfx):].strip()
+            if rest:
+                return rest
+    for src in (msg, body, data):
+        for k in ("payload", "start_payload", "start_param", "startapp"):
+            v = src.get(k)
+            if v:
+                return str(v)
+    return ""
+
 @app.post("/bot/webhook")
 async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
-    # секрет подписки MAX приходит в X-Max-Bot-Api-Secret (dev.max.ru, /subscriptions)
     if WEBHOOK_SECRET and x_max_bot_api_secret != WEBHOOK_SECRET:
         raise HTTPException(status_code=403, detail="bad secret")
     data = await req.json()
+    log.info("update: %s", json.dumps(data, ensure_ascii=False)[:500])  # фиксируем реальный формат
     update_type = data.get("update_type", "")
     msg = data.get("message") or {}
     sender = msg.get("sender") or {}
     user_id = str(sender.get("user_id") or msg.get("user_id") or "")
     body = msg.get("body") or {}
     text = (body.get("text") or msg.get("text") or "").strip()
+    payload = extract_payload(data, msg, body)
 
     if not user_id:
-        return {"ok": True}   # служебные update-типы игнорируем
+        return {"ok": True}
 
     with conn() as cn, cn.cursor() as cur:
         cur.execute("SELECT 1 FROM bot_admins WHERE max_user_id=%s AND active", (user_id,))
@@ -228,15 +259,19 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
 
     try:
         if update_type == "bot_started":
-            await max_send(user_id, "Здравствуйте! Поддержка FitIntel Pro. "
-                                    "Пришлите ключ лицензии вашего клуба (формат FIPRO-...), затем задайте вопрос.")
+            if payload:
+                await user_message(user_id, "", payload)
+            else:
+                await max_send(user_id, "Здравствуйте! Поддержка FitIntel Pro. Если вы зашли из desktop-клиента, "
+                                        "клуб привяжется автоматически — просто нажмите «Начать». Далее задавайте вопрос.")
             return {"ok": True}
-        if not text:
+        if not text and not payload:
             return {"ok": True}
-        if is_admin:
-            await admin_reply(user_id, text)
-        else:
-            await user_message(user_id, text)
+        # админ без открытых тикетов — обычный пользовательский сценарий (привязка/KB)
+        if is_admin and text:
+            if await admin_reply(user_id, text):
+                return {"ok": True}
+        await user_message(user_id, text, payload)
     except Exception:
         log.exception("handle failed for %s", user_id)
     return {"ok": True}
