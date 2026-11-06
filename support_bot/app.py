@@ -1,17 +1,17 @@
-"""FitIntel Support Bot — v5: парсинг интента, нормализация вопросов, fuzzy KB.
+"""FitIntel Support Bot — v6: сценарии поддержки по регламенту продукта.
 
-Изменения v5:
-- Слой парсинга: приветствие / фрустрация / вопрос. Агрессия -> спокойный ответ,
-  бот НИКОГДА не повторяет чужие фразы (убрано эхо админской ветки).
-- Нормализация вопроса: стоп-слова, пунктуация; tsquery + trigram-similarity fallback
-  (формулировки вида «как делать платежи» находят статью «как провести платёж»).
-- Тикет создаётся ТОЛЬКО при промахе KB (раньше — всегда).
-- Админ: ответ в тикет строго по '#ТОКЕН текст' или команде 'тикеты'; эвристика
-  «последний открытый тикет» удалена (была причиной эха).
-- Привязка клуба: deeplink ?start=<префикс ключа> (desktop) / ключ текстом (fallback).
-- Сырые Update логируются (формат payload фиксируем по факту).
+Регламент (07.11.2026):
+- Клиент НИКОГДА не видит слова «тикет». Нет ответа -> «Передал вопрос инженеру поддержки»;
+  просьба специалиста -> «Вопрос передал специалисту поддержки».
+- Просьба связать со специалистом: до 2 уточняющих вопросов (тема/экран/что происходит),
+  затем админу уходит вопрос С уточнениями.
+- Грубые обращения -> таблица incidents (статистика по пользователю), команда «статистика».
+- Промахи KB -> tickets.kb_miss=true (база пробелов знаний).
+- Поиск KB: FTS по заголовку+ключам с синонимами, word_similarity fallback.
+- Привязка клуба: deeplink ?start=<префикс ключа>[~login сотрудника] из desktop / ключ текстом.
+- Админ: '#ТОКЕН текст' -> в обращение, 'тикеты'/'обращения' -> список. Эха нет.
 """
-import json, logging, os, random, re
+import json, logging, os, random, re, time
 import httpx
 import psycopg
 from fastapi import FastAPI, Request, Header, HTTPException
@@ -28,37 +28,66 @@ PLATFORM_ADMIN_CN = os.environ.get("PLATFORM_ADMIN_CN", "andrei@fixintel.ru")
 ALLOWED_LICENSE_STATUSES = {s.strip() for s in
     os.environ.get("ALLOWED_LICENSE_STATUSES", "active,grace").split(",") if s.strip()}
 SCREENSHOTS_DIR = os.environ.get("SCREENSHOTS_DIR", "/screenshots")
-KB_TOP_N       = int(os.environ.get("KB_TOP_N", "3"))
-KB_MIN_RANK    = float(os.environ.get("KB_MIN_RANK", "0.12"))
-SIM_MIN        = float(os.environ.get("KB_MIN_SIM", "0.28"))
+KB_MIN_RANK    = float(os.environ.get("KB_MIN_RANK", "0.03"))
+SIM_MIN        = float(os.environ.get("KB_MIN_SIM", "0.3"))
 MAX_SHOTS      = int(os.environ.get("MAX_SHOTS", "4"))
+ESCALATE_TIMEOUT = float(os.environ.get("ESCALATE_TIMEOUT", "600"))
 
 STOP = {"как","можно","подскажите","пожалуйста","помогите","помощь","здравствуйте",
-        "здравствуй","добрый","доброе","добрый","день","вечер","утро","спасибо",
-        "заранее","сделать","делать","надо","нужно","нужна","нужно","хочу","хочется",
-        "почему","зачем","кто","что","где","когда","какой","какая","какие","чем","ли",
+        "здравствуй","добрый","доброе","день","вечер","утро","спасибо","заранее",
+        "сделать","делать","надо","нужно","нужна","хочу","хочется","почему","зачем",
+        "кто","что","где","когда","какой","какая","какие","чем","ли",
         "у","в","на","по","за","из","с","со","к","не","ни","же","бы","а","и","но","это","то"}
-GREETINGS = {"привет","здравствуйте","здравствуй","добрый","доброе","добрый","добрый",
-             "hello","hi","хай","хелло","салют"}
+GREETINGS = {"привет","здравствуйте","здравствуй","добрый","доброе","hello","hi","хай","хелло","салют"}
 FRUSTRATED = {"гонишь","очумел","бред","чушь","хрень","ерунда","отстой","задолбал",
               "исправьте","почините","ты что","вы что","алле","але","эй","слушай",
-              "что за","никак","ни фига","нифига","капец","бесит"}
+              "что за","нифига","капец","бесит","уроды","тупой","тупая","кривой"}
+ESCALATE = {"оператор","живой","живого","человек","специалист","админ","администратор",
+            "свяжите","свяжи","позовите","диспетчер","горячая линия","поддержку позови",
+            "нужен человек","соедините"}
+# синонимы: формы запроса -> лексемы KB (OR-дополнение tsquery)
+SYN = {"платеж":"оплат","платежи":"оплат","платёж":"оплат","оплат":"платеж",
+       "оплата":"платеж","оплатить":"платеж","заплат":"платеж",
+       "абонемент":"подписк","замороз":"заморозк","размороз":"заморозк",
+       "турникет":"проход","проход":"турникет","вход":"проход","браслет":"проход",
+       "касса":"ккт","ккт":"касса чек","чек":"ккт касса",
+       "скидк":"бонус","бонус":"скидк","тренер":"услуг расписан",
+       "вендинг":"автомат магазин","автомат":"вендинг магазин"}
 
 def normalize(q: str) -> str:
-    q = re.sub(r"[^\w\s-]", " ", q.lower(), flags=re.UNICODE)
+    q = re.sub(r"[^\w\s-]", " ", q.lower(), flags=re.UNICODE).replace("-", " ")
     return " ".join(w for w in q.split() if w not in STOP)
+
+def to_tsquery(q: str) -> str:
+    toks = set(q.split())
+    for t in list(toks):
+        for src, dst in SYN.items():
+            if t.startswith(src):
+                toks.update(dst.split())
+    return " | ".join(sorted(toks))
 
 def classify(text: str) -> str:
     t = text.lower().strip()
     words = set(re.findall(r"[а-яa-z]+", t))
-    if t.rstrip("!?. ") in GREETINGS or (words and words <= GREETINGS):
+    if t.rstrip("!?.") in GREETINGS or (words and words <= GREETINGS):
         return "greeting"
+    if any(a in t for a in ESCALATE):
+        return "escalate"
     if any(a in t for a in FRUSTRATED):
         return "frustrated"
     return "question"
 
 def conn():
     return psycopg.connect(DATABASE_URL)
+
+def init_schema():
+    with conn() as cn, cn.cursor() as cur:
+        cur.execute("""CREATE TABLE IF NOT EXISTS incidents (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_max_id text NOT NULL, club_id text, text text NOT NULL,
+            created_at timestamptz NOT NULL DEFAULT now())""")
+        cur.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS kb_miss boolean NOT NULL DEFAULT false")
+        cn.commit()
 
 # ---------- MAX ----------
 async def max_send(user_id: str, text: str, attachments: list | None = None):
@@ -106,7 +135,6 @@ async def check_license(key: str):
         async with httpx.AsyncClient(timeout=10) as c:
             r = await c.get(f"{PLATFORM_API_URL}/platform/clubs", headers=headers)
             if r.status_code != 200:
-                log.warning("platform clubs list: HTTP %s", r.status_code)
                 return False, ""
             slug = None
             for cl in r.json().get("clubs", []):
@@ -119,44 +147,37 @@ async def check_license(key: str):
             r2 = await c.get(f"{PLATFORM_API_URL}/platform/clubs/{slug}/license", headers=headers)
             if r2.status_code != 200:
                 return False, ""
-            st = r2.json().get("status")
-            if st in ALLOWED_LICENSE_STATUSES:
-                return True, slug
-            return False, ""
+            return (r2.json().get("status") in ALLOWED_LICENSE_STATUSES), slug
     except Exception as e:
         log.warning("license check failed: %s", e)
         return False, ""
 
-# ---------- KB: fts + trigram fallback ----------
-TSQ = ("to_tsvector('russian', coalesce(question,'') || ' ' || coalesce(keywords,'')"
-       " || ' ' || coalesce(answer,''))")
+# ---------- KB: FTS (заголовок+ключи, с синонимами) + word_similarity ----------
+TSQ_SHORT = "to_tsvector('russian', question || ' ' || coalesce(keywords,''))"
 
 def kb_search(query: str):
-    """Возвращает (question, answer, screenshots, score) лучшей статьи или None."""
     q = normalize(query)
     if not q:
         return None
+    tsq = to_tsquery(q)
     with conn() as cn, cn.cursor() as cur:
         cur.execute(
-            f"SELECT question, answer, screenshots, ts_rank({TSQ}, plainto_tsquery('russian', %s)) "
-            f"FROM kb_articles WHERE {TSQ} @@ plainto_tsquery('russian', %s) "
-            "ORDER BY 4 DESC LIMIT 1", (q, q))
+            f"SELECT question, answer, screenshots, "
+            f"ts_rank({TSQ_SHORT}, to_tsquery('russian', %s)) "
+            f"FROM kb_articles WHERE {TSQ_SHORT} @@ to_tsquery('russian', %s) "
+            "ORDER BY 4 DESC LIMIT 1", (tsq, tsq))
         row = cur.fetchone()
         if row and float(row[3]) >= KB_MIN_RANK:
             return row[0], row[1], row[2], float(row[3])
-        # trigram fallback: перестановки/синонимы формулировок
         cur.execute(
-            "SELECT question, answer, screenshots, "
-            "GREATEST(similarity(question, %s), similarity(coalesce(keywords,''), %s), "
-            "similarity(question, %s)) AS sim FROM kb_articles "
-            "WHERE question %% %s OR coalesce(keywords,'') %% %s "
-            "ORDER BY sim DESC LIMIT 1", (query, query, q, query, q))
+            "SELECT question, answer, screenshots, word_similarity(question, %s) AS sim "
+            "FROM kb_articles WHERE question %% %s ORDER BY sim DESC LIMIT 1", (query, query))
         row = cur.fetchone()
         if row and float(row[3]) >= SIM_MIN:
             return row[0], row[1], row[2], float(row[3])
     return None
 
-# ---------- tickets ----------
+# ---------- tickets / incidents ----------
 def add_message(ticket_id, direction, body, author=""):
     with conn() as cn, cn.cursor() as cur:
         cur.execute("INSERT INTO ticket_messages (ticket_id, direction, body, author) VALUES (%s,%s,%s,%s)",
@@ -165,11 +186,28 @@ def add_message(ticket_id, direction, body, author=""):
                     "status=CASE WHEN status='new' THEN 'in_progress' ELSE status END WHERE id=%s", (ticket_id,))
         cn.commit()
 
+def create_ticket(user_id, club_id, text, kb_miss, staff=""):
+    with conn() as cn, cn.cursor() as cur:
+        cur.execute("INSERT INTO tickets (user_max_id, club_id, subject, status, kb_miss) "
+                    "VALUES (%s,%s,%s,'new',%s) RETURNING id", (user_id, club_id, text[:120], kb_miss))
+        tid = cur.fetchone()[0]
+        cn.commit()
+    return tid
+
 def open_tickets():
     with conn() as cn, cn.cursor() as cur:
         cur.execute("SELECT id, club_id, subject, status FROM tickets "
                     "WHERE status IN ('new','in_progress','waiting') ORDER BY updated_at DESC LIMIT 10")
         return cur.fetchall()
+
+def log_incident(user_id, club_id, text):
+    try:
+        with conn() as cn, cn.cursor() as cur:
+            cur.execute("INSERT INTO incidents (user_max_id, club_id, text) VALUES (%s,%s,%s)",
+                        (user_id, club_id, text[:300]))
+            cn.commit()
+    except Exception as e:
+        log.warning("incident log failed: %s", e)
 
 async def notify_admins(text: str):
     with conn() as cn, cn.cursor() as cur:
@@ -183,20 +221,34 @@ async def notify_admins(text: str):
 
 # ---------- admin commands ----------
 ADMIN_REPLY_RE = re.compile(r"^\s*#([0-9A-Za-z]{4,16})\s+(.*)$", re.S)
-TICKETS_CMD = {"тикеты", "/tickets", "тикеты!", "tickets"}
+LIST_CMD = {"тикеты","обращения","/tickets","tickets"}
+STAT_CMD = {"статистика","/stats","стат"}
 
 async def admin_command(admin_id: str, text: str) -> bool:
-    """Маршрутизация админа: '#ТОКЕН текст' -> в тикет; 'тикеты' -> список."""
     t = text.strip()
-    if t.lower() in TICKETS_CMD:
+    low = t.lower()
+    if low in STAT_CMD:
+        with conn() as cn, cn.cursor() as cur:
+            cur.execute("SELECT user_max_id, club_id, count(*) FROM incidents "
+                        "GROUP BY 1,2 ORDER BY 3 DESC LIMIT 10")
+            rows = cur.fetchall()
+        if not rows:
+            await max_send(admin_id, "Грубых обращений не зафиксировано ✓")
+            return True
+        lines = ["Статистика грубых обращений (по пользователям):"]
+        for uid, club, n in rows:
+            lines.append(f"{uid} (клуб {club}): {n}")
+        await max_send(admin_id, NL.join(lines))
+        return True
+    if low in LIST_CMD:
         rows = open_tickets()
         if not rows:
-            await max_send(admin_id, "Открытых тикетов нет ✓")
+            await max_send(admin_id, "Открытых обращений нет ✓")
             return True
-        lines = ["Открытые тикеты (ответ: #ТОКЕН текст):"]
+        lines = ["Открытые обращения (ответ: #ТОКЕН текст):"]
         for tid, club, subj, st in rows:
             lines.append(f"#{str(tid)[:8]} [{st}] {club}: {subj[:60]}")
-        await max_send(admin_id, "\n".join(lines))
+        await max_send(admin_id, NL.join(lines))
         return True
     m = ADMIN_REPLY_RE.match(text)
     if not m:
@@ -209,15 +261,17 @@ async def admin_command(admin_id: str, text: str) -> bool:
                     "AND status IN ('new','in_progress','waiting') LIMIT 1", (tok + "%",))
         row = cur.fetchone()
     if not row:
-        await max_send(admin_id, f"Тикет #{tok} не найден среди открытых. Команда «тикеты» — список.")
+        await max_send(admin_id, f"Обращение #{tok} не найдено среди открытых. Команда «обращения» — список.")
         return True
     ticket_id, user_id = row
     add_message(ticket_id, "out", body, author=admin_id)
     await max_send(user_id, body)
-    await max_send(admin_id, f"✓ Ответ ушёл в тикет #{str(ticket_id)[:8]}")
+    await max_send(admin_id, f"✓ Ответ ушёл в обращение #{str(ticket_id)[:8]}")
     return True
 
 # ---------- flows ----------
+PENDING_ESCALATE = {}  # user_id -> {"t": ts, "attempts": int, "orig": str, "extra": [..], "club": str, "staff": str}
+
 async def bind_club(user_id: str, key: str, via: str) -> bool:
     ok, slug = await check_license(key.strip())
     if not ok:
@@ -227,31 +281,59 @@ async def bind_club(user_id: str, key: str, via: str) -> bool:
                     "ON CONFLICT (max_user_id) DO UPDATE SET club_id=EXCLUDED.club_id",
                     (user_id, slug, key.strip()[:64]))
         cn.commit()
-    src = "через desktop" if via == "deeplink" else "по ключу лицензии"
-    await max_send(user_id, f"Клуб привязан ({slug}) — {src}. Задайте вопрос: настройки, права, "
-                            "платежи, ошибки. Если решения нет в базе знаний — создам тикет инженеру.")
+    await max_send(user_id, "Здравствуйте! Клуб подключён. Задайте вопрос — настройки, права, "
+                            "платежи, ошибки. Отвечаю мгновенно по базе знаний; если решения нет — "
+                            "передам вопрос инженеру.")
     return True
 
-async def ask_and_answer(user_id: str, club_id: str, text: str):
-    """Поиск в KB; тикет — только при промахе."""
+async def answer_or_forward(user_id: str, club_id: str, text: str, staff: str = ""):
+    """KB-ответ клиенту; при промахе — переадресация инженеру (без слова «тикет»)."""
     hit = kb_search(text)
     if hit:
-        q, ans, shots, _score = hit
-        await max_send(user_id, f"{ans}\n\n— статья KB: «{q}»")
+        q, ans, shots, _s = hit
+        await max_send(user_id, f"{ans}" + NL + NL + f"— статья KB: «{q}»")
         await max_send_screenshots(user_id, list(shots or []))
         return
-    with conn() as cn, cn.cursor() as cur:
-        cur.execute("INSERT INTO tickets (user_max_id, club_id, subject, status) VALUES (%s,%s,%s,'new') RETURNING id",
-                    (user_id, club_id, text[:120]))
-        ticket_id = cur.fetchone()[0]
-        cn.commit()
-    add_message(ticket_id, "in", text, author=user_id)
-    tid8 = str(ticket_id)[:8]
-    await max_send(user_id, "Похожей статьи в базе знаний нет — создал тикет, ответит инженер поддержки.")
-    await notify_admins(f"🎫 Тикет #{tid8} от клуба {club_id}: {text[:180]}\n"
-                        f"Ответить: #{tid8} <текст>")
+    tid = create_ticket(user_id, club_id, text, kb_miss=True, staff=staff)
+    add_message(tid, "in", text, author=user_id)
+    who = f" (сотрудник {staff})" if staff else ""
+    await max_send(user_id, "Передал вопрос инженеру поддержки. Ответ придёт сюда.")
+    await notify_admins(f"❓ Пробел знаний, клуб {club_id}{who}: {text[:180]}" + NL +
+                        f"Ответить: #{str(tid)[:8]} <текст>")
 
-async def user_message(user_id: str, text: str, payload: str = "", is_admin: bool = False):
+async def escalate_flow(user_id: str, club_id: str, text: str, staff: str = ""):
+    """Просьба специалиста: до 2 уточнений, затем передача с уточнениями."""
+    st = PENDING_ESCALATE.get(user_id)
+    if not st or time.time() - st["t"] > ESCALATE_TIMEOUT:
+        PENDING_ESCALATE[user_id] = {"t": time.time(), "attempts": 0, "orig": text, "extra": [],
+                                     "club": club_id, "staff": staff}
+        await max_send(user_id, "Понял, соединяю со специалистом. Чтобы ответ был точным, уточните: "
+                                "какой раздел/экран и что именно происходит?")
+        return
+    st["t"] = time.time()
+    st["attempts"] += 1
+    if text.strip():
+        st["extra"].append(text.strip())
+    if st["attempts"] < 2 and len(text.strip()) < 15:
+        await max_send(user_id, "Принял. Ещё деталь: что успели заметить — текст ошибки или момент, "
+                                "когда это началось? (можно коротко)")
+        return
+    summary = st["orig"]
+    if st["extra"]:
+        summary += " | Уточнения: " + "; ".join(st["extra"])
+    PENDING_ESCALATE.pop(user_id, None)
+    tid = create_ticket(user_id, club_id, summary, kb_miss=False, staff=staff)
+    add_message(tid, "in", summary, author=user_id)
+    who = f" (сотрудник {staff})" if staff else ""
+    await max_send(user_id, "Вопрос передал специалисту поддержки. Ответ придёт сюда.")
+    await notify_admins(f"🆘 Запрос специалиста, клуб {club_id}{who}: {summary[:220]}" + NL +
+                        f"Ответить: #{str(tid)[:8]} <текст>")
+
+async def user_message(user_id: str, text: str, payload: str = ""):
+    staff = ""
+    if payload and "~" in payload:  # формат: <префикс ключа>~<login сотрудника>
+        payload, staff = payload.split("~", 1)
+        staff = staff.strip()[:64]
     with conn() as cn, cn.cursor() as cur:
         cur.execute("SELECT club_id FROM clubs_bound WHERE max_user_id=%s", (user_id,))
         bound = cur.fetchone()
@@ -260,33 +342,38 @@ async def user_message(user_id: str, text: str, payload: str = "", is_admin: boo
         if payload:
             if await bind_club(user_id, payload, "deeplink"):
                 return
-            await max_send(user_id, "Не смог опознать клуб по данным из desktop. "
-                                    "Напишите нам: support@fixintel.ru.")
+            await max_send(user_id, "Не смог опознать клуб. Напишите нам: support@fixintel.ru.")
             return
         if text.strip().startswith("FIPRO-"):
             if await bind_club(user_id, text, "text"):
                 return
-            await max_send(user_id, "Лицензия не найдена или не активна. Проверьте, что ключ скопирован целиком.")
+            await max_send(user_id, "Ключ не распознан или лицензия не активна. Проверьте, что ключ скопирован целиком.")
             return
-        await max_send(user_id, "Здравствуйте! Поддержка FitIntel Pro. Откройте этот чат из desktop-клиента "
-                                "(Помощь → Поддержка разработчика → Открыть MAX) — клуб подключится автоматически. "
-                                "Или пришлите ключ лицензии вашего клуба.")
+        await max_send(user_id, "Здравствуйте! Это поддержка FitIntel Pro. Откройте чат кнопкой «Поддержка "
+                                "разработчика» в desktop-клиенте — клуб подключится автоматически, и можно "
+                                "сразу писать вопрос.")
         return
 
     club_id = bound[0]
     intent = classify(text)
     if intent == "greeting":
-        await max_send(user_id, "Здравствуйте! Задайте вопрос — настройки, права, платежи, ошибки. "
-                                "Команда «тикеты» — ваши обращения к инженерам.")
+        await max_send(user_id, "Здравствуйте! Задайте вопрос — настройки, права, платежи, ошибки.")
+        return
+    if intent == "escalate":
+        await escalate_flow(user_id, club_id, text, staff)
         return
     if intent == "frustrated":
-        await max_send(user_id, "Понимаю, ситуация неприятная. Опишите, пожалуйста, парой фраз: "
-                                "какой экран, что делали, что получилось в итоге — сразу поищу решение.")
-        # и продолжаем как вопрос: поиск по очищенному тексту
-    await ask_and_answer(user_id, club_id, text)
+        log_incident(user_id, club_id, text)
+        await max_send(user_id, "Понимаю, ситуация неприятная. Опишите парой фраз: какой экран, что делали, "
+                                "что получилось в итоге — сразу поищу решение.")
+    await answer_or_forward(user_id, club_id, text, staff)
 
 # ---------- http ----------
 app = FastAPI(title="FitIntel Support Bot")
+
+@app.on_event("startup")
+def _startup():
+    init_schema()
 
 @app.get("/health")
 def health():
@@ -322,28 +409,25 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
     body = msg.get("body") or {}
     text = (body.get("text") or msg.get("text") or "").strip()
     payload = extract_payload(data, msg, body)
-
     if not user_id:
         return {"ok": True}
-
     with conn() as cn, cn.cursor() as cur:
         cur.execute("SELECT 1 FROM bot_admins WHERE max_user_id=%s AND active", (user_id,))
         is_admin = cur.fetchone() is not None
-
     try:
         if update_type == "bot_started":
             if payload:
                 await user_message(user_id, "", payload)
             else:
-                await max_send(user_id, "Здравствуйте! Поддержка FitIntel Pro. Если вы зашли из desktop-клиента, "
-                                        "клуб привяжется автоматически — просто нажмите «Начать». Далее задавайте вопрос.")
+                await max_send(user_id, "Здравствуйте! Поддержка FitIntel Pro. Задавайте вопрос — "
+                                        "настройки, права, платежи, ошибки.")
             return {"ok": True}
         if not text and not payload:
             return {"ok": True}
         if is_admin and text:
             if await admin_command(user_id, text):
                 return {"ok": True}
-        await user_message(user_id, text, payload, is_admin=is_admin)
+        await user_message(user_id, text, payload)
     except Exception:
         log.exception("handle failed for %s", user_id)
     return {"ok": True}
