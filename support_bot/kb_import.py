@@ -33,7 +33,7 @@ KW_RE  = re.compile(r"^Ключевые слова:\s*(.+)$", re.M)
 SCR_RE = re.compile(r"(scr-[\w\-]+\.png)")
 
 def parse_file(path):
-    rel = os.path.relpath(path, SRC).replace("\", "/")
+    rel = os.path.relpath(path, SRC).replace(chr(92), "/")
     stem = rel[:-3] if rel.endswith(".md") else rel
     cat = CAT.get(stem, CAT.get(stem.split("/")[0], stem))
     text = open(path, encoding="utf-8").read()

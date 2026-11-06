@@ -1,18 +1,17 @@
-"""FitIntel Support Bot — каркас по ТЗ (фаза 1).
+"""FitIntel Support Bot — по ТЗ, контракт MAX сверен с dev.max.ru (06.11.2026).
 
-MAX (platform-api.max.ru) <-> webhook /bot/webhook <-> KB (docs/kb) + тикеты.
-Платформу не изменяет: только GET к platform_api (через netns wireguard, порт 8002).
+- Webhook: подписка POST /subscriptions {url, update_types, secret};
+  события приходят объектом Update, секрет — заголовок X-Max-Bot-Api-Secret.
+- Исходящие: POST /messages?user_id=... {text, attachments}; заголовок Authorization: <token>.
+- Вложения: POST /uploads?type=image -> {url, token} -> multipart на url ->
+  attachments=[{type:"image", payload:{token}}] (PNG-скриншоты из docs/images/desktop).
+- Идентификация клуба: GET /platform/clubs + /platform/clubs/{slug}/license
+  (platform_api в netns wireguard, порт 8002; заголовок X-Client-CN).
 
-Идентификация клуба (ТЗ): по лицензии через API платформы —
-  1) GET /platform/clubs          (X-Client-CN, матч клуба по префиксу ключа 12 симв.)
-  2) GET /platform/clubs/{slug}/license -> status active|grace -> клуб привязан
-
-TODO (фаза 2, после выдачи боевого токена MAX):
-  - точный формат payload webhook MAX (reply/quote -> маршрутизация админских ответов)
-  - механика вложений: upload скриншотов scr-*.png (MAX_UPLOAD_PATH)
-  - расписание дежурств support_schedule -> выбор дежурного админа
+Платформу не изменяет. TODO фаза 3: маршрутизация админских ответов по reply,
+дежурства support_schedule.
 """
-import logging, os
+import logging, os, random
 import httpx
 import psycopg
 from fastapi import FastAPI, Request, Header, HTTPException
@@ -24,35 +23,58 @@ DATABASE_URL   = os.environ["DATABASE_URL"]
 BOT_TOKEN      = os.environ["BOT_TOKEN"]
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 MAX_API_BASE   = os.environ.get("MAX_API_BASE", "https://platform-api.max.ru")
-MAX_UPLOAD_PATH = os.environ.get("MAX_UPLOAD_PATH", "")
 PLATFORM_API_URL = os.environ.get("PLATFORM_API_URL", "")  # http://platform-wireguard-1:8002
 PLATFORM_ADMIN_CN = os.environ.get("PLATFORM_ADMIN_CN", "andrei@fitintel.local")
 ALLOWED_LICENSE_STATUSES = {s.strip() for s in
     os.environ.get("ALLOWED_LICENSE_STATUSES", "active,grace").split(",") if s.strip()}
+SCREENSHOTS_DIR = os.environ.get("SCREENSHOTS_DIR", "/screenshots")
 KB_TOP_N       = int(os.environ.get("KB_TOP_N", "3"))
 KB_MIN_RANK    = float(os.environ.get("KB_MIN_RANK", "0.12"))
+MAX_SHOTS      = int(os.environ.get("MAX_SHOTS", "4"))
 
 def conn():
     return psycopg.connect(DATABASE_URL)
 
-# ---------- MAX ----------
-async def max_send(user_id: str, text: str):
+# ---------- MAX: исходящие ----------
+async def max_send(user_id: str, text: str, attachments: list | None = None):
+    payload = {"text": text[:4000], "random_id": random.randint(1, 2**31 - 1)}
+    if attachments:
+        payload["attachments"] = attachments
     async with httpx.AsyncClient(timeout=15) as c:
         r = await c.post(f"{MAX_API_BASE}/messages",
-                         json={"recipient": {"user_id": user_id},
-                               "message": {"text": text[:4000]}},
+                         params={"user_id": user_id}, json=payload,
                          headers={"Authorization": BOT_TOKEN})
         r.raise_for_status()
 
+async def max_upload_image(name: str, data: bytes):
+    """Шаги 1-2 загрузки: получаем upload URL+token, заливаем multipart (ответ CDN не парсим)."""
+    async with httpx.AsyncClient(timeout=60) as c:
+        r = await c.post(f"{MAX_API_BASE}/uploads", params={"type": "image"},
+                         headers={"Authorization": BOT_TOKEN})
+        r.raise_for_status()
+        d = r.json()
+        r2 = await c.post(d["url"], files={"data": (name, data, "image/png")})
+        if r2.status_code >= 400:
+            raise RuntimeError(f"cdn upload {r2.status_code}")
+        return d["token"]
+
 async def max_send_screenshots(user_id: str, files: list):
-    """Вложения: включается, когда MAX даст upload-эндпоинт (см. MAX_UPLOAD_PATH)."""
-    if not (MAX_UPLOAD_PATH and files):
-        return
-    log.info("screenshots pending MAX upload mechanics: %s", files)
+    atts = []
+    for name in files[:MAX_SHOTS]:
+        path = os.path.join(SCREENSHOTS_DIR, name)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "rb") as f:
+                token = await max_upload_image(name, f.read())
+            atts.append({"type": "image", "payload": {"token": token}})
+        except Exception as e:
+            log.warning("screenshot %s upload failed: %s", name, e)
+    if atts:
+        await max_send(user_id, "Скриншоты:", attachments=atts)
 
 # ---------- platform: идентификация клуба по лицензии (только чтение) ----------
 async def check_license(key: str):
-    """Возвращает (ok, slug клуба). Внутренний вызов platform_api по сети platform_default."""
     if not PLATFORM_API_URL:
         return False, ""
     headers = {"X-Client-CN": f"CN={PLATFORM_ADMIN_CN}"}
@@ -121,8 +143,8 @@ async def notify_admins(text: str):
 
 # ---------- flows ----------
 async def admin_reply(admin_id: str, text: str):
-    """Админ пишет боту -> ответ уходит в последний открытый тикет.
-    Маршрутизация по reply/quote уточняется под реальный payload MAX (фаза 2)."""
+    """Админ пишет боту -> ответ в последний открытый тикет.
+    Точная маршрутизация по reply/quote — фаза 3 (посмотрим реальный Update)."""
     with conn() as cn, cn.cursor() as cur:
         cur.execute("SELECT id, user_max_id FROM tickets WHERE status IN ('new','in_progress','waiting') "
                     "ORDER BY updated_at DESC LIMIT 1")
@@ -135,7 +157,6 @@ async def admin_reply(admin_id: str, text: str):
     await max_send(user_id, text)
 
 async def user_message(user_id: str, text: str):
-    # 1) привязка клуба: первое сообщение = ключ лицензии (проверка через API платформы)
     with conn() as cn, cn.cursor() as cur:
         cur.execute("SELECT club_id FROM clubs_bound WHERE max_user_id=%s", (user_id,))
         bound = cur.fetchone()
@@ -169,9 +190,7 @@ async def user_message(user_id: str, text: str):
     hits = kb_search(text)
     if hits and float(hits[0][3]) >= KB_MIN_RANK:
         q, ans, shots, _rank = hits[0]
-        await max_send(user_id, f"{ans}
-
-— статья KB: «{q}»")
+        await max_send(user_id, f"{ans}\n\n— статья KB: «{q}»")
         await max_send_screenshots(user_id, list(shots or []))
     else:
         await max_send(user_id, "Похожей статьи в базе знаний нет — создал тикет, ответит инженер поддержки.")
@@ -188,20 +207,32 @@ def health():
     return {"status": "ok", "kb_articles": n}
 
 @app.post("/bot/webhook")
-async def webhook(req: Request, x_webhook_secret: str = Header(default="")):
-    if WEBHOOK_SECRET and x_webhook_secret != WEBHOOK_SECRET:
+async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
+    # секрет подписки MAX приходит в X-Max-Bot-Api-Secret (dev.max.ru, /subscriptions)
+    if WEBHOOK_SECRET and x_max_bot_api_secret != WEBHOOK_SECRET:
         raise HTTPException(status_code=403, detail="bad secret")
     data = await req.json()
-    msg = data.get("message", data)  # формат MAX webhook уточняется по факту токена (фаза 2)
+    update_type = data.get("update_type", "")
+    msg = data.get("message") or {}
     sender = msg.get("sender") or {}
     user_id = str(sender.get("user_id") or msg.get("user_id") or "")
-    text = (msg.get("text") or "").strip()
-    if not user_id or not text:
-        return {"ok": True}
+    body = msg.get("body") or {}
+    text = (body.get("text") or msg.get("text") or "").strip()
+
+    if not user_id:
+        return {"ok": True}   # служебные update-типы игнорируем
+
     with conn() as cn, cn.cursor() as cur:
         cur.execute("SELECT 1 FROM bot_admins WHERE max_user_id=%s AND active", (user_id,))
         is_admin = cur.fetchone() is not None
+
     try:
+        if update_type == "bot_started":
+            await max_send(user_id, "Здравствуйте! Поддержка FitIntel Pro. "
+                                    "Пришлите ключ лицензии вашего клуба (формат FIPRO-...), затем задайте вопрос.")
+            return {"ok": True}
+        if not text:
+            return {"ok": True}
         if is_admin:
             await admin_reply(user_id, text)
         else:

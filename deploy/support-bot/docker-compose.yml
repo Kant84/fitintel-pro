@@ -37,7 +37,6 @@ services:
       BOT_TOKEN: ${MAX_SUPPORT_BOT_TOKEN:?токен бота поддержки в MAX}
       WEBHOOK_SECRET: ${BOT_WEBHOOK_SECRET:?openssl rand -hex 16}
       MAX_API_BASE: https://platform-api.max.ru
-      MAX_UPLOAD_PATH: ${MAX_UPLOAD_PATH:-}
       PLATFORM_API_URL: http://platform-wireguard-1:8002
       PLATFORM_ADMIN_CN: ${PLATFORM_ADMIN_CN:-andrei@fitintel.local}
       ALLOWED_LICENSE_STATUSES: ${ALLOWED_LICENSE_STATUSES:-active,grace}
