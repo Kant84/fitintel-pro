@@ -293,7 +293,7 @@ async def answer_or_forward(user_id: str, club_id: str, text: str, staff: str = 
     hit = kb_search(text)
     if hit:
         q, ans, shots, _s = hit
-        await max_send(user_id, f"{ans}" + NL + NL + f"— статья KB: «{q}»")
+        await max_send(user_id, f"{ans}")
         await max_send_screenshots(user_id, list(shots or []))
         return
     tid = create_ticket(user_id, club_id, text, kb_miss=True, staff=staff)
