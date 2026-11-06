@@ -123,12 +123,12 @@ async def max_upload_image(name: str, data: bytes):
         if not token:
             try:
                 d2 = r2.json()
-                token = d2.get("token") or d2.get("photo") or d2.get("file") or d2.get("key")
-                if not token and isinstance(d2, dict):
-                    for v in d2.values():
-                        if isinstance(v, str) and len(v) > 20:
-                            token = v
+                if isinstance(d2.get("photos"), dict):  # факт: {"photos": {"0": {"token": ...}}}
+                    for v in d2["photos"].values():
+                        if isinstance(v, dict) and v.get("token"):
+                            token = v["token"]
                             break
+                token = token or d2.get("token") or d2.get("photo") or d2.get("file")
             except Exception:
                 pass
         if not token:
