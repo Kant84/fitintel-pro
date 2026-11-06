@@ -11,7 +11,7 @@
 - Привязка клуба: deeplink ?start=<префикс ключа>[~login сотрудника] из desktop / ключ текстом.
 - Админ: '#ТОКЕН текст' -> в обращение, 'тикеты'/'обращения' -> список. Эха нет.
 """
-import json, logging, os, random, re, time
+import asyncio, json, logging, os, random, re, time
 import httpx
 import psycopg
 from fastapi import FastAPI, Request, Header, HTTPException
@@ -108,10 +108,20 @@ async def max_upload_image(name: str, data: bytes):
                          headers={"Authorization": BOT_TOKEN})
         r.raise_for_status()
         d = r.json()
-        r2 = await c.post(d["url"], files={"data": (name, data, "image/png")})
+        log.info("uploads resp: %s", json.dumps(d, ensure_ascii=False)[:400])
+        url = d["url"]
+        token = d.get("token")
+        if not token and isinstance(d.get("photos"), dict):
+            for v in d["photos"].values():
+                if isinstance(v, dict) and v.get("token"):
+                    token = v["token"]
+                    break
+        if not token:
+            raise RuntimeError(f"no token in uploads response: {list(d.keys())}")
+        r2 = await c.post(url, files={"data": (name, data, "image/png")})
         if r2.status_code >= 400:
             raise RuntimeError(f"cdn upload {r2.status_code}")
-        return d["token"]
+        return token
 
 async def max_send_screenshots(user_id: str, files: list):
     atts = []
@@ -126,6 +136,7 @@ async def max_send_screenshots(user_id: str, files: list):
         except Exception as e:
             log.warning("screenshot %s upload failed: %s", name, e)
     if atts:
+        await asyncio.sleep(1)  # CDN должен прогреть файл (attachment.not.ready)
         await max_send(user_id, "Скриншоты:", attachments=atts)
 
 # ---------- platform ----------
