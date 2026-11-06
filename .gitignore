@@ -133,3 +133,19 @@ deploy/platform/nginx/certs/ca.key
 !tools/license_studio/*.py
 
 deploy/platform/nginx/certs/
+
+/dist/
+/installer_out/
+/loadrun_*.csv
+/licenses.csv
+/licenses_test.csv
+/rfid_uid_cache.json
+/rfid_widget_pos.json
+frontend/dist/
+frontend/vite.config.js
+frontend/vite.config.d.ts
+frontend/tsconfig.node.tsbuildinfo
+*.bak*
+/новый токен*.txt
+tools/license_studio/licenses.csv
+trip())
