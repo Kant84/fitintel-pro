@@ -149,3 +149,9 @@ frontend/tsconfig.node.tsbuildinfo
 /новый токен*.txt
 tools/license_studio/licenses.csv
 trip())
+
+/client_settings.json
+/.setup_state
+/.undo-backup/
+/build/
+/face_test_images/
