@@ -424,6 +424,15 @@ def _e68_wire(tab):
                     raise
             if r.get("activated"):
                 res.setText(f" Лицензия активирована: тариф {r.get('plan')}, до {r.get('expires')}, клиентов: {r.get('max_clients')}")
+                try:
+                    import json as _cj, os as _os
+                    cfgp = str(_e68_settings_path())
+                    cfg = _cj.load(open(cfgp, encoding="utf-8")) if _os.path.exists(cfgp) else {}
+                    cfg["license_key"] = key
+                    _cj.dump(cfg, open(cfgp, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+                except Exception as _e:
+                    print("[E68] save license_key:", _e)
+
             else:
                 res.setText(" " + str(r)[:200])
         except Exception as e:

@@ -84,6 +84,16 @@ class ActivationDialog(QDialog):
         if not r.get("activated"):
             self.lbl.setText("Ключ не принят: " + str(r.get("reason", r))[:180])
             return
+
+        try:
+            from paths import APP_DIR
+            import os as _os, json as _json
+            cfgp = str(APP_DIR / "client_settings.json")
+            cfg = _json.load(open(cfgp, encoding="utf-8")) if _os.path.exists(cfgp) else {}
+            cfg["license_key"] = key
+            _json.dump(cfg, open(cfgp, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+        except Exception:
+            pass
         try:
             lr = self._post("/auth/login", {"login": login, "password": pw})
             self.token = lr.get("access_token")

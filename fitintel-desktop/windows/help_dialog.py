@@ -10,6 +10,24 @@ from PyQt6.QtWidgets import (QMessageBox, QListWidget, QDialog, QVBoxLayout,
 
 MAX_SUPPORT_URL = "https://max.ru/fitintel_support"  # TODO: заменить на реальный чат разработчика
 
+def _support_url() -> str:
+    """Чат поддержки; с сохранённым ключом — автопривязка клуба (?start=префикс ключа)."""
+    base = MAX_SUPPORT_URL
+    try:
+        import json as _cj, os as _os
+        try:
+            from paths import APP_DIR
+            cfgp = str(APP_DIR / "client_settings.json")
+        except Exception:
+            cfgp = "client_settings.json"
+        if _os.path.exists(cfgp):
+            key = (_cj.load(open(cfgp, encoding="utf-8")).get("license_key") or "")
+            if key.startswith("FIPRO-") and len(key) >= 24:
+                return base + "?start=" + key[:24]
+    except Exception:
+        pass
+    return base
+
 # ═══════════════════════════════════════════════════════════════════════════
 # ИНСТРУКЦИИ ПО ЭКРАНАМ
 # Ключ = текст пункта в sidebar БЕЗ эмодзи-иконки (она отсекается при поиске)
@@ -1792,7 +1810,7 @@ def open_support(mw):
     lbl = QLabel(
         "Вопросы и проблемы — пишите разработчику:\n"
         "• Email: support@fixintel.ru (рекомендуем — сюда же присылайте логи)\n"
-        "• MAX: " + MAX_SUPPORT_URL + "\n\n"
+        "• MAX: " + _support_url() + "\n\n"
         "Перед обращением нажмите «Скопировать логи» и вставьте их в письмо — "
         "так проблема решится быстрее.\n"
         "Что описать: экран, кнопка, что ожидали, что произошло.")
@@ -1807,7 +1825,7 @@ def open_support(mw):
 
     def _open():
         try:
-            os.startfile(MAX_SUPPORT_URL)
+            os.startfile(_support_url())
         except Exception as e:
             QMessageBox.warning(dlg, "MAX", "Не удалось открыть: %s" % e)
 
