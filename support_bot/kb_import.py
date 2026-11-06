@@ -37,22 +37,19 @@ KW_RE  = re.compile(r"^Ключевые слова:\s*(.+)$", re.M)
 SCR_RE = re.compile(r"(?i)\bscr-([a-z0-9]+(?:-[a-z0-9]+)+)\b")
 
 def extract_shots(text):
-    """Возвращает (очищенный_текст, [scr-xxx.png, ...])."""
+    """Возвращает (очищенный_текст, [scr-xxx.png, ...]).
+    Строка-пометка: содержит scr-токен И (эмодзи картинки ИЛИ '[' ИЛИ '.png' ИЛИ начинается со слова Скриншот)."""
     shots = set()
     out_lines = []
     for ln in text.splitlines():
         toks = SCR_RE.findall(ln)
-        s = ln.strip()
-        is_marker_line = bool(toks) and (
-            s.startswith(("🖼", "[", "Скриншот", "скриншот")) or ".png" in s.lower()
-        )
-        if is_marker_line:
+        if toks and ("🖼" in ln or "📷" in ln or "[" in ln or ".png" in ln.lower()
+                     or ln.strip().lower().startswith(("скриншот", "screenshot"))):
             for t in toks:
                 shots.add("scr-" + t.lower() + ".png")
             continue
         out_lines.append(ln)
     cleaned = "\n".join(out_lines)
-    # схлопываем >2 пустых строк подряд
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
     return cleaned, sorted(shots)
 
