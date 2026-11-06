@@ -24,20 +24,20 @@
 | 00-index.md | Этот файл — правила и карта | ✅ |
 | errors.md | Коды ошибок и общие сбои (401/403/409/429/502/423, «сервер недоступен», «смена закрыта»…) | ✅ |
 | desktop/install-login.md | Установка, первый запуск, активация, вход, профили | ✅ |
-| cash-fiscal.md | Касса, смены, чеки, ККТ | ⬜ |
-| payments.md | Платежи, возвраты, ЮKassa, кошелёк | ⬜ |
-| notifications.md | Email/SMS/MAX/Telegram/webpush, чеки клиенту | ⬜ |
-| visits-access.md | Входы/выходы, турникет, браслеты, шкафчики | ⬜ |
-| clients-subs.md | Клиенты, абонементы, заморозка, корзина | ⬜ |
-| schedule-services.md | Расписание, услуги, тренеры | ⬜ |
-| analytics-ai.md | Аналитика, AI-отток | ⬜ |
-| music-dj.md | Музыкальный пульт, DJ-агент | ⬜ |
-| users-rbac.md | Пользователи, роли, экраны ролей | ⬜ |
-| faceid.md | Face ID | ⬜ |
-| settings-help.md | Настройки, тема, логи, поддержка | ⬜ |
-| server.md | Установка/обновление/бэкапы сервера (кратко, полное — INSTALL_SERVER.md) | ⬜ |
-| skud-hardware.md | СКУД ITC, Kerong, RFID | ⬜ |
-| vending.md | Вендинг, оплата кодом | ⬜ |
+| cash-fiscal.md | Касса, смены, чеки, ККТ | ✅ |
+| payments.md | Платежи, возвраты, ЮKassa, кошелёк | ✅ |
+| notifications.md | Email/SMS/MAX/Telegram/webpush, чеки клиенту | ✅ |
+| visits-access.md | Входы/выходы, турникет, браслеты, шкафчики | ✅ |
+| clients-subs.md | Клиенты, абонементы, заморозка, корзина | ✅ |
+| schedule-services.md | Расписание, услуги, тренеры | ✅ |
+| analytics-ai.md | Аналитика, AI-отток | ✅ |
+| music-dj.md | Музыкальный пульт, DJ-агент | ✅ |
+| users-rbac.md | Пользователи, роли, экраны ролей | ✅ |
+| faceid.md | Face ID | ✅ |
+| settings-help.md | Настройки, тема, логи, поддержка | ✅ |
+| server.md | Установка/обновление/бэкапы сервера (кратко, полное — INSTALL_SERVER.md) | ✅ |
+| skud-hardware.md | СКУД ITC, Kerong, RFID | ✅ |
+| vending.md | Вендинг, оплата кодом | ✅ |
 
 ## Связь с документацией
 - Полные руководства: `../ИНСТРУКЦИЯ_ПОЛЬЗОВАТЕЛЯ.md`, `../DESKTOP_GUIDE.md` (каждая кнопка).
