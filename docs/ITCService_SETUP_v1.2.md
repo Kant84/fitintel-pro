@@ -87,7 +87,7 @@ HKEY_LOCAL_MACHINE\SOFTWARE\ITCService
 | `AquaCheckAccessURL` | REG_SZ | `http://IP:8001/api/v1/skud/aqua_checkaccess` | Аквапарк |
 | `SolarCheckAccessURL` | REG_SZ | `http://IP:8001/api/v1/skud/solar/checkaccess` | Солярий |
 | `BasicAuthUser` | REG_SZ | `itc` | Логин Basic Auth |
-| `BasicAuthPass` | REG_SZ | `***REMOVED***` | Пароль Basic Auth |
+| `BasicAuthPass` | REG_SZ | `<ITC_BASIC_PASSWORD из deploy/.env>` | Пароль Basic Auth |
 | `TimeoutMs` | REG_DWORD | `5000` | Таймаут запроса (мс) |
 | `RetryCount` | REG_DWORD | `3` | Количество повторов |
 
@@ -316,13 +316,16 @@ curl -u itc:***REMOVED*** -X POST http://IP:8001/api/v1/skud/event   -H "Content
 
 ## 🔐 Безопасность
 
-⚠️ **Важно:** Пароль `***REMOVED***` — временный. Смените его:
+⚠️ **Важно:** пароль НЕ зашит в коде. Он задаётся на сервере клуба в `deploy/.env`
+(`ITC_BASIC_USER` / `ITC_BASIC_PASSWORD`, доходят до контейнера api через compose) и дублируется
+в реестре ITCService (BasicAuthUser/BasicAuthPass) — значения должны совпадать.
 
-1. Откройте `app/api/v1/skud_itconnect.py`
-2. Найдите строку: `credentials.password != "***REMOVED***"`
-3. Замените на свой пароль
-4. Обновите реестр ITCService
-5. Перезапустите службы
+**Ротация пароля** (выполнена 05–06.11.2026, повторять при компрометации):
+1. Сгенерируйте новый: `openssl rand -hex 16` на сервере клуба;
+2. Обновите `ITC_BASIC_PASSWORD` в `deploy/.env` (nfs и test), `docker compose up -d --force-recreate api`;
+3. Проверка: старый пароль → 401, новый → 422 (`POST /api/v1/skud/checkaccess`);
+4. Обновите `BasicAuthPass` в реестре (`ITCService_CONFIG.reg`) → импорт → `Restart-Service ITCService`;
+5. Для ent_bridge: `/etc/fitintel/bridge.env` (`itc_password`), `systemctl restart ent_bridge`.
 
 ---
 
@@ -334,5 +337,5 @@ curl -u itc:***REMOVED*** -X POST http://IP:8001/api/v1/skud/event   -H "Content
 
 ---
 
-*Версия инструкции: E15-SKUD v1.0*
-*Дата: 2026-08-27*
+*Версия инструкции: E15-SKUD v1.2*
+*Дата: 2026-11-06 (актуализировано под env-конфигурацию и ротацию ITC)*
