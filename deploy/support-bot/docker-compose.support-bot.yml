@@ -1,0 +1,56 @@
+# FitIntel Support Bot — изолированный контур на 125 (дебианNOUT).
+# НЕ изменяет: platform (compose/db), mailcow, rustdesk, wireguard-hub, php-фронт.
+# Единственные точки соприкосновения:
+#   1) attach к внешней сети platform_default -> platform_api (только GET лицензии, чтение)
+#   2) fixintel-nginx проксирует location /bot/ на 192.168.101.125:8091 (см. README §5)
+services:
+  support-bot-db:
+    image: postgres:16-alpine
+    container_name: support-bot-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: support_bot
+      POSTGRES_USER: support_bot
+      POSTGRES_PASSWORD: ${SUPPORT_BOT_DB_PASSWORD:?задайте в .env}
+    volumes:
+      - support_bot_db:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    networks: [support-bot]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U support_bot -d support_bot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  support-bot:
+    build: ../../support_bot
+    container_name: support-bot
+    restart: unless-stopped
+    depends_on:
+      support-bot-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://support_bot:${SUPPORT_BOT_DB_PASSWORD}@support-bot-db:5432/support_bot
+      BOT_TOKEN: ${MAX_SUPPORT_BOT_TOKEN:?токен бота поддержки в MAX}
+      WEBHOOK_SECRET: ${BOT_WEBHOOK_SECRET:?openssl rand -hex 16}
+      MAX_API_BASE: https://platform-api.max.ru
+      MAX_UPLOAD_PATH: ${MAX_UPLOAD_PATH:-}
+      PLATFORM_API_URL: http://platform-platform_api-1:8000
+      CLUB_CHECK_PATH: ${CLUB_CHECK_PATH:-/api/v1/clubs/check_license}
+      KB_SOURCE_DIR: /kb_source
+      SCREENSHOTS_DIR: /screenshots
+    volumes:
+      - /home/andrei/fitintel-pro/docs/kb:/kb_source:ro            # источник статей KB
+      - /home/andrei/fitintel-pro/docs/images/desktop:/screenshots:ro
+    networks: [support-bot, platform_default]
+    ports:
+      - "192.168.101.125:8091:8091"   # слушает только LAN-IP хоста; снаружи закрыто
+
+networks:
+  support-bot:
+    name: support-bot
+  platform_default:
+    external: true   # добавочный attach; откат: docker network disconnect platform_default support-bot
+
+volumes:
+  support_bot_db:
