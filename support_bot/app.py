@@ -116,11 +116,23 @@ async def max_upload_image(name: str, data: bytes):
                 if isinstance(v, dict) and v.get("token"):
                     token = v["token"]
                     break
-        if not token:
-            raise RuntimeError(f"no token in uploads response: {list(d.keys())}")
         r2 = await c.post(url, files={"data": (name, data, "image/png")})
+        log.info("cdn resp[%s]: %s", r2.status_code, r2.text[:300])
         if r2.status_code >= 400:
             raise RuntimeError(f"cdn upload {r2.status_code}")
+        if not token:
+            try:
+                d2 = r2.json()
+                token = d2.get("token") or d2.get("photo") or d2.get("file") or d2.get("key")
+                if not token and isinstance(d2, dict):
+                    for v in d2.values():
+                        if isinstance(v, str) and len(v) > 20:
+                            token = v
+                            break
+            except Exception:
+                pass
+        if not token:
+            raise RuntimeError("no token in uploads and cdn responses")
         return token
 
 async def max_send_screenshots(user_id: str, files: list):
