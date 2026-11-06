@@ -1,7 +1,10 @@
-"""Импорт docs/kb/*.md -> kb_articles (файлы смонтированы read-only в /kb_source).
-Запуск: python kb_import.py /kb_source
-Формат статьи: '## Вопрос' -> 'Ключевые слова: ...' -> '**Ответ.** ...' -> '**Если не помогло**'.
-Идемпотентно: upsert по (source_file, question).
+"""Импорт docs/kb/*.md -> kb_articles (v2): понимает пометки скриншотов в тексте.
+
+Форматы пометок в статьях (всё регистронезависимо):
+    🖼 [SCR-pay-01: форма «Провести платёж»]
+    Скриншот: scr-cash-01.png
+Пометки вырезаются из текста ответа, превращаются в массив screenshots (scr-<токен>.png).
+Запуск: python kb_import.py /kb_source   (идемпотентно: upsert по (source_file, question))
 """
 import os, re, sys, glob
 import psycopg
@@ -30,7 +33,28 @@ CAT = {
 SKIP = {"00-index.md", "KB_SCREENSHOT_LINKS.md"}
 ART_RE = re.compile(r"^## (.+)$", re.M)
 KW_RE  = re.compile(r"^Ключевые слова:\s*(.+)$", re.M)
-SCR_RE = re.compile(r"(scr-[\w\-]+\.png)")
+# scr-<тема>-<NN> / SCR-pay-01 / scr-cash-01.png — регистронезависимо
+SCR_RE = re.compile(r"(?i)\bscr-([a-z0-9]+(?:-[a-z0-9]+)+)\b")
+
+def extract_shots(text):
+    """Возвращает (очищенный_текст, [scr-xxx.png, ...])."""
+    shots = set()
+    out_lines = []
+    for ln in text.splitlines():
+        toks = SCR_RE.findall(ln)
+        s = ln.strip()
+        is_marker_line = bool(toks) and (
+            s.startswith(("🖼", "[", "Скриншот", "скриншот")) or ".png" in s.lower()
+        )
+        if is_marker_line:
+            for t in toks:
+                shots.add("scr-" + t.lower() + ".png")
+            continue
+        out_lines.append(ln)
+    cleaned = "\n".join(out_lines)
+    # схлопываем >2 пустых строк подряд
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    return cleaned, sorted(shots)
 
 def parse_file(path):
     rel = os.path.relpath(path, SRC).replace(chr(92), "/")
@@ -48,15 +72,15 @@ def parse_file(path):
         a = re.search(r"\*\*Ответ\.\*\*", body)
         if a:
             ans = body[a.end():]
-        ans = re.split(r"\*\*Если не помогло", ans)[0].strip()
-        shots = sorted(set(SCR_RE.findall(body)))
+        ans = re.split(r"\*\*Если не помогло", ans)[0]
+        ans, shots = extract_shots(ans)
         if ans:
             arts.append((title, keywords, ans, cat, shots, rel))
     return arts
 
 def main():
     files = sorted(glob.glob(os.path.join(SRC, "**", "*.md"), recursive=True))
-    total = 0
+    total = with_shots = 0
     with psycopg.connect(DATABASE_URL) as cn, cn.cursor() as cur:
         for f in files:
             if os.path.basename(f) in SKIP:
@@ -70,8 +94,10 @@ def main():
                     "screenshots=EXCLUDED.screenshots, updated_at=now()",
                     (q, k, a, c, s, src))
                 total += 1
+                if s:
+                    with_shots += 1
         cn.commit()
-    print(f"IMPORTED={total}")
+    print(f"IMPORTED={total} WITH_SHOTS={with_shots}")
 
 if __name__ == "__main__":
     main()
