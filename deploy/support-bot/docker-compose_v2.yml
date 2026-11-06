@@ -1,8 +1,11 @@
-# FitIntel Support Bot — изолированный контур на 125 (дебианNOUT).
+# FitIntel Support Bot — изолированный контур на 125 (debianNOUT).
 # НЕ изменяет: platform (compose/db), mailcow, rustdesk, wireguard-hub, php-фронт.
-# Единственные точки соприкосновения:
-#   1) attach к внешней сети platform_default -> platform_api (только GET лицензии, чтение)
-#   2) fixintel-nginx проксирует location /bot/ на 192.168.101.125:8091 (см. README §5)
+# Точки соприкосновения:
+#   1) attach к внешней сети platform_default -> platform_api через netns wireguard
+#      (platform_api работает с network_mode: service:wireguard, слушает :8002;
+#       доступен ДРУГИМ контейнерам сети как http://platform-wireguard-1:8002)
+#      Только GET: /platform/clubs, /platform/clubs/{slug}/license (X-Client-CN).
+#   2) fixintel-nginx проксирует location /bot/ на 192.168.101.125:8091 (см. README §7)
 services:
   support-bot-db:
     image: postgres:16-alpine
@@ -35,8 +38,9 @@ services:
       WEBHOOK_SECRET: ${BOT_WEBHOOK_SECRET:?openssl rand -hex 16}
       MAX_API_BASE: https://platform-api.max.ru
       MAX_UPLOAD_PATH: ${MAX_UPLOAD_PATH:-}
-      PLATFORM_API_URL: http://platform-platform_api-1:8000
-      CLUB_CHECK_PATH: ${CLUB_CHECK_PATH:-/api/v1/clubs/check_license}
+      PLATFORM_API_URL: http://platform-wireguard-1:8002
+      PLATFORM_ADMIN_CN: ${PLATFORM_ADMIN_CN:-andrei@fitintel.local}
+      ALLOWED_LICENSE_STATUSES: ${ALLOWED_LICENSE_STATUSES:-active,grace}
       KB_SOURCE_DIR: /kb_source
       SCREENSHOTS_DIR: /screenshots
     volumes:

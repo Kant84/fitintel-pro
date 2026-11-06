@@ -1,7 +1,11 @@
 """FitIntel Support Bot — каркас по ТЗ (фаза 1).
 
 MAX (platform-api.max.ru) <-> webhook /bot/webhook <-> KB (docs/kb) + тикеты.
-Платформу не изменяет: только GET проверки лицензии через внутреннюю сеть.
+Платформу не изменяет: только GET к platform_api (через netns wireguard, порт 8002).
+
+Идентификация клуба (ТЗ): по лицензии через API платформы —
+  1) GET /platform/clubs          (X-Client-CN, матч клуба по префиксу ключа 12 симв.)
+  2) GET /platform/clubs/{slug}/license -> status active|grace -> клуб привязан
 
 TODO (фаза 2, после выдачи боевого токена MAX):
   - точный формат payload webhook MAX (reply/quote -> маршрутизация админских ответов)
@@ -21,8 +25,10 @@ BOT_TOKEN      = os.environ["BOT_TOKEN"]
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 MAX_API_BASE   = os.environ.get("MAX_API_BASE", "https://platform-api.max.ru")
 MAX_UPLOAD_PATH = os.environ.get("MAX_UPLOAD_PATH", "")
-PLATFORM_API_URL = os.environ.get("PLATFORM_API_URL", "")
-CLUB_CHECK_PATH  = os.environ.get("CLUB_CHECK_PATH", "/api/v1/clubs/check_license")
+PLATFORM_API_URL = os.environ.get("PLATFORM_API_URL", "")  # http://platform-wireguard-1:8002
+PLATFORM_ADMIN_CN = os.environ.get("PLATFORM_ADMIN_CN", "andrei@fitintel.local")
+ALLOWED_LICENSE_STATUSES = {s.strip() for s in
+    os.environ.get("ALLOWED_LICENSE_STATUSES", "active,grace").split(",") if s.strip()}
 KB_TOP_N       = int(os.environ.get("KB_TOP_N", "3"))
 KB_MIN_RANK    = float(os.environ.get("KB_MIN_RANK", "0.12"))
 
@@ -44,18 +50,33 @@ async def max_send_screenshots(user_id: str, files: list):
         return
     log.info("screenshots pending MAX upload mechanics: %s", files)
 
-# ---------- platform (только чтение: лицензия клуба) ----------
+# ---------- platform: идентификация клуба по лицензии (только чтение) ----------
 async def check_license(key: str):
+    """Возвращает (ok, slug клуба). Внутренний вызов platform_api по сети platform_default."""
     if not PLATFORM_API_URL:
         return False, ""
+    headers = {"X-Client-CN": f"CN={PLATFORM_ADMIN_CN}"}
     try:
         async with httpx.AsyncClient(timeout=10) as c:
-            r = await c.get(PLATFORM_API_URL + CLUB_CHECK_PATH,
-                            params={"license": key})
-        if r.status_code != 200:
+            r = await c.get(f"{PLATFORM_API_URL}/platform/clubs", headers=headers)
+            if r.status_code != 200:
+                log.warning("platform clubs list: HTTP %s", r.status_code)
+                return False, ""
+            slug = None
+            for cl in r.json().get("clubs", []):
+                pref = cl.get("license_key")  # хранится как 12 символов + '...'
+                if pref and key.startswith(pref[:-3]):
+                    slug = cl.get("slug")
+                    break
+            if not slug:
+                return False, ""
+            r2 = await c.get(f"{PLATFORM_API_URL}/platform/clubs/{slug}/license", headers=headers)
+            if r2.status_code != 200:
+                return False, ""
+            st = r2.json().get("status")
+            if st in ALLOWED_LICENSE_STATUSES:
+                return True, slug
             return False, ""
-        d = r.json()
-        return d.get("status") == "active", str(d.get("club_id") or "")
     except Exception as e:
         log.warning("license check failed: %s", e)
         return False, ""
@@ -114,19 +135,19 @@ async def admin_reply(admin_id: str, text: str):
     await max_send(user_id, text)
 
 async def user_message(user_id: str, text: str):
-    # 1) привязка клуба: первое сообщение = ключ лицензии
+    # 1) привязка клуба: первое сообщение = ключ лицензии (проверка через API платформы)
     with conn() as cn, cn.cursor() as cur:
         cur.execute("SELECT club_id FROM clubs_bound WHERE max_user_id=%s", (user_id,))
         bound = cur.fetchone()
     if not bound:
-        ok, club_id = await check_license(text.strip())
+        ok, slug = await check_license(text.strip())
         if ok:
             with conn() as cn, cn.cursor() as cur:
                 cur.execute("INSERT INTO clubs_bound (max_user_id, club_id, license_key) VALUES (%s,%s,%s) "
                             "ON CONFLICT (max_user_id) DO UPDATE SET club_id=EXCLUDED.club_id",
-                            (user_id, club_id, text.strip()))
+                            (user_id, slug, text.strip()))
                 cn.commit()
-            await max_send(user_id, "Клуб привязан. Задайте вопрос — отвечу из базы знаний; "
+            await max_send(user_id, f"Клуб привязан ({slug}). Задайте вопрос — отвечу из базы знаний; "
                                     "если решения нет, создам тикет инженеру.")
         else:
             await max_send(user_id, "Лицензия не найдена или не активна. "
