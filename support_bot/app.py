@@ -19,6 +19,8 @@ from fastapi import FastAPI, Request, Header, HTTPException
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("support-bot")
 
+NL = chr(10)  # перевод строки для сообщений
+
 DATABASE_URL   = os.environ["DATABASE_URL"]
 BOT_TOKEN      = os.environ["BOT_TOKEN"]
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
