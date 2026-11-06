@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (QMessageBox, QListWidget, QDialog, QVBoxLayout,
                              QHBoxLayout, QPushButton, QLabel, QApplication,
                              QTextEdit)
 
-MAX_SUPPORT_URL = "https://max.ru/fitintel_support"  # TODO: заменить на реальный чат разработчика
+MAX_SUPPORT_URL = "https://max.ru/id502709527002_2_bot"  # TODO: заменить на реальный чат разработчика
 
 def _support_url() -> str:
     """Чат поддержки; с сохранённым ключом — автопривязка клуба (?start=префикс ключа)."""
