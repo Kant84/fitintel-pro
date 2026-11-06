@@ -434,19 +434,30 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
     body = msg.get("body") or {}
     text = (body.get("text") or msg.get("text") or "").strip()
     payload = extract_payload(data, msg, body)
+    # bot_started (dev.max.ru): user_id и payload — в КОРНЕ Update: {"user": {"user_id"}, "payload"}
+    if update_type == "bot_started":
+        bu = data.get("user") or {}
+        user_id = str(bu.get("user_id") or user_id)
+        if not user_id:
+            return {"ok": True}
+        if not payload:
+            payload = str(data.get("payload") or "")
+        try:
+            if payload:
+                await user_message(user_id, "", payload)
+            else:
+                await max_send(user_id, "Здравствуйте! Поддержка FitIntel Pro. Задавайте вопрос — "
+                                        "настройки, права, платежи, ошибки.")
+        except Exception:
+            log.exception("bot_started failed for %s", user_id)
+        return {"ok": True}
     if not user_id:
         return {"ok": True}
     with conn() as cn, cn.cursor() as cur:
         cur.execute("SELECT 1 FROM bot_admins WHERE max_user_id=%s AND active", (user_id,))
         is_admin = cur.fetchone() is not None
     try:
-        if update_type == "bot_started":
-            if payload:
-                await user_message(user_id, "", payload)
-            else:
-                await max_send(user_id, "Здравствуйте! Поддержка FitIntel Pro. Задавайте вопрос — "
-                                        "настройки, права, платежи, ошибки.")
-            return {"ok": True}
+        pass
         if not text and not payload:
             return {"ok": True}
         if is_admin and text:
