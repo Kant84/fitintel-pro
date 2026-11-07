@@ -10,6 +10,9 @@
 - Поиск KB: FTS по заголовку+ключам с синонимами, word_similarity fallback.
 - Привязка клуба: deeplink ?start=<префикс ключа>[~login сотрудника] из desktop / ключ текстом.
 - Админ: '#ТОКЕН текст' -> в обращение, 'тикеты'/'обращения' -> список. Эха нет.
+- v8: многопользовательский переключатель ролей (только для admin): inline-клавиатура
+  «👤 Пользователь ПО / 🛠 Админ поддержки / ⚙️ Авто», режим в таблице user_modes.
+  Команда «режим» показывает переключатель. Кнопки callback: payload "mode:<режим>".
 """
 import asyncio, json, logging, os, random, re, time
 import httpx
@@ -89,7 +92,47 @@ def init_schema():
             user_max_id text NOT NULL, club_id text, text text NOT NULL,
             created_at timestamptz NOT NULL DEFAULT now())""")
         cur.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS kb_miss boolean NOT NULL DEFAULT false")
+        cur.execute("""CREATE TABLE IF NOT EXISTS user_modes (
+            max_user_id text PRIMARY KEY,
+            mode text NOT NULL DEFAULT 'auto',
+            updated_at timestamptz NOT NULL DEFAULT now())""")
         cn.commit()
+
+# ---------- роли: переключатель Пользователь ПО / Админ поддержки (только для admin) ----------
+MODES = {"auto", "user", "admin"}
+MODE_CMD = {"режим", "mode", "/mode", "/режим"}
+
+def get_mode(user_id: str) -> str:
+    with conn() as cn, cn.cursor() as cur:
+        cur.execute("SELECT mode FROM user_modes WHERE max_user_id=%s", (user_id,))
+        row = cur.fetchone()
+    return row[0] if row else "auto"
+
+def set_mode(user_id: str, mode: str):
+    with conn() as cn, cn.cursor() as cur:
+        cur.execute("INSERT INTO user_modes (max_user_id, mode, updated_at) VALUES (%s,%s,now()) "
+                    "ON CONFLICT (max_user_id) DO UPDATE SET mode=EXCLUDED.mode, updated_at=now()",
+                    (user_id, mode))
+        cn.commit()
+
+def mode_help(mode: str) -> str:
+    return {
+        "user":  "Режим 👤 ПОЛЬЗОВАТЕЛЯ ПО: вы видите бота как клиент (ответы из базы знаний, эскалация). Админ-команды отключены.",
+        "admin": "Режим 🛠 АДМИНА ПОДДЕРЖКИ: ответ в обращение — #ТОКЕН текст; «обращения» — список; «статистика». Обычный диалог с ботом отключён.",
+        "auto":  "Режим ⚙️ АВТО: обе роли одновременно — админ-команды перехватываются, всё остальное идёт как у клиента.",
+    }[mode]
+
+def mode_keyboard(current: str) -> list:
+    def cb(label, mode):
+        mark = "✅ " if current == mode else ""
+        return {"type": "callback", "text": mark + label, "payload": "mode:" + mode}
+    return [{
+        "type": "inline_keyboard",
+        "payload": {"buttons": [
+            [cb("👤 Пользователь ПО", "user"), cb("🛠 Админ поддержки", "admin")],
+            [cb("⚙️ Авто (обе роли)", "auto")],
+        ]},
+    }]
 
 # ---------- MAX ----------
 async def max_send(user_id: str, text: str, attachments: list | None = None):
@@ -450,6 +493,23 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
     body = msg.get("body") or {}
     text = (body.get("text") or msg.get("text") or "").strip()
     payload = extract_payload(data, msg, body)
+
+    # нажатие inline-кнопки (dev.max.ru): callback и message — на одном уровне Update
+    cb = data.get("callback") or data.get("callback_query") or {}
+    if cb:
+        cb_uid = str(((cb.get("user") or {}).get("user_id")) or user_id or "")
+        cb_pl = str(cb.get("payload") or "")
+        if cb_uid and cb_pl.startswith("mode:"):
+            with conn() as cn, cn.cursor() as cur:
+                cur.execute("SELECT 1 FROM bot_admins WHERE max_user_id=%s AND active", (cb_uid,))
+                cb_admin = cur.fetchone() is not None
+            if cb_admin:
+                m = cb_pl.split(":", 1)[1].strip().lower()
+                if m in MODES:
+                    set_mode(cb_uid, m)
+                    await max_send(cb_uid, mode_help(m), attachments=mode_keyboard(m))
+        return {"ok": True}
+
     # bot_started (dev.max.ru): user_id и payload — в КОРНЕ Update: {"user": {"user_id"}, "payload"}
     if update_type == "bot_started":
         bu = data.get("user") or {}
@@ -476,11 +536,21 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
         cur.execute("SELECT 1 FROM bot_admins WHERE max_user_id=%s AND active", (user_id,))
         is_admin = cur.fetchone() is not None
     try:
-        pass
         if not text and not payload:
             return {"ok": True}
-        if is_admin and text:
+
+        mode = get_mode(user_id) if is_admin else "user"
+        # переключатель роли — текстовая команда (кнопки выше)
+        if is_admin and text.strip().lower() in MODE_CMD:
+            await max_send(user_id, mode_help(mode), attachments=mode_keyboard(mode))
+            return {"ok": True}
+        # админ-команды: в режимах auto и admin; в режиме user отключены
+        if is_admin and text and mode != "user":
             if await admin_command(user_id, text):
+                return {"ok": True}
+            if mode == "admin":
+                await max_send(user_id, "Режим 🛠 АДМИНА: ответ в обращение — #ТОКЕН текст; «обращения» — список; "
+                                        "«режим» — переключатель роли.")
                 return {"ok": True}
         await user_message(user_id, text, payload, is_admin)
     except Exception:
