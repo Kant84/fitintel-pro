@@ -1,26 +1,18 @@
-"""FitIntel Support Bot — v16: «культурный» формат ответов + сценарии поддержки.
+"""FitIntel Support Bot — v6: сценарии поддержки по регламенту продукта.
 
-Ответы клиенту (регламент формата, 07.11.2026):
-- Обращение по ИМЕНИ из профиля MAX (первой строкой): «<Имя>, привет! 😊»
-- Простые вопросы — вариант 1 (суть + предложение подробностей)
-- Инструкции — вариант 2 (шаги + одна типовая ошибка + предложение помощи)
-- Объёмные (>1800 знаков) — вариант 3 (сначала «Коротко», потом детали)
-- Плохие новости — вариант 4 (честно + рабочие альтернативы)
-- Нужны детали — вариант 5 (один конкретный нюанс, 30 секунд)
-- Запрещено: канцелярит, «извините, нельзя» без альтернатив, суть в середине.
-- Эскалационный футер добавляется к каждому KB-ответу (в статьях «Если не помогло»
-  обрезано импортёром — добавляем централизованно).
-
-Прочие регламенты (с v6–v9):
-- Клиент НИКОГДА не видит слова «тикет». Нет ответа -> «Передал вопрос инженеру поддержки».
-- Просьба специалиста / «не помогло»: до 2 уточняющих вопросов, затем передача с деталями.
-- Грубые обращения -> таблица incidents, команда «статистика».
+Регламент (07.11.2026):
+- Клиент НИКОГДА не видит слова «тикет». Нет ответа -> «Передал вопрос инженеру поддержки»;
+  просьба специалиста -> «Вопрос передал специалисту поддержки».
+- Просьба связать со специалистом: до 2 уточняющих вопросов (тема/экран/что происходит),
+  затем админу уходит вопрос С уточнениями.
+- Грубые обращения -> таблица incidents (статистика по пользователю), команда «статистика».
 - Промахи KB -> tickets.kb_miss=true (база пробелов знаний).
-- Поиск KB: FTS с весами (заголовок A, ключи/вариации B) + word_similarity fallback
-  по заголовку+ключам; пороги через KB_MIN_RANK / KB_MIN_SIM; лог rank топ-1/2.
+- Поиск KB: FTS по заголовку+ключам с синонимами, word_similarity fallback.
 - Привязка клуба: deeplink ?start=<префикс ключа>[~login сотрудника] из desktop / ключ текстом.
-- Админ: '#ТОКЕН текст' -> в обращение, 'тикеты'/'обращения' -> список, 'режим' -> переключатель
-  роли (👤 Пользователь ПО / 🛠 Админ поддержки / ⚙️ Авто). Эха нет.
+- Админ: '#ТОКЕН текст' -> в обращение, 'тикеты'/'обращения' -> список. Эха нет.
+- v8: многопользовательский переключатель ролей (только для admin): inline-клавиатура
+  «👤 Пользователь ПО / 🛠 Админ поддержки / ⚙️ Авто», режим в таблице user_modes.
+  Команда «режим» показывает переключатель. Кнопки callback: payload "mode:<режим>".
 """
 import asyncio, json, logging, os, random, re, time
 import httpx
@@ -37,7 +29,7 @@ BOT_TOKEN      = os.environ["BOT_TOKEN"]
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 MAX_API_BASE   = os.environ.get("MAX_API_BASE", "https://platform-api.max.ru")
 PLATFORM_API_URL = os.environ.get("PLATFORM_API_URL", "")
-PLATFORM_ADMIN_CN = os.environ.get("PLATFORM_ADMIN_CN", "andrei@fitintel.ru")
+PLATFORM_ADMIN_CN = os.environ.get("PLATFORM_ADMIN_CN", "andrei@fixintel.ru")
 ALLOWED_LICENSE_STATUSES = {s.strip() for s in
     os.environ.get("ALLOWED_LICENSE_STATUSES", "active,grace").split(",") if s.strip()}
 SCREENSHOTS_DIR = os.environ.get("SCREENSHOTS_DIR", "/screenshots")
@@ -45,17 +37,17 @@ KB_MIN_RANK    = float(os.environ.get("KB_MIN_RANK", "0.03"))
 SIM_MIN        = float(os.environ.get("KB_MIN_SIM", "0.3"))
 MAX_SHOTS      = int(os.environ.get("MAX_SHOTS", "4"))
 ESCALATE_TIMEOUT = float(os.environ.get("ESCALATE_TIMEOUT", "600"))
+ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID", "").strip()  # групповой чат поддержки (пусто = DM-фолбэк)
+WEBHOOK_URL = "https://fixintel.ru/bot/webhook"
+UPDATE_TYPES = ["message_created", "bot_started", "message_callback"]
+RENEW_EVERY = float(os.environ.get("SUBSCRIPTION_RENEW_HOURS", "6")) * 3600  # авто-восстановление подписки
+ADMIN_REPLY_TIMEOUT = float(os.environ.get("ADMIN_REPLY_TIMEOUT", "600"))  # ожидание ответа админа в группе
 
 STOP = {"как","можно","подскажите","пожалуйста","помогите","помощь","здравствуйте",
         "здравствуй","добрый","доброе","день","вечер","утро","спасибо","заранее",
         "сделать","делать","надо","нужно","нужна","хочу","хочется","почему","зачем",
         "кто","что","где","когда","какой","какая","какие","чем","ли",
-        "у","в","на","по","за","из","с","со","к","не","ни","же","бы","а","и","но","это","то",
-        "без","может","могу","могут","мог","могла","после","перед","между","два","две","три",
-        "дня","день","дней","неделю","месяц","год","сегодня","вчера","завтра","сейчас",
-        "уже","ещё","еще","тоже","очень","вообще","просто","именно","почти","потом","сразу",
-        "назад","тут","там","куда","откуда","свой","своя","свои","сам","сама","сами",
-        "его","её","их","этот","эта","эти","один","одна","одни","какой-то","какая-то","я"}
+        "у","в","на","по","за","из","с","со","к","не","ни","же","бы","а","и","но","это","то"}
 GREETINGS = {"привет","здравствуйте","здравствуй","добрый","доброе","hello","hi","хай","хелло","салют"}
 FRUSTRATED = {"гонишь","очумел","бред","чушь","хрень","ерунда","отстой","задолбал",
               "исправьте","почините","ты что","вы что","алле","але","эй","слушай",
@@ -63,27 +55,6 @@ FRUSTRATED = {"гонишь","очумел","бред","чушь","хрень","
 ESCALATE = {"оператор","живой","живого","человек","специалист","админ","администратор",
             "свяжите","свяжи","позовите","диспетчер","горячая линия","поддержку позови",
             "нужен человек","соедините"}
-NOT_HELPED = {"не помогло","не помог","не сработало","не сработал","не помогает",
-              "по прежнему","по-прежнему","прежнему","всё ещё","все еще","всё еще",
-              "опять","снова не","ничего не изменилось","не изменилось","так и есть",
-              "не работает до сих пор","без изменений","не решило"}
-URGENT = {"срочно","горит","критично","все стоит","всё стоит","клуб стоит","не пускает никого"}
-# Off-topic: вопросы вне темы ПО -> вежливый отказ, без тикета и без kb_miss
-OFFTOPIC_PHRASES = {"курс доллара","курс евро","курс валют","курс биткоина","цена биткоина",
-    "сколько стоит доллар","сколько стоит евро","какая погода","погода на","прогноз погоды",
-    "что приготовить","рецепт ","анекдот","гороскоп","во сколько матч","кто выиграл",
-    "результат матча","познакомимся","новости дня","что случилось в мире","кто президент",
-    "скачать фильм","ставки на","спорим","загадай число"}
-OFFTOPIC_SINGLE = {"погода","доллар","евро","биткоин","матч","рецепт","анекдот","гороскоп","президент","валют"}
-OFFTOPIC_REPLY = ("Ваш вопрос не относится к теме, связанной с программным обеспечением "
-                  "FitIntel Pro. Переформулируйте ваш вопрос, пожалуйста! 🙂")
-
-def offtopic_hit(text: str) -> bool:
-    t = " " + text.lower().strip() + " "
-    if any(p in t for p in OFFTOPIC_PHRASES):
-        return True
-    singles = sum(1 for w in OFFTOPIC_SINGLE if w in t)
-    return singles >= 2
 # синонимы: формы запроса -> лексемы KB (OR-дополнение tsquery)
 SYN = {"платеж":"оплат","платежи":"оплат","платёж":"оплат","оплат":"платеж",
        "оплата":"платеж","оплатить":"платеж","заплат":"платеж",
@@ -93,50 +64,9 @@ SYN = {"платеж":"оплат","платежи":"оплат","платёж":
        "скидк":"бонус","бонус":"скидк","тренер":"услуг расписан",
        "вендинг":"автомат магазин","автомат":"вендинг магазин"}
 
-LONG_ANSWER_LEN = 1800  # вариант 3 — объёмные ответы
-
-# ---------- имена пользователей MAX ----------
-def extract_display_name(*dicts) -> str:
-    """Имя из полей webhook MAX: sender/name/first_name+last_name."""
-    for d in dicts:
-        if not isinstance(d, dict):
-            continue
-        n = (d.get("name") or "").strip()
-        if n:
-            return n
-        fn = (d.get("first_name") or "").strip()
-        ln = (d.get("last_name") or "").strip()
-        if fn or ln:
-            return (fn + " " + ln).strip()
-    return ""
-
-def save_name(user_id: str, name: str):
-    name = name.strip()[:80]
-    if not name:
-        return
-    with conn() as cn, cn.cursor() as cur:
-        cur.execute("INSERT INTO user_names (max_user_id, name) VALUES (%s,%s) "
-                    "ON CONFLICT (max_user_id) DO UPDATE SET name=EXCLUDED.name",
-                    (user_id, name))
-        cn.commit()
-
-def load_name(user_id: str) -> str:
-    try:
-        with conn() as cn, cn.cursor() as cur:
-            cur.execute("SELECT name FROM user_names WHERE max_user_id=%s", (user_id,))
-            row = cur.fetchone()
-        return row[0] if row else ""
-    except Exception:
-        return ""
-
-def greet(user_id: str, fresh: str = "") -> str:
-    """Вариант-1 обращение: по имени из MAX (иначе нейтральное)."""
-    name = fresh.strip() or load_name(user_id)
-    return f"{name}, привет! 😊" if name else "Здравствуйте! 😊"
-
 def normalize(q: str) -> str:
     q = re.sub(r"[^\w\s-]", " ", q.lower(), flags=re.UNICODE).replace("-", " ")
-    return " ".join(w for w in q.split() if w not in STOP and len(w) >= 3)
+    return " ".join(w for w in q.split() if w not in STOP)
 
 def to_tsquery(q: str) -> str:
     toks = set(q.split())
@@ -151,8 +81,6 @@ def classify(text: str) -> str:
     words = set(re.findall(r"[а-яa-z]+", t))
     if t.rstrip("!?.") in GREETINGS or (words and words <= GREETINGS):
         return "greeting"
-    if any(a in t for a in NOT_HELPED):
-        return "not_helped"
     if any(a in t for a in ESCALATE):
         return "escalate"
     if any(a in t for a in FRUSTRATED):
@@ -169,20 +97,36 @@ def init_schema():
             user_max_id text NOT NULL, club_id text, text text NOT NULL,
             created_at timestamptz NOT NULL DEFAULT now())""")
         cur.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS kb_miss boolean NOT NULL DEFAULT false")
+        cur.execute("""CREATE TABLE IF NOT EXISTS shift_marks (
+            max_user_id text NOT NULL, day date NOT NULL, at timestamptz NOT NULL DEFAULT now(),
+            PRIMARY KEY (max_user_id, day))""")
         cur.execute("""CREATE TABLE IF NOT EXISTS user_modes (
             max_user_id text PRIMARY KEY,
             mode text NOT NULL DEFAULT 'auto',
             updated_at timestamptz NOT NULL DEFAULT now())""")
-        cur.execute("""CREATE TABLE IF NOT EXISTS user_names (
-            max_user_id text PRIMARY KEY,
-            name text NOT NULL)""")
-        cur.execute("""CREATE TABLE IF NOT EXISTS support_schedule (
-            id serial PRIMARY KEY,
-            admin_max_id text NOT NULL,
-            day_of_week smallint NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
-            start_hour smallint NOT NULL CHECK (start_hour BETWEEN 0 AND 23),
-            end_hour smallint NOT NULL CHECK (end_hour BETWEEN 1 AND 24))""")
         cn.commit()
+
+# ---------- webhook-подписка: авто-восстановление (док: подписка периодически пропадает) ----------
+async def renew_subscription():
+    """Удалить все старые подписки бота и создать актуальную. Без ручного вмешательства."""
+    headers = {"Authorization": BOT_TOKEN}
+    async with httpx.AsyncClient(timeout=20) as c:
+        try:
+            r = await c.get(f"{MAX_API_BASE}/subscriptions", headers=headers)
+            subs = r.json().get("subscriptions", []) if r.status_code == 200 else []
+            for s in subs:
+                await c.delete(f"{MAX_API_BASE}/subscriptions",
+                               params={"url": s.get("url", "")}, headers=headers)
+            body = {"url": WEBHOOK_URL, "update_types": UPDATE_TYPES, "secret": WEBHOOK_SECRET}
+            r2 = await c.post(f"{MAX_API_BASE}/subscriptions", json=body, headers=headers)
+            log.info("subscription renewed: %s", r2.text[:200])
+        except Exception:
+            log.exception("subscription renewal failed")
+
+async def _renew_loop():
+    while True:
+        await asyncio.sleep(RENEW_EVERY)
+        await renew_subscription()
 
 # ---------- роли: переключатель Пользователь ПО / Админ поддержки (только для admin) ----------
 MODES = {"auto", "user", "admin"}
@@ -220,8 +164,118 @@ def mode_keyboard(current: str) -> list:
         ]},
     }]
 
+def is_active_admin(uid: str) -> bool:
+    with conn() as cn, cn.cursor() as cur:
+        cur.execute("SELECT 1 FROM bot_admins WHERE max_user_id=%s AND active", (uid,))
+        return cur.fetchone() is not None
+
+async def max_send_chat(chat_id: str, text: str, attachments: list | None = None):
+    payload = {"text": text[:4000], "random_id": random.randint(1, 2**31 - 1)}
+    if attachments:
+        payload["attachments"] = attachments
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.post(f"{MAX_API_BASE}/messages",
+                         params={"chat_id": chat_id}, json=payload,
+                         headers={"Authorization": BOT_TOKEN})
+        r.raise_for_status()
+
+def cb_chat_id(data: dict, cb: dict) -> str:
+    m = cb.get("message") or data.get("message") or {}
+    return str(((m.get("recipient") or {}).get("chat_id")) or "")
+
+async def cb_reply(data: dict, cb: dict, uid: str, text: str, attachments: list | None = None):
+    """Ответ туда, где нажата кнопка: в группу поддержки или в ЛС админа."""
+    if ADMIN_CHAT_ID and cb_chat_id(data, cb) == ADMIN_CHAT_ID:
+        await max_send_chat(ADMIN_CHAT_ID, text, attachments=attachments)
+    else:
+        await max_send(uid, text, attachments=attachments)
+
+def mark_shift(uid: str):
+    with conn() as cn, cn.cursor() as cur:
+        cur.execute("INSERT INTO shift_marks (max_user_id, day, at) VALUES (%s, CURRENT_DATE, now()) "
+                    "ON CONFLICT (max_user_id, day) DO NOTHING "
+                    "RETURNING to_char(now() AT TIME ZONE 'Europe/Moscow', 'HH24:MI')")
+        row = cur.fetchone()
+        cn.commit()
+    return row[0] if row else None
+
+def today_shift() -> list:
+    with conn() as cn, cn.cursor() as cur:
+        cur.execute("SELECT max_user_id, to_char(at AT TIME ZONE 'Europe/Moscow', 'HH24:MI') "
+                    "FROM shift_marks WHERE day = CURRENT_DATE ORDER BY at")
+        return cur.fetchall()
+
+def ticket_keyboard(tid8: str) -> list:
+    return [{"type": "inline_keyboard", "payload": {"buttons": [[
+        {"type": "callback", "text": "✉️ Ответить", "payload": f"reply:{tid8}"},
+        {"type": "callback", "text": "✅ Закрыть", "payload": f"close:{tid8}"},
+    ]]}}]
+
+async def notify_ticket(ticket_id, text: str):
+    """Тикет в групповой чат поддержки (или админам в ЛС) с кнопками Ответить/Закрыть."""
+    tid8 = str(ticket_id)[:8]
+    kb = ticket_keyboard(tid8)
+    if ADMIN_CHAT_ID:
+        await max_send_chat(ADMIN_CHAT_ID, text, attachments=kb)
+    else:
+        with conn() as cn, cn.cursor() as cur:
+            cur.execute("SELECT max_user_id FROM bot_admins WHERE active")
+            admins = [r[0] for r in cur.fetchall()]
+        for a in admins:
+            try:
+                await max_send(a, text, attachments=kb)
+            except Exception as e:
+                log.warning("ticket notify failed %s: %s", a, e)
+
+def panel_keyboard() -> list:
+    return [{"type": "inline_keyboard", "payload": {"buttons": [
+        [{"type": "callback", "text": "📥 Обращения", "payload": "panel:tickets"},
+         {"type": "callback", "text": "📊 Статистика", "payload": "panel:stats"}],
+        [{"type": "callback", "text": "✅ Я на смене", "payload": "shift:on"},
+         {"type": "callback", "text": "🕐 Кто на смене", "payload": "panel:shift"}],
+        [{"type": "callback", "text": "🛠 Команды", "payload": "panel:help"}],
+    ]}}]
+
+def panel_content(section: str) -> str:
+    if section == "tickets":
+        rows = open_tickets()
+        if not rows:
+            return "📥 Открытых обращений нет ✓"
+        lines = ["📥 Открытые обращения (ответ в ЛС боту: #ТОКЕН текст):"]
+        for tid, club, subj, st in rows:
+            lines.append(f"#{str(tid)[:8]} [{st}] {club}: {subj[:60]}")
+        return NL.join(lines)
+    if section == "stats":
+        with conn() as cn, cn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM tickets WHERE status IN ('new','in_progress','waiting')")
+            open_n = cur.fetchone()[0]
+            cur.execute("SELECT count(*) FROM incidents")
+            inc_n = cur.fetchone()[0]
+            cur.execute("SELECT count(*) FROM kb_articles WHERE kb_miss=true") if False else None
+            cur.execute("SELECT count(*) FROM tickets WHERE kb_miss=true")
+            gap_n = cur.fetchone()[0]
+        return (f"📊 Статистика:{NL}• открытые обращения: {open_n}{NL}"
+                f"• грубых обращений (incidents): {inc_n}{NL}• пробелов базы знаний (kb_miss): {gap_n}")
+    if section == "shift":
+        rows = today_shift()
+        if not rows:
+            return "🕐 Сегодня никто не отметился на смене"
+        return "🕐 На смене сегодня:" + NL + NL.join(f"• {uid} — с {t}" for uid, t in rows)
+    return ("🛠 Команды администратора:" + NL +
+            "#ТОКЕН текст — ответ в обращение" + NL +
+            "тикеты / обращения — список открытых" + NL +
+            "статистика — грубые обращения по пользователям" + NL +
+            "режим — переключатель роли (Пользователь/Админ/Авто)" + NL +
+            "панель — эти вкладки")
+
 # ---------- MAX ----------
 async def max_send(user_id: str, text: str, attachments: list | None = None):
+    # визуальный маркер режима: в админ-режиме каждое сообщение бота админу — с префиксом 🛠
+    try:
+        if get_mode(user_id) == "admin":
+            text = "🛠 " + text[:3997]
+    except Exception:
+        pass
     payload = {"text": text[:4000], "random_id": random.randint(1, 2**31 - 1)}
     if attachments:
         payload["attachments"] = attachments
@@ -306,110 +360,30 @@ async def check_license(key: str):
         log.warning("license check failed: %s", e)
         return False, ""
 
-# ---------- KB: FTS с весами (заголовок A, ключи/вариации B) + word_similarity fallback ----------
-TSV = ("setweight(to_tsvector('russian', question), 'A') || "
-       "setweight(to_tsvector('russian', coalesce(keywords,'')), 'B')")
-
-def _stem_hit(a: str, b: str) -> bool:
-    """Стем-сравнение: для слов >=4 общий префикс >=4 или вхождение; для коротких — только точное равенство."""
-    if not a or not b:
-        return False
-    if len(a) < 4 or len(b) < 4:
-        return a == b
-    if a in b or b in a:
-        return True
-    n = 0
-    for x, y in zip(a, b):
-        if x != y:
-            break
-        n += 1
-    return n >= 4
-
-import math
-
-def _tok_hits(qt: set, words: set, idf: dict) -> float:
-    return sum(idf.get(t, 0.0) for t in qt if any(_stem_hit(t, w) for w in words))
-
-W_RANK, W_TITLE, W_KEYWORDS = 0.4, 0.5, 0.35
+# ---------- KB: FTS (заголовок+ключи, с синонимами) + word_similarity ----------
+TSQ_SHORT = "to_tsvector('russian', question || ' ' || coalesce(keywords,''))"
 
 def kb_search(query: str):
     q = normalize(query)
     if not q:
         return None
     tsq = to_tsquery(q)
-    qt = set(q.split())
     with conn() as cn, cn.cursor() as cur:
-        cur.execute("SELECT count(*) FROM kb_articles")
-        N = max(cur.fetchone()[0], 1)
-        # IDF: редкие слова запроса («восстановить») важнее частотных («клиент», «удалить»)
-        idf = {}
-        for t in qt:
-            cur.execute(f"SELECT count(*) FROM kb_articles WHERE {TSV} @@ to_tsquery('russian', %s)", (t,))
-            df = max(cur.fetchone()[0], 1)
-            idf[t] = min(math.log(N / df + 1.0), 4.5)  # потолок: служебные редкие слова не доминируют
-        # normalization=1: делим на 1+log(длина документа) — убираем перекос в пользу коротких
         cur.execute(
-            f"SELECT question, answer, screenshots, category, keywords, "
-            f"ts_rank({TSV}, to_tsquery('russian', %s), 1) AS rank "
-            f"FROM kb_articles WHERE {TSV} @@ to_tsquery('russian', %s) "
-            "ORDER BY rank DESC LIMIT 8", (tsq, tsq))
-        rows = cur.fetchall()
-        if rows:
-            scored = []
-            for question, answer, shots, cat, kws, rank in rows:
-                tw = set(normalize(question).split())
-                kw = set(normalize(kws or "").split())
-                composite = (W_RANK * float(rank)
-                             + W_TITLE * _tok_hits(qt, tw, idf)
-                             + W_KEYWORDS * _tok_hits(qt, kw, idf))
-                scored.append((composite, question, answer, shots, cat, float(rank)))
-            scored.sort(key=lambda r: r[0], reverse=True)
-            top = scored[0]
-            second = scored[1] if len(scored) > 1 else None
-            log.info("kb rank: winner=%.4f(fts %.4f) second=%s | idf=%s",
-                     top[0], top[5],
-                     ("%.4f(fts %.4f)" % (second[0], second[5])) if second else "-",
-                     {t: round(v, 2) for t, v in sorted(idf.items(), key=lambda x: -x[1])})
-            if top[5] >= KB_MIN_RANK:
-                return top[1], top[2], top[3], top[4], top[0]
-        cur.execute(
-            "SELECT question, answer, screenshots, category, "
-            "word_similarity(question || ' ' || coalesce(keywords,''), %s) AS sim "
-            "FROM kb_articles WHERE question || ' ' || coalesce(keywords,'') %% %s "
-            "ORDER BY sim DESC LIMIT 1", (query, query))
+            f"SELECT question, answer, screenshots, "
+            f"ts_rank({TSQ_SHORT}, to_tsquery('russian', %s)) "
+            f"FROM kb_articles WHERE {TSQ_SHORT} @@ to_tsquery('russian', %s) "
+            "ORDER BY 4 DESC LIMIT 1", (tsq, tsq))
         row = cur.fetchone()
-        if row and float(row[4]) >= SIM_MIN:
-            return row[0], row[1], row[2], row[3], float(row[4])
+        if row and float(row[3]) >= KB_MIN_RANK:
+            return row[0], row[1], row[2], float(row[3])
+        cur.execute(
+            "SELECT question, answer, screenshots, word_similarity(question, %s) AS sim "
+            "FROM kb_articles WHERE question %% %s ORDER BY sim DESC LIMIT 1", (query, query))
+        row = cur.fetchone()
+        if row and float(row[3]) >= SIM_MIN:
+            return row[0], row[1], row[2], float(row[3])
     return None
-
-# ---------- «культурный» компоновщик ответов ----------
-def compose_answer(user_id: str, question: str, ans: str) -> str:
-    """Вариант 2 (шаги) для обычных, вариант 3 (коротко+детали) для объёмных."""
-    g = greet(user_id)
-    q = question.strip().strip("«»").rstrip(".")
-    if len(ans) > LONG_ANSWER_LEN:
-        if "**Пошагово.**" in ans:
-            short, rest = ans.split("**Пошагово.**", 1)
-            short = short.replace("**Причина.**", "**Коротко.**").strip()
-            details = "**Пошагово.**" + rest.strip()
-        else:
-            parts = ans.split("\n\n", 1)
-            short = "**Коротко.** " + (parts[0][:400].strip())
-            details = parts[1].strip() if len(parts) > 1 else ""
-        return (f"{g} 👋{NL}Тут информации чуть больше — сначала суть, потом детали.{NL}{NL}"
-                f"{short}{NL}{NL}{details}{NL}{NL}"
-                "Если сейчас нужен только один аспект (только причина или только шаги) — скажите, дам без лишнего.\n"
-                "Если не помогло — напишите «не помогло» и уточните, на каком шаге остановились (текст ошибки или скриншот). Передам инженеру.")
-    return (f"{g}{NL}Вот как решается: «{q}» — по шагам, чтобы ничего не упустить:{NL}{NL}{ans}{NL}{NL}"
-            "Если какой-то шаг непонятен — скажите, разберу на примере.\n"
-            "Если не помогло — напишите «не помогло» и уточните, на каком шаге остановились (текст ошибки или скриншот). Передам инженеру.")
-
-def compose_bad_news(user_id: str, limitation: str, alternatives: list[str]) -> str:
-    """Вариант 4: честно об ограничении + рабочие альтернативы."""
-    g = greet(user_id)
-    alts = NL.join(f"{i+1}. {a}" for i, a in enumerate(alternatives))
-    return (f"{g[:-2]} 😔{NL}К сожалению, тут есть ограничение: {limitation}{NL}"
-            f"Но есть рабочие пути:{NL}{alts}")
 
 # ---------- tickets / incidents ----------
 def add_message(ticket_id, direction, body, author=""):
@@ -425,8 +399,10 @@ def create_ticket(user_id, club_id, text, kb_miss, staff=""):
         cur.execute("INSERT INTO tickets (user_max_id, club_id, subject, status, kb_miss) "
                     "VALUES (%s,%s,%s,'new',%s) RETURNING id", (user_id, club_id, text[:120], kb_miss))
         tid = cur.fetchone()[0]
+        cur.execute("SELECT to_char(now() AT TIME ZONE 'Europe/Moscow', 'DD.MM.YYYY, HH24:MI')")
+        ts = cur.fetchone()[0]
         cn.commit()
-    return tid
+    return tid, ts
 
 def open_tickets():
     with conn() as cn, cn.cursor() as cur:
@@ -443,33 +419,10 @@ def log_incident(user_id, club_id, text):
     except Exception as e:
         log.warning("incident log failed: %s", e)
 
-DAYS_RU = ["пн","вт","ср","чт","пт","сб","вс"]
-
-def _parse_days(tok: str):
-    t = tok.lower()
-    if t in {"all","все","ежедневно","каждый"}: return list(range(7))
-    if t in {"будни","будни."}: return [0,1,2,3,4]
-    if t in {"выходные"}: return [5,6]
-    days = []
-    for i, d in enumerate(DAYS_RU):
-        if d in t: days.append(i)
-    return days
-
-def duty_admins() -> list:
-    """Админы по графику сейчас; если график пуст/вне смены — все активные."""
-    import datetime
-    now = datetime.datetime.now()
-    with conn() as cn, cn.cursor() as cur:
-        cur.execute("SELECT admin_max_id FROM support_schedule WHERE day_of_week=%s "
-                    "AND start_hour<=%s AND end_hour>%s", (now.weekday(), now.hour, now.hour))
-        duty = [r[0] for r in cur.fetchall()]
-        if duty:
-            return duty
-        cur.execute("SELECT max_user_id FROM bot_admins WHERE active")
-        return [r[0] for r in cur.fetchall()]
-
 async def notify_admins(text: str):
-    admins = duty_admins()
+    with conn() as cn, cn.cursor() as cur:
+        cur.execute("SELECT max_user_id FROM bot_admins WHERE active")
+        admins = [r[0] for r in cur.fetchall()]
     for a in admins:
         try:
             await max_send(a, text)
@@ -481,73 +434,9 @@ ADMIN_REPLY_RE = re.compile(r"^\s*#([0-9A-Za-z]{4,16})\s+(.*)$", re.S)
 LIST_CMD = {"тикеты","обращения","/tickets","tickets"}
 STAT_CMD = {"статистика","/stats","стат"}
 
-SCHED_RE = re.compile(r"^дежурств[ао]\s+(добавить|убрать|очистить|список)\s*(.*)$", re.S)
-
-async def sched_command(admin_id: str, text: str) -> bool:
-    low = text.lower().strip()
-    m = SCHED_RE.match(low)
-    if not m:
-        if low in {"дежурство","дежурства","/duty"}:
-            m = None
-            action, rest = "список", ""
-        else:
-            return False
-    else:
-        action, rest = m.group(1), m.group(2).strip()
-    with conn() as cn, cn.cursor() as cur:
-        if action == "список":
-            cur.execute("SELECT day_of_week, start_hour, end_hour FROM support_schedule "
-                        "WHERE admin_max_id=%s ORDER BY day_of_week, start_hour", (admin_id,))
-            rows = cur.fetchall()
-            if not rows:
-                await max_send(admin_id, "Ваш график дежурств пуст. Задать: «дежурство добавить <пн..вс|будни|выходные|all> <час от> <час до>».")
-                return True
-            lines = ["Ваши дежурства (МСК, час начала-конца):"]
-            for d, h1, h2 in rows:
-                lines.append(f"{DAYS_RU[d]}: {h1:02d}:00–{h2:02d}:00")
-            await max_send(admin_id, NL.join(lines))
-            return True
-        if action == "очистить":
-            cur.execute("DELETE FROM support_schedule WHERE admin_max_id=%s", (admin_id,))
-            cn.commit()
-            await max_send(admin_id, "График очищен.")
-            return True
-        parts = rest.split()
-        if len(parts) < 3:
-            await max_send(admin_id, "Формат: «дежурство добавить <пн..вс|будни|выходные|all> <час от> <час до>», например: дежурство добавить будни 9 19")
-            return True
-        days = _parse_days(parts[0])
-        if not days:
-            await max_send(admin_id, "День не распознан: используйте пн/вт/ср/чт/пт/сб/вс, будни, выходные или all.")
-            return True
-        try:
-            h1, h2 = int(parts[1]), int(parts[2])
-        except ValueError:
-            await max_send(admin_id, "Часы должны быть числами (0–23 и 1–24).")
-            return True
-        if not (0 <= h1 <= 23 and 1 <= h2 <= 24 and h1 < h2):
-            await max_send(admin_id, "Некорректный интервал: от 0–23, до 1–24, от < до.")
-            return True
-        if action == "добавить":
-            for d in days:
-                cur.execute("INSERT INTO support_schedule (admin_max_id, day_of_week, start_hour, end_hour) "
-                            "VALUES (%s,%s,%s,%s)", (admin_id, d, h1, h2))
-            cn.commit()
-            await max_send(admin_id, f"Записано: {','.join(DAYS_RU[d] for d in days)} {h1:02d}:00–{h2:02d}:00. Смотреть: «дежурство список».")
-            return True
-        if action == "убрать":
-            cur.execute("DELETE FROM support_schedule WHERE admin_max_id=%s AND day_of_week = ANY(%s)",
-                        (admin_id, days))
-            cn.commit()
-            await max_send(admin_id, "Смены удалены по указанным дням.")
-            return True
-    return True
-
 async def admin_command(admin_id: str, text: str) -> bool:
     t = text.strip()
     low = t.lower()
-    if low.startswith("дежурств") or low in {"/duty"}:
-        return await sched_command(admin_id, text)
     if low in STAT_CMD:
         with conn() as cn, cn.cursor() as cur:
             cur.execute("SELECT user_max_id, club_id, count(*) FROM incidents "
@@ -592,6 +481,7 @@ async def admin_command(admin_id: str, text: str) -> bool:
 
 # ---------- flows ----------
 PENDING_ESCALATE = {}  # user_id -> {"t": ts, "attempts": int, "orig": str, "extra": [..], "club": str, "staff": str}
+PENDING_ADMIN_REPLY = {}  # admin_uid -> {"tid8": str, "t": ts} — «Ответить» нажато, ждём текст в группе
 
 async def bind_club(user_id: str, key: str, via: str) -> bool:
     ok, slug = await check_license(key.strip())
@@ -602,67 +492,57 @@ async def bind_club(user_id: str, key: str, via: str) -> bool:
                     "ON CONFLICT (max_user_id) DO UPDATE SET club_id=EXCLUDED.club_id",
                     (user_id, slug, key.strip()[:64]))
         cn.commit()
-    await max_send(user_id, f"{greet(user_id)}{NL}Клуб подключён. Задавайте вопрос — настройки, права, "
-                            "платежи, ошибки. Отвечаю по базе знаний; если решения нет — передам вопрос инженеру.")
+    await max_send(user_id, "Здравствуйте! Клуб подключён. Задайте вопрос — настройки, права, "
+                            "платежи, ошибки. Отвечаю мгновенно по базе знаний; если решения нет — "
+                            "передам вопрос инженеру.")
     return True
 
 async def answer_or_forward(user_id: str, club_id: str, text: str, staff: str = ""):
-    """KB-ответ (культурный формат); off-topic -> вежливый отказ; при промахе — переадресация инженеру."""
-    if offtopic_hit(text):
-        log.info("offtopic refused: %.80s", text)
-        await max_send(user_id, f"{greet(user_id)}{NL}{OFFTOPIC_REPLY}")
-        return
+    """KB-ответ клиенту; при промахе — переадресация инженеру (без слова «тикет»)."""
     hit = kb_search(text)
     if hit:
-        q, ans, shots, _cat, score = hit
-        log.info("kb hit (%.3f): %s", score, q[:80])
-        await max_send(user_id, compose_answer(user_id, q, ans))
+        q, ans, shots, _s = hit
+        await max_send(user_id, f"{ans}")
         await max_send_screenshots(user_id, list(shots or []))
         return
-    tid = create_ticket(user_id, club_id, text, kb_miss=True, staff=staff)
+    tid, ts = create_ticket(user_id, club_id, text, kb_miss=True, staff=staff)
     add_message(tid, "in", text, author=user_id)
     who = f" (сотрудник {staff})" if staff else ""
-    urgent = "СРОЧНО: " if any(w in text.lower() for w in URGENT) else ""
-    await max_send(user_id, f"{greet(user_id)} 🙂{NL}По этому вопросу у меня пока нет готового ответа — "
-                            "передал его инженеру поддержки, ответ придёт сюда. Если ситуация критична "
-                            "(касса, доступ), добавьте в сообщение «СРОЧНО».")
-    await notify_admins(f"{urgent}❓ Пробел знаний, клуб {club_id}{who}: {text[:180]}" + NL +
-                        f"Ответить: #{str(tid)[:8]} <текст>")
+    tid8 = str(tid)[:8]
+    await max_send(user_id, "Передал вопрос инженеру поддержки. Ответ придёт сюда." + NL +
+                   f"🎫 Обращение #{tid8} зарегистрировано: {ts}.")
+    await notify_ticket(tid, f"❓ Пробел знаний, клуб {club_id}{who}" + NL +
+                        f"🎫 #{tid8} · {ts}" + NL + text[:220])
 
-async def escalate_flow(user_id: str, club_id: str, text: str, staff: str = "",
-                        intro: str | None = None):
-    """Вариант 5: нужен один нюанс; до 2 уточнений, затем передача с деталями."""
+async def escalate_flow(user_id: str, club_id: str, text: str, staff: str = ""):
+    """Просьба специалиста: до 2 уточнений, затем передача с уточнениями."""
     st = PENDING_ESCALATE.get(user_id)
     if not st or time.time() - st["t"] > ESCALATE_TIMEOUT:
         PENDING_ESCALATE[user_id] = {"t": time.time(), "attempts": 0, "orig": text, "extra": [],
                                      "club": club_id, "staff": staff}
-        if intro:
-            await max_send(user_id, intro)
-        else:
-            await max_send(user_id, f"{greet(user_id)} 🙂{NL}Соединяю со специалистом. Чтобы ответ был точным, "
-                                    "нужен один нюанс: какой раздел/экран затронут и что именно происходит? "
-                                    "Это займёт 30 секунд — зато ответ сразу по делу.")
+        await max_send(user_id, "Понял, соединяю со специалистом. Чтобы ответ был точным, уточните: "
+                                "какой раздел/экран и что именно происходит?")
         return
     st["t"] = time.time()
     st["attempts"] += 1
     if text.strip():
         st["extra"].append(text.strip())
     if st["attempts"] < 2 and len(text.strip()) < 15:
-        await max_send(user_id, "Принял. Ещё одна деталь: текст ошибки или момент, когда это началось? (можно коротко)")
+        await max_send(user_id, "Принял. Ещё деталь: что успели заметить — текст ошибки или момент, "
+                                "когда это началось? (можно коротко)")
         return
     summary = st["orig"]
     if st["extra"]:
         summary += " | Уточнения: " + "; ".join(st["extra"])
     PENDING_ESCALATE.pop(user_id, None)
-    tid = create_ticket(user_id, club_id, summary, kb_miss=False, staff=staff)
+    tid, ts = create_ticket(user_id, club_id, summary, kb_miss=False, staff=staff)
     add_message(tid, "in", summary, author=user_id)
     who = f" (сотрудник {staff})" if staff else ""
-    await max_send(user_id, f"{greet(user_id)}{NL}Передал специалисту поддержки с вашими деталями. Ответ придёт сюда.")
-    await notify_admins(f"🆘 Запрос специалиста, клуб {club_id}{who}: {summary[:220]}" + NL +
-                        f"Ответить: #{str(tid)[:8]} <текст>")
-
-NOT_HELPED_INTRO = ("Жаль, что не помогло 🙁 Соединяю со специалистом — скажите, пожалуйста: на каком шаге "
-                    "инструкции вы остановились и что именно увидели (текст ошибки, скриншот)?")
+    tid8 = str(tid)[:8]
+    await max_send(user_id, "Вопрос передал специалисту поддержки. Ответ придёт сюда." + NL +
+                   f"🎫 Обращение #{tid8} зарегистрировано: {ts}.")
+    await notify_ticket(tid, f"🆘 Запрос специалиста, клуб {club_id}{who}" + NL +
+                        f"🎫 #{tid8} · {ts}" + NL + summary[:260])
 
 async def user_message(user_id: str, text: str, payload: str = "", is_admin: bool = False):
     staff = ""
@@ -677,16 +557,12 @@ async def user_message(user_id: str, text: str, payload: str = "", is_admin: boo
         if payload:
             if await bind_club(user_id, payload, "deeplink"):
                 return
-            await max_send(user_id, compose_bad_news(user_id, "клуб по этой ссылке не опознан или лицензия не активна.",
-                        ["Откройте чат кнопкой «Поддержка разработчика» в desktop-клиенте — клуб подключится автоматически.",
-                         "Напишите нам напрямую: support@fixintel.ru (укажите название клуба)."]))
+            await max_send(user_id, "Не смог опознать клуб. Напишите нам: support@fixintel.ru.")
             return
         if text.strip().startswith("FIPRO-"):
             if await bind_club(user_id, text, "text"):
                 return
-            await max_send(user_id, compose_bad_news(user_id, "ключ не распознан или лицензия не активна.",
-                        ["Проверьте, что ключ скопирован целиком (начинается с FIPRO-).",
-                         "Если ключ верный, а лицензия просрочена — вопросы по продлению: support@fixintel.ru."]))
+            await max_send(user_id, "Ключ не распознан или лицензия не активна. Проверьте, что ключ скопирован целиком.")
             return
         if is_admin:
             # многопользовательский режим владельца: KB-ответы БЕЗ привязки клуба,
@@ -694,11 +570,8 @@ async def user_message(user_id: str, text: str, payload: str = "", is_admin: boo
             club_id = "internal"
             intent = classify(text)
             if intent == "greeting":
-                await max_send(user_id, f"{greet(user_id)}{NL}Режим владельца: спрашивайте как пользователь ПО, "
+                await max_send(user_id, "Здравствуйте! Режим владельца: спрашивайте как пользователь ПО, "
                                         "отвечайте по обращениям командами #ТОКЕН.")
-                return
-            if intent == "not_helped":
-                await escalate_flow(user_id, club_id, text, "owner", NOT_HELPED_INTRO)
                 return
             if intent == "escalate":
                 await escalate_flow(user_id, club_id, text, "owner")
@@ -707,34 +580,40 @@ async def user_message(user_id: str, text: str, payload: str = "", is_admin: boo
                 log_incident(user_id, club_id, text)
             await answer_or_forward(user_id, club_id, text, "owner")
             return
-        await max_send(user_id, compose_bad_news(user_id, "я пока не знаю, из какого вы клуба, а без этого не могу проверить лицензию.",
-                    ["Откройте этот чат кнопкой «Поддержка разработчика» в desktop-клиенте (меню «Помощь») — клуб подключится автоматически.",
-                     "Или напишите нам: support@fixintel.ru (укажите название клуба)."]))
+        await max_send(user_id, "Здравствуйте! Это поддержка FitIntel Pro. Откройте чат кнопкой «Поддержка "
+                                "разработчика» в desktop-клиенте — клуб подключится автоматически, и можно "
+                                "сразу писать вопрос.")
         return
 
     club_id = bound[0]
     intent = classify(text)
     if intent == "greeting":
-        await max_send(user_id, f"{greet(user_id)}{NL}Задавайте вопрос — настройки, права, платежи, ошибки.")
-        return
-    if intent == "not_helped":
-        await escalate_flow(user_id, club_id, text, staff, NOT_HELPED_INTRO)
+        await max_send(user_id, "Здравствуйте! Задайте вопрос — настройки, права, платежи, ошибки.")
         return
     if intent == "escalate":
         await escalate_flow(user_id, club_id, text, staff)
         return
     if intent == "frustrated":
         log_incident(user_id, club_id, text)
-        await max_send(user_id, f"{greet(user_id)}{NL}Понимаю, ситуация неприятная. Опишите парой фраз: какой экран, "
-                                "что делали, что получилось в итоге — сразу поищу решение.")
+        await max_send(user_id, "Понимаю, ситуация неприятная. Опишите парой фраз: какой экран, что делали, "
+                                "что получилось в итоге — сразу поищу решение.")
     await answer_or_forward(user_id, club_id, text, staff)
 
 # ---------- http ----------
 app = FastAPI(title="FitIntel Support Bot")
 
 @app.on_event("startup")
-def _startup():
+async def _startup():
     init_schema()
+    await renew_subscription()
+    asyncio.create_task(_renew_loop())
+    # постоянная панель-вкладки в группе поддержки (интерфейс всегда под рукой, без команд)
+    if ADMIN_CHAT_ID:
+        try:
+            await max_send_chat(ADMIN_CHAT_ID, "Панель поддержки FitIntel Pro — вкладки всегда здесь. Обновить: «панель».")
+            await max_send_chat(ADMIN_CHAT_ID, "Выберите раздел:", attachments=panel_keyboard())
+        except Exception:
+            log.exception("panel post to group failed")
 
 @app.get("/health")
 def health():
@@ -771,28 +650,48 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
     text = (body.get("text") or msg.get("text") or "").strip()
     payload = extract_payload(data, msg, body)
 
-    # имя пользователя MAX: из webhook -> кэш в БД (для обращений по имени)
-    fresh_name = extract_display_name(sender, msg, body)
-    if user_id and fresh_name:
-        try:
-            save_name(user_id, fresh_name)
-        except Exception:
-            pass
-
     # нажатие inline-кнопки (dev.max.ru): callback и message — на одном уровне Update
     cb = data.get("callback") or data.get("callback_query") or {}
     if cb:
         cb_uid = str(((cb.get("user") or {}).get("user_id")) or user_id or "")
         cb_pl = str(cb.get("payload") or "")
-        if cb_uid and cb_pl.startswith("mode:"):
+        if not cb_uid or not is_active_admin(cb_uid):
+            return {"ok": True}
+        if cb_pl.startswith("mode:"):
+            m = cb_pl.split(":", 1)[1].strip().lower()
+            if m in MODES:
+                set_mode(cb_uid, m)
+                await cb_reply(data, cb, cb_uid, mode_help(m), attachments=mode_keyboard(m))
+        elif cb_pl.startswith("reply:"):
+            tok = cb_pl.split(":", 1)[1].strip()
+            PENDING_ADMIN_REPLY[cb_uid] = {"tid8": tok, "t": time.time()}
+            aname = ((cb.get("user") or {}).get("name") or "Админ")
+            if ADMIN_CHAT_ID:
+                await max_send_chat(ADMIN_CHAT_ID, f"✉️ {aname}, жду ответ в #{tok} — напишите его сообщением в этот чат (10 минут). Отмена — «отмена».")
+            else:
+                await max_send(cb_uid, f"✉️ Жду ответ в #{tok} — напишите его следующим сообщением (10 минут).")
+        elif cb_pl.startswith("close:"):
+            tok = cb_pl.split(":", 1)[1].strip()
             with conn() as cn, cn.cursor() as cur:
-                cur.execute("SELECT 1 FROM bot_admins WHERE max_user_id=%s AND active", (cb_uid,))
-                cb_admin = cur.fetchone() is not None
-            if cb_admin:
-                m = cb_pl.split(":", 1)[1].strip().lower()
-                if m in MODES:
-                    set_mode(cb_uid, m)
-                    await max_send(cb_uid, mode_help(m), attachments=mode_keyboard(m))
+                cur.execute("UPDATE tickets SET status='closed', updated_at=now() WHERE id::text LIKE %s "
+                            "AND status IN ('new','in_progress','waiting') RETURNING user_max_id", (tok + "%",))
+                row = cur.fetchone()
+                cn.commit()
+            if row:
+                try:
+                    await max_send(row[0], "Ваше обращение закрыто. Если вопрос остался — просто напишите снова.")
+                except Exception:
+                    pass
+            await max_send_chat(ADMIN_CHAT_ID, f"✅ Обращение #{tok} закрыто") if ADMIN_CHAT_ID else await max_send(cb_uid, f"✅ Обращение #{tok} закрыто")
+        elif cb_pl.startswith("shift:on"):
+            first = mark_shift(cb_uid)
+            if first:
+                await cb_reply(data, cb, cb_uid, f"✅ Вы отметились на смене в {first}")
+            else:
+                await cb_reply(data, cb, cb_uid, "Вы уже отмечены на смене сегодня ✓")
+        elif cb_pl.startswith("panel:"):
+            sec = cb_pl.split(":", 1)[1].strip()
+            await cb_reply(data, cb, cb_uid, panel_content(sec), attachments=panel_keyboard())
         return {"ok": True}
 
     # bot_started (dev.max.ru): user_id и payload — в КОРНЕ Update: {"user": {"user_id"}, "payload"}
@@ -810,7 +709,7 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
             if payload:
                 await user_message(user_id, "", payload, _adm)
             else:
-                await max_send(user_id, f"{greet(user_id)}{NL}Поддержка FitIntel Pro. Задавайте вопрос — "
+                await max_send(user_id, "Здравствуйте! Поддержка FitIntel Pro. Задавайте вопрос — "
                                         "настройки, права, платежи, ошибки.")
         except Exception:
             log.exception("bot_started failed for %s", user_id)
@@ -820,8 +719,45 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
     with conn() as cn, cn.cursor() as cur:
         cur.execute("SELECT 1 FROM bot_admins WHERE max_user_id=%s AND active", (user_id,))
         is_admin = cur.fetchone() is not None
+    # групповой чат поддержки: только команды, никаких KB-ответов
+    rchat = str((msg.get("recipient") or {}).get("chat_id") or "")
+    if ADMIN_CHAT_ID and rchat == ADMIN_CHAT_ID:
+        if is_admin and text:
+            first_mark = mark_shift(user_id)
+            if first_mark:
+                aname = (sender.get("name") or "Админ")
+                await max_send_chat(ADMIN_CHAT_ID, f"✅ {aname} на смене с {first_mark}")
+            pend = PENDING_ADMIN_REPLY.get(user_id)
+            low_g = text.strip().lower()
+            if pend and time.time() - pend["t"] < ADMIN_REPLY_TIMEOUT:
+                tok = pend["tid8"]
+                PENDING_ADMIN_REPLY.pop(user_id, None)
+                if low_g in {"отмена", "cancel", "отменить"}:
+                    await max_send_chat(ADMIN_CHAT_ID, f"↩️ Ответ в #{tok} отменён")
+                    return {"ok": True}
+                with conn() as cn, cn.cursor() as cur:
+                    cur.execute("SELECT id, user_max_id FROM tickets WHERE id::text LIKE %s "
+                                "AND status IN ('new','in_progress','waiting') LIMIT 1", (tok + "%",))
+                    row = cur.fetchone()
+                if row:
+                    ticket_id, client_uid = row
+                    add_message(ticket_id, "out", text.strip(), author=user_id)
+                    await max_send(client_uid, text.strip())
+                    await max_send_chat(ADMIN_CHAT_ID, f"✓ Ответ в #{tok} отправлен клиенту")
+                else:
+                    await max_send_chat(ADMIN_CHAT_ID, f"⚠️ Обращение #{tok} уже закрыто")
+                return {"ok": True}
+            if low_g in {"панель", "panel", "/panel"}:
+                await max_send_chat(ADMIN_CHAT_ID, "Панель поддержки — выберите раздел:", attachments=panel_keyboard())
+                return {"ok": True}
+            await admin_command(user_id, text)
+        return {"ok": True}
     try:
         if not text and not payload:
+            return {"ok": True}
+
+        if is_admin and text.strip().lower() in {"панель", "panel", "/panel"}:
+            await max_send(user_id, "Панель поддержки — выберите раздел:", attachments=panel_keyboard())
             return {"ok": True}
 
         mode = get_mode(user_id) if is_admin else "user"
