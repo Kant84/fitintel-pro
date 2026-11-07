@@ -1,4 +1,4 @@
-"""FitIntel Support Bot — v11: «культурный» формат ответов + сценарии поддержки.
+"""FitIntel Support Bot — v12: «культурный» формат ответов + сценарии поддержки.
 
 Ответы клиенту (регламент формата, 07.11.2026):
 - Обращение по ИМЕНИ из профиля MAX (первой строкой): «<Имя>, привет! 😊»
@@ -296,10 +296,12 @@ def _stem_hit(a: str, b: str) -> bool:
         n += 1
     return n >= 4
 
-def _tok_hits(qt: set, words: set) -> int:
-    return sum(1 for t in qt if any(_stem_hit(t, w) for w in words))
+import math
 
-W_TITLE, W_KEYWORDS = 0.15, 0.10  # вес точных попаданий токенов запроса в заголовок/вариации
+def _tok_hits(qt: set, words: set, idf: dict) -> float:
+    return sum(idf.get(t, 0.0) for t in qt if any(_stem_hit(t, w) for w in words))
+
+W_RANK, W_TITLE, W_KEYWORDS = 0.4, 0.5, 0.35
 
 def kb_search(query: str):
     q = normalize(query)
@@ -308,6 +310,14 @@ def kb_search(query: str):
     tsq = to_tsquery(q)
     qt = set(q.split())
     with conn() as cn, cn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM kb_articles")
+        N = max(cur.fetchone()[0], 1)
+        # IDF: редкие слова запроса («восстановить») важнее частотных («клиент», «удалить»)
+        idf = {}
+        for t in qt:
+            cur.execute(f"SELECT count(*) FROM kb_articles WHERE {TSV} @@ to_tsquery('russian', %s)", (t,))
+            df = max(cur.fetchone()[0], 1)
+            idf[t] = math.log(N / df + 1.0)
         # normalization=1: делим на 1+log(длина документа) — убираем перекос в пользу коротких
         cur.execute(
             f"SELECT question, answer, screenshots, category, keywords, "
@@ -320,13 +330,17 @@ def kb_search(query: str):
             for question, answer, shots, cat, kws, rank in rows:
                 tw = set(normalize(question).split())
                 kw = set(normalize(kws or "").split())
-                composite = float(rank) + W_TITLE * _tok_hits(qt, tw) + W_KEYWORDS * _tok_hits(qt, kw)
+                composite = (W_RANK * float(rank)
+                             + W_TITLE * _tok_hits(qt, tw, idf)
+                             + W_KEYWORDS * _tok_hits(qt, kw, idf))
                 scored.append((composite, question, answer, shots, cat, float(rank)))
             scored.sort(key=lambda r: r[0], reverse=True)
             top = scored[0]
             second = scored[1] if len(scored) > 1 else None
-            log.info("kb rank: winner=%.4f(%.4f) second=%s", top[0], top[5],
-                     ("%.4f(%.4f)" % (second[0], second[5])) if second else "-")
+            log.info("kb rank: winner=%.4f(fts %.4f) second=%s | idf=%s",
+                     top[0], top[5],
+                     ("%.4f(fts %.4f)" % (second[0], second[5])) if second else "-",
+                     {t: round(v, 2) for t, v in sorted(idf.items(), key=lambda x: -x[1])})
             if top[5] >= KB_MIN_RANK:
                 return top[1], top[2], top[3], top[4], top[0]
         cur.execute(
