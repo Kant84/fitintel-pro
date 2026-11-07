@@ -571,6 +571,13 @@ async def _startup():
     init_schema()
     await renew_subscription()
     asyncio.create_task(_renew_loop())
+    # постоянная панель-вкладки в группе поддержки (интерфейс всегда под рукой, без команд)
+    if ADMIN_CHAT_ID:
+        try:
+            await max_send_chat(ADMIN_CHAT_ID, "Панель поддержки FitIntel Pro — вкладки всегда здесь. Обновить: «панель».")
+            await max_send_chat(ADMIN_CHAT_ID, "Выберите раздел:", attachments=panel_keyboard())
+        except Exception:
+            log.exception("panel post to group failed")
 
 @app.get("/health")
 def health():
