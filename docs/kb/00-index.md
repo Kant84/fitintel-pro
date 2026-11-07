@@ -22,7 +22,7 @@
    или support@fixintel.ru.
 6. Скриншоты: места помечены `📷 [SCR-<тема>-NN: что снято]`; файлы — docs/images/desktop/,
    в БД попадают через kb_import по SCREENSHOT_MAP.
-7. Объём: в KB **724 статей** (17 тем + 19 экранов desktop + 15 тематических серий). Лимита строк нет — главное полнота шагов.
+7. Объём: в KB **853 статей** (17 тем + 19 экранов desktop + 27 тематических серий). Лимита строк нет — главное полнота шагов.
 
 ## Карта KB
 
@@ -59,6 +59,18 @@
 | payments-extra.md | платёжные детали — ЮKassa/Т-Банк/СБП/рекурренты, сверки, авточеки | 16 |
 | clients-extra.md | карточка клиента по разделам — Все 17 разделов карточки 1.6.2 | 17 |
 | visits-extra.md | сценарии проходов и турникета — Цепочки входа/выхода, регламенты, исключения | 18 | 8 |
+| analytics-ai-extra.md | analytics-ai: глубокая аналитика | 13 |
+| reports-extra.md | desktop: 10 отчётов — чтение и применение | 12 |
+| documents-templates.md | desktop: шаблоны и документы | 10 |
+| notifications-templates.md | notifications: тексты и шаблоны сообщений | 10 |
+| tariffs-strategy.md | clients: стратегия тарифов | 8 |
+| schedule-extra.md | schedule: продвинутое расписание | 10 |
+| shop-warehouse.md | desktop: магазин и склад | 12 |
+| integration-1c.md | desktop: интеграция 1С | 12 |
+| server-incidents.md | server: аварийные сценарии и инциденты | 14 |
+| desktop-tricks.md | desktop: приёмы работы | 8 |
+| safety-security.md | safety: безопасность клуба | 10 |
+| support-bot-platform.md | support-bot: бот техподдержки | 10 |
 | desktop/main-analytics.md | ЭКРАН Главная/Аналитика (4 подвкладки) | 12 |
 | desktop/clients-screen.md | ЭКРАН Клиенты | 12 |
 | desktop/subs-tariffs.md | ЭКРАН Абонементы и Тарифы | 11 |
@@ -79,7 +91,7 @@
 | desktop/music-screen.md | ЭКРАН Музыка/DJ | 12 |
 | desktop/commerce-export-screen.md | ЭКРАН Коммерция/Экспорт/Интеграции (+Магазин/Банки/Зарплата/AI центр) | 11 |
 | desktop/install-login.md | Установка, запуск, активация, вход, профили | 16 |
-| **Итого** | | **724** |
+| **Итого** | | **853** |
 
 ## Связь с документацией
 - Полные руководства: `../ИНСТРУКЦИЯ_ПОЛЬЗОВАТЕЛЯ.md`, `../DESKTOP_GUIDE.md`.
