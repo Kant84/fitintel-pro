@@ -1,4 +1,5 @@
-"""Импорт docs/kb/*.md -> kb_articles (v3): вариации запроса, новые темы, скриншоты.
+"""Импорт docs/kb/*.md -> kb_articles (v3.1): вариации запроса, новые темы, скриншоты.
+Строки «Категория:» и «Вариации запроса:» НЕ попадают в текст ответа (только в поля).
 
 Формат статьи v3:
     ## <вопрос>
@@ -53,7 +54,8 @@ CAT = {
 SKIP = {"00-index.md", "KB_SCREENSHOT_LINKS.md", "ERRORS_AND_MAP_ADDENDUM.md"}
 ART_RE = re.compile(r"^## (.+)$", re.M)
 KW_RE  = re.compile(r"^(?:Ключевые слова|Вариации запроса):\s*(.+)$", re.M)
-META_RE = re.compile(r"^Категория:\s*.+$\n?", re.M)
+META_RE  = re.compile(r"^Категория:\s*.+$\n?", re.M)
+KWLINE_RE = re.compile(r"^(?:Вариации запроса|Ключевые слова):\s*.+$\n?", re.M)
 SCR_RE = re.compile(r"(?i)\bscr-([a-z0-9]+(?:-[a-z0-9]+)+)\b")
 
 ALIAS = {
@@ -106,6 +108,7 @@ def parse_file(path):
         kw = KW_RE.search(body)
         keywords = kw.group(1).strip() if kw else ""
         ans = META_RE.sub("", body, count=1)
+        ans = KWLINE_RE.sub("", ans, count=1)
         a = re.search(r"\*\*Ответ\.\*\*", ans)
         if a:
             ans = ans[a.end():]
