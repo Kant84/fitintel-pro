@@ -354,7 +354,7 @@ async def escalate_flow(user_id: str, club_id: str, text: str, staff: str = ""):
     await notify_admins(f"🆘 Запрос специалиста, клуб {club_id}{who}: {summary[:220]}" + NL +
                         f"Ответить: #{str(tid)[:8]} <текст>")
 
-async def user_message(user_id: str, text: str, payload: str = ""):
+async def user_message(user_id: str, text: str, payload: str = "", is_admin: bool = False):
     staff = ""
     if payload and "~" in payload:  # формат: <префикс ключа>~<login сотрудника>
         payload, staff = payload.split("~", 1)
@@ -373,6 +373,22 @@ async def user_message(user_id: str, text: str, payload: str = ""):
             if await bind_club(user_id, text, "text"):
                 return
             await max_send(user_id, "Ключ не распознан или лицензия не активна. Проверьте, что ключ скопирован целиком.")
+            return
+        if is_admin:
+            # многопользовательский режим владельца: KB-ответы БЕЗ привязки клуба,
+            # тикеты помечаются club_id='internal'
+            club_id = "internal"
+            intent = classify(text)
+            if intent == "greeting":
+                await max_send(user_id, "Здравствуйте! Режим владельца: спрашивайте как пользователь ПО, "
+                                        "отвечайте по обращениям командами #ТОКЕН.")
+                return
+            if intent == "escalate":
+                await escalate_flow(user_id, club_id, text, "owner")
+                return
+            if intent == "frustrated":
+                log_incident(user_id, club_id, text)
+            await answer_or_forward(user_id, club_id, text, "owner")
             return
         await max_send(user_id, "Здравствуйте! Это поддержка FitIntel Pro. Откройте чат кнопкой «Поддержка "
                                 "разработчика» в desktop-клиенте — клуб подключится автоматически, и можно "
@@ -442,9 +458,12 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
             return {"ok": True}
         if not payload:
             payload = str(data.get("payload") or "")
+        with conn() as cn, cn.cursor() as cur:
+            cur.execute("SELECT 1 FROM bot_admins WHERE max_user_id=%s AND active", (user_id,))
+            _adm = cur.fetchone() is not None
         try:
             if payload:
-                await user_message(user_id, "", payload)
+                await user_message(user_id, "", payload, _adm)
             else:
                 await max_send(user_id, "Здравствуйте! Поддержка FitIntel Pro. Задавайте вопрос — "
                                         "настройки, права, платежи, ошибки.")
@@ -463,7 +482,7 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
         if is_admin and text:
             if await admin_command(user_id, text):
                 return {"ok": True}
-        await user_message(user_id, text, payload)
+        await user_message(user_id, text, payload, is_admin)
     except Exception:
         log.exception("handle failed for %s", user_id)
     return {"ok": True}
