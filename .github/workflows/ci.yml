@@ -7,7 +7,7 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,7 +18,12 @@ jobs:
       - run: python -m compileall -q app scripts
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      # Только для CI: тесты используют SQLite in-memory (tests/conftest.py),
+      # но app.core.config требует эти переменные при импорте приложения.
+      SECRET_KEY: ci-test-secret-key-not-for-production
+      POSTGRES_PASSWORD: ci-test-postgres-password
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -27,7 +32,7 @@ jobs:
       - name: System deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends             gcc g++ cmake make libpq-dev libpcsclite-dev libopenblas-dev
+          sudo apt-get install -y --no-install-recommends gcc g++ cmake make libpq-dev libpcsclite-dev libopenblas-dev
       - name: Python deps
         run: |
           pip install --upgrade pip
@@ -38,7 +43,7 @@ jobs:
         run: pytest tests/ -q
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [lint, test]
     if: github.ref == 'refs/heads/main'
     steps:
