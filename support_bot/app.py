@@ -1,4 +1,4 @@
-"""FitIntel Support Bot — v14: «культурный» формат ответов + сценарии поддержки.
+"""FitIntel Support Bot — v15: «культурный» формат ответов + сценарии поддержки.
 
 Ответы клиенту (регламент формата, 07.11.2026):
 - Обращение по ИМЕНИ из профиля MAX (первой строкой): «<Имя>, привет! 😊»
@@ -364,7 +364,7 @@ def kb_search(query: str):
 def compose_answer(user_id: str, question: str, ans: str) -> str:
     """Вариант 2 (шаги) для обычных, вариант 3 (коротко+детали) для объёмных."""
     g = greet(user_id)
-    q = question.strip().rstrip(".")
+    q = question.strip().strip("«»").rstrip(".")
     if len(ans) > LONG_ANSWER_LEN:
         if "**Пошагово.**" in ans:
             short, rest = ans.split("**Пошагово.**", 1)
