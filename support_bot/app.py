@@ -41,6 +41,7 @@ ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID", "").strip()  # группово�
 WEBHOOK_URL = "https://fixintel.ru/bot/webhook"
 UPDATE_TYPES = ["message_created", "bot_started", "message_callback"]
 RENEW_EVERY = float(os.environ.get("SUBSCRIPTION_RENEW_HOURS", "6")) * 3600  # авто-восстановление подписки
+ADMIN_REPLY_TIMEOUT = float(os.environ.get("ADMIN_REPLY_TIMEOUT", "600"))  # ожидание ответа админа в группе
 
 STOP = {"как","можно","подскажите","пожалуйста","помогите","помощь","здравствуйте",
         "здравствуй","добрый","доброе","день","вечер","утро","спасибо","заранее",
@@ -362,8 +363,10 @@ def create_ticket(user_id, club_id, text, kb_miss, staff=""):
         cur.execute("INSERT INTO tickets (user_max_id, club_id, subject, status, kb_miss) "
                     "VALUES (%s,%s,%s,'new',%s) RETURNING id", (user_id, club_id, text[:120], kb_miss))
         tid = cur.fetchone()[0]
+        cur.execute("SELECT to_char(now() AT TIME ZONE 'Europe/Moscow', 'DD.MM.YYYY, HH24:MI')")
+        ts = cur.fetchone()[0]
         cn.commit()
-    return tid
+    return tid, ts
 
 def open_tickets():
     with conn() as cn, cn.cursor() as cur:
@@ -442,6 +445,7 @@ async def admin_command(admin_id: str, text: str) -> bool:
 
 # ---------- flows ----------
 PENDING_ESCALATE = {}  # user_id -> {"t": ts, "attempts": int, "orig": str, "extra": [..], "club": str, "staff": str}
+PENDING_ADMIN_REPLY = {}  # admin_uid -> {"tid8": str, "t": ts} — «Ответить» нажато, ждём текст в группе
 
 async def bind_club(user_id: str, key: str, via: str) -> bool:
     ok, slug = await check_license(key.strip())
@@ -465,12 +469,14 @@ async def answer_or_forward(user_id: str, club_id: str, text: str, staff: str = 
         await max_send(user_id, f"{ans}")
         await max_send_screenshots(user_id, list(shots or []))
         return
-    tid = create_ticket(user_id, club_id, text, kb_miss=True, staff=staff)
+    tid, ts = create_ticket(user_id, club_id, text, kb_miss=True, staff=staff)
     add_message(tid, "in", text, author=user_id)
     who = f" (сотрудник {staff})" if staff else ""
-    await max_send(user_id, "Передал вопрос инженеру поддержки. Ответ придёт сюда.")
-    await notify_ticket(tid, f"❓ Пробел знаний, клуб {club_id}{who}: {text[:180]}" + NL +
-                        f"Ответить в ЛС боту: #{str(tid)[:8]} <текст>")
+    tid8 = str(tid)[:8]
+    await max_send(user_id, "Передал вопрос инженеру поддержки. Ответ придёт сюда." + NL +
+                   f"🎫 Обращение #{tid8} зарегистрировано: {ts}.")
+    await notify_ticket(tid, f"❓ Пробел знаний, клуб {club_id}{who}" + NL +
+                        f"🎫 #{tid8} · {ts}" + NL + text[:220])
 
 async def escalate_flow(user_id: str, club_id: str, text: str, staff: str = ""):
     """Просьба специалиста: до 2 уточнений, затем передача с уточнениями."""
@@ -493,12 +499,14 @@ async def escalate_flow(user_id: str, club_id: str, text: str, staff: str = ""):
     if st["extra"]:
         summary += " | Уточнения: " + "; ".join(st["extra"])
     PENDING_ESCALATE.pop(user_id, None)
-    tid = create_ticket(user_id, club_id, summary, kb_miss=False, staff=staff)
+    tid, ts = create_ticket(user_id, club_id, summary, kb_miss=False, staff=staff)
     add_message(tid, "in", summary, author=user_id)
     who = f" (сотрудник {staff})" if staff else ""
-    await max_send(user_id, "Вопрос передал специалисту поддержки. Ответ придёт сюда.")
-    await notify_ticket(tid, f"🆘 Запрос специалиста, клуб {club_id}{who}: {summary[:220]}" + NL +
-                        f"Ответить в ЛС боту: #{str(tid)[:8]} <текст>")
+    tid8 = str(tid)[:8]
+    await max_send(user_id, "Вопрос передал специалисту поддержки. Ответ придёт сюда." + NL +
+                   f"🎫 Обращение #{tid8} зарегистрировано: {ts}.")
+    await notify_ticket(tid, f"🆘 Запрос специалиста, клуб {club_id}{who}" + NL +
+                        f"🎫 #{tid8} · {ts}" + NL + summary[:260])
 
 async def user_message(user_id: str, text: str, payload: str = "", is_admin: bool = False):
     staff = ""
@@ -613,7 +621,12 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
                 await max_send(cb_uid, mode_help(m), attachments=mode_keyboard(m))
         elif cb_pl.startswith("reply:"):
             tok = cb_pl.split(":", 1)[1].strip()
-            await max_send(cb_uid, f"✉️ Ответ в обращение #{tok}: напишите в ЛИЧНУЮ переписку с ботом:{NL}#{tok} <текст>")
+            PENDING_ADMIN_REPLY[cb_uid] = {"tid8": tok, "t": time.time()}
+            aname = ((cb.get("user") or {}).get("name") or "Админ")
+            if ADMIN_CHAT_ID:
+                await max_send_chat(ADMIN_CHAT_ID, f"✉️ {aname}, жду ответ в #{tok} — напишите его сообщением в этот чат (10 минут). Отмена — «отмена».")
+            else:
+                await max_send(cb_uid, f"✉️ Жду ответ в #{tok} — напишите его следующим сообщением (10 минут).")
         elif cb_pl.startswith("close:"):
             tok = cb_pl.split(":", 1)[1].strip()
             with conn() as cn, cn.cursor() as cur:
@@ -661,6 +674,29 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
     rchat = str((msg.get("recipient") or {}).get("chat_id") or "")
     if ADMIN_CHAT_ID and rchat == ADMIN_CHAT_ID:
         if is_admin and text:
+            pend = PENDING_ADMIN_REPLY.get(user_id)
+            low_g = text.strip().lower()
+            if pend and time.time() - pend["t"] < ADMIN_REPLY_TIMEOUT:
+                tok = pend["tid8"]
+                PENDING_ADMIN_REPLY.pop(user_id, None)
+                if low_g in {"отмена", "cancel", "отменить"}:
+                    await max_send_chat(ADMIN_CHAT_ID, f"↩️ Ответ в #{tok} отменён")
+                    return {"ok": True}
+                with conn() as cn, cn.cursor() as cur:
+                    cur.execute("SELECT id, user_max_id FROM tickets WHERE id::text LIKE %s "
+                                "AND status IN ('new','in_progress','waiting') LIMIT 1", (tok + "%",))
+                    row = cur.fetchone()
+                if row:
+                    ticket_id, client_uid = row
+                    add_message(ticket_id, "out", text.strip(), author=user_id)
+                    await max_send(client_uid, text.strip())
+                    await max_send_chat(ADMIN_CHAT_ID, f"✓ Ответ в #{tok} отправлен клиенту")
+                else:
+                    await max_send_chat(ADMIN_CHAT_ID, f"⚠️ Обращение #{tok} уже закрыто")
+                return {"ok": True}
+            if low_g in {"панель", "panel", "/panel"}:
+                await max_send_chat(ADMIN_CHAT_ID, "Панель поддержки — выберите раздел:", attachments=panel_keyboard())
+                return {"ok": True}
             await admin_command(user_id, text)
         return {"ok": True}
     try:
