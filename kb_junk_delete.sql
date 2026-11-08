@@ -1,0 +1,22 @@
+-- Мусорные статьи (сверьте с экраном!)
+DELETE FROM kb_articles WHERE source_file='analytics-ai-extra.md' AND question='CSAT: реакция на низкие оценки';
+DELETE FROM kb_articles WHERE source_file='analytics-ai.md' AND question='CSAT-оценки клиентов';
+DELETE FROM kb_articles WHERE source_file='desktop/main-analytics.md' AND question='«Клиентов в риске» — что с этим делать';
+DELETE FROM kb_articles WHERE source_file='desktop/max-messages-screen.md' AND question='Открыть чат и ответить клиенту';
+DELETE FROM kb_articles WHERE source_file='desktop/max-messages-screen.md' AND question='Рассылка: отправить сообщение группе';
+DELETE FROM kb_articles WHERE source_file='desktop/max-messages-screen.md' AND question='Через «Помощь → Чат с клиентами (MAX)»';
+DELETE FROM kb_articles WHERE source_file='desktop/notifications-screen.md' AND question='Тестовая отправка (подвкладка «Тест»)';
+DELETE FROM kb_articles WHERE source_file='desktop/settings-connections-screen.md' AND question='Тест профиля подключения';
+DELETE FROM kb_articles WHERE source_file='journals-logs.md' AND question='Журнал MAX: рассылки и чаты';
+DELETE FROM kb_articles WHERE source_file='kb_new_01.md' AND question='Как настроить автоматические уведомления клиентам и не попасть в спам: каналы, автоматика,';
+DELETE FROM kb_articles WHERE source_file='max-miniapp.md' AND question='Отзывы и оценки в мини-приложении';
+DELETE FROM kb_articles WHERE source_file='max-miniapp.md' AND question='Новости и акции в приложении';
+DELETE FROM kb_articles WHERE source_file='max-miniapp.md' AND question='Авторизация в приложении: по чему входит клиент';
+DELETE FROM kb_articles WHERE source_file='notifications-events.md' AND question='Рассылки: типы и аудитории';
+DELETE FROM kb_articles WHERE source_file='notifications-events.md' AND question='Автонапоминания 3/14 дней без визита';
+DELETE FROM kb_articles WHERE source_file='notifications-events.md' AND question='Тестовая отправка по каналам';
+DELETE FROM kb_articles WHERE source_file='notifications.md' AND question='Рассылки и «Новости» (MAX-сообщения)';
+DELETE FROM kb_articles WHERE source_file='notifications.md' AND question='Автонапоминания (3 дня и 14 дней без визита)';
+DELETE FROM kb_articles WHERE source_file='roles-day.md' AND question='Рабочий день роли «Менеджер»';
+DELETE FROM kb_articles WHERE source_file='roles-day.md' AND question='Рабочий день роли «Маркетолог»';
+DELETE FROM kb_articles WHERE source_file='users-rbac.md' AND question='Экраны ролей: почему у сотрудника нет вкладки';
