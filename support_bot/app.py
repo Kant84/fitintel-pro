@@ -658,6 +658,15 @@ def _tok_hits(qt: set, words: set, idf: dict) -> float:
 
 W_RANK, W_TITLE, W_KEYWORDS = 0.4, 0.5, 0.35
 
+def normalize(q: str) -> str:
+    q = re.sub(r"[^\w\s-]", " ", q.lower(), flags=re.UNICODE)
+    q = " ".join(q.split())
+    for _b, _g in {"турнет": "турникет", "абонемант": "абонемент", "сдлать": "сделать",
+                   "неработает": "не работает", "абонемен": "абонемент"}.items():
+        q = re.sub(r"\b" + _b + r"\b", _g, q)
+    return q
+
+
 def kb_search(query: str):
     q = normalize(query)
     if not q:
