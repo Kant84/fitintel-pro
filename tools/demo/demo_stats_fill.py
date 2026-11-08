@@ -1,4 +1,4 @@
-# tools/demo/demo_stats_fill.py  (v2, 08.11.2026)
+# tools/demo/demo_stats_fill.py  (v2.1, 08.11.2026)
 """Бэкфилл демо-статистики: визиты + платежи за последние N дней ОТ СЕГОДНЯ.
 
 Свойства:
@@ -119,6 +119,8 @@ def main():
             cid = random.choice(ids)
             try:
                 vv = dict(v); vv["status"] = "'%s'" % st
+                if xt is None:
+                    vv["updated_at"] = "now()"   # ACTIVE-визит: без exit_time, но updated_at обязателен
                 db.execute(text("INSERT INTO visits (%s) VALUES (%s)" % (", ".join(vv), ", ".join(vv.values()))),
                            {"cid": cid, "et": et, "xt": xt})
                 vi += 1
