@@ -1,4 +1,4 @@
-"""FitIntel Support Bot — v20: слияние ветвей (панель v6 + культурный формат/IDF v17).
+"""FitIntel Support Bot — v21: слияние ветвей (панель v6 + культурный формат/IDF v17).
 
 База: версия с админ-панелью (panel:*, shift_marks, групповой чат, кнопки Ответить/Закрыть,
 «Мои обращения», авто-продление подписки). Из v10–v17 перенесено: обращение по имени MAX,
@@ -361,14 +361,15 @@ def panel_content(section: str) -> str:
                  f"• грубых обращений: {inc_n}",
                  f"• пробелов базы знаний: {gap_n}",
                  "• по клубам:"] + [f"   {c}: {n}" for c, n in by_club]
-        lines += ["• по администраторам (ответов):"] + [f"   {a}: {n}" for a, n in by_admin]
-        lines += ["• смен за месяц:"] + [f"   {u}: {n}" for u, n in shifts]
+        nm = lambda u: load_name(u) or u
+        lines += ["• по администраторам (ответов):"] + [f"   {nm(a)}: {n}" for a, n in by_admin]
+        lines += ["• смен за месяц:"] + [f"   {nm(u)}: {n}" for u, n in shifts]
         return NL.join(lines)
     if section == "shift":
         rows = today_shift()
         if not rows:
             return "🕐 Сегодня никто не отметился на смене"
-        return "🕐 На смене сегодня:" + NL + NL.join(f"• {uid} — с {t}" for uid, t in rows)
+        return "🕐 На смене сегодня:" + NL + NL.join(f"• {load_name(uid) or uid} — с {t}" for uid, t in rows)
     if section == "month":
         ms = month_start_date()
         with conn() as cn, cn.cursor() as cur:
@@ -825,7 +826,7 @@ async def admin_command(admin_id: str, text: str) -> bool:
             return True
         lines = ["Статистика грубых обращений (по пользователям):"]
         for uid, club, n in rows:
-            lines.append(f"{uid} (клуб {club}): {n}")
+            lines.append(f"{load_name(uid) or uid} (клуб {club}): {n}")
         await max_send(admin_id, NL.join(lines))
         return True
     if low in LIST_CMD:
@@ -899,7 +900,8 @@ async def answer_or_forward(user_id: str, club_id: str, text: str, staff: str = 
     urgent = "СРОЧНО: " if any(w in text.lower() for w in URGENT) else ""
     await max_send(user_id, f"{greet(user_id)} 🙂{NL}По этому вопросу у меня пока нет готового ответа — "
                             "передал его инженеру поддержки, ответ придёт сюда. Если ситуация критична "
-                            "(касса, доступ), добавьте в сообщение «СРОЧНО».")
+                            "(касса, доступ), добавьте в сообщение «СРОЧНО».",
+               attachments=client_keyboard())
     await notify_ticket(tid, f"{urgent}❓ Пробел знаний, клуб {club_id}{who}:{NL}"
                              f"«{text[:400]}»{NL}Клиент: {sname or user_id} · {ts}{NL}"
                              f"Ответить: #ТОКЕН текст")
@@ -931,7 +933,8 @@ async def escalate_flow(user_id: str, club_id: str, text: str, staff: str = "",
     tid, ts = create_ticket(user_id, club_id, summary, kb_miss=False, staff=staff, sender_name=sname)
     add_message(tid, "in", summary, author=user_id)
     who = f" · сотрудник {sname or staff}" if (sname or staff) else ""
-    await max_send(user_id, f"{greet(user_id)}{NL}Передал специалисту поддержки с вашими деталями. Ответ придёт сюда.")
+    await max_send(user_id, f"{greet(user_id)}{NL}Передал специалисту поддержки с вашими деталями. Ответ придёт сюда.",
+               attachments=client_keyboard())
     await notify_ticket(tid, f"🆘 Запрос специалиста, клуб {club_id}{who}:{NL}"
                              f"«{summary[:400]}»{NL}Клиент: {sname or user_id} · {ts}{NL}"
                              f"Ответить: #ТОКЕН текст")
@@ -981,7 +984,8 @@ async def user_message(user_id: str, text: str, payload: str = "", is_admin: boo
     club_id = bound[0]
     intent = classify(text)
     if intent == "greeting":
-        await max_send(user_id, f"{greet(user_id, sname)}{NL}Задавайте вопрос — настройки, права, платежи, ошибки.")
+        await max_send(user_id, f"{greet(user_id, sname)}{NL}Задавайте вопрос — настройки, права, платежи, ошибки.",
+                       attachments=client_keyboard())
         return
     if intent == "not_helped":
         await escalate_flow(user_id, club_id, text, staff, NOT_HELPED_INTRO, sname)
