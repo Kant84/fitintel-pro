@@ -10,6 +10,7 @@
     python scripts/emulators/turnstile_offline_emulator.py --server http://192.168.101.182/api/v1 --card 04577EAA2A6180 --scenario
 """
 import argparse
+import os
 import json
 import time
 import uuid
