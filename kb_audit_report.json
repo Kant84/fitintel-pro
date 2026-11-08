@@ -3,42 +3,34 @@
   "file": "analytics-ai-extra.md",
   "question": "Каждый KPI на Главной: как читать",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "analytics-ai-extra.md",
   "question": "Модель оттока: какие признаки использует",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "analytics-ai-extra.md",
   "question": "Обучение модели: расписание и ручной запуск",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "analytics-ai-extra.md",
-  "question": "Heatmap: планирование персонала по данным",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "analytics-ai-extra.md",
   "question": "RFM: работа с каждым сегментом",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "analytics-ai-extra.md",
   "question": "CSAT: реакция на низкие оценки",
   "problems": [
-   "нет Ответа/Причины",
    "МУСОР"
   ]
  },
@@ -46,42 +38,28 @@
   "file": "analytics-ai-extra.md",
   "question": "debug-mapping: что нашла аналитика",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "analytics-ai-extra.md",
   "question": "Backfill 56 дней: что это и когда нужен",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "analytics-ai-extra.md",
-  "question": "Аналитика пустая после восстановления из бэкапа",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "analytics-ai-extra.md",
-  "question": "Сверка прогнозов с фактом: контроль качества",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "analytics-ai-extra.md",
   "question": "AI центр: три блока — что где",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "analytics-ai-extra.md",
   "question": "12 KPI аналитики за период: список и чтение",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
@@ -92,824 +70,205 @@
   ]
  },
  {
-  "file": "analytics-ai.md",
-  "question": "Отчёты AI-центра (выгрузка сегментов)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "analytics-ai.md",
-  "question": "Обучение/пересчёт аналитики вручную (для IT)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "Как открыть кассовую смену (начало дня)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "Как закрыть смену (конец дня)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "Снятие кассы (инкассация) — забрать остаток",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "Как настроить кассу (АТОЛ ДТО 10)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "Переход с тестового mock на боевую ККТ",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "Тестовый чек не пробивается на mock",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "X-отчёт без закрытия смены",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "Возврат денег клиенту с фискальным чеком",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "Где смотреть проводки по кассе",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "ОСВ, P&L и Баланс — где строить отчёты",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "Чек завис: статус «Отправляется в ОФД» долго висит",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "Смена открыта на другом ПК / «Смена уже открыта» чужим кассиром",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "Нулевой/тестовый чек на 1 ₽ — зачем и как",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "Расхождение наличных при закрытии смены",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "cash-fiscal.md",
-  "question": "Кассовые документы: ПКО и РКО",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
   "file": "clients-extra.md",
   "question": "Карточка клиента: структура 17 разделов",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "Раздел «Анкета»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "Раздел «Контакты»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "Раздел «Документы»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "Раздел «Пакеты/Услуги»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "Раздел «Замечания»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "Раздел «Согласия»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "Раздел «Аудит» карточки",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "СЧЁТ → Чеки",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "СЧЁТ → Баланс",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "СЧЁТ → Бонусы",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "СЧЁТ → Скидки",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "ПРОЧЕЕ → Сообщения",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "ПРОЧЕЕ → История",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "ПРОЧЕЕ → Блоки",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "ПРОЧЕЕ → Автомобили",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "clients-extra.md",
   "question": "ПРОЧЕЕ → Гость",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Создание нового клиента (карточка)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Поиск клиента (по телефону, имени, карте)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Продажа абонемента клиенту",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Заморозка и разморозка абонемента",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Абонемент истёк — продление",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Лимит входов исчерпан (сезонный абонемент)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Тарифы и цены: где настраиваются",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "История клиента: визиты, платежи, сообщения",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Удаление клиента и корзина (восстановление ≤30 дней)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Анонимизация клиента по 152-ФЗ (запрос на удаление данных)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Чёрный список (блокировка клиента)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Дубликаты клиентов (один человек — две карточки)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Гость клиента (сопровождающие)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Автомобили клиента (парковка)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Замечания по клиенту (внутренние пометки)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "clients-subs.md",
-  "question": "Согласия клиента (152-ФЗ, биометрия)",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "data-routines.md",
   "question": "Импорт клиентов из CSV (A&A): формат файла",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "data-routines.md",
-  "question": "Импорт: типовые ошибки и журнал",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "data-routines.md",
-  "question": "Экспорт клиентов (JSON/CSV) и применение",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "data-routines.md",
-  "question": "Перенос данных при смене сервера",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "data-routines.md",
   "question": "Корзина: сроки и ограничения",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "data-routines.md",
   "question": "Дубликаты клиентов: поиск и профилактика",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "data-routines.md",
   "question": "Анонимизация: когда обязательна",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "data-routines.md",
-  "question": "Выгрузка данных для Роскомнадзора/клиента",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "data-routines.md",
-  "question": "Резервное копирование перед опасными операциями",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "data-routines.md",
   "question": "Ручные правки в БД (предупреждение)",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "data-routines.md",
-  "question": "Синхронизация справочников после правок",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "data-routines.md",
-  "question": "История изменений как защита от «исчезнувших» данных",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "data-routines.md",
-  "question": "Очистка старых данных (архивация)",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "desktop-tricks.md",
   "question": "Горячие клавиши по экранам",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "desktop-tricks.md",
   "question": "F5 vs автообновление: когда что работает",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "desktop-tricks.md",
   "question": "Работа без мыши: быстрые сценарии",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop-tricks.md",
-  "question": "Масштаб интерфейса для слабовидящих",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "desktop-tricks.md",
   "question": "Одновременная работа нескольких операторов",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\accounting-screen.md",
-  "question": "ПКО — приходный кассовый ордер (быстрый)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\accounting-screen.md",
-  "question": "РКО — расходный кассовый ордер (быстрый)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\accounting-screen.md",
-  "question": "ОСВ — оборотно-сальдовая ведомость",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\accounting-screen.md",
-  "question": "P&L — отчёт о прибылях и убытках",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\accounting-screen.md",
-  "question": "Баланс (активы = пассивы)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\accounting-screen.md",
-  "question": "Подвкладка «📝 Проводки»",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "desktop\\accounting-screen.md",
   "question": "«🔄 1С»: экспорт номенклатуры/контрагентов (mock)",
   "problems": [
-   "нет Ответа/Причины",
    "нет тематики ПО"
-  ]
- },
- {
-  "file": "desktop\\accounting-screen.md",
-  "question": "«ОСВ: 0 счетов» / пустой отчёт",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\accounting-screen.md",
-  "question": "Сверка кассы по видам оплаты",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\bracelets-screen.md",
-  "question": "Записать браслет (MIFARE) с нуля",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\bracelets-screen.md",
-  "question": "Сбросить браслет (MIFARE, очистка)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\bracelets-screen.md",
-  "question": "«Браслет заблокирован сервером» — красный статус",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\bracelets-screen.md",
-  "question": "Привязка вручную (по UID) без считывателя",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\bracelets-screen.md",
-  "question": "«📥 Взять из буфера» (UID из буфера обмена)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\bracelets-screen.md",
-  "question": "Статус lost: браслет утерян",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\bracelets-screen.md",
-  "question": "Отвязка карты от клиента",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\bracelets-screen.md",
-  "question": "Аренда шкафчика: выдача",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\bracelets-screen.md",
-  "question": "Закрыть аренду шкафчика",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\bracelets-screen.md",
-  "question": "Открыть онлайн-замок с доски",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\bracelets-screen.md",
-  "question": "Поиск карты по UID/ФИО на экране",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\bracelets-screen.md",
-  "question": "«Карта уже записана» при программировании",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\clients-screen.md",
-  "question": "Как добавить клиента (пошагово с полями формы)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\clients-screen.md",
-  "question": "Поиск клиента на экране (фильтрация на лету)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\clients-screen.md",
-  "question": "Изменить данные клиента",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\clients-screen.md",
-  "question": "Не создаётся клиент: «Заполните обязательные поля»",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\clients-screen.md",
-  "question": "Импорт клиентов из CSV (A&A)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\clients-screen.md",
-  "question": "Экспорт клиентов (A&A JSON/CSV)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\clients-screen.md",
-  "question": "Клиент в таблице есть, но не находится поиском",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\commerce-export-screen.md",
-  "question": "Каталог товаров (Коммерция)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\commerce-export-screen.md",
-  "question": "Остатки и инвентаризация",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\commerce-export-screen.md",
-  "question": "Продажа товара с кассы",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\commerce-export-screen.md",
-  "question": "Экспорт данных (CSV/XML) с фильтрами",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\commerce-export-screen.md",
-  "question": "Интеграция 1С Fitness (CommerceML/API)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\devices-screen.md",
-  "question": "Зарегистрировать устройство (окно)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\devices-screen.md",
-  "question": "Открыть устройство (команда)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\devices-screen.md",
-  "question": "Назначить зону устройству",
-  "problems": [
-   "нет Ответа/Причины"
   ]
  },
  {
   "file": "desktop\\devices-screen.md",
   "question": "Поиск устройства (тип/имя/адрес/статус)",
   "problems": [
-   "нет Ответа/Причины",
    "нет тематики ПО"
-  ]
- },
- {
-  "file": "desktop\\devices-screen.md",
-  "question": "Устройство пропало из списка",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\faceid-screen.md",
-  "question": "Диалог «Камеры»: выбрать источник",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\faceid-screen.md",
-  "question": "Диалог «Порог»: настроить схожесть",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\faceid-screen.md",
-  "question": "Диалог «События»: журнал распознаваний",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\faceid-screen.md",
-  "question": "Диалог «Шаблоны»: добавить/переснять/удалить",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\faceid-screen.md",
-  "question": "Клиент есть в базе, но не распознаётся на турникете",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\faceid-screen.md",
-  "question": "403 при регистрации лица (biometric_consent_required)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\faceid-screen.md",
-  "question": "RTSP-камеры турникета: добавление",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\history-screen.md",
-  "question": "Журнал изменений: фильтры и загрузка",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\history-screen.md",
-  "question": "«Срок хранения…» — политика хранения журнала",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\history-screen.md",
-  "question": "Кто удалил клиента/платёж — как найти",
-  "problems": [
-   "нет Ответа/Причины"
   ]
  },
  {
   "file": "desktop\\history-screen.md",
   "question": "История не показывает нужную запись",
   "problems": [
-   "нет Ответа/Причины",
    "нет тематики ПО"
   ]
  },
@@ -925,7 +284,6 @@
   "file": "desktop\\install-login.md",
   "question": "Установка desktop (Setup v1.6.2)",
   "problems": [
-   "нет Ответа/Причины",
    "битый скрин scr-install-01-setup.png"
   ]
  },
@@ -939,165 +297,16 @@
  },
  {
   "file": "desktop\\install-login.md",
-  "question": "Проверка целостности дистрибутива (SHA-256)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\install-login.md",
-  "question": "Первый запуск после установки",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\install-login.md",
   "question": "Активация лицензии на ПК",
   "problems": [
-   "нет Ответа/Причины",
    "битый скрин scr-install-04-setup-license.png"
-  ]
- },
- {
-  "file": "desktop\\install-login.md",
-  "question": "Вход в систему (логин/пароль)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\install-login.md",
-  "question": "Забыли пароль: восстановление",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\install-login.md",
-  "question": "Смена пароля самостоятельно",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\install-login.md",
-  "question": "Обновление desktop до новой версии",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\install-login.md",
-  "question": "Профили подключений (несколько серверов/клубов)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\install-login.md",
-  "question": "Перенос настроек на другой ПК",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\install-login.md",
-  "question": "«Не запускается»: диагностика",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\install-login.md",
-  "question": "Установка на кассовое рабочее место",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\install-login.md",
-  "question": "Установка на ресепшен (без кассы)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\install-login.md",
-  "question": "Windows SmartScreen блокирует установку",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\license-wizard.md",
-  "question": "Активировать лицензию (окно «Активация»)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\license-wizard.md",
-  "question": "Переактивация после сброса/переноса сервера",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\license-wizard.md",
-  "question": "«У вас нет подписок» — лицензия и модули",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\main-analytics.md",
-  "question": "«🧮 Пересчитать историю (56 дн)» — когда нажимать",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\main-analytics.md",
-  "question": "Прогноз: построить график выручки/посещаемости",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\main-analytics.md",
-  "question": "Тепловая карта: посмотреть загрузку по часам",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\main-analytics.md",
-  "question": "AI Отток: обучить модель и обновить список риска",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\main-analytics.md",
-  "question": "«Посещений сегодня» = 0, а клиенты ходят",
-  "problems": [
-   "нет Ответа/Причины"
   ]
  },
  {
   "file": "desktop\\main-analytics.md",
   "question": "«Клиентов в риске» — что с этим делать",
   "problems": [
-   "нет Ответа/Причины",
    "МУСОР"
-  ]
- },
- {
-  "file": "desktop\\main-analytics.md",
-  "question": "Подвкладка «Прогноз» не строится: «Прогноз: …»",
-  "problems": [
-   "нет Ответа/Причины"
   ]
  },
  {
@@ -1111,58 +320,14 @@
   "file": "desktop\\max-messages-screen.md",
   "question": "Открыть чат и ответить клиенту",
   "problems": [
-   "нет Ответа/Причины",
    "МУСОР"
-  ]
- },
- {
-  "file": "desktop\\max-messages-screen.md",
-  "question": "«🔄 Синхронизировать MAX» — подтянуть новые сообщения",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\max-messages-screen.md",
-  "question": "«＋ Демо-чат» — тестовый чат",
-  "problems": [
-   "нет Ответа/Причины"
   ]
  },
  {
   "file": "desktop\\max-messages-screen.md",
   "question": "Рассылка: отправить сообщение группе",
   "problems": [
-   "нет Ответа/Причины",
    "МУСОР"
-  ]
- },
- {
-  "file": "desktop\\max-messages-screen.md",
-  "question": "Привязка MAX user_id к клиенту",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\max-messages-screen.md",
-  "question": "Напоминания: авто-подбор клиентов",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\max-messages-screen.md",
-  "question": "Журнал рассылок: статусы и повторная отправка",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\max-messages-screen.md",
-  "question": "Клиент написал боту, а чата нет в списке",
-  "problems": [
-   "нет Ответа/Причины"
   ]
  },
  {
@@ -1175,23 +340,8 @@
  },
  {
   "file": "desktop\\music-screen.md",
-  "question": "Загрузить трек в библиотеку",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\music-screen.md",
-  "question": "Загрузить папку сразу",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\music-screen.md",
   "question": "Поставить трек на деку A или B",
   "problems": [
-   "нет Ответа/Причины",
    "нет тематики ПО"
   ]
  },
@@ -1199,22 +349,7 @@
   "file": "desktop\\music-screen.md",
   "question": "Фейдер и сведение A↔B",
   "problems": [
-   "нет Ответа/Причины",
    "нет тематики ПО"
-  ]
- },
- {
-  "file": "desktop\\music-screen.md",
-  "question": "Пады Jingles (4 кнопки)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\music-screen.md",
-  "question": "MUTE ALL и экстренная тишина",
-  "problems": [
-   "нет Ответа/Причины"
   ]
  },
  {
@@ -1226,285 +361,23 @@
  },
  {
   "file": "desktop\\notifications-screen.md",
-  "question": "Настроить Email (SMTP) с экрана",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\notifications-screen.md",
-  "question": "Настроить SMS (smsc.ru)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\notifications-screen.md",
-  "question": "Настроить Web Push (VAPID)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\notifications-screen.md",
   "question": "Тестовая отправка (подвкладка «Тест»)",
   "problems": [
-   "нет Ответа/Причины",
    "МУСОР"
-  ]
- },
- {
-  "file": "desktop\\notifications-screen.md",
-  "question": "Журнал уведомлений на экране",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\notifications-screen.md",
-  "question": "Время ежедневного дайджеста",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\notifications-screen.md",
-  "question": "Дубли уведомлений клиенту",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\payments-screen.md",
-  "question": "Выбрать клиента (выпадающий список с поиском)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\payments-screen.md",
-  "question": "Провести платёж (форма «Провести платёж»)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\payments-screen.md",
-  "question": "Подтвердить платёж (фискальный чек)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\payments-screen.md",
-  "question": "Возврат платежа (форма «Возврат платежа»)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\payments-screen.md",
-  "question": "Отмена платежа (полный возврат)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\payments-screen.md",
-  "question": "Экспорт CSV платежей",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\payments-screen.md",
-  "question": "Открыть смену",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\payments-screen.md",
-  "question": "Закрыть смену (окно-отчёт)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\payments-screen.md",
-  "question": "Снятие кассы",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\payments-screen.md",
-  "question": "Настройки кассы (АТОЛ): окно и поля",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\payments-screen.md",
-  "question": "«Сумма должна быть положительным числом»",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\payments-screen.md",
-  "question": "Красное предупреждение «Смена закрыта» при создании платежа",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\reports-docs-screen.md",
-  "question": "Сформировать отчёт за период",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\reports-docs-screen.md",
-  "question": "Экспорт отчёта в CSV",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\reports-docs-screen.md",
-  "question": "Создать шаблон документа с подстановками",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\reports-docs-screen.md",
-  "question": "Сгенерировать документ клиенту",
-  "problems": [
-   "нет Ответа/Причины"
   ]
  },
  {
   "file": "desktop\\reports-docs-screen.md",
   "question": "Подписать документ и сохранить в PDF",
   "problems": [
-   "нет Ответа/Причины",
    "нет тематики ПО"
-  ]
- },
- {
-  "file": "desktop\\reports-docs-screen.md",
-  "question": "«Нет данных за период» в отчёте",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\reports-docs-screen.md",
-  "question": "Печать таблицы и «В PDF» (на экранах с таблицами)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\schedule-services-screen.md",
-  "question": "Добавить запись (окно «Новая запись»)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\schedule-services-screen.md",
-  "question": "Отменить запись",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\schedule-services-screen.md",
-  "question": "Добавить услугу (окно «Новая услуга»)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\schedule-services-screen.md",
-  "question": "Назначить/сменить тренера у услуги",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\schedule-services-screen.md",
-  "question": "Удалить услугу",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\schedule-services-screen.md",
-  "question": "Новый тренер (окно «Новый тренер»)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\schedule-services-screen.md",
-  "question": "«Не сохранено: код — причина» при услуге",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\schedule-services-screen.md",
-  "question": "Тренер не появляется в списке услуг",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\schedule-services-screen.md",
-  "question": "Записать клиента на конкретное время",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\settings-connections-screen.md",
-  "question": "Интерфейс: тема и шрифт",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\settings-connections-screen.md",
-  "question": "Подключения: добавить профиль",
-  "problems": [
-   "нет Ответа/Причины"
   ]
  },
  {
   "file": "desktop\\settings-connections-screen.md",
   "question": "Тест профиля подключения",
   "problems": [
-   "нет Ответа/Причины",
    "МУСОР"
-  ]
- },
- {
-  "file": "desktop\\settings-connections-screen.md",
-  "question": "Изменить/удалить профиль",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\settings-connections-screen.md",
-  "question": "«Подключение успешно» — а desktop не работает",
-  "problems": [
-   "нет Ответа/Причины"
   ]
  },
  {
@@ -1515,290 +388,31 @@
   ]
  },
  {
-  "file": "desktop\\subs-tariffs.md",
-  "question": "Продать абонемент (форма «Продажа абонемента»)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\subs-tariffs.md",
-  "question": "Заморозить абонемент (форма «Заморозка»)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\subs-tariffs.md",
-  "question": "Разморозить абонемент",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\subs-tariffs.md",
-  "question": "Создать тариф (форма «Новый тариф»)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\subs-tariffs.md",
-  "question": "Редактировать и удалить тариф (кнопки в строке ✎/✕)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\subs-tariffs.md",
-  "question": "Статус EXPIRED у абонемента — продление",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\users-roles-screen.md",
-  "question": "Создать пользователя (окно «Новый пользователь»)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\users-roles-screen.md",
-  "question": "Удалить пользователя (и почему superadmin нельзя)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\users-roles-screen.md",
-  "question": "Экраны ролей: отметить видимые экраны",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\users-roles-screen.md",
-  "question": "Роль не видит ни одного раздела",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\users-roles-screen.md",
-  "question": "Сброс пароля сотруднику с экрана Пользователи",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\users-roles-screen.md",
-  "question": "«Пользователь с таким email уже существует»",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\visits-screen.md",
-  "question": "Впустить клиента (форма «Впустить клиента (вход)»)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\visits-screen.md",
-  "question": "Выпустить клиента (с открытием турникета)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\visits-screen.md",
-  "question": "«Завершить» визит без открытия турникета",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\visits-screen.md",
-  "question": "«Клиент уже находится в клубе» при впуске",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\visits-screen.md",
-  "question": "Отказ при впуске: абонемент/лимит/время тарифа",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "desktop\\visits-screen.md",
-  "question": "Почему 0 визитов, а клиенты ходят",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
   "file": "documents-templates.md",
   "question": "Типы документов: что выбрать",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "documents-templates.md",
   "question": "Подстановки {client} {tariff} {days}: полный список",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "documents-templates.md",
-  "question": "Шаблон договора на абонемент: сборка",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "documents-templates.md",
   "question": "Генерация пачки документов перед продажей",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "documents-templates.md",
   "question": "Подпись документа в системе: статус и смысл",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "documents-templates.md",
-  "question": "PDF из документа: качество и хранение",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "documents-templates.md",
-  "question": "Шаблоны для сотрудников (трудовой договор)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "documents-templates.md",
-  "question": "Документ не генерируется: причины",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "documents-templates.md",
-  "question": "Акт инвентаризации как документ",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "documents-templates.md",
-  "question": "Журнал документов: поиск и фильтры",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors-extra.md",
-  "question": "Красный баннер «500»: протокол действий",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors-extra.md",
-  "question": "400 при назначении роли (roles/assign)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors-extra.md",
-  "question": "500 при расчёте зарплаты (payroll/calc)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors-extra.md",
-  "question": "«Выберите базу для подключения»",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors-extra.md",
-  "question": "401 в «Отчётах» и «Документах»",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors-extra.md",
-  "question": "«ОТКАЗ: auth» на Face ID",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors-extra.md",
-  "question": "«Запись не создана: …» в расписании",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors-extra.md",
-  "question": "«Смена уже открыта» — чужим кассиром",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors-extra.md",
-  "question": "«Нет свободных мест» при онлайн-записи",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors-extra.md",
-  "question": "«Пользователь с таким email/username уже существует»",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors.md",
-  "question": "Письмо клиенту не приходит / висит «PENDING»",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors.md",
-  "question": "Бот MAX не отвечает клиентам",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors.md",
-  "question": "QR не проходит / «Подпись недействительна»",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
@@ -1824,16 +438,8 @@
  },
  {
   "file": "errors.md",
-  "question": "Красный баннер «500» на экране",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors.md",
   "question": "400 при назначении роли (roles/assign)",
   "problems": [
-   "нет Ответа/Причины",
    "дубль: errors-extra.md"
   ]
  },
@@ -1841,7 +447,6 @@
   "file": "errors.md",
   "question": "500 при расчёте зарплаты (payroll/calc)",
   "problems": [
-   "нет Ответа/Причины",
    "дубль: errors-extra.md"
   ]
  },
@@ -1849,7 +454,6 @@
   "file": "errors.md",
   "question": "«Выберите базу для подключения»",
   "problems": [
-   "нет Ответа/Причины",
    "дубль: errors-extra.md"
   ]
  },
@@ -1861,430 +465,255 @@
   ]
  },
  {
-  "file": "errors.md",
-  "question": "401 в «Отчётах» и «Документах» (истёк токен внутри вкладки)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors.md",
-  "question": "«ОТКАЗ: auth» на Face ID/биометрии",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "errors.md",
-  "question": "Индикатор прохода не показывает ФИО",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "faceid.md",
-  "question": "Регистрация лица клиента",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "faceid.md",
-  "question": "Согласие на биометрию (152-ФЗ): подписание и отзыв",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "faceid.md",
-  "question": "«Лицо не распознаётся» на турникете",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "faceid.md",
-  "question": "«ОТКАЗ: auth» на проходе по лицу",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "faceid.md",
-  "question": "«Камера не найдена»",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "faceid.md",
-  "question": "Удаление шаблона лица",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "faceid.md",
-  "question": "Ложные срабатывания (пускает чужих)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "faceid.md",
-  "question": "Журнал распознаваний: где и что смотреть",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
   "file": "forms-sale.md",
   "question": "Продажа абонемента: окно по полям",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "forms-sale.md",
-  "question": "Продажа услуги клиенту (единичной)",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Провести платёж» — все поля",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "forms-sale.md",
-  "question": "Пополнение кошелька: окно и шаги",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Возврат платежа» — поля и правила",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "ПКО/РКО: поля ордеров",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Новый тариф» — все поля и диапазоны",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Впустить клиента» — поля",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Новая запись» расписания — поля",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Новая услуга» — поля и диапазоны",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Новый тренер» — поля",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Новый пользователь» — поля",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Зарегистрировать устройство» — поля",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Привязка вручную» (браслет)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Активация» лицензии — поля",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Срок хранения» истории — варианты",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Новый шаблон» документа — поля",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Сгенерировать» документ — поля",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Окно «Настройки кассы» — поля",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "forms-sale.md",
   "question": "Форма Email-уведомлений — все поля",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "hardware-extra.md",
-  "question": "АТОЛ ДТО 10: установка и запуск",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "hardware-extra.md",
-  "question": "ФН: ресурс, переполнение, замена",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "hardware-extra.md",
-  "question": "ОФД: выбор, договор, очередь чеков",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "hardware-extra.md",
-  "question": "Мock-касса (тестовый стенд)",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "hardware-extra.md",
   "question": "Считыватели EM-Marine vs MIFARE",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "hardware-extra.md",
   "question": "Контроллер ITC: схема подключения",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "hardware-extra.md",
-  "question": "ITCService: установка и служба",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "hardware-extra.md",
   "question": "Kerong S80F: полный цикл работы с замком",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "hardware-extra.md",
   "question": "Онлайн-замки: шлюз и доска раздевалок",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "hardware-extra.md",
-  "question": "ACR1252: подключение и драйверы",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "hardware-extra.md",
-  "question": "Камеры Face ID: требования и установка",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "hardware-extra.md",
   "question": "Сеть клуба: требования и топология",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "hardware-extra.md",
   "question": "ИБП и электропитание оборудования",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "hardware-extra.md",
-  "question": "Печать документов: принтеры и настройки",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "integration-1c.md",
   "question": "1С Fitness: варианты обмена",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "integration-1c.md",
-  "question": "Первичная настройка: пошагово",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "integration-1c.md",
-  "question": "Выгрузка номенклатуры в 1С",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "integration-1c.md",
   "question": "Выгрузка контрагентов и документов",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "integration-1c.md",
   "question": "Автообмен по расписанию",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "integration-1c.md",
-  "question": "Типовые ошибки обмена 1С",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "integration-1c.md",
   "question": "Соответствие справочников (mapping)",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "integration-1c.md",
-  "question": "Месячная выгрузка бухгалтеру: регламент",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "integration-1c.md",
   "question": "Ручная выгрузка из «Бухгалтерия → 1С (mock)» — отличие",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "integration-1c.md",
   "question": "1С не в сети: временный регламент",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "integration-1c.md",
   "question": "Контроль дублей при повторном импорте",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "integration-1c.md",
   "question": "Кто отвечает за обмен (роли)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "journals-logs.md",
   "question": "Журнал История — назначение и политика",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "journals-logs.md",
   "question": "Журнал Аудит доступа — события",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "journals-logs.md",
   "question": "Журнал уведомлений — статусы",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "journals-logs.md",
   "question": "Журнал MAX: рассылки и чаты",
   "problems": [
-   "нет Ответа/Причины",
+   "нет структуры ответа",
    "МУСОР"
   ]
  },
@@ -2292,77 +721,77 @@
   "file": "journals-logs.md",
   "question": "Журнал СКУД: отказы и проходы",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "journals-logs.md",
   "question": "Логи desktop: расположение и состав",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "journals-logs.md",
   "question": "Логи сервера: app/error/access",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "journals-logs.md",
   "question": "Журнал вендинга",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "journals-logs.md",
   "question": "Журнал платежей и webhook ЮKassa",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "journals-logs.md",
   "question": "Логи импорта (A&A, CSV)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "journals-logs.md",
   "question": "Ротация логов на сервере",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "journals-logs.md",
   "question": "Журнал бэкапов",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "journals-logs.md",
   "question": "Журнал обмена 1С",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "journals-logs.md",
   "question": "Счётчики на панелях (Входы/Выходы, Платежи)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "journals-logs.md",
   "question": "Аудит анонимизации и корзины",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
@@ -2374,44 +803,8 @@
  },
  {
   "file": "max-miniapp.md",
-  "question": "Запуск мини-приложения клиентом (первый раз)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "max-miniapp.md",
-  "question": "Онлайн-запись из мини-приложения",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "max-miniapp.md",
-  "question": "QR на вход из мини-приложения",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "max-miniapp.md",
-  "question": "Покупка в автомате кодом из приложения",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "max-miniapp.md",
-  "question": "Привязка Telegram и каналы уведомлений",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "max-miniapp.md",
   "question": "Отзывы и оценки в мини-приложении",
   "problems": [
-   "нет Ответа/Причины",
    "МУСОР"
   ]
  },
@@ -2424,163 +817,58 @@
  },
  {
   "file": "max-miniapp.md",
-  "question": "Приложение не открывается / вечная загрузка",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "max-miniapp.md",
-  "question": "QR не обновляется / показывает старый код",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "max-miniapp.md",
-  "question": "Уведомления из приложения не приходят",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "max-miniapp.md",
-  "question": "Разделы приложения: как настроить что видят клиенты",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "max-miniapp.md",
-  "question": "Рекурренты: автопродление в приложении",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "max-miniapp.md",
   "question": "Авторизация в приложении: по чему входит клиент",
   "problems": [
    "МУСОР"
   ]
  },
  {
-  "file": "max-miniapp.md",
-  "question": "Проблемы оплаты в приложении (онлайн)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "music-dj.md",
-  "question": "Запуск плеера (начало работы зала)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "music-dj.md",
-  "question": "Загрузка треков на деки (A/B)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "music-dj.md",
-  "question": "Сведение (crossfade) между деками",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "music-dj.md",
-  "question": "Эквалайзер (EQ) на каналах",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "music-dj.md",
-  "question": "Пады (звуковые кнопки)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "music-dj.md",
-  "question": "Дакинг микрофона (музыка тише при объявлении)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "music-dj.md",
-  "question": "MUTE ALL (экстренное отключение звука)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "music-dj.md",
-  "question": "«mpv не умирает» / плеер не останавливается",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "music-dj.md",
-  "question": "Диагностика тишины (чек-лист)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
   "file": "notifications-events.md",
   "question": "Событие «Оплата/пополнение» (чек и баланс)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-events.md",
   "question": "Событие «Запись/перенос»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-events.md",
   "question": "Событие «Абонемент истекает» (за N дней)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-events.md",
   "question": "Событие «Абонемент истёк»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-events.md",
   "question": "Событие «Аренда шкафчика истекает»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-events.md",
   "question": "Ежедневный дайджест на email клуба",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-events.md",
   "question": "Рассылки: типы и аудитории",
   "problems": [
-   "нет Ответа/Причины",
+   "нет структуры ответа",
    "МУСОР"
   ]
  },
@@ -2588,7 +876,7 @@
   "file": "notifications-events.md",
   "question": "Автонапоминания 3/14 дней без визита",
   "problems": [
-   "нет Ответа/Причины",
+   "нет структуры ответа",
    "МУСОР"
   ]
  },
@@ -2596,184 +884,118 @@
   "file": "notifications-events.md",
   "question": "Web Push: VAPID и подписка клиента",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-events.md",
   "question": "Telegram-уведомления клиентам",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-events.md",
   "question": "SMS: экономика и когда использовать",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "notifications-events.md",
-  "question": "Чек клиенту на email: механика",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-events.md",
   "question": "Тестовая отправка по каналам",
   "problems": [
-   "нет Ответа/Причины",
    "МУСОР"
-  ]
- },
- {
-  "file": "notifications-events.md",
-  "question": "Отложенные/запланированные рассылки",
-  "problems": [
-   "нет Ответа/Причины"
   ]
  },
  {
   "file": "notifications-events.md",
   "question": "Отписка и антиспам правила",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "notifications-events.md",
-  "question": "Журнал уведомлений как диагностический инструмент",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-templates.md",
   "question": "Переменные в текстах «Клиенту»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-templates.md",
   "question": "Готовые тексты: «Абонемент истекает»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-templates.md",
   "question": "Готовые тексты: «Абонемент истёк»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-templates.md",
   "question": "Готовые тексты: «Запись/перенос»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-templates.md",
   "question": "Готовые тексты: «Оплата/чек»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-templates.md",
   "question": "Готовые тексты: «Аренда шкафчика»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-templates.md",
   "question": "Рассылка акции: структура сообщения",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-templates.md",
   "question": "Тональность и правила коммуникации",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-templates.md",
   "question": "A/B подход для рассылок вручную",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications-templates.md",
   "question": "Автотексты: что трогать нельзя",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "notifications.md",
-  "question": "Как настроить отправку писем (SMTP)",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "notifications.md",
   "question": "Ежедневный дайджест на email клуба",
   "problems": [
-   "нет Ответа/Причины",
    "дубль: notifications-events.md"
-  ]
- },
- {
-  "file": "notifications.md",
-  "question": "Настройка SMS (SMSC.ru) и подпись отправителя",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "notifications.md",
-  "question": "Подключение бота MAX для клиентов клуба",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "notifications.md",
-  "question": "Клиентам уходят сообщения в Telegram — настройка",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "notifications.md",
-  "question": "Web Push: как включить и что нужно",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "notifications.md",
-  "question": "Чек клиенту на email после оплаты",
-  "problems": [
-   "нет Ответа/Причины"
   ]
  },
  {
   "file": "notifications.md",
   "question": "Рассылки и «Новости» (MAX-сообщения)",
   "problems": [
-   "нет Ответа/Причины",
    "МУСОР"
   ]
  },
@@ -2785,416 +1007,206 @@
   ]
  },
  {
-  "file": "notifications.md",
-  "question": "Как проверить, что уведомление реально ушло (Журнал)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "notifications.md",
-  "question": "Письма попадают в спам",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "notifications.md",
-  "question": "Уведомления приходят дважды клиенту",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "notifications.md",
-  "question": "Отложенная отправка по расписанию",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
   "file": "payments-extra.md",
   "question": "ЮKassa: механика платежа start-to-finish",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments-extra.md",
-  "question": "Т-Банк (Тинькофф): подключение",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "payments-extra.md",
   "question": "Рекурренты: жизненный цикл",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments-extra.md",
-  "question": "Сверка эквайринга: ежедневный регламент",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "payments-extra.md",
   "question": "Частичный возврат и рассрочка",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments-extra.md",
-  "question": "Платёж «Ожидает» на следующий день",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "payments-extra.md",
   "question": "Возврат на карту vs наличные: правила",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "payments-extra.md",
   "question": "Автоматическая отправка чека: условия",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "payments-extra.md",
   "question": "Двойное списание при оплате: защита и действия",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "Как провести платёж (принять оплату за абонемент)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "Пополнение кошелька (внутренний баланс) клиента",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "Оплата ЮKassa: подключение (пошагово)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "«Оплата прошла в ЮKassa, а в FitIntel платёж Ожидает»",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "Рекуррентные платежи (автосписание)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "Оплата бонусами",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "Вендинг: покупка кодом из мини-приложения",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "Вендинг: покупка браслетом (RFID)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "Регистрация автомата (X-Device-Token)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "Выгрузка платежей для бухгалтерии (1С/XML/CSV)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "Частичная оплата / платёж в рассрочку",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "История платежей клиента — где смотреть",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "Платёж ушёл в минус / корректировка баланса",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "Кнопка «Подтвердить» неактивна",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "Сверка с эквайрингом (Т-Банк/ЮKassa) в конце дня",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "payments.md",
-  "question": "Как узнать, какой банк/эквайринг сейчас активен",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "processes.md",
-  "question": "Открытие клуба утром (регламент)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "processes.md",
-  "question": "Закрытие клуба вечером",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "processes.md",
   "question": "Инкассация: регламент и безопасность",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "processes.md",
   "question": "Закрытие месяца бухгалтером",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "processes.md",
-  "question": "Расчёт и выплата зарплаты end-to-end",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "processes.md",
-  "question": "Инвентаризация склада/магазина",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "processes.md",
   "question": "Работа с должниками (заморозка/блок)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "processes.md",
   "question": "Возвратная политика клуба (шаблон процесса)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "processes.md",
   "question": "Аварийные сценарии клуба",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "processes.md",
   "question": "Онбординг нового сотрудника",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "processes.md",
   "question": "Онбординг нового клуба (внедрение)",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "processes.md",
-  "question": "Обновление версии клубом (регламент)",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "processes.md",
   "question": "Ежедневная сверка «Сейчас в зале»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "processes.md",
   "question": "Учёт браслетов (выдача/возврат/списание)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "processes.md",
   "question": "Регламент работы с персональными данными (152-ФЗ)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "processes.md",
   "question": "Регламент поддержки клиентов клуба (чаты/отзывы)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "reports-extra.md",
   "question": "Операционный свод: состав и применение",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "reports-extra.md",
   "question": "Посещаемость по дням: чтение графика",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "reports-extra.md",
   "question": "Загруженность по часам: микропланирование",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "reports-extra.md",
   "question": "Давно не посещали (30 дн.): работа со списком",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "reports-extra.md",
   "question": "Окончание абонементов (14 дн.): пайплайн продлений",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "reports-extra.md",
   "question": "Продажи и оплаты: разбор выручки",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "reports-extra.md",
   "question": "Зарплата тренеров (отчёт): чтение",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "reports-extra.md",
-  "question": "P&L: структура и типовые ошибки чтения",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "reports-extra.md",
   "question": "ОСВ: контрольные суммы и расхождения",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "reports-extra.md",
-  "question": "Баланс: «сходится/не сходится»",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "reports-extra.md",
   "question": "График работы персонала (отчёт)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "reports-extra.md",
   "question": "Экспорт любого отчёта: куда и зачем",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "roles-day.md",
   "question": "Рабочий день роли «Администратор»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "roles-day.md",
   "question": "Рабочий день роли «Менеджер»",
   "problems": [
-   "нет Ответа/Причины",
+   "нет структуры ответа",
    "МУСОР"
   ]
  },
@@ -3202,49 +1214,49 @@
   "file": "roles-day.md",
   "question": "Рабочий день роли «Кассир»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "roles-day.md",
   "question": "Рабочий день роли «Бухгалтер»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "roles-day.md",
   "question": "Рабочий день роли «Тренер»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "roles-day.md",
   "question": "Рабочий день роли «Ресепшен»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "roles-day.md",
   "question": "Рабочий день роли «Охрана/СКУД»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "roles-day.md",
   "question": "Рабочий день роли «Директор»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "roles-day.md",
   "question": "Рабочий день роли «Маркетолог»",
   "problems": [
-   "нет Ответа/Причины",
+   "нет структуры ответа",
    "МУСОР"
   ]
  },
@@ -3252,876 +1264,531 @@
   "file": "roles-day.md",
   "question": "Рабочий день роли «HR/Кадры»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "roles-day.md",
   "question": "Рабочий день роли «Платформенная поддержка»",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "roles-day.md",
   "question": "Рабочий день роли «Клиент (личный кабинет)»",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "roles-day.md",
-  "question": "Смена роли сотруднику при переводе",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "safety-security.md",
   "question": "Парольная политика клуба",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "safety-security.md",
   "question": "Доступ уволенного: чек-лист закрытия",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "safety-security.md",
   "question": "Общий ПК: правила безопасной работы",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "safety-security.md",
   "question": "Разделение доступа к деньгам (антиконфликт)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "safety-security.md",
   "question": "Фишинг и социальная инженерия для персонала",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "safety-security.md",
   "question": "Резервные копии как элемент безопасности",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "safety-security.md",
   "question": "Аудит доступа: что проверять еженедельно",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "safety-security.md",
   "question": "Инцидент утечки персональных данных",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "safety-security.md",
   "question": "Безопасность интеграций (токены, ключи)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "safety-security.md",
   "question": "Физическая безопасность серверного помещения",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-extra.md",
-  "question": "Серии занятий: создание на период",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-extra.md",
-  "question": "Замена тренера на один день",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "schedule-extra.md",
   "question": "Лист ожидания на занятие",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "schedule-extra.md",
   "question": "Расписание по залам и оборудованию",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-extra.md",
-  "question": "Отмена занятия клубом (дождь, болезнь)",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "schedule-extra.md",
   "question": "Отметка посещения по записи: порядок",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "schedule-extra.md",
   "question": "Онлайн-запись: настройка слотов и лимитов",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-extra.md",
-  "question": "Расписание тренера: его вид и редактирование",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "schedule-extra.md",
   "question": "Конфликт: два занятия одного тренера в одно время",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-extra.md",
-  "question": "Экспорт расписания для тренеров",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-services.md",
-  "question": "Создание услуги (справочник)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-services.md",
-  "question": "Создание тренера",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-services.md",
-  "question": "Построение расписания (сетка занятий)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-services.md",
-  "question": "Запись клиента на услугу (с ресепшена)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-services.md",
-  "question": "Отмена записи (клиентом и сотрудником)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-services.md",
-  "question": "«Нет свободных мест» — как добавить места",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-services.md",
-  "question": "Отметка посещения по записи (check-in)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-services.md",
-  "question": "Фото тренера и услуги (что видят клиенты)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-services.md",
-  "question": "Перенос занятия (другое время/тренер)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "schedule-services.md",
-  "question": "Отчёт по посещаемости занятий",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Структура каталога на сервере",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Состав контейнеров и их роли",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "deploy/.env: основные ключи",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Жизненный цикл: установка → работа → обновление",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "install_prod.sh — что делает скрипт",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "secure_install.sh — политика безопасности",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Бэкап PostgreSQL: автоматика и ручной",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server-admin.md",
-  "question": "Восстановление из бэкапа",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Обновление с миграциями БД",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server-admin.md",
-  "question": "Пересоздание контейнеров без пересборки",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Сборка образа и передача на клуб (nfs-схема)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Лимитер и белый список IP",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "HTTPS и сертификаты клуба",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Мониторинг: health, метрики, алерты",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server-admin.md",
-  "question": "Чистка Docker и диска",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Время и синхронизация (NTP)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Управление доступом к серверу (SSH, sudo)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Firewall: что открыто и зачем",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Контроль целостности репозитория",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Миграции БД: как применяются и как проверить",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Планировщик Celery Beat: периодические задачи",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "SSE-события (проходы в реальном времени)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Хранилище файлов: загрузки и статика",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Ключи и секреты: где лежат и ротация",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-admin.md",
   "question": "Тестовый стенд: test vs nfs",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server-admin.md",
-  "question": "Аварийный план: сервер не поднимается",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "Назначение API и базовые правила",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "Платежи: endpoints и статусы",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "Касса (cash_desk): смены, Z-отчёт, сверка",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "СКУД (skud_itconnect + access): проходы",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "Вендинг: сессии, код, confirm",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "Аналитика: метрики, прогноз, heatmap",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "Экспорты: форматы и эндпоинты",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "Уведомления (notifications): каналы и события",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "MAX-бот клуба: webhook и сценарии",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "admin_access / admin_console: помощь платформы",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "bank_online: эквайринг и webhook",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "club_params и мини-приложение (miniapp_config)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "print, documents, commercial, shop и прочие роутеры",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "recurring и рекуррентные платежи",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "video_ai / video_alerts: камеры",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "health и служебные эндпоинты",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "Ошибки API: коды и что делать",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "Версионирование и совместимость desktop↔API",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "Лимиты и безопасность API",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-api.md",
   "question": "Интеграционные токены: где используются",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server-incidents.md",
-  "question": "Портал не открывается (502/000)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server-incidents.md",
-  "question": "После обновления: цикл сбоя контейнеров",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-incidents.md",
   "question": "База раздувается/тормозит",
   "problems": [
-   "нет Ответа/Причины",
    "нет тематики ПО"
-  ]
- },
- {
-  "file": "server-incidents.md",
-  "question": "Redis отказал: что ломается",
-  "problems": [
-   "нет Ответа/Причины"
   ]
  },
  {
   "file": "server-incidents.md",
   "question": "Нет места на диске: аварийный протокол",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server-incidents.md",
-  "question": "SSL-сертификат истёк",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-incidents.md",
   "question": "Webhook'и не доходят (MAX/ЮKassa)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-incidents.md",
   "question": "Турникет отвалился вечером (диагностика)",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server-incidents.md",
-  "question": "ККТ перестала печатать чеки в смену",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server-incidents.md",
-  "question": "Производительность: API медленный (>2 сек)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server-incidents.md",
-  "question": "Утренний дайджест не пришёл",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server-incidents.md",
-  "question": "Дата/время сбиты после перезагрузки",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server-incidents.md",
-  "question": "Бэкап не создался ночью",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "server-incidents.md",
   "question": "Сервер подвергся подозрительной активности",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server.md",
-  "question": "Установка с нуля (кратко)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server.md",
-  "question": "Проверка работоспособности после установки",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server.md",
-  "question": "Обновление сервера",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server.md",
-  "question": "Место на диске заканчивается",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server.md",
-  "question": "Рестарт контейнеров (когда и как)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server.md",
-  "question": "Перенос сервера на другую машину",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "server.md",
-  "question": "Подключение нового ПК с desktop к серверу",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "settings-detail.md",
   "question": "Подвкладка «Интерфейс» — все опции",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "settings-detail.md",
   "question": "Подвкладка «Касса» в Настройках",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "settings-detail.md",
   "question": "Подвкладка «Расписание» в Настройках",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "settings-detail.md",
   "question": "Параметры клуба: ключи по группам",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "settings-detail.md",
-  "question": "Service-аккаунты: создание и применение",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "settings-detail.md",
   "question": "Аудит доступа в Настройках: фильтры",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "settings-detail.md",
   "question": "Мастер первого запуска: шаги",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "settings-detail.md",
   "question": "Профиль клуба в мастере/настройках",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "settings-detail.md",
-  "question": "Настройка онлайн-записи (мини-приложение)",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "settings-detail.md",
   "question": "Часовой пояс сервера и времена уведомлений",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "settings-detail.md",
-  "question": "Автозапуск desktop при входе Windows",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "settings-detail.md",
-  "question": "Сброс настроек desktop",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "settings-detail.md",
-  "question": "Настройка темы для проектора/ТВ (табло)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "settings-help.md",
-  "question": "Тема оформления и шрифт",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "settings-help.md",
-  "question": "Окно «О программе» и версия ПО",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "settings-help.md",
-  "question": "Табло (F11) для ресепшена/зала",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "settings-help.md",
-  "question": "Несколько профилей подключений (несколько клубов/серверов)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "settings-help.md",
-  "question": "Печать из desktop (документы, договоры)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "settings-help.md",
-  "question": "Проверка связи с сервером",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "shop-warehouse.md",
   "question": "Магазин: структура вкладки (1.6.2)",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "shop-warehouse.md",
-  "question": "Поставка товаров: приход на склад",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "shop-warehouse.md",
-  "question": "Продажа товара на кассе: пошагово",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "shop-warehouse.md",
   "question": "Штрих-коды товаров: назначение и сканирование",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "shop-warehouse.md",
   "question": "Списание и брак: документы",
   "problems": [
-   "нет Ответа/Причины",
    "нет тематики ПО"
   ]
  },
@@ -4129,35 +1796,28 @@
   "file": "shop-warehouse.md",
   "question": "Инвентаризация: пошаговый протокол",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "shop-warehouse.md",
   "question": "Отчёты магазина: выручка и маржа",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "shop-warehouse.md",
   "question": "Вендинг из магазина: связь остатков",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "shop-warehouse.md",
   "question": "Несколько точек продаж/складов",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "shop-warehouse.md",
-  "question": "Возврат товара клиентом",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
@@ -4171,490 +1831,217 @@
   "file": "shop-warehouse.md",
   "question": "Еда и напитки (бар): учёт и сроки",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "skud-hardware.md",
-  "question": "Настройка ITCService (реестр Windows)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "skud-hardware.md",
-  "question": "Проверка связи контроллера (curl checkaccess)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "skud-hardware.md",
-  "question": "Программирование Kerong S80F (мастер-карта, номер шкафчика)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "skud-hardware.md",
-  "question": "Турникет пускает всех подряд",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "skud-hardware.md",
-  "question": "Считыватель турникета не реагирует",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "support-bot-platform.md",
   "question": "Команды бота для сотрудника клуба",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "support-bot-platform.md",
   "question": "Команды администратора поддержки",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "support-bot-platform.md",
   "question": "Привязка клуба к обращению",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "support-bot-platform.md",
   "question": "Дежурства админов (support_schedule)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "support-bot-platform.md",
   "question": "SLA и регламент поддержки",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "support-bot-platform.md",
   "question": "Отличие бота поддержки от бота клуба",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "support-bot-platform.md",
   "question": "Проблемы подключения бота: чек-лист",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "support-bot-platform.md",
   "question": "Username бота (постоянный)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "support-bot-platform.md",
   "question": "Тестовый диалог с ботом: сценарий приёмки",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "support-bot-platform.md",
-  "question": "Обновление KB у бота без пересборки",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "tariffs-strategy.md",
   "question": "Типы тарифов: какой выбрать",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "tariffs-strategy.md",
   "question": "Конструктор тарифной сетки клуба",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "tariffs-strategy.md",
   "question": "Заморозки: правила в тарифе",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "tariffs-strategy.md",
   "question": "Скидки и наценки: где задаются",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "tariffs-strategy.md",
-  "question": "Акционные тарифы: создание и старт/стоп",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "tariffs-strategy.md",
   "question": "Корпоративные тарифы (юрлица)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "tariffs-strategy.md",
   "question": "Пробный тариф и конверсия в базовый",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "tariffs-strategy.md",
   "question": "Перенос остатка со старого тарифа",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "users-rbac.md",
-  "question": "Создание нового сотрудника (пользователя)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "users-rbac.md",
-  "question": "Назначение и смена роли сотруднику",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "users-rbac.md",
-  "question": "Экраны ролей: почему у сотрудника нет вкладки",
-  "problems": [
-   "МУСОР"
-  ]
- },
- {
-  "file": "users-rbac.md",
-  "question": "Сброс пароля сотруднику",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "users-rbac.md",
-  "question": "Увольнение: как закрыть доступ",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "users-rbac.md",
-  "question": "Индивидуальные права вне ролей",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "users-rbac.md",
-  "question": "Ошибка 500 при сохранении пользователя",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "users-rbac.md",
-  "question": "Аудит доступа: кто когда что менял",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "users-rbac.md",
-  "question": "График работы сотрудника",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "users-rbac.md",
-  "question": "Документы сотрудника (AES-256-GCM)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "vending.md",
-  "question": "Покупка кодом: как клиенту (пошагово)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "vending.md",
-  "question": "Покупка браслетом (RFID) у автомата",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "vending.md",
-  "question": "Как добавить автомат (X-Device-Token)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "vending.md",
-  "question": "Журнал вендинга: что где смотреть",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "vending.md",
-  "question": "Автомат не выдал товар после оплаты",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "vending.md",
-  "question": "«Отказ: недостаточно средств» на автомате",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-access.md",
-  "question": "Как впустить клиента вручную (без турникета)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-access.md",
-  "question": "Как выпустить клиента вручную",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-access.md",
-  "question": "Турникет не пускает: чек-лист за 2 минуты",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-access.md",
-  "question": "Привязка браслета к клиенту (через ACR1252)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-access.md",
-  "question": "Браслет утерян: перевыпуск",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-access.md",
-  "question": "«Считыватель не найден» при привязке",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-access.md",
-  "question": "Клиент забыл браслет дома",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-access.md",
-  "question": "Шкафчики: аренда клиенту",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-access.md",
-  "question": "Шкафчик занят, а клиент ушёл / освобождение",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-access.md",
-  "question": "Кто сейчас в зале (список и счётчики)",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-access.md",
-  "question": "Отказы на турникете: где смотреть причины",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-access.md",
-  "question": "Расхождение «Сейчас в зале» и реальности",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-access.md",
-  "question": "«Нет контакта»: считыватель не видит браслет/карту",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "visits-extra.md",
   "question": "Полный сценарий входа по браслету",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "visits-extra.md",
   "question": "Полный сценарий входа по QR",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "visits-extra.md",
   "question": "Полный сценарий входа по Face ID",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "visits-extra.md",
   "question": "Выход из клуба: механика",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "visits-extra.md",
   "question": "«Отказ» на турникете: чтение причины",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "visits-extra.md",
   "question": "Ручной впуск/выпуск: когда и как фиксировать",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-extra.md",
-  "question": "Смена тарифа доступа у браслета",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "visits-extra.md",
   "question": "Гостевой проход: регламент",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "visits-extra.md",
   "question": "Проход сотрудника: браслет/QR персонала",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "visits-extra.md",
   "question": "Детский проход (ребёнок с родителем)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "visits-extra.md",
   "question": "Турникет в ночном режиме (24/7 клубы)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "visits-extra.md",
   "question": "Зоны доступа (main/тренажёрный/бассейн)",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "visits-extra.md",
   "question": "Пропускной режим в часы пик",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "visits-extra.md",
   "question": "Статический QR клиента: выдача и отзыв",
   "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  },
  {
   "file": "visits-extra.md",
   "question": "Face ID: свет, ракурс, очки — практические советы",
   "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-extra.md",
-  "question": "«Кто в зале» для эвакуации",
-  "problems": [
-   "нет Ответа/Причины"
-  ]
- },
- {
-  "file": "visits-extra.md",
-  "question": "Корректировка времени прохода (ошибка контроллера)",
-  "problems": [
-   "нет Ответа/Причины"
+   "нет структуры ответа"
   ]
  }
 ]

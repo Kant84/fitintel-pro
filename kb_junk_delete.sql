@@ -19,4 +19,3 @@ DELETE FROM kb_articles WHERE source_file='notifications.md' AND question='Ра�
 DELETE FROM kb_articles WHERE source_file='notifications.md' AND question='Автонапоминания (3 дня и 14 дней без визита)';
 DELETE FROM kb_articles WHERE source_file='roles-day.md' AND question='Рабочий день роли «Менеджер»';
 DELETE FROM kb_articles WHERE source_file='roles-day.md' AND question='Рабочий день роли «Маркетолог»';
-DELETE FROM kb_articles WHERE source_file='users-rbac.md' AND question='Экраны ролей: почему у сотрудника нет вкладки';

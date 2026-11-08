@@ -9,7 +9,7 @@ if "JUNK_Q_RE" in src:
 else:
     anchor = 'SKIP = {"00-index.md", "KB_SCREENSHOT_LINKS.md", "TROUBLESHOOTING.md"}'
     assert src.count(anchor) == 1, "anchor SKIP не найден (импортёр менялся)"
-    rx = '(?i)тестовая|(^|[^а-я])тест([^а-я]|$)|открыть чат и ответить|как написать в макс|max сообщения|проверка связи с ботом|нашли чат по этой ссылке|запустить бота'
+    rx = '(?i)тестовая|(^|[^а-я])тест([^а-я]|$)|открыть чат и ответить|как написать в макс|max сообщения →|проверка связи с ботом|нашли чат по этой ссылке|запустить бота'
     addition = anchor + NL + "JUNK_Q_RE = _re.compile(rx)"
     src = src.replace(anchor, addition, 1)
     anchor2 = "        if ans:"

@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Патч support_bot/app.py -> v21 (улучшения бота, НЕ контент KB):
-1) авто-переимпорт KB каждые KB_REIMPORT_HOURS (default 6) + фоновая задача
-2) команда админа «переимпорт»
-3) GET /metrics — счётчики для мониторинга
-Запуск из корня репозитория: python patch_bot_v21.py
-"""
+# Патч support_bot/app.py -> v21 (fix: корректные переносы в команде «переимпорт»)
+# 1) авто-переимпорт KB каждые KB_REIMPORT_HOURS + фоновая задача
+# 2) команда админа «переимпорт»
+# 3) GET /metrics
+# Если прошлый запуск оставил app.py битым: git restore support_bot/app.py
 import py_compile
 PATH = "support_bot/app.py"
 src = open(PATH, encoding="utf-8").read()
@@ -22,7 +21,6 @@ else:
 KB_REIMPORT_EVERY = float(os.environ.get("KB_REIMPORT_HOURS", "6")) * 3600
 
 async def run_kb_import() -> int:
-    # Переимпорт docs/kb -> kb_articles (идемпотентно); возвращает число статей
     try:
         proc = await asyncio.create_subprocess_exec(
             "python", "kb_import.py", os.environ.get("KB_SOURCE_DIR", "/kb_source"),
@@ -58,10 +56,10 @@ else:
     t = text.strip()
     low = t.lower()"""
     assert src.count(anchor) == 1, "anchor admin_command не найден"
-    body = ("\n" + "    if low in {'переимпорт', 'reimport', 'обнови базу'}:"
-            "        n = await run_kb_import()" + "\n" + 
-            "        await max_send(admin_id, f'База знаний обновлена: {n} статей' if n >= 0 else 'Ошибка импорта — смотрите логи')" + "\n" + 
-            "        return True")
+    body = ("\n" + "    if low in {'переимпорт', 'reimport', 'обнови базу'}:" +
+            "\n" + "        n = await run_kb_import()" +
+            "\n" + "        await max_send(admin_id, f'База знаний обновлена: {n} статей' if n >= 0 else 'Ошибка импорта — смотрите логи')" +
+            "\n" + "        return True")
     src = src.replace(anchor, anchor + body, 1)
     changes.append("переимпорт-cmd: inserted")
 
