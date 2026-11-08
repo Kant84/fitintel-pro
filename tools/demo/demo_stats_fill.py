@@ -1,17 +1,19 @@
-# tools/demo/demo_stats_fill.py
-"""Бэкфилл демо-статистики: визиты + платежи за последние N дней.
+# tools/demo/demo_stats_fill.py  (v2, 08.11.2026)
+"""Бэкфилл демо-статистики: визиты + платежи за последние N дней ОТ СЕГОДНЯ.
 
-Даты считаются ОТ СЕГОДНЯ: перед каждым демо запускаете заново — статистика
-Главной, тепловой карты и ML никогда не «проседает» ниже шкалы.
-
-Работает ТОЛЬКО с фейковыми LT-клиентами (+7999LT%%) — реальным клиентам
-ничего не отправляется. Пометка access_device_id/notes = 'DEMO_FILL' —
-по ней чистится (--clean-first).
+Свойства:
+- даты от текущего дня (перед каждым демо просто перезапустите — статистика
+  Главной, тепловой карты и ML не "проседает");
+- ИДЕМПОТЕНТЕН: перед заливкой дня X удаляет свои же записи за день X
+  (пометка access_device_id/notes = 'DEMO_FILL'), повторные запуски безопасны;
+- работает ТОЛЬКО с фейковыми LT-клиентами (+7999LT%%) — реальным клиентам
+  ничего не отправляется;
+- платежи: CHECK-совместимые значения (RUB/INCOME/SUBSCRIPTION/COMPLETED).
 
 Запуск (внутри контейнера api):
     docker cp tools/demo/demo_stats_fill.py deploy-api-1:/tmp/fill.py
     docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml exec -T api \
-        env PYTHONPATH=/app python /tmp/fill.py --days 60 --per-day 140 --clean-first
+        env PYTHONPATH=/app python /tmp/fill.py --days 60 --per-day 140
 
 Маркер успеха: FILL_DONE visits=... payments=...
 """
@@ -40,38 +42,22 @@ def defaults(db, table):
 def sample_col(db, table, col, fallback):
     try:
         rows = db.execute(text(f"SELECT DISTINCT {col} FROM {table} WHERE {col} IS NOT NULL LIMIT 8")).all()
-        vals = [r[0] for r in rows if r[0]]
+        vals = [r[0] for r in rows if r[0] and str(r[0]) != 'DEMO']
         return random.choice(vals) if vals else fallback
     except Exception:
         return fallback
-
-def has_col(db, table, col):
-    r = db.execute(text("""SELECT 1 FROM information_schema.columns
-        WHERE table_name=:t AND column_name=:c"""), {"t": table, "c": col}).first()
-    return r is not None
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=60)
     ap.add_argument("--per-day", type=int, default=140)
     ap.add_argument("--payments-every", type=float, default=0.2, help="вероятность платежа на визит")
-    ap.add_argument("--clean-first", action="store_true", help="удалить прошлую DEMO_FILL-статистику")
     args = ap.parse_args()
 
     db = SessionLocal()
     random.seed()
     today = datetime.now().date()
     now = datetime.now()
-
-    if args.clean_first:
-        r1 = db.execute(text("DELETE FROM visits WHERE access_device_id=:m"), {"m": MARK})
-        if has_col(db, "payments", "notes"):
-            r2 = db.execute(text("DELETE FROM payments WHERE notes=:m"), {"m": MARK})
-        else:
-            r2_row = db.execute(text("SELECT 0")).first()
-            print("payments.notes отсутствует — старые DEMO-платежи не чистим")
-        db.commit()
-        print("CLEAN_DONE visits_deleted=%s" % (r1.rowcount or 0))
 
     # LT-клиенты с активным абонементом
     clients = db.execute(text("""
@@ -86,24 +72,35 @@ def main():
 
     method  = sample_col(db, "visits",  "access_method", "MANUAL")
     status  = sample_col(db, "visits",  "status", "COMPLETED")
+    zone    = sample_col(db, "visits",  "zone", "GYM")
     pmethod = sample_col(db, "payments", "payment_method", "CARD")
-    pstatus = sample_col(db, "payments", "status", "COMPLETED")
 
     v = defaults(db, "visits")
     v.update({"id": "gen_random_uuid()", "client_id": ":cid", "entry_time": ":et", "exit_time": ":xt",
               "status": "'%s'" % status, "access_granted": "true",
-              "access_method": "'%s'" % method, "zone": "'GYM'",
+              "access_method": "'%s'" % method, "zone": "'%s'" % zone,
               "access_device_id": "'%s'" % MARK, "created_at": ":et", "updated_at": ":xt"})
     if "notes" in v: v["notes"] = "'%s'" % MARK
 
+    # CHECK-совместимые значения (см. app/models/payment.py)
     p = defaults(db, "payments")
     p.update({"id": "gen_random_uuid()", "client_id": ":cid", "amount": ":amt",
-              "status": "'%s'" % pstatus, "payment_method": "'%s'" % pmethod, "created_at": ":et"})
+              "currency": "'RUB'", "payment_method": "'%s'" % pmethod,
+              "payment_direction": "'INCOME'", "payment_category": "'SUBSCRIPTION'",
+              "status": "'COMPLETED'", "paid_at": ":et", "created_at": ":et"})
     if "notes" in p: p["notes"] = "'%s'" % MARK
+    p.pop("external_payment_id", None)   # пусть будет NULL, а не 'DEMO'
 
-    vi = pi = 0
+    vi = pi = perr = 0
     for d in range(args.days, 0, -1):
-        day = today - timedelta(days=d)
+        day = today - timedelta(days=d - 1)          # v2: d=1 = СЕГОДНЯ
+        # идемпотентность: чистим свой же день
+        db.execute(text("DELETE FROM visits WHERE access_device_id=:m AND entry_time::date=:d"),
+                   {"m": MARK, "d": day})
+        db.execute(text("DELETE FROM payments WHERE notes=:m AND created_at::date=:d"),
+                   {"m": MARK, "d": day})
+        db.commit()
+
         dow = day.weekday()
         n = int(args.per_day * (1.3 if dow >= 5 else 1.0))
         for _ in range(n):
@@ -116,7 +113,7 @@ def main():
             dur = random.randint(35, 130)
             xt = et + timedelta(minutes=dur)
             st = status
-            if xt > now:           # сегодня ещё в клубе: без выхода, статус ACTIVE
+            if xt > now:           # ещё в клубе: без выхода, статус ACTIVE
                 xt = None
                 st = "ACTIVE"
             cid = random.choice(ids)
@@ -127,14 +124,20 @@ def main():
                 vi += 1
                 if random.random() < args.payments_every:
                     amt = round(random.choice([1500, 1900, 2400, 2900, 3400, 4200]) * random.uniform(0.9, 1.1), 2)
-                    db.execute(text("INSERT INTO payments (%s) VALUES (%s)" % (", ".join(p), ", ".join(p.values()))),
-                               {"cid": cid, "amt": amt, "et": et})
-                    pi += 1
+                    try:
+                        db.execute(text("INSERT INTO payments (%s) VALUES (%s)" % (", ".join(p), ", ".join(p.values()))),
+                                   {"cid": cid, "amt": amt, "et": et})
+                        pi += 1
+                    except Exception as e:
+                        perr += 1
+                        if perr <= 3:
+                            print("PAY_WARN:", str(e)[:200], flush=True)
                 db.commit()
             except Exception as e:
                 db.rollback()
+                print("VISIT_WARN:", str(e)[:200], flush=True)
         print("day %s: visits=%d payments=%d" % (day, vi, pi), flush=True)
-    print("FILL_DONE visits=%d payments=%d" % (vi, pi))
+    print("FILL_DONE visits=%d payments=%d pay_errors=%d" % (vi, pi, perr))
 
 if __name__ == "__main__":
     main()
