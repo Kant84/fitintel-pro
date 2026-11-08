@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# Патч support_bot/app.py -> v26:
-# normalize со словарём опечаток; kb_search: FTS + fuzzy(явный порог 0.10, без GUC) + word-level, всегда вместе.
 import re, py_compile
 PATH = "support_bot/app.py"
 src = open(PATH, encoding="utf-8").read()
@@ -47,8 +45,8 @@ NEW_SEARCH = """def kb_search(query: str):
     return None
 """
 
-assert len(re.findall(r"def normalize\(q: str\) -> str:", src)) == 1, "normalize not found"
-assert len(re.findall(r"def kb_search\(query: str\):", src)) == 1, "kb_search not found"
+assert len(re.findall(r"def normalize\(q: str\) -> str:", src)) == 1
+assert len(re.findall(r"def kb_search\(query: str\):", src)) == 1
 src = re.sub(r"def normalize\(q: str\) -> str:.*?(?=\ndef )", lambda m: NEW_NORM + "\n", src, count=1, flags=re.S)
 src = re.sub(r"def kb_search\(query: str\):.*?(?=\n(?:def |@app|# -{3,}))", lambda m: NEW_SEARCH + "\n", src, count=1, flags=re.S)
 print("normalize+kb_search: replaced")
