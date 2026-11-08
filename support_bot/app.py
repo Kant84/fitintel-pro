@@ -85,9 +85,11 @@ def has_domain(text: str) -> bool:
 
 def normalize(q: str) -> str:
     q = re.sub(r"[^\w\s-]", " ", q.lower(), flags=re.UNICODE)
-    for _b, _g in {"турнет": "турникет", "абонемант": "абонемент", "сдлать": "сделать", "неработает": "не работает", "абонемен": "абонемент", "вернуть": "возврат"}.items():
+    q = " ".join(q.split())
+    for _b, _g in {"турнет": "турникет", "абонемант": "абонемент", "сдлать": "сделать",
+                   "неработает": "не работает", "абонемен": "абонемент"}.items():
         q = re.sub(r"\b" + _b + r"\b", _g, q)
-    return " ".join(q.split())
+    return q
 
 
 def to_tsquery(q: str) -> str:
@@ -664,34 +666,30 @@ def kb_search(query: str):
         return None
     with conn() as cn, cn.cursor() as cur:
         cur.execute(
-            "SELECT question, answer, screenshots, "
-            "ts_rank(to_tsvector('russian', question), plainto_tsquery('russian', %s)) * 2.0 + "
-            "ts_rank(to_tsvector('russian', coalesce(keywords,'')), plainto_tsquery('russian', %s)) * 1.5 "
-            "FROM kb_articles "
-            "WHERE to_tsvector('russian', question || ' ' || coalesce(keywords,'')) @@ plainto_tsquery('russian', %s) "
-            "ORDER BY 4 DESC LIMIT 1", (q, q, q))
+            "SELECT question, answer, screenshots, s FROM ("
+            " SELECT question, answer, screenshots,"
+            "  (ts_rank(to_tsvector('russian', question), plainto_tsquery('russian', %(q)s)) * 2.0"
+            "  + ts_rank(to_tsvector('russian', coalesce(keywords,'')), plainto_tsquery('russian', %(q)s)) * 1.5) * 10 AS s"
+            " FROM kb_articles"
+            " WHERE to_tsvector('russian', question || ' ' || coalesce(keywords,'')) @@ plainto_tsquery('russian', %(q)s)"
+            " UNION ALL"
+            " SELECT question, answer, screenshots,"
+            "  GREATEST(similarity(question, %(raw)s), similarity(coalesce(keywords,''), %(raw)s))"
+            " FROM kb_articles"
+            " WHERE question %% %(raw)s OR coalesce(keywords,'') %% %(raw)s"
+            " UNION ALL"
+            " SELECT question, answer, screenshots,"
+            "  (SELECT GREATEST(max(word_similarity(question, w)), max(word_similarity(coalesce(keywords,''), w)))"
+            "   FROM unnest(string_to_array(lower(%(q)s),' ')) w WHERE char_length(w) >= 4) AS s"
+            " FROM kb_articles"
+            " WHERE EXISTS (SELECT 1 FROM unnest(string_to_array(lower(%(q)s),' ')) w"
+            "               WHERE char_length(w) >= 4 AND (word_similarity(question, w) >= 0.25"
+            "                    OR word_similarity(coalesce(keywords,''), w) >= 0.25))"
+            ") t ORDER BY s DESC LIMIT 1",
+            {"q": q, "raw": query})
         row = cur.fetchone()
-        if row and float(row[3]) >= 0.005:
+        if row and float(row[3]) >= 0.10:
             return row[0], row[1], row[2], float(row[3])
-        cur.execute(
-            "SELECT question, answer, screenshots, "
-            "GREATEST(similarity(question, %s), similarity(coalesce(keywords,''), %s)) "
-            "FROM kb_articles WHERE question %% %s OR coalesce(keywords,'') %% %s ORDER BY 4 DESC LIMIT 1",
-            (query, query, query, query))
-        row = cur.fetchone()
-        if row and float(row[3]) >= 0.15:
-            return row[0], row[1], row[2], float(row[3])
-        words = [w for w in q.split() if len(w) >= 4][:6]
-        if words:
-            cur.execute(
-                "SELECT question, answer, screenshots, 0.0 FROM kb_articles "
-                "WHERE EXISTS (SELECT 1 FROM unnest(string_to_array(%s,' ')) w "
-                "              WHERE char_length(w) >= 4 AND (word_similarity(question, w) >= 0.4 "
-                "                   OR word_similarity(coalesce(keywords,''), w) >= 0.4)) "
-                "ORDER BY question LIMIT 1", (q,))
-            row = cur.fetchone()
-            if row:
-                return row[0], row[1], row[2], 0.15
     return None
 
 
