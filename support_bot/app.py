@@ -1,4 +1,4 @@
-"""FitIntel Support Bot — v21: слияние ветвей (панель v6 + культурный формат/IDF v17).
+"""FitIntel Support Bot — v22: слияние ветвей (панель v6 + культурный формат/IDF v17).
 
 База: версия с админ-панелью (panel:*, shift_marks, групповой чат, кнопки Ответить/Закрыть,
 «Мои обращения», авто-продление подписки). Из v10–v17 перенесено: обращение по имени MAX,
@@ -814,7 +814,10 @@ async def admin_command(admin_id: str, text: str) -> bool:
                               "payload": {"token": token, "filename": "kb_gaps.csv"}}])
         except Exception as e:
             log.warning("kb_gaps upload failed: %s", e)
-            await max_send(admin_id, f"Пробелов знаний: {len(rows)}. Файл не отправился ({e}) — смотрите логи.")
+            lines = [f"Пробелов знаний: {len(rows)}. Файл не отправился — вот список:"]
+            for i, (created, club, subj, st) in enumerate(rows[:30], 1):
+                lines.append(f"{i}. [{club}] {subj}")
+            await max_send(admin_id, NL.join(lines)[:3900])
         return True
     if low in STAT_CMD:
         with conn() as cn, cn.cursor() as cur:
@@ -982,6 +985,9 @@ async def user_message(user_id: str, text: str, payload: str = "", is_admin: boo
         return
 
     club_id = bound[0]
+    if text.strip().lower() in {"мои обращения", "мои тикеты", "мои заявки"}:
+        await max_send(user_id, my_tickets_text(user_id), attachments=client_keyboard())
+        return
     intent = classify(text)
     if intent == "greeting":
         await max_send(user_id, f"{greet(user_id, sname)}{NL}Задавайте вопрос — настройки, права, платежи, ошибки.",
@@ -1144,8 +1150,19 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
                 await max_send_chat(ADMIN_CHAT_ID, "Панель поддержки FitIntel Pro — вкладки всегда здесь. Обновить: «панель».",
                                     attachments=panel_keyboard())
                 return {"ok": True}
-            if text.strip().lower() in {"месяц", "период"}:
+            if text.strip().lower() in {"период"}:
                 await max_send_chat(ADMIN_CHAT_ID, panel_content("month"))
+                return {"ok": True}
+            if text.strip().lower().startswith("месяц"):
+                parts = text.split()
+                if len(parts) == 1:
+                    await max_send_chat(ADMIN_CHAT_ID, f"Начало расчётного месяца: {get_setting('stats_month_start', '1')}-е число. Сменить (владелец): «месяц 5».")
+                    return {"ok": True}
+                if get_role(user_id) == "superadmin" and parts[1].isdigit() and 1 <= int(parts[1]) <= 28:
+                    set_setting("stats_month_start", parts[1])
+                    await max_send_chat(ADMIN_CHAT_ID, f"✅ Расчётный месяц начинается {parts[1]}-го числа.")
+                else:
+                    await max_send_chat(ADMIN_CHAT_ID, "Не изменено: нужна роль владельца и число 1–28.")
                 return {"ok": True}
             if text:
                 first = mark_shift(user_id)
@@ -1179,18 +1196,6 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
         mode = get_mode(user_id) if is_admin else "user"
         if is_admin and text.strip().lower() in MODE_CMD:
             await max_send(user_id, mode_help(mode), attachments=mode_keyboard(mode))
-            return {"ok": True}
-        if is_admin and text.strip().lower().startswith("месяц"):
-            parts = text.split()
-            if len(parts) == 1:
-                await max_send(user_id, f"Начало расчётного месяца: {get_setting('stats_month_start', '1')}-е число. "
-                                        "Сменить (владелец): «месяц 5».")
-                return {"ok": True}
-            if get_role(user_id) == "superadmin" and parts[1].isdigit() and 1 <= int(parts[1]) <= 28:
-                set_setting("stats_month_start", parts[1])
-                await max_send(user_id, f"✅ Расчётный месяц начинается {parts[1]}-го числа.")
-            else:
-                await max_send(user_id, "Не изменено: нужна роль владельца и число 1–28.")
             return {"ok": True}
         if is_admin and text and mode != "user":
             if await admin_command(user_id, text):
