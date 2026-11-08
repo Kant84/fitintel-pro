@@ -676,7 +676,7 @@ def kb_search(query: str):
             " SELECT question, answer, screenshots,"
             "  GREATEST(similarity(question, %(raw)s), similarity(coalesce(keywords,''), %(raw)s))"
             " FROM kb_articles"
-            " WHERE question %% %(raw)s OR coalesce(keywords,'') %% %(raw)s"
+            " WHERE similarity(question, %(raw)s) >= 0.10 OR similarity(coalesce(keywords,''), %(raw)s) >= 0.10"
             " UNION ALL"
             " SELECT question, answer, screenshots,"
             "  (SELECT GREATEST(max(word_similarity(question, w)), max(word_similarity(coalesce(keywords,''), w)))"
