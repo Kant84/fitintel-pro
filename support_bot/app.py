@@ -75,7 +75,7 @@ def offtopic_hit(text: str) -> bool:
     if any(p in t for p in OFFTOPIC_PHRASES):
         return True
     singles = sum(1 for w in OFFTOPIC_SINGLE if w in t)
-    return singles >= 2
+    return singles >= 2 and not any(f in t for f in FRUSTRATED)
 
 DOMAIN = {"клиент","абонемент","платёж","платеж","оплат","касс","ккт","чек","турникет","браслет","вход","визит","расписан","услуг","тренер","пользовател","роль","прав","лиценз","desktop","программ","сервер","настройк","уведомлен","email","смс","max","вендинг","автомат","магазин","склад","зарплат","отчёт","отчет","face","музык","шкафчик","rfid","скуд","ошибк","обновлен","установк","qr","замер","фискальн","атол","банк","юкасса","лог","доступ","парол","баланс","кошелёк","бонус","скидк","замороз","списан","возврат","продл","тариф","сообщен","чат","аналит","kpi","api","синхрон","бэкап","резервн","регистрац","токен","рассылк","инструкц","гид","экспорт","excel","pdf","1с","интеграц","лимит","зал","счётчик","счетчик","кто","двойн","индикатор","сохранени","подключен","профил","печать","шаблон"}
 
@@ -85,6 +85,8 @@ def has_domain(text: str) -> bool:
 
 def normalize(q: str) -> str:
     q = re.sub(r"[^\w\s-]", " ", q.lower(), flags=re.UNICODE)
+    for _b, _g in {"турнет": "турникет", "абонемант": "абонемент", "сдлать": "сделать", "неработает": "не работает", "абонемен": "абонемент", "вернуть": "возврат"}.items():
+        q = re.sub(r"\b" + _b + r"\b", _g, q)
     return " ".join(q.split())
 
 
@@ -669,7 +671,7 @@ def kb_search(query: str):
             "WHERE to_tsvector('russian', question || ' ' || coalesce(keywords,'')) @@ plainto_tsquery('russian', %s) "
             "ORDER BY 4 DESC LIMIT 1", (q, q, q))
         row = cur.fetchone()
-        if row and float(row[3]) >= 0.01:
+        if row and float(row[3]) >= 0.005:
             return row[0], row[1], row[2], float(row[3])
         cur.execute(
             "SELECT question, answer, screenshots, "
@@ -684,8 +686,8 @@ def kb_search(query: str):
             cur.execute(
                 "SELECT question, answer, screenshots, 0.0 FROM kb_articles "
                 "WHERE EXISTS (SELECT 1 FROM unnest(string_to_array(%s,' ')) w "
-                "              WHERE char_length(w) >= 4 AND (word_similarity(question, w) >= 0.55 "
-                "                   OR word_similarity(coalesce(keywords,''), w) >= 0.55)) "
+                "              WHERE char_length(w) >= 4 AND (word_similarity(question, w) >= 0.4 "
+                "                   OR word_similarity(coalesce(keywords,''), w) >= 0.4)) "
                 "ORDER BY question LIMIT 1", (q,))
             row = cur.fetchone()
             if row:
