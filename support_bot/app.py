@@ -1,4 +1,4 @@
-"""FitIntel Support Bot — v23: слияние ветвей (панель v6 + культурный формат/IDF v17).
+"""FitIntel Support Bot — v24: слияние ветвей (панель v6 + культурный формат/IDF v17).
 
 База: версия с админ-панелью (panel:*, shift_marks, групповой чат, кнопки Ответить/Закрыть,
 «Мои обращения», авто-продление подписки). Из v10–v17 перенесено: обращение по имени MAX,
@@ -765,6 +765,13 @@ STAT_CMD = {"статистика","/stats","стат"}
 GAP_CMD = {"пробелы","выгрузка пробелов","kb_miss","пробелы знаний"}
 CLOSE_RE = re.compile(r"^(?:закрыть|close|/close)\s+#?([0-9A-Za-z]{4,16})$")
 
+async def _reply(admin_id: str, text: str, attachments: list | None = None):
+    """Ответ на админ-команду: в групповой чат поддержки (если задан), иначе в DM."""
+    if ADMIN_CHAT_ID:
+        await max_send_chat(ADMIN_CHAT_ID, text, attachments=attachments)
+    else:
+        await _reply(admin_id, text, attachments=attachments)
+
 async def close_ticket_by_token(tok: str, by_admin: str) -> str:
     with conn() as cn, cn.cursor() as cur:
         cur.execute("UPDATE tickets SET status='closed', updated_at=now() WHERE id::text LIKE %s "
@@ -788,7 +795,7 @@ async def admin_command(admin_id: str, text: str) -> bool:
         if ADMIN_CHAT_ID:
             await max_send_chat(ADMIN_CHAT_ID, res)
         else:
-            await max_send(admin_id, res)
+            await _reply(admin_id, res)
         return True
     if low in GAP_CMD:
         with conn() as cn, cn.cursor() as cur:
@@ -796,7 +803,7 @@ async def admin_command(admin_id: str, text: str) -> bool:
                         "WHERE kb_miss ORDER BY created_at DESC LIMIT 500")
             rows = cur.fetchall()
         if not rows:
-            await max_send(admin_id, "Пробелов знаний нет — бот отвечает на все вопросы ✓")
+            await _reply(admin_id, "Пробелов знаний нет — бот отвечает на все вопросы ✓")
             return True
         def csvq(s):
             s = str(s).replace('"', '""').replace("\n", " ").replace("\r", " ")
@@ -808,7 +815,7 @@ async def admin_command(admin_id: str, text: str) -> bool:
         data = ("\ufeff" + NL.join(lines)).encode("utf-8")
         try:
             token = await max_upload_file("kb_gaps.csv", data)
-            await max_send(admin_id,
+            await _reply(admin_id,
                 f"Выгрузка пробелов знаний: {len(rows)} вопросов. Колонки: дата;клуб;вопрос;статус.",
                 attachments=[{"type": "file",
                               "payload": {"token": token, "filename": "kb_gaps.csv"}}])
@@ -817,7 +824,7 @@ async def admin_command(admin_id: str, text: str) -> bool:
             lines = [f"Пробелов знаний: {len(rows)}. Файл не отправился — вот список:"]
             for i, (created, club, subj, st) in enumerate(rows[:30], 1):
                 lines.append(f"{i}. [{club}] {subj}")
-            await max_send(admin_id, NL.join(lines)[:3900])
+            await _reply(admin_id, NL.join(lines)[:3900])
         return True
     if low in STAT_CMD:
         with conn() as cn, cn.cursor() as cur:
@@ -825,22 +832,22 @@ async def admin_command(admin_id: str, text: str) -> bool:
                         "GROUP BY 1,2 ORDER BY 3 DESC LIMIT 10")
             rows = cur.fetchall()
         if not rows:
-            await max_send(admin_id, "Грубых обращений не зафиксировано ✓")
+            await _reply(admin_id, "Грубых обращений не зафиксировано ✓")
             return True
         lines = ["Статистика грубых обращений (по пользователям):"]
         for uid, club, n in rows:
             lines.append(f"{load_name(uid) or uid} (клуб {club}): {n}")
-        await max_send(admin_id, NL.join(lines))
+        await _reply(admin_id, NL.join(lines))
         return True
     if low in LIST_CMD:
         rows = open_tickets()
         if not rows:
-            await max_send(admin_id, "Открытых обращений нет ✓")
+            await _reply(admin_id, "Открытых обращений нет ✓")
             return True
         lines = ["Открытые обращения (ответ: #ТОКЕН текст):"]
         for tid, club, subj, st in rows:
             lines.append(f"#{str(tid)[:8]} [{st}] {club}: {subj[:60]}")
-        await max_send(admin_id, NL.join(lines))
+        await _reply(admin_id, NL.join(lines))
         return True
     m = ADMIN_REPLY_RE.match(text)
     if not m:
@@ -853,12 +860,12 @@ async def admin_command(admin_id: str, text: str) -> bool:
                     "AND status IN ('new','in_progress','waiting') LIMIT 1", (tok + "%",))
         row = cur.fetchone()
     if not row:
-        await max_send(admin_id, f"Обращение #{tok} не найдено среди открытых. Команда «обращения» — список.")
+        await _reply(admin_id, f"Обращение #{tok} не найдено среди открытых. Команда «обращения» — список.")
         return True
     ticket_id, user_id = row
     add_message(ticket_id, "out", body, author=admin_id)
     await max_send(user_id, body)
-    await max_send(admin_id, f"✓ Ответ ушёл в обращение #{str(ticket_id)[:8]} (открыто — закрыть: «закрыть #{str(ticket_id)[:8]}»)")
+    await _reply(admin_id, f"✓ Ответ ушёл в обращение #{str(ticket_id)[:8]} (открыто — закрыть: «закрыть #{str(ticket_id)[:8]}»)")
     return True
 
 # ---------- flows ----------
