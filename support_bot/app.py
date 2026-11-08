@@ -82,6 +82,19 @@ def offtopic_hit(text: str) -> bool:
     singles = sum(1 for w in OFFTOPIC_SINGLE if w in t)
     return singles >= 2
 
+DOMAIN = {"клиент","абонемент","платёж","платеж","оплат","касс","ккт","чек","турникет","браслет",
+          "вход","визит","расписан","услуг","тренер","пользовател","роль","прав","лиценз","desktop",
+          "программ","сервер","настройк","уведомлен","email","смс","max","вендинг","автомат","магазин",
+          "склад","зарплат","отчёт","отчет","face","музык","шкафчик","rfid","скуд","ошибк","обновлен",
+          "установк","qr","замер","фискальн","атол","эквайринг","банк","юкасса","скриншот","лог","доступ",
+          "парол","сайт","баланс","кошелёк","бонус","скидк","замороз","списан","возврат","продл","тариф",
+          "сообщен","чат","выйти","список","карточк","анкет","документ","фото","камер","датчик",
+          "токен","api","синхрон","резервн","бэкап","оборудован","считыват","пропуск","онлайн","офлайн"}
+
+def has_domain(text: str) -> bool:
+    t = text.lower()
+    return any(w in t for w in DOMAIN)
+
 def normalize(q: str) -> str:
     q = re.sub(r"[^\w\s-]", " ", q.lower(), flags=re.UNICODE).replace("-", " ")
     return " ".join(w for w in q.split() if w not in STOP and len(w) >= 3)
@@ -869,6 +882,10 @@ async def answer_or_forward(user_id: str, club_id: str, text: str, staff: str = 
         log.info("offtopic refused: %.80s", text)
         await max_send(user_id, f"{greet(user_id)}{NL}{OFFTOPIC_REPLY}")
         return
+    if not has_domain(text):
+        log.info("no-domain refused: %.80s", text)
+        await max_send(user_id, f"{greet(user_id)}{NL}{OFFTOPIC_REPLY}")
+        return
     hit = kb_search(text)
     if hit:
         q, ans, shots, score = hit
@@ -1158,6 +1175,18 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
         mode = get_mode(user_id) if is_admin else "user"
         if is_admin and text.strip().lower() in MODE_CMD:
             await max_send(user_id, mode_help(mode), attachments=mode_keyboard(mode))
+            return {"ok": True}
+        if is_admin and text.strip().lower().startswith("месяц"):
+            parts = text.split()
+            if len(parts) == 1:
+                await max_send(user_id, f"Начало расчётного месяца: {get_setting('stats_month_start', '1')}-е число. "
+                                        "Сменить (владелец): «месяц 5».")
+                return {"ok": True}
+            if get_role(user_id) == "superadmin" and parts[1].isdigit() and 1 <= int(parts[1]) <= 28:
+                set_setting("stats_month_start", parts[1])
+                await max_send(user_id, f"✅ Расчётный месяц начинается {parts[1]}-го числа.")
+            else:
+                await max_send(user_id, "Не изменено: нужна роль владельца и число 1–28.")
             return {"ok": True}
         if is_admin and text and mode != "user":
             if await admin_command(user_id, text):
