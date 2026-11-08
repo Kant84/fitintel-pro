@@ -17,8 +17,8 @@ import urllib.request
 import urllib.error
 import base64
 
-SKUD_USER = "itc"
-SKUD_PASS = "***REMOVED***"
+SKUD_USER = os.environ.get("ITC_BASIC_USER", "itc")
+SKUD_PASS = os.environ.get("ITC_BASIC_PASSWORD", "itc")
 
 
 def check_access(base_url: str, device_id: str, card: str, direction: str = "entry", timeout: int = 10):
