@@ -52,6 +52,8 @@ CAT = {
     "data-routines": "Данные: импорт и перенос",
 }
 SKIP = {"00-index.md", "KB_SCREENSHOT_LINKS.md", "ERRORS_AND_MAP_ADDENDUM.md"}
+JUNK_TITLES = {"Тестовая отправка (подвкладка «Тест»)", "Открыть чат и ответить клиенту", "Через «Помощь → Чат с клиентами (MAX)»"}
+
 ART_RE = re.compile(r"^## (.+)$", re.M)
 KW_RE  = re.compile(r"^(?:Ключевые слова|Вариации запроса):\s*(.+)$", re.M)
 META_RE  = re.compile(r"^Категория:\s*.+$\n?", re.M)
@@ -78,6 +80,9 @@ ALIAS = {
     "skud-01": "rfid-01",
     "sett-01": "set-01",
     "rbac-01": "users-01",
+    "install-01-setup": "install-03-wizard-address",
+    "install-03-setup-server": "install-03-wizard-address",
+    "install-04-setup-license": "install-04-wizard-license",
 }
 
 def extract_shots(text):
@@ -114,7 +119,7 @@ def parse_file(path):
             ans = ans[a.end():]
         ans = re.split(r"\*\*Если не помогло", ans)[0]
         ans, shots = extract_shots(ans)
-        if ans:
+        if ans and title.strip() not in JUNK_TITLES:
             arts.append((title, keywords, ans, cat, shots, rel))
     return arts
 
