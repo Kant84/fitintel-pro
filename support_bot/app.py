@@ -1,4 +1,4 @@
-"""FitIntel Support Bot — v22: слияние ветвей (панель v6 + культурный формат/IDF v17).
+"""FitIntel Support Bot — v23: слияние ветвей (панель v6 + культурный формат/IDF v17).
 
 База: версия с админ-панелью (panel:*, shift_marks, групповой чат, кнопки Ответить/Закрыть,
 «Мои обращения», авто-продление подписки). Из v10–v17 перенесено: обращение по имени MAX,
@@ -165,27 +165,6 @@ async def _renew_loop():
     while True:
         await asyncio.sleep(RENEW_EVERY)
         await renew_subscription()
-KB_REIMPORT_EVERY = float(os.environ.get("KB_REIMPORT_HOURS", "6")) * 3600
-
-async def run_kb_import() -> int:
-    # Переимпорт docs/kb -> kb_articles (идемпотентно); возвращает число статей
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "python", "kb_import.py", os.environ.get("KB_SOURCE_DIR", "/kb_source"),
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
-        await proc.communicate()
-        with conn() as cn, cn.cursor() as cur:
-            cur.execute("SELECT count(*) FROM kb_articles")
-            return cur.fetchone()[0]
-    except Exception:
-        log.exception("kb import failed")
-        return -1
-
-async def _kb_loop():
-    while True:
-        await asyncio.sleep(KB_REIMPORT_EVERY)
-        n = await run_kb_import()
-        log.info("scheduled kb reimport: %s articles", n)
 
 # ---------- роли: переключатель Пользователь ПО / Админ поддержки ----------
 MODES = {"auto", "user", "admin"}
@@ -803,9 +782,6 @@ async def close_ticket_by_token(tok: str, by_admin: str) -> str:
 async def admin_command(admin_id: str, text: str) -> bool:
     t = text.strip()
     low = t.lower()
-    if low in {'переимпорт', 'reimport', 'обнови базу'}:        n = await run_kb_import()
-        await max_send(admin_id, f'База знаний обновлена: {n} статей' if n >= 0 else 'Ошибка импорта — смотрите логи')
-        return True
     mc = CLOSE_RE.match(low)
     if mc:
         res = await close_ticket_by_token(mc.group(1), admin_id)
@@ -1036,7 +1012,6 @@ app = FastAPI(title="FitIntel Support Bot")
 async def _startup():
     init_schema()
     asyncio.create_task(_renew_loop())
-    asyncio.create_task(_kb_loop())
 
 @app.get("/health")
 def health():
@@ -1044,16 +1019,6 @@ def health():
         cur.execute("SELECT count(*) FROM kb_articles")
         n = cur.fetchone()[0]
     return {"status": "ok", "kb_articles": n}
-@app.get("/metrics")
-def metrics():
-    with conn() as cn, cn.cursor() as cur:
-        cur.execute("SELECT count(*) FROM kb_articles")
-        kb = cur.fetchone()[0]
-        cur.execute("SELECT count(*) FROM tickets WHERE status IN ('new','in_progress','waiting')")
-        open_t = cur.fetchone()[0]
-        cur.execute("SELECT count(*) FROM incidents")
-        inc = cur.fetchone()[0]
-    return {"kb_articles": kb, "tickets_open": open_t, "incidents": inc}
 
 def extract_payload(data: dict, msg: dict, body: dict) -> str:
     text = (body.get("text") or msg.get("text") or "").strip()
@@ -1233,10 +1198,18 @@ async def webhook(req: Request, x_max_bot_api_secret: str = Header(default="")):
             await max_send(user_id, mode_help(mode), attachments=mode_keyboard(mode))
             return {"ok": True}
         if is_admin and text and mode != "user":
-            if await admin_command(user_id, text):
+            low_t = text.strip().lower()
+            if (low_t in LIST_CMD or low_t in STAT_CMD or low_t in GAP_CMD
+                    or low_t == "панель" or low_t in {"месяц"} or CLOSE_RE.match(low_t)
+                    or ADMIN_REPLY_RE.match(text)):
+                await max_send(user_id, f"{greet(user_id)}{NL}Это админ-команда — она работает в групповом чате "
+                                        "поддержки (там же панель с кнопками). Здесь клиентский режим: задавайте "
+                                        "вопросы по работе ПО.", attachments=client_keyboard())
                 return {"ok": True}
             if mode == "admin":
-                await max_send(user_id, "Режим 🛠 АДМИНА: ответ в обращение — #ТОКЕН текст; «обращения» — список; «режим» — переключатель роли.")
+                await max_send(user_id, f"{greet(user_id)}{NL}Режим 🛠 АДМИНА доступен в групповом чате поддержки. "
+                                        "Здесь клиентский режим: задавайте вопросы по работе ПО.",
+                               attachments=client_keyboard())
                 return {"ok": True}
         await user_message(user_id, text, payload, is_admin, sname)
     except Exception:
