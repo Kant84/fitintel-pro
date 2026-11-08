@@ -96,8 +96,9 @@ def has_domain(text: str) -> bool:
     return any(w in t for w in DOMAIN)
 
 def normalize(q: str) -> str:
-    q = re.sub(r"[^\w\s-]", " ", q.lower(), flags=re.UNICODE).replace("-", " ")
-    return " ".join(w for w in q.split() if w not in STOP and len(w) >= 3)
+    q = re.sub(r"[^\w\s-]", " ", q.lower(), flags=re.UNICODE)
+    return " ".join(q.split())
+
 
 def to_tsquery(q: str) -> str:
     toks = set(q.split())
@@ -671,46 +672,27 @@ def kb_search(query: str):
     q = normalize(query)
     if not q:
         return None
-    tsq = to_tsquery(q)
-    qt = set(q.split())
     with conn() as cn, cn.cursor() as cur:
-        cur.execute("SELECT count(*) FROM kb_articles")
-        N = max(cur.fetchone()[0], 1)
-        idf = {}
-        for t in qt:
-            cur.execute(f"SELECT count(*) FROM kb_articles WHERE {TSV} @@ to_tsquery('russian', %s)", (t,))
-            df = max(cur.fetchone()[0], 1)
-            idf[t] = min(math.log(N / df + 1.0), 4.5)
-        cur.execute(
-            f"SELECT question, answer, screenshots, keywords, "
-            f"ts_rank({TSV}, to_tsquery('russian', %s), 1) AS rank "
-            f"FROM kb_articles WHERE {TSV} @@ to_tsquery('russian', %s) "
-            "ORDER BY rank DESC LIMIT 8", (tsq, tsq))
-        rows = cur.fetchall()
-        if rows:
-            scored = []
-            for question, answer, shots, kws, rank in rows:
-                tw = set(normalize(question).split())
-                kw = set(normalize(kws or "").split())
-                composite = (W_RANK * float(rank)
-                             + W_TITLE * _tok_hits(qt, tw, idf)
-                             + W_KEYWORDS * _tok_hits(qt, kw, idf))
-                scored.append((composite, question, answer, shots, float(rank)))
-            scored.sort(key=lambda r: r[0], reverse=True)
-            top = scored[0]
-            log.info("kb rank: winner=%.4f(fts %.4f) idf=%s", top[0], top[4],
-                     {t: round(v, 2) for t, v in sorted(idf.items(), key=lambda x: -x[1])})
-            if top[4] >= KB_MIN_RANK:
-                return top[1], top[2], top[3], top[0]
         cur.execute(
             "SELECT question, answer, screenshots, "
-            "word_similarity(question || ' ' || coalesce(keywords,''), %s) AS sim "
-            "FROM kb_articles WHERE question || ' ' || coalesce(keywords,'') %% %s "
-            "ORDER BY sim DESC LIMIT 1", (query, query))
+            "ts_rank(to_tsvector('russian', question), plainto_tsquery('russian', %s)) * 2.0 + "
+            "ts_rank(to_tsvector('russian', coalesce(keywords,'')), plainto_tsquery('russian', %s)) * 1.5 "
+            "FROM kb_articles "
+            "WHERE to_tsvector('russian', question || ' ' || coalesce(keywords,'')) @@ plainto_tsquery('russian', %s) "
+            "ORDER BY 4 DESC LIMIT 1", (q, q, q))
         row = cur.fetchone()
-        if row and float(row[3]) >= SIM_MIN:
+        if row and float(row[3]) >= 0.01:
+            return row[0], row[1], row[2], float(row[3])
+        cur.execute(
+            "SELECT question, answer, screenshots, "
+            "GREATEST(similarity(question, %s), similarity(coalesce(keywords,''), %s)) "
+            "FROM kb_articles WHERE question %% %s OR coalesce(keywords,'') %% %s ORDER BY 4 DESC LIMIT 1",
+            (query, query, query, query))
+        row = cur.fetchone()
+        if row and float(row[3]) >= 0.15:
             return row[0], row[1], row[2], float(row[3])
     return None
+
 
 # ---------- «культурный» компоновщик ответов ----------
 def compose_answer(user_id: str, question: str, ans: str) -> str:
