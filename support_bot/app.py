@@ -81,15 +81,13 @@ DOMAIN = {"клиент","абонемент","платёж","платеж","о�
 
 def has_domain(text: str) -> bool:
     t = text.lower()
+    if any(f in t for f in FRUSTRATED):
+        return True
+    try:
+        t = normalize(text).lower()
+    except Exception:
+        pass
     return any(w in t for w in DOMAIN)
-
-def normalize(q: str) -> str:
-    q = re.sub(r"[^\w\s-]", " ", q.lower(), flags=re.UNICODE)
-    q = " ".join(q.split())
-    for _b, _g in {"турнет": "турникет", "абонемант": "абонемент", "сдлать": "сделать",
-                   "неработает": "не работает", "абонемен": "абонемент"}.items():
-        q = re.sub(r"\b" + _b + r"\b", _g, q)
-    return q
 
 
 def to_tsquery(q: str) -> str:
@@ -666,7 +664,10 @@ def kb_search(query: str):
         return None
     with conn() as cn, cn.cursor() as cur:
         cur.execute(
-            "SELECT question, answer, screenshots, s FROM ("
+            "SELECT question, answer, screenshots, s + ("
+            " SELECT count(*) FROM unnest(string_to_array(lower(%(q)s),' ')) w"
+            " WHERE char_length(w) >= 4 AND (question ilike '%'||w||'%' OR coalesce(keywords,'') ilike '%'||w||'%')"
+            ") * 0.05 AS total FROM ("
             " SELECT question, answer, screenshots,"
             "  (ts_rank(to_tsvector('russian', question), plainto_tsquery('russian', %(q)s)) * 2.0"
             "  + ts_rank(to_tsvector('russian', coalesce(keywords,'')), plainto_tsquery('russian', %(q)s)) * 1.5) * 10 AS s"
@@ -685,7 +686,7 @@ def kb_search(query: str):
             " WHERE EXISTS (SELECT 1 FROM unnest(string_to_array(lower(%(q)s),' ')) w"
             "               WHERE char_length(w) >= 4 AND (word_similarity(question, w) >= 0.25"
             "                    OR word_similarity(coalesce(keywords,''), w) >= 0.25))"
-            ") t ORDER BY s DESC LIMIT 1",
+            ") t ORDER BY total DESC LIMIT 1",
             {"q": q, "raw": query})
         row = cur.fetchone()
         if row and float(row[3]) >= 0.10:
