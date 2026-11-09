@@ -575,3 +575,31 @@ class ClientsTab(QWidget):
         self.table.setRowCount(1)
         self.table.setItem(0, 0, QTableWidgetItem(f"Ошибка загрузки: {msg}"))
 
+
+
+# === Серверный поиск клиентов (в базе 20k+, без q — только первые 100) ===
+try:
+    _ct_orig_apply = ClientsTab._apply_filters
+    _ct_orig_loaded = ClientsTab._on_loaded
+    def _ct_apply(self):
+        t = self.edit_filter.text().strip()
+        if len(t) >= 2:
+            if getattr(self, "_full_data", None) is None:
+                self._full_data = self._all_data
+            try:
+                self._all_data = self.api.search_clients(t, limit=200)
+            except Exception as _e:
+                print("clients search:", _e)
+        else:
+            if getattr(self, "_full_data", None) is not None:
+                self._all_data = self._full_data
+                self._full_data = None
+        return _ct_orig_apply(self)
+    def _ct_loaded(self, clients, subs, users):
+        self._full_data = None
+        return _ct_orig_loaded(self, clients, subs, users)
+    ClientsTab._apply_filters = _ct_apply
+    ClientsTab._on_loaded = _ct_loaded
+    print("clients server search OK")
+except Exception as _e:
+    print("clients server search FAIL:", _e)
