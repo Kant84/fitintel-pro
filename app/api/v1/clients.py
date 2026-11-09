@@ -61,7 +61,7 @@ def list_clients(
     offset: int = Query(default=0, ge=0),
 
     # лимит элементов
-    limit: int = Query(default=100, ge=1, le=200),
+    limit: int = Query(default=100, ge=1, le=50000),  # окно Клиенты грузит всех
 
     # поисковая строка: ФИО / телефон / email
     q: Optional[str] = Query(default=None),

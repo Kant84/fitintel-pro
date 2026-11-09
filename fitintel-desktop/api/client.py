@@ -105,8 +105,10 @@ class ApiClient:
         return resp.json()
 
     # --- Clients ---
-    def get_clients(self) -> List[Dict[str, Any]]:
-        resp = self.session.get(self._url("/clients/"))
+    def get_clients(self, limit=50000) -> List[Dict[str, Any]]:
+        """Полный список клиентов (все, без пагинации — окно грузит сразу)."""
+        resp = self.session.get(self._url("/clients/"),
+                                params={"limit": limit}, timeout=120)
         _check(resp)
         return self._as_list(resp.json())
 
