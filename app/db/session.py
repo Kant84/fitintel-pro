@@ -37,6 +37,9 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()  # не отдавать пулу соединение с aborted-транзакцией
+        raise
     finally:
         db.close()
 
