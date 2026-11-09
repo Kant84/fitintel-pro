@@ -467,13 +467,33 @@ class PaymentsTab(QWidget):
                 direction=direction, category=category)
         self._run(_job, lambda _r: (self._show("Платёж проведён."), self.load_payments()))
 
+    def _act(self, job, okmsg):
+        """Действие над платежом: при ЛЮБОМ исходе перечитываем список и смену —
+        сервер мог успешно завершить операцию, даже если ответ не дошёл."""
+        def _done(_r):
+            self._show(okmsg)
+            self.load_payments()
+            self._shift_status()
+        def _fail(e):
+            self.load_payments()
+            self._shift_status()
+            self._show("%s Список обновлён — проверьте статус платежа." % _err_text(e), ok=False)
+        w = Worker(job, self)
+        w.done.connect(_done)
+        w.fail.connect(_fail)
+        self._workers.append(w)
+        w.finished.connect(lambda: self._workers.remove(w) if w in self._workers else None)
+        w.start()
+
     def complete_payment(self):
         pid = self._selected_pid()
         if pid is None:
             return
-        self._run(lambda: self.api.complete_payment(pid),
-                  lambda _r: (self._show("Платёж подтверждён, чек пробит."),
-                              self.load_payments(), self._shift_status()))
+        def _job():
+            r = self.api.session.post(self.api._url("/payments/%s/complete" % pid), timeout=60)
+            r.raise_for_status()
+            return r.json()
+        self._act(_job, "Платёж подтверждён, чек пробит.")
 
     def refund_payment(self):
         pid = self._selected_pid()
@@ -490,9 +510,7 @@ class PaymentsTab(QWidget):
             self._show("Причина возврата обязательна.", ok=False)
             return
         amount = (v.get("amount") or "").strip() or None
-        self._run(lambda: self.api.refund_payment(pid, reason, amount),
-                  lambda _r: (self._show("Возврат оформлен."),
-                              self.load_payments(), self._shift_status()))
+        self._act(lambda: self.api.refund_payment(pid, reason, amount), "Возврат оформлен.")
 
     def cancel_payment(self):
         pid = self._selected_pid()
@@ -504,9 +522,8 @@ class PaymentsTab(QWidget):
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
-        self._run(lambda: self.api.refund_payment(pid, "Отмена платежа"),
-                  lambda _r: (self._show("Платёж отменён (возврат полной суммы)."),
-                              self.load_payments(), self._shift_status()))
+        self._act(lambda: self.api.refund_payment(pid, "Отмена платежа"),
+                  "Платёж отменён (возврат полной суммы).")
 
     def export_csv(self):
         path, _f = QFileDialog.getSaveFileName(self, "Экспорт платежей",
