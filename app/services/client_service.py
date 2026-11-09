@@ -223,9 +223,13 @@ class ClientService:
         }
         clients = [client for client in clients if str(client.id) not in hidden_ids]
 
-        # пишем audit о чтении списка
-        self.audit.log(
-            action="crm.client.list",
+        # фикс N+1: audit.log коммитит -> SQLAlchemy expire-ит все объекты ->
+        # доступ к атрибутам каждого клиента = отдельный SELECT (9.6s на 5000).
+        _prev_expire = self.db.expire_on_commit
+        self.db.expire_on_commit = False
+        try:
+            self.audit.log(
+                action="crm.client.list",
             status="success",
             actor_user_id=actor_user_id,
             entity_type="client",
@@ -235,7 +239,9 @@ class ClientService:
                 "limit": limit,
                 "count": len(clients),
             },
-        )
+            )
+        finally:
+            self.db.expire_on_commit = _prev_expire
 
         # возвращаем список
         return clients
