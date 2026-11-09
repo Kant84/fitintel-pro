@@ -70,7 +70,7 @@ class ClientNotifyService:
                 if r and r[0]:
                     info[key] = str(r[0])
             except Exception:
-                self.db.rollback()
+                pass  # нет таблицы привязки - не трогаем транзакцию вызывающего
         if not info["max_user"]:
             try:
                 r = self.db.execute(text("SELECT user_id FROM clients WHERE id::text=:i"),
@@ -78,7 +78,7 @@ class ClientNotifyService:
                 if r and r[0]:
                     info["max_user"] = str(r[0])
             except Exception:
-                self.db.rollback()
+                pass  # нет таблицы привязки - не трогаем транзакцию вызывающего
         return info
 
     def send(self, client_id: str, event: str, message: str) -> dict:

@@ -443,8 +443,15 @@ class ReceiptService:
         )
 
     def auto_send_for_payment(self, payment_id: str) -> bool:
-        """Чек (создать, если нет) и отправить клиенту на email."""
+        """Чек (создать, если нет) и отправить клиенту на email.
+
+        Работает на ОТДЕЛЬНОЙ сессии: при любой ошибке (DDL/INSERT/чужие
+        rollback'и) основная транзакция запроса не пострадает."""
+        from app.db.session import SessionLocal as _SL
+        _side = _SL()
         try:
+            _saved_db = self.db
+            self.db = _side
             payment = self._get_payment(payment_id)
             client = self._get_client(payment.client_id)
             email = client.email or None
@@ -462,8 +469,18 @@ class ReceiptService:
             self.receipt_repo.save(receipt)
             return True
         except Exception as e:
+            try:
+                _side.rollback()
+            except Exception:
+                pass
             print(f"[auto receipt email] {payment_id}: {e}")
             return False
+        finally:
+            self.db = _saved_db
+            try:
+                _side.close()
+            except Exception:
+                pass
 
     def _send_sms_receipt(self, phone: str, receipt_data: dict) -> None:
         """
