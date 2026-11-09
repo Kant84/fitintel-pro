@@ -631,3 +631,42 @@ try:
     print("PDF cleanup OK: payments_tab")
 except Exception as _e:
     print("PDF cleanup FAIL:", _e)
+# === Серверный поиск клиента в «Платежи» (в базе 20k+, без q — только первые 100) ===
+try:
+    from PyQt6.QtCore import QTimer as _QT
+    _ps_init = PaymentsTab.__init__
+    def _ps_wrapped(self, *a, **kw):
+        _ps_init(self, *a, **kw)
+        try:
+            self._ps_guard = False
+            le = self.cmb_client.lineEdit()
+            t = _QT(self)
+            t.setSingleShot(True)
+            t.setInterval(300)
+            def _go():
+                if getattr(self, "_ps_guard", False):
+                    return
+                q = le.text().strip()
+                if len(q) < 2:
+                    return
+                try:
+                    items = self.api.search_clients(q)
+                except Exception as _e:
+                    print("pays search:", _e)
+                    return
+                cur = le.text()
+                self._ps_guard = True
+                self.cmb_client.clear()
+                for c in items:
+                    fio = _fio(c)
+                    self.cmb_client.addItem("%s — %s" % (fio, c.get("phone") or c.get("id")), c.get("id"))
+                le.setText(cur)
+                self._ps_guard = False
+            t.timeout.connect(_go)
+            le.textChanged.connect(lambda _s: t.start())
+        except Exception as _e:
+            print("pays client search FAIL:", _e)
+    PaymentsTab.__init__ = _ps_wrapped
+    print("pays client search OK")
+except Exception as _e:
+    print("pays client search FAIL:", _e)

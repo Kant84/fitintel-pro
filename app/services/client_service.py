@@ -193,12 +193,25 @@ class ClientService:
         offset: int = 0,
         limit: int = 100,
         actor_user_id=None,
+        q: str | None = None,
     ) -> list[Client]:
-        # получаем список клиентов
-        clients = self.client_repository.list_clients(
-            offset=offset,
-            limit=limit,
-        )
+        q_clean = (q or "").strip()
+        if q_clean:
+            # серверный поиск: ФИО/телефон/email, без удалённых
+            like = "%%%s%%" % q_clean.replace("%", "").replace("_", "")
+            rows = self.db.execute(
+                text("SELECT id FROM clients WHERE deleted_at IS NULL AND ("
+                     "last_name ILIKE :l OR first_name ILIKE :l OR "
+                     "middle_name ILIKE :l OR phone ILIKE :l OR email ILIKE :l"
+                     ") ORDER BY last_name, first_name LIMIT :lim OFFSET :off"),
+                {"l": like, "lim": int(limit), "off": int(offset)}).fetchall()
+            clients = [c for c in (self.db.get(Client, r[0]) for r in rows) if c is not None]
+        else:
+            # получаем список клиентов
+            clients = self.client_repository.list_clients(
+                offset=offset,
+                limit=limit,
+            )
 
         # Deleted clients stay in the database only for restorable history.
         # Ordinary inactive clients have deleted_at=NULL and remain visible.

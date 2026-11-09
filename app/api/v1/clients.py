@@ -63,6 +63,9 @@ def list_clients(
     # лимит элементов
     limit: int = Query(default=100, ge=1, le=200),
 
+    # поисковая строка: ФИО / телефон / email
+    q: Optional[str] = Query(default=None),
+
     # проверяем право чтения клиентов
     current_user=Depends(require_permission("clients.read")),
 
@@ -77,6 +80,7 @@ def list_clients(
         offset=offset,
         limit=limit,
         actor_user_id=current_user.id,
+        q=q,
     )
 
     # возвращаем готовый ответ
